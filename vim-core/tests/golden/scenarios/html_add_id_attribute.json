@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "<section class=\"hero\">\n  <h1>Welcome</h1>\n</section>",
+    "cursor": [
+      0,
+      8
+    ],
+    "mode": "Normal",
+    "keys": "hi id=\"main-hero\"<Esc>"
+  },
+  "expected": {
+    "text": "<sectio id=\"main-hero\"n class=\"hero\">\n  <h1>Welcome</h1>\n</section>",
+    "cursor_offset": 21,
+    "cursor_line": 0,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 22,
+      "]": 22,
+      "[": 7,
+      ".": 7
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21,
+    "changelist": [
+      7
+    ],
+    "changelist_idx": 1
+  }
+}

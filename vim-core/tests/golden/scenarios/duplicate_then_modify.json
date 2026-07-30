@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "fn process(x: i32) {}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yyp0ciwvalidate<Esc>"
+  },
+  "expected": {
+    "text": "fn process(x: i32) {}\nvalidate process(x: i32) {}",
+    "cursor_offset": 29,
+    "cursor_line": 1,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "fn",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "fn",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "fn process(x: i32) {}\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 22,
+      ".": 22,
+      "^": 30,
+      "]": 30
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7
+  }
+}

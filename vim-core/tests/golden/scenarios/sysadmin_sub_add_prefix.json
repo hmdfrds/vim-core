@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "server1\nserver2\nserver3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":%s/^/host: /g<CR>"
+  },
+  "expected": {
+    "text": "host: server1\nhost: server2\nhost: server3",
+    "cursor_offset": 28,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "%s/^/host: /g",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "^",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 28,
+      "[": 0,
+      ".": 0
+    },
+    "search_pattern": "^",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

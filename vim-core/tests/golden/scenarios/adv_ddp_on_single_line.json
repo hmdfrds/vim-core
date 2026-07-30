@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103514",
+  "input": {
+    "text": "only",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ddp"
+  },
+  "expected": {
+    "text": "\nonly",
+    "cursor_offset": 1,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "only\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "only\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 4,
+      "[": 1,
+      ".": 1
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      1
+    ],
+    "changelist_idx": 2
+  }
+}

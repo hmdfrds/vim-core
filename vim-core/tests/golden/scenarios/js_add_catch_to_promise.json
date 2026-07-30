@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "fetch('/api')\n  .then(res => res.json())",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o  .catch(err => console.error(err))<Esc>"
+  },
+  "expected": {
+    "text": "fetch('/api')\n  .then(res => res.json())\n    .catch(err => console.error(err))",
+    "cursor_offset": 77,
+    "cursor_line": 2,
+    "cursor_col": 36,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 41,
+      "^": 78,
+      ".": 43,
+      "]": 78
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 36,
+    "changelist": [
+      0,
+      43
+    ],
+    "changelist_idx": 2
+  }
+}

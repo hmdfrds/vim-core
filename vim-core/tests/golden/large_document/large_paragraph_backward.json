@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1776474014",
+  "input": {
+    "text": "fn function_0() {\n    let x_1 = 42;\n    let y_2 = 34;\n    let z_3 = 21;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_10() {\n    let x_11 = 462;\n    let y_12 = 204;\n    let z_13 = 91;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_20() {\n    let x_21 = 882;\n    let y_22 = 374;\n    let z_23 = 161;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_30() {\n    let x_31 = 1302;\n    let y_32 = 544;\n    let z_33 = 231;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_40() {\n    let x_41 = 1722;\n    let y_42 = 714;\n    let z_43 = 301;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_50() {\n    let x_51 = 2142;\n    let y_52 = 884;\n    let z_53 = 371;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_60() {\n    let x_61 = 2562;\n    let y_62 = 1054;\n    let z_63 = 441;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_70() {\n    let x_71 = 2982;\n    let y_72 = 1224;\n    let z_73 = 511;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_80() {\n    let x_81 = 3402;\n    let y_82 = 1394;\n    let z_83 = 581;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_90() {\n    let x_91 = 3822;\n    let y_92 = 1564;\n    let z_93 = 651;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}",
+    "cursor": [
+      99,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "5{"
+  },
+  "expected": {
+    "text": "fn function_0() {\n    let x_1 = 42;\n    let y_2 = 34;\n    let z_3 = 21;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_10() {\n    let x_11 = 462;\n    let y_12 = 204;\n    let z_13 = 91;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_20() {\n    let x_21 = 882;\n    let y_22 = 374;\n    let z_23 = 161;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_30() {\n    let x_31 = 1302;\n    let y_32 = 544;\n    let z_33 = 231;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_40() {\n    let x_41 = 1722;\n    let y_42 = 714;\n    let z_43 = 301;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_50() {\n    let x_51 = 2142;\n    let y_52 = 884;\n    let z_53 = 371;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_60() {\n    let x_61 = 2562;\n    let y_62 = 1054;\n    let z_63 = 441;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_70() {\n    let x_71 = 2982;\n    let y_72 = 1224;\n    let z_73 = 511;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_80() {\n    let x_81 = 3402;\n    let y_82 = 1394;\n    let z_83 = 581;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_90() {\n    let x_91 = 3822;\n    let y_92 = 1564;\n    let z_93 = 651;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}",
+    "cursor_offset": 872,
+    "cursor_line": 57,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 48,
+      "botline": 69,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      1501
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

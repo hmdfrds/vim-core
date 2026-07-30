@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ipub fn validate(input: &str) -> bool {<CR>    if input.is_empty() {<CR>        return flase;<CR>    }<CR>    true<CR>}<Esc>3gg$bbciwfalse<Esc>"
+  },
+  "expected": {
+    "text": "pub fn validate(input: &str) -> bool {\n    if input.is_empty() {\n            false flase;\n                }\n                    true\n                    }",
+    "cursor_offset": 81,
+    "cursor_line": 2,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "return",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "return",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 82,
+      "^": 82,
+      "[": 77,
+      ".": 77
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "jumplist": [
+      153
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      38,
+      153,
+      77
+    ],
+    "changelist_idx": 3
+  }
+}

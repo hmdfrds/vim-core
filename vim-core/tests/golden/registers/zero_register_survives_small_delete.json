@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "one two",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yiwx\"0p"
+  },
+  "expected": {
+    "text": "nonee two",
+    "cursor_offset": 3,
+    "cursor_line": 0,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "o",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "o",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "one",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 1,
+      "[": 1,
+      "]": 3
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

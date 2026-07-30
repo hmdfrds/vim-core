@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "let x = 1;",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yypwciwb<Esc>$ciw2<Esc>"
+  },
+  "expected": {
+    "text": "let x = 1;\nlet b = 12",
+    "cursor_offset": 20,
+    "cursor_line": 1,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": ";",
+        "regtype": "v"
+      },
+      "-": {
+        "text": ";",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "let x = 1;\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "^": 21,
+      "[": 20,
+      ".": 20,
+      "]": 21
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

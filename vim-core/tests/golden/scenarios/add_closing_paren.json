@@ -1,0 +1,34 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "call(arg",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "A)<Esc>"
+  },
+  "expected": {
+    "text": "call(arg)",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 9,
+      "]": 9,
+      ".": 8,
+      "[": 8
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8
+  }
+}

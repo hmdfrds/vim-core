@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "日本語テスト",
+    "cursor": [
+      0,
+      2
+    ],
+    "mode": "Normal",
+    "keys": "Chello<Esc>"
+  },
+  "expected": {
+    "text": "日本hello",
+    "cursor_offset": 10,
+    "cursor_line": 0,
+    "cursor_col": 10,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "語テスト",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "語テスト",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 6,
+      "]": 11,
+      "^": 11,
+      "[": 6
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8,
+    "changelist": [
+      6
+    ],
+    "changelist_idx": 1
+  }
+}

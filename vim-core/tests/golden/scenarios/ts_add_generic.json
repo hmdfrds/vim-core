@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "function identity(arg) {",
+    "cursor": [
+      0,
+      17
+    ],
+    "mode": "Normal",
+    "keys": "i<T><Esc>f)i: T<Esc>"
+  },
+  "expected": {
+    "text": "function identity<T>(arg: T) {",
+    "cursor_offset": 26,
+    "cursor_line": 0,
+    "cursor_col": 26,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 24,
+      "^": 27,
+      "[": 24,
+      "]": 27
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 26,
+    "changelist": [
+      24
+    ],
+    "changelist_idx": 1
+  }
+}

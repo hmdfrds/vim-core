@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "INFO: request started\nDEBUG: parsing headers\nERROR: connection refused\nINFO: retrying",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/ERROR<CR>"
+  },
+  "expected": {
+    "text": "INFO: request started\nDEBUG: parsing headers\nERROR: connection refused\nINFO: retrying",
+    "cursor_offset": 45,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "ERROR",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0
+    },
+    "search_pattern": "ERROR",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

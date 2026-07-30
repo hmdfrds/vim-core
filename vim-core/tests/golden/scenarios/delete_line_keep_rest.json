@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107694",
+  "input": {
+    "text": "keep\ndelete\nkeep",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "dd"
+  },
+  "expected": {
+    "text": "keep\nkeep",
+    "cursor_offset": 5,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "delete\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "delete\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 5,
+      "]": 5,
+      ".": 5
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

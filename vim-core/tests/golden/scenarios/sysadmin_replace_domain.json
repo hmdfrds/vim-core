@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "server_name old.example.com;\nproxy_set_header Host old.example.com;\n# old.example.com",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":%s/old\\.example\\.com/new.example.io/g<CR>"
+  },
+  "expected": {
+    "text": "server_name new.example.io;\nproxy_set_header Host new.example.io;\n# new.example.io",
+    "cursor_offset": 66,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "%s/old\\.example\\.com/new.example.io/g",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "old\\.example\\.com",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 66,
+      "[": 0,
+      ".": 0
+    },
+    "search_pattern": "old\\.example\\.com",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

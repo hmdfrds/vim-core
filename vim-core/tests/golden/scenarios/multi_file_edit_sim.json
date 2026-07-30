@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "import old\n\nold.call()\nold.other()",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwmod<Esc>2jwciw mod<Esc>jwciwmod<Esc>"
+  },
+  "expected": {
+    "text": "mod old\n\nold modcall()\nold.othermod",
+    "cursor_offset": 34,
+    "cursor_line": 3,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "()",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "()",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 32,
+      ".": 32,
+      "^": 35,
+      "]": 35
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11
+  }
+}

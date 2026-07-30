@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "struct Server {\n    host: String,\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "oport: u16,<Esc>"
+  },
+  "expected": {
+    "text": "struct Server {\n    host: String,\n    port: u16,\n}",
+    "cursor_offset": 47,
+    "cursor_line": 2,
+    "cursor_col": 13,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 48,
+      ".": 38,
+      "]": 48,
+      "[": 34
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 13,
+    "changelist": [
+      0,
+      38
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107701",
+  "input": {
+    "text": "aabbb",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/\\vab+<CR>"
+  },
+  "expected": {
+    "text": "aabbb",
+    "cursor_offset": 1,
+    "cursor_line": 0,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "\\vab+",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0
+    },
+    "search_pattern": "\\vab+",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1
+  }
+}

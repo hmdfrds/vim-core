@@ -1,0 +1,69 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "# max connections\nmax_conn = 100\n# timeout\ntimeout = 30\n# retry\nretry = 3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":g/^#/d<CR>"
+  },
+  "expected": {
+    "text": "max_conn = 100\ntimeout = 30\nretry = 3",
+    "cursor_offset": 28,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "# retry\n",
+        "regtype": "V"
+      },
+      "3": {
+        "text": "# max connections\n",
+        "regtype": "V"
+      },
+      "/": {
+        "text": "^#",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "# retry\n",
+        "regtype": "V"
+      },
+      "2": {
+        "text": "# timeout\n",
+        "regtype": "V"
+      },
+      ":": {
+        "text": "g/^#/d",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 28,
+      "]": 28,
+      ".": 28
+    },
+    "search_pattern": "^#",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      28
+    ],
+    "changelist_idx": 2
+  }
+}

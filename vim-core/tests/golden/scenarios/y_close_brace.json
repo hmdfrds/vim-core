@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "para1\n\npara2",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "y}Gp"
+  },
+  "expected": {
+    "text": "para1\n\npara2\npara1",
+    "cursor_offset": 13,
+    "cursor_line": 3,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "para1\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "para1\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 17,
+      ".": 13,
+      "[": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

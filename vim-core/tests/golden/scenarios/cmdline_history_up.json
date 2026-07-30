@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "hello\nhello",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":s/hello/world<CR>j:<Up><CR>"
+  },
+  "expected": {
+    "text": "world\nworld",
+    "cursor_offset": 6,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "s/hello/world",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "hello",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 6,
+      ".": 6,
+      "[": 6
+    },
+    "search_pattern": "hello",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

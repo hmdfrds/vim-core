@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "istruct Config {<CR>    nme: String,<CR>    port: u16,<CR>}<Esc>2ggwciwname<Esc>"
+  },
+  "expected": {
+    "text": "struct Config {\n    nme: name,\n        port: u16,\n        }",
+    "cursor_offset": 28,
+    "cursor_line": 1,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "String",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "String",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 25,
+      "]": 29,
+      "^": 29,
+      "[": 25
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12,
+    "jumplist": [
+      58
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      15,
+      58,
+      25
+    ],
+    "changelist_idx": 3
+  }
+}

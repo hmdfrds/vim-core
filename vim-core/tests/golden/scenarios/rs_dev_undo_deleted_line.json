@@ -1,0 +1,51 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    let x = 1;\n    let y = 2;",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ddu"
+  },
+  "expected": {
+    "text": "    let x = 1;\n    let y = 2;",
+    "cursor_offset": 15,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    let y = 2;\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "    let y = 2;\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 15,
+      "[": 0,
+      ".": 15
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      15
+    ],
+    "changelist_idx": 2
+  }
+}

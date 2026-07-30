@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "foo.bar baz.qux",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yW$p"
+  },
+  "expected": {
+    "text": "foo.bar baz.quxfoo.bar ",
+    "cursor_offset": 22,
+    "cursor_line": 0,
+    "cursor_col": 22,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "foo.bar ",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "foo.bar ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 15,
+      "[": 15,
+      "]": 22
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 22
+  }
+}

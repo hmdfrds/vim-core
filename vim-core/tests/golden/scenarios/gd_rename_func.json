@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "func _process(delta):",
+    "cursor": [
+      0,
+      5
+    ],
+    "mode": "Normal",
+    "keys": "ciw_physics_process<Esc>"
+  },
+  "expected": {
+    "text": "func _physics_process(delta):",
+    "cursor_offset": 20,
+    "cursor_line": 0,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "_process",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "_process",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 5,
+      "]": 21,
+      "^": 21,
+      "[": 5
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20
+  }
+}

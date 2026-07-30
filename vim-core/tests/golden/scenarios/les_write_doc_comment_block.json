@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "i/// Processes the input buffer and returns parsed tokens.<CR>/// <CR>/// # Arguments<CR>/// <CR>/// * `input` - A byte slice containing raw data.<Esc>"
+  },
+  "expected": {
+    "text": "/// Processes the input buffer and returns parsed tokens.\n/// \n/// # Arguments\n/// \n/// * `input` - A byte slice containing raw data.",
+    "cursor_offset": 132,
+    "cursor_line": 4,
+    "cursor_col": 48,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 0,
+      "]": 133,
+      ".": 84,
+      "^": 133
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 48,
+    "changelist": [
+      57,
+      84
+    ],
+    "changelist_idx": 2
+  }
+}

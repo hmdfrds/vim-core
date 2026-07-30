@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.1",
+  "generated_at": "1778417320",
+  "input": {
+    "text": "alpha\nbeta\ngamma\n",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "jjmagg y'a Gp"
+  },
+  "expected": {
+    "text": "alpha\nbeta\ngamma\n\nalpha\nbeta\ngamma",
+    "cursor_offset": 18,
+    "cursor_line": 4,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "alpha\nbeta\ngamma\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "alpha\nbeta\ngamma\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 18,
+      "a": 11,
+      ".": 18,
+      "]": 33
+    },
+    "window": {
+      "topline": 1,
+      "botline": 7,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      11,
+      2
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      0,
+      18
+    ],
+    "changelist_idx": 2
+  }
+}

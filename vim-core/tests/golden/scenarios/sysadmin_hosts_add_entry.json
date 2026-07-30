@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "127.0.0.1   localhost\n::1         localhost\n192.168.1.1 gateway",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Go10.0.0.50    db-primary.internal<Esc>"
+  },
+  "expected": {
+    "text": "127.0.0.1   localhost\n::1         localhost\n192.168.1.1 gateway\n10.0.0.50    db-primary.internal",
+    "cursor_offset": 95,
+    "cursor_line": 3,
+    "cursor_col": 31,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 96,
+      "^": 96,
+      "[": 64,
+      ".": 73
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 31,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      73
+    ],
+    "changelist_idx": 2
+  }
+}

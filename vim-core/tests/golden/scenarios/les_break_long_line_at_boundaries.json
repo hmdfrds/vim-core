@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "This is a very long line that should be broken into multiple shorter lines for readability.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f,la<CR><Esc>jf f a<CR><Esc>"
+  },
+  "expected": {
+    "text": "Th\nis is \na very long line that should be broken into multiple shorter lines for readability.",
+    "cursor_offset": 10,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 9,
+      "]": 10,
+      "^": 10,
+      ".": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      2,
+      9
+    ],
+    "changelist_idx": 2
+  }
+}

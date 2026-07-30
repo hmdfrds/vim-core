@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "LANG='en_US.UTF-8'",
+    "cursor": [
+      0,
+      8
+    ],
+    "mode": "Normal",
+    "keys": "ci'C.UTF-8<Esc>"
+  },
+  "expected": {
+    "text": "LANG='C.UTF-8'",
+    "cursor_offset": 12,
+    "cursor_line": 0,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "en_US.UTF-8",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "en_US.UTF-8",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 6,
+      "[": 6,
+      "^": 13,
+      "]": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12,
+    "changelist": [
+      6
+    ],
+    "changelist_idx": 1
+  }
+}

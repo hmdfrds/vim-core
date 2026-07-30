@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "    env:\n    - name: DB_HOST\n      value: postgres",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o    - name: DB_PORT\n      value: \"5432\"<Esc>"
+  },
+  "expected": {
+    "text": "    env:\n    - name: DB_HOST\n      value: postgres\n          - name: DB_PORT\n                value: \"5432\"",
+    "cursor_offset": 105,
+    "cursor_line": 4,
+    "cursor_col": 28,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 87,
+      "]": 106,
+      "^": 106,
+      "[": 51
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 28,
+    "changelist": [
+      0,
+      87
+    ],
+    "changelist_idx": 2
+  }
+}

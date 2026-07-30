@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    a.unwrap();\n    b.unwrap();\n    c.unwrap();",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":%s/unwrap()/expect(\"failed\")/g<CR>"
+  },
+  "expected": {
+    "text": "    a.expect(\"failed\");\n    b.expect(\"failed\");\n    c.expect(\"failed\");",
+    "cursor_offset": 52,
+    "cursor_line": 2,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "unwrap()",
+        "regtype": "v"
+      },
+      ":": {
+        "text": "%s/unwrap()/expect(\"failed\")/g",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 48,
+      ".": 0,
+      "[": 0
+    },
+    "search_pattern": "unwrap()",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

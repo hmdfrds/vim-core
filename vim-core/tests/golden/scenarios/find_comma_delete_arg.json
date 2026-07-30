@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "fn(a, b, c)",
+    "cursor": [
+      0,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "df,"
+  },
+  "expected": {
+    "text": "fn(a c)",
+    "cursor_offset": 4,
+    "cursor_line": 0,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": ", b,",
+        "regtype": "v"
+      },
+      "-": {
+        "text": ", b,",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 4,
+      ".": 4,
+      "]": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

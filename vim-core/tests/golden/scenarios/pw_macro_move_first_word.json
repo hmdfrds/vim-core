@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "rm_me keep1\nrm_me keep2\nrm_me keep3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qadwA moved<Esc>jq2@a"
+  },
+  "expected": {
+    "text": "keep1 moved\nrm_me keep moved\nrm_me keep moved",
+    "cursor_offset": 44,
+    "cursor_line": 2,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "3",
+        "regtype": "v"
+      },
+      "a": {
+        "text": "dwA moved\u001bj",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "3",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 45,
+      "[": 39,
+      "]": 45,
+      ".": 39
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      5,
+      39
+    ],
+    "changelist_idx": 2
+  }
+}

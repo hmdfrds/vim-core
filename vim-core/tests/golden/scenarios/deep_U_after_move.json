@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.1",
+  "generated_at": "1778654948",
+  "input": {
+    "text": "first\nsecond\nthird",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "jcwSECOND<Esc>U"
+  },
+  "expected": {
+    "text": "first\nsecond\nthird",
+    "cursor_offset": 6,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "second",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "second",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 12,
+      "[": 6,
+      ".": 6,
+      "^": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      6
+    ],
+    "changelist_idx": 1
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "enum Color { Red }",
+    "cursor": [
+      0,
+      16
+    ],
+    "mode": "Normal",
+    "keys": "i, Blue<Esc>"
+  },
+  "expected": {
+    "text": "enum Color { Red, Blue }",
+    "cursor_offset": 21,
+    "cursor_line": 0,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 22,
+      "[": 16,
+      "^": 22,
+      ".": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21
+  }
+}

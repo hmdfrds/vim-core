@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "    Red => \"#FF0000\",",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy2pjwciwGreen<Esc>$bcw\"#00FF00\"<Esc>jwciwBlue<Esc>$bcw\"#0000FF\"<Esc>"
+  },
+  "expected": {
+    "text": "    Red => \"#FF0000\",\n    Red => \"#FF0000\",\n    Red Green \"#FF0000\"#\"#0000FF\"",
+    "cursor_offset": 76,
+    "cursor_line": 2,
+    "cursor_col": 32,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "    Red => \"#FF0000\",\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "00FF00Blue",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "00FF00Blue",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 77,
+      ".": 74,
+      "^": 77,
+      "[": 68
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 32,
+    "changelist": [
+      0,
+      22,
+      74
+    ],
+    "changelist_idx": 3
+  }
+}

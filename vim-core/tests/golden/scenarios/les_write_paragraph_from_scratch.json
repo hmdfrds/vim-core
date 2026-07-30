@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "iThis is the first line of a paragraph.<CR>It continues with a second sentence here.<CR>And the third line wraps it all up.<Esc>"
+  },
+  "expected": {
+    "text": "This is the first line of a paragraph.\nIt continues with a second sentence here.\nAnd the third line wraps it all up.",
+    "cursor_offset": 115,
+    "cursor_line": 2,
+    "cursor_col": 34,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 116,
+      "[": 0,
+      "^": 116,
+      ".": 81
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 34,
+    "changelist": [
+      38,
+      81
+    ],
+    "changelist_idx": 2
+  }
+}

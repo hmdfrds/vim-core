@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "match x {\n    1 => { first(); }\n    _ => { other(); }\n}",
+    "cursor": [
+      1,
+      14
+    ],
+    "mode": "Normal",
+    "keys": "ci{replaced<Esc>"
+  },
+  "expected": {
+    "text": "match x {\n    1 => {replaced}\n    _ => { other(); }\n}",
+    "cursor_offset": 27,
+    "cursor_line": 1,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " first(); ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": " first(); ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 28,
+      "^": 28,
+      "[": 20,
+      ".": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17,
+    "changelist": [
+      0,
+      20
+    ],
+    "changelist_idx": 2
+  }
+}

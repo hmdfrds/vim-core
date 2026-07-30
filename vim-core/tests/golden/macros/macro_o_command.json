@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "hello",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qaoWorld<Esc>q@a"
+  },
+  "expected": {
+    "text": "hello\nWorld\nWorld",
+    "cursor_offset": 16,
+    "cursor_line": 2,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "oWorld\u001b",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 17,
+      "[": 12,
+      ".": 12,
+      "^": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

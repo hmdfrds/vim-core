@@ -1,0 +1,35 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1776474014",
+  "input": {
+    "text": "fn function_0() {\n    let x_1 = 42;\n    let y_2 = 34;\n    let z_3 = 21;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_10() {\n    let x_11 = 462;\n    let y_12 = 204;\n    let z_13 = 91;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_20() {\n    let x_21 = 882;\n    let y_22 = 374;\n    let z_23 = 161;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_30() {\n    let x_31 = 1302;\n    let y_32 = 544;\n    let z_33 = 231;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_40() {\n    let x_41 = 1722;\n    let y_42 = 714;\n    let z_43 = 301;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "20w"
+  },
+  "expected": {
+    "text": "fn function_0() {\n    let x_1 = 42;\n    let y_2 = 34;\n    let z_3 = 21;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_10() {\n    let x_11 = 462;\n    let y_12 = 204;\n    let z_13 = 91;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_20() {\n    let x_21 = 882;\n    let y_22 = 374;\n    let z_23 = 161;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_30() {\n    let x_31 = 1302;\n    let y_32 = 544;\n    let z_33 = 231;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}\nfn function_40() {\n    let x_41 = 1722;\n    let y_42 = 714;\n    let z_43 = 301;\n    if x > 0 {\n        println!(\"hello\");\n    }\n\n    // comment line\n}",
+    "cursor_offset": 79,
+    "cursor_line": 4,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 22,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

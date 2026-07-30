@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "Host prod-web-01\n    HostName 10.0.1.10\n    User deploy\n    Port 22",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy3jpciWprod-web-02<Esc>jf0lciw2.20<Esc>"
+  },
+  "expected": {
+    "text": "Host prod-web-01\n    HostName 10.0.1.10\n    User deploy\n    Port 22\nprod-web-02 prod-web-2.20",
+    "cursor_offset": 92,
+    "cursor_line": 4,
+    "cursor_col": 24,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "01",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "01",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "Host prod-web-01\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 92,
+      "^": 93,
+      "[": 89,
+      "]": 93
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 24,
+    "changelist": [
+      0,
+      92
+    ],
+    "changelist_idx": 2
+  }
+}

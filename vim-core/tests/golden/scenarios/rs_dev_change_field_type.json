@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "struct Packet {\n    data: Vec<u8>,\n}",
+    "cursor": [
+      1,
+      10
+    ],
+    "mode": "Normal",
+    "keys": "ci<String<Esc>"
+  },
+  "expected": {
+    "text": "struct Packet {\n    data: Vec<String>,\n}",
+    "cursor_offset": 35,
+    "cursor_line": 1,
+    "cursor_col": 19,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "u8",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "u8",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 36,
+      "[": 30,
+      ".": 30,
+      "^": 36
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 19,
+    "changelist": [
+      0,
+      30
+    ],
+    "changelist_idx": 2
+  }
+}

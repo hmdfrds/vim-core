@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "match event {\n    Click => handle_click(),\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o_ => {},<Esc>"
+  },
+  "expected": {
+    "text": "match event {\n    Click => handle_click(),\n    _ => {},\n}",
+    "cursor_offset": 54,
+    "cursor_line": 2,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 43,
+      "^": 55,
+      "]": 55,
+      ".": 47
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11,
+    "changelist": [
+      0,
+      47
+    ],
+    "changelist_idx": 2
+  }
+}

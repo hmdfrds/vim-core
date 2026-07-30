@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "{\"old_key\": 42}",
+    "cursor": [
+      0,
+      2
+    ],
+    "mode": "Normal",
+    "keys": "ci\"new_key<Esc>"
+  },
+  "expected": {
+    "text": "{\"new_key\": 42}",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "old_key",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "old_key",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 2,
+      "]": 9,
+      "[": 2,
+      "^": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8
+  }
+}

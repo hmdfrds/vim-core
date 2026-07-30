@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "let x = 42;",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f4ct;99<Esc>"
+  },
+  "expected": {
+    "text": "let x = 99;",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "42",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "42",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 8,
+      "]": 10,
+      "[": 8,
+      "^": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

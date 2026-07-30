@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "hello\nworld",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "\"ayy:put a<CR>"
+  },
+  "expected": {
+    "text": "hello\nhello\nworld",
+    "cursor_offset": 6,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "hello\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "hello\n",
+        "regtype": "V"
+      },
+      ":": {
+        "text": "put a",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 10,
+      "[": 6,
+      ".": 6
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

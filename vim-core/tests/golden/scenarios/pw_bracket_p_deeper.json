@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "    outer\n        if true {\n            body\n        }",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy2j]p"
+  },
+  "expected": {
+    "text": "    outer\n        if true {\n            body\n            outer\n        }",
+    "cursor_offset": 57,
+    "cursor_line": 3,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "    outer\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "    outer\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 45,
+      "]": 61,
+      ".": 45
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12,
+    "changelist": [
+      0,
+      45
+    ],
+    "changelist_idx": 2
+  }
+}

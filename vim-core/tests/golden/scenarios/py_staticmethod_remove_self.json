@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "class Util:\n    def helper(self, data):\n        return data",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "O    @staticmethod<Esc>j/self, <CR>dn"
+  },
+  "expected": {
+    "text": "class Util:\n        @staticmethod\n    def helper(self, data):\n        return data",
+    "cursor_offset": 49,
+    "cursor_line": 2,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "self, ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 16,
+      "^": 33,
+      "]": 33,
+      "[": 12
+    },
+    "search_pattern": "self, ",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      0,
+      16
+    ],
+    "changelist_idx": 2
+  }
+}

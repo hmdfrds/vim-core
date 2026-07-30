@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777116123",
+  "input": {
+    "text": "const express = require('express');",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwimport<Esc>f=cfwfrom<Esc>f;x$x"
+  },
+  "expected": {
+    "text": "import express = require('express');\n",
+    "cursor_offset": 37,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "m",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "m",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 38,
+      "]": 37,
+      "[": 37,
+      ".": 37
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      37
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    let val = parse(s).unwrap();",
+    "cursor": [
+      0,
+      21
+    ],
+    "mode": "Normal",
+    "keys": "df(i?<Esc>"
+  },
+  "expected": {
+    "text": "    let val = parse(s?);",
+    "cursor_offset": 21,
+    "cursor_line": 0,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": ").unwrap(",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": ").unwrap(",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 21,
+      "]": 22,
+      "[": 21,
+      "^": 22
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21,
+    "changelist": [
+      21
+    ],
+    "changelist_idx": 1
+  }
+}

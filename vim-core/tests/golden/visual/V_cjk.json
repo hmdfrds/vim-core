@@ -1,0 +1,33 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "日本語\nテスト",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Vj"
+  },
+  "expected": {
+    "text": "日本語\nテスト",
+    "cursor_offset": 10,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "VisualLine",
+    "visual_type": "Line",
+    "selection_anchor": 0,
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

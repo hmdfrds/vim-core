@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "The quick brown fox jumps over the lazy dog.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "wdawu2wdaw"
+  },
+  "expected": {
+    "text": "The quick brown jumps over the lazy dog.",
+    "cursor_offset": 16,
+    "cursor_line": 0,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "fox ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "fox ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 16,
+      ".": 16,
+      "]": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "changelist": [
+      16
+    ],
+    "changelist_idx": 1
+  }
+}

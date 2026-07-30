@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "i- First item in the list<CR>- Second item in the list<CR>- Third item in the list<Esc>ggO# Shopping List<CR><Esc>"
+  },
+  "expected": {
+    "text": "# Shopping List\n\n- First item in the list\n- Second item in the list\n- Third item in the list",
+    "cursor_offset": 16,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 0,
+      "^": 16,
+      "]": 16,
+      ".": 15
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      91
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      41,
+      68,
+      15
+    ],
+    "changelist_idx": 3
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774271691",
+  "input": {
+    "text": "qwykcbbi nbflj eqdulzd qucjl clcqu lwoa bfmgc rqa",
+    "cursor": [
+      0,
+      20
+    ],
+    "mode": "Normal",
+    "keys": ">hgU^^yG"
+  },
+  "expected": {
+    "text": "    QWYKCBBI NBFLJ Eqdulzd qucjl clcqu lwoa bfmgc rqa",
+    "cursor_offset": 4,
+    "cursor_line": 0,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    QWYKCBBI NBFLJ Eqdulzd qucjl clcqu lwoa bfmgc rqa\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "    QWYKCBBI NBFLJ Eqdulzd qucjl clcqu lwoa bfmgc rqa\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 0,
+      ".": 4,
+      "]": 2147483646
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

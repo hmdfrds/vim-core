@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "obj.naem",
+    "cursor": [
+      0,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "ciwname<Esc>"
+  },
+  "expected": {
+    "text": "obj.name",
+    "cursor_offset": 7,
+    "cursor_line": 0,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "naem",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "naem",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 8,
+      "[": 4,
+      "]": 8,
+      ".": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "server {\n    server_name old.example.com;\n    listen 443 ssl;\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "I# <Esc>"
+  },
+  "expected": {
+    "text": "server {\n    # server_name old.example.com;\n    listen 443 ssl;\n}",
+    "cursor_offset": 14,
+    "cursor_line": 1,
+    "cursor_col": 5,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 13,
+      "]": 15,
+      "^": 15,
+      "[": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 5,
+    "changelist": [
+      0,
+      13
+    ],
+    "changelist_idx": 2
+  }
+}

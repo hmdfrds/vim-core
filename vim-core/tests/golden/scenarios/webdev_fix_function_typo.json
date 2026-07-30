@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "fucntion handleSubmit(e) {",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwfunction<Esc>"
+  },
+  "expected": {
+    "text": "function handleSubmit(e) {",
+    "cursor_offset": 7,
+    "cursor_line": 0,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "fucntion",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "fucntion",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0,
+      "^": 8,
+      "]": 8,
+      "[": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107691",
+  "input": {
+    "text": "Hello. World. End.",
+    "cursor": [
+      0,
+      7
+    ],
+    "mode": "Normal",
+    "keys": "casX<Esc>"
+  },
+  "expected": {
+    "text": "Hello. XEnd.",
+    "cursor_offset": 7,
+    "cursor_line": 0,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "World. ",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "World. ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 8,
+      ".": 7,
+      "]": 8,
+      "[": 7
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7
+  }
+}

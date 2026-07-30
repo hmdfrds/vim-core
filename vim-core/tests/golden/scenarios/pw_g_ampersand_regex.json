@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "foo123 bar\nfoo456 baz",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":s/foo\\d\\+/X<CR>g&"
+  },
+  "expected": {
+    "text": "X bar\nX baz",
+    "cursor_offset": 6,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "foo\\d\\+",
+        "regtype": "v"
+      },
+      ":": {
+        "text": "s/foo\\d\\+/X",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 6,
+      "]": 6,
+      "[": 0
+    },
+    "search_pattern": "foo\\d\\+",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      6
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "moved rest",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "dw$p"
+  },
+  "expected": {
+    "text": "restmoved ",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "moved ",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "moved ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 4,
+      "]": 9,
+      ".": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

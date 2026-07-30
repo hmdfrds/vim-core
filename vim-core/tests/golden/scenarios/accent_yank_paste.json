@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "über cool",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yw$p"
+  },
+  "expected": {
+    "text": "über coolüber ",
+    "cursor_offset": 15,
+    "cursor_line": 0,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "über ",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "über ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 15,
+      ".": 10,
+      "[": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 13
+  }
+}

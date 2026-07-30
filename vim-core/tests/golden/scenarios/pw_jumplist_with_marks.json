@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "aaa\nbbb\nccc\nddd\neee",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "majjmb''<C-o>"
+  },
+  "expected": {
+    "text": "aaa\nbbb\nccc\nddd\neee",
+    "cursor_offset": 8,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0,
+      "b": 8,
+      "a": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1,
+    "errmsg": "E20: Mark not set"
+  }
+}

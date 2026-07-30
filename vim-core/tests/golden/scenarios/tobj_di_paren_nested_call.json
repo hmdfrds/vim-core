@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "result = outer(inner(x, y), z)",
+    "cursor": [
+      0,
+      22
+    ],
+    "mode": "Normal",
+    "keys": "di("
+  },
+  "expected": {
+    "text": "result = outer(inner(), z)",
+    "cursor_offset": 21,
+    "cursor_line": 0,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "x, y",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "x, y",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 21,
+      "]": 21,
+      ".": 21
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21,
+    "changelist": [
+      21
+    ],
+    "changelist_idx": 1
+  }
+}

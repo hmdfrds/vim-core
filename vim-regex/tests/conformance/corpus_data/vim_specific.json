@@ -1,0 +1,40 @@
+[
+  {
+    "pattern": "\\<\\w\\+\\>",
+    "magic_mode": "magic",
+    "input": "hello world foo",
+    "expected_matches": [
+      {"start": 0, "end": 5},
+      {"start": 6, "end": 11},
+      {"start": 12, "end": 15}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\zsfoo\\ze",
+    "magic_mode": "magic",
+    "input": "xxfooxx",
+    "expected_matches": [
+      {"start": 2, "end": 5}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\<the\\>",
+    "magic_mode": "magic",
+    "input": "the other theme",
+    "expected_matches": [
+      {"start": 0, "end": 3}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "foo\\zsbar\\zebaz",
+    "magic_mode": "magic",
+    "input": "foobarbaz",
+    "expected_matches": [
+      {"start": 3, "end": 6}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  }
+]

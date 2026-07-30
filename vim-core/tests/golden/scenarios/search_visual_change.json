@@ -1,0 +1,51 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "start target end",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "v/target<CR>cnew<Esc>"
+  },
+  "expected": {
+    "text": "newarget end",
+    "cursor_offset": 2,
+    "cursor_line": 0,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "target",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "start t",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "start t",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 3,
+      ".": 0,
+      "<": 0,
+      "]": 3,
+      "[": 0,
+      ">": 6
+    },
+    "search_pattern": "target",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

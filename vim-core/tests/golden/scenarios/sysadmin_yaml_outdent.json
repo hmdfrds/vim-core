@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "spec:\n      replicas: 3\n      selector:\n        matchLabels:\n          app: web",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "<<j<<"
+  },
+  "expected": {
+    "text": "spec:\n  replicas: 3\n  selector:\n        matchLabels:\n          app: web",
+    "cursor_offset": 20,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 30,
+      "[": 20,
+      ".": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      6,
+      20
+    ],
+    "changelist_idx": 3
+  }
+}

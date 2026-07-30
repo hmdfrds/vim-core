@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "Old sentence here.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ccNew sentence here.<Esc>"
+  },
+  "expected": {
+    "text": "New sentence here.",
+    "cursor_offset": 17,
+    "cursor_line": 0,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Old sentence here.\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "Old sentence here.\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 0,
+      "^": 18,
+      "]": 18,
+      "[": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17
+  }
+}

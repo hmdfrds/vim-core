@@ -1,0 +1,45 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "fn main() {\nlet x = 1;\nlet y = 2;\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "j>>j>>ggjolet z = x + y;<Esc>>>"
+  },
+  "expected": {
+    "text": "fn main() {\n    let x = 1;\n        let z = x + y;\n    let y = 2;\n}",
+    "cursor_offset": 44,
+    "cursor_line": 2,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 45,
+      ".": 27,
+      "[": 44,
+      "]": 48
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17,
+    "jumplist": [
+      50
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      12,
+      50,
+      27
+    ],
+    "changelist_idx": 4
+  }
+}

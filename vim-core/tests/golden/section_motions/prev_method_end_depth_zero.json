@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1778201707",
+  "input": {
+    "text": "fn a() {\n    x\n}\nafter",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "[M"
+  },
+  "expected": {
+    "text": "fn a() {\n    x\n}\nafter",
+    "cursor_offset": 15,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      17
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

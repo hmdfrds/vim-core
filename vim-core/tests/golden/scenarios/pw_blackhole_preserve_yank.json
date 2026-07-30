@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "keep kill paste_here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yiww\"_diw$p"
+  },
+  "expected": {
+    "text": "keep  paste_herekeep",
+    "cursor_offset": 19,
+    "cursor_line": 0,
+    "cursor_col": 19,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "keep",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "keep",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 16,
+      "[": 16,
+      "]": 19
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 19,
+    "changelist": [
+      16
+    ],
+    "changelist_idx": 1
+  }
+}

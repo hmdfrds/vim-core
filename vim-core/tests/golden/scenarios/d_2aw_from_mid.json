@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107693",
+  "input": {
+    "text": "one two three four",
+    "cursor": [
+      0,
+      5
+    ],
+    "mode": "Normal",
+    "keys": "d2aw"
+  },
+  "expected": {
+    "text": "one four",
+    "cursor_offset": 4,
+    "cursor_line": 0,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "two three ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "two three ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 4,
+      "]": 4,
+      "[": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

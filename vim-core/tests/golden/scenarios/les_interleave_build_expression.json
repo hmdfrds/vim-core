@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "x",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "iresult = <Esc>ea.parse()<Esc>A.unwrap();<Esc>Ilet <Esc>"
+  },
+  "expected": {
+    "text": "let result = x.parse().unwrap();",
+    "cursor_offset": 3,
+    "cursor_line": 0,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 4,
+      "[": 0,
+      "^": 4,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

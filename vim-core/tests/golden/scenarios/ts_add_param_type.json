@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "function greet(name) {",
+    "cursor": [
+      0,
+      19
+    ],
+    "mode": "Normal",
+    "keys": "i: string<Esc>"
+  },
+  "expected": {
+    "text": "function greet(name: string) {",
+    "cursor_offset": 26,
+    "cursor_line": 0,
+    "cursor_col": 26,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 19,
+      "^": 27,
+      "]": 27,
+      ".": 19
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 26,
+    "changelist": [
+      19
+    ],
+    "changelist_idx": 1
+  }
+}

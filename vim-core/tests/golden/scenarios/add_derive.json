@@ -1,0 +1,34 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "struct Config {}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "O#[derive(Debug, Clone)]<Esc>"
+  },
+  "expected": {
+    "text": "#[derive(Debug, Clone)]\nstruct Config {}",
+    "cursor_offset": 22,
+    "cursor_line": 0,
+    "cursor_col": 22,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 0,
+      "^": 23,
+      "]": 23,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 22
+  }
+}

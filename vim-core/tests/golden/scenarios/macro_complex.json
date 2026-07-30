@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "fn a() {}\nfn b() {}\nfn c() {}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qaIpub <Esc>jq2@a"
+  },
+  "expected": {
+    "text": "pub fn a() {}\npub fn b() {}\npub fn c() {}",
+    "cursor_offset": 31,
+    "cursor_line": 2,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "Ipub \u001bj",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 32,
+      ".": 28,
+      "[": 28,
+      "^": 32
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

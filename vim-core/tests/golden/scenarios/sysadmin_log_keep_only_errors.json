@@ -1,0 +1,69 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "INFO: startup\nERROR: disk full\nINFO: ok\nERROR: timeout\nINFO: shutdown",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":v/ERROR/d<CR>"
+  },
+  "expected": {
+    "text": "ERROR: disk full\nERROR: timeout",
+    "cursor_offset": 17,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "ERROR",
+        "regtype": "v"
+      },
+      "2": {
+        "text": "INFO: ok\n",
+        "regtype": "V"
+      },
+      "3": {
+        "text": "INFO: startup\n",
+        "regtype": "V"
+      },
+      ":": {
+        "text": "v/ERROR/d",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "INFO: shutdown\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "INFO: shutdown\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 32,
+      ".": 32,
+      "[": 32
+    },
+    "search_pattern": "ERROR",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      32
+    ],
+    "changelist_idx": 2
+  }
+}

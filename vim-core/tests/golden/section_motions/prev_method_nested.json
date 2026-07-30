@@ -1,0 +1,31 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "fn outer() {\n  fn inner() {\n    body\n  }\n}",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "[m"
+  },
+  "expected": {
+    "text": "fn outer() {\n  fn inner() {\n    body\n  }\n}",
+    "cursor_offset": 26,
+    "cursor_line": 1,
+    "cursor_col": 13,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 13
+  }
+}

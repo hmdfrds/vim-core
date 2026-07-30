@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "yanked_line\nkill_me\ntarget",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yyj\"_ddp"
+  },
+  "expected": {
+    "text": "yanked_line\ntarget\nyanked_line",
+    "cursor_offset": 19,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "yanked_line\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "yanked_line\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 29,
+      "[": 19,
+      ".": 19
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      12,
+      19
+    ],
+    "changelist_idx": 3
+  }
+}

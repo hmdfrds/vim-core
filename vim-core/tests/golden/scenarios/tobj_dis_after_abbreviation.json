@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "Dr. Smith arrived.  He greeted everyone.",
+    "cursor": [
+      0,
+      22
+    ],
+    "mode": "Normal",
+    "keys": "dis"
+  },
+  "expected": {
+    "text": "Dr. Smith arrived.  ",
+    "cursor_offset": 19,
+    "cursor_line": 0,
+    "cursor_col": 19,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "He greeted everyone.",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "He greeted everyone.",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 20,
+      ".": 20,
+      "[": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 19,
+    "changelist": [
+      20
+    ],
+    "changelist_idx": 1
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774270713",
+  "input": {
+    "text": "abc",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Axy<Esc>`."
+  },
+  "expected": {
+    "text": "abcxy",
+    "cursor_offset": 3,
+    "cursor_line": 0,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "marks": {
+      "]": 5,
+      "^": 5,
+      "[": 3,
+      ".": 3
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "aa\nbb\ncc",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qaA!<Esc>jq2@auu"
+  },
+  "expected": {
+    "text": "aa\nbb\ncc",
+    "cursor_offset": 1,
+    "cursor_line": 0,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "A!\u001bj",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 9,
+      ".": 0,
+      "]": 0,
+      "[": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "jumplist": [
+      8,
+      4
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      2,
+      0
+    ],
+    "changelist_idx": 2
+  }
+}

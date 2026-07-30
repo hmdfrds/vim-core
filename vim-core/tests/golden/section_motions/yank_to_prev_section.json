@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "{\na\n}\n{\nb\n}",
+    "cursor": [
+      4,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "y[[p"
+  },
+  "expected": {
+    "text": "{\na\n}\n{\n{\nb\n}",
+    "cursor_offset": 8,
+    "cursor_line": 4,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "{\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "{\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 8,
+      "]": 8,
+      "[": 8
+    },
+    "window": {
+      "topline": 1,
+      "botline": 7,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

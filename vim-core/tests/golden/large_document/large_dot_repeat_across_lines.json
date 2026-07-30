@@ -1,0 +1,56 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1776474014",
+  "input": {
+    "text": "Line 001: content text here\nLine 002: content text here\nLine 003: content text here\nLine 004: content text here\nLine 005: content text here\nLine 006: content text here\nLine 007: content text here\nLine 008: content text here\nLine 009: content text here\nLine 010: content text here\nLine 011: content text here\nLine 012: content text here\nLine 013: content text here\nLine 014: content text here\nLine 015: content text here\nLine 016: content text here\nLine 017: content text here\nLine 018: content text here\nLine 019: content text here\nLine 020: content text here\nLine 021: content text here\nLine 022: content text here\nLine 023: content text here\nLine 024: content text here\nLine 025: content text here\nLine 026: content text here\nLine 027: content text here\nLine 028: content text here\nLine 029: content text here\nLine 030: content text here\nLine 031: content text here\nLine 032: content text here\nLine 033: content text here\nLine 034: content text here\nLine 035: content text here\nLine 036: content text here\nLine 037: content text here\nLine 038: content text here\nLine 039: content text here\nLine 040: content text here\nLine 041: content text here\nLine 042: content text here\nLine 043: content text here\nLine 044: content text here\nLine 045: content text here\nLine 046: content text here\nLine 047: content text here\nLine 048: content text here\nLine 049: content text here\nLine 050: content text here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ddj.j."
+  },
+  "expected": {
+    "text": "Line 002: content text here\nLine 004: content text here\nLine 006: content text here\nLine 007: content text here\nLine 008: content text here\nLine 009: content text here\nLine 010: content text here\nLine 011: content text here\nLine 012: content text here\nLine 013: content text here\nLine 014: content text here\nLine 015: content text here\nLine 016: content text here\nLine 017: content text here\nLine 018: content text here\nLine 019: content text here\nLine 020: content text here\nLine 021: content text here\nLine 022: content text here\nLine 023: content text here\nLine 024: content text here\nLine 025: content text here\nLine 026: content text here\nLine 027: content text here\nLine 028: content text here\nLine 029: content text here\nLine 030: content text here\nLine 031: content text here\nLine 032: content text here\nLine 033: content text here\nLine 034: content text here\nLine 035: content text here\nLine 036: content text here\nLine 037: content text here\nLine 038: content text here\nLine 039: content text here\nLine 040: content text here\nLine 041: content text here\nLine 042: content text here\nLine 043: content text here\nLine 044: content text here\nLine 045: content text here\nLine 046: content text here\nLine 047: content text here\nLine 048: content text here\nLine 049: content text here\nLine 050: content text here",
+    "cursor_offset": 56,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "2": {
+        "text": "Line 003: content text here\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "Line 005: content text here\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "Line 005: content text here\n",
+        "regtype": "V"
+      },
+      "3": {
+        "text": "Line 001: content text here\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 56,
+      "[": 56,
+      "]": 56
+    },
+    "window": {
+      "topline": 1,
+      "botline": 22,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      28,
+      56
+    ],
+    "changelist_idx": 3
+  }
+}

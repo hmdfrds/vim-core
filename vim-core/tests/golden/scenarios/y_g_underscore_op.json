@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "hello world   ",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yg_$p"
+  },
+  "expected": {
+    "text": "hello world   hello world",
+    "cursor_offset": 24,
+    "cursor_line": 0,
+    "cursor_col": 24,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "hello world",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "hello world",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 14,
+      "]": 24,
+      ".": 14
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 24
+  }
+}

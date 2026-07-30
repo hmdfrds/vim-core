@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "server {\n    location / {\n        root /var/www/html;\n    }\n}",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o\n    location /api {\n        proxy_pass http://127.0.0.1:3000;\n    }<Esc>"
+  },
+  "expected": {
+    "text": "server {\n    location / {\n        root /var/www/html;\n    }\n\n        location /api {\n                proxy_pass http://127.0.0.1:3000;\n                    }\n}",
+    "cursor_offset": 155,
+    "cursor_line": 7,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 60,
+      "]": 156,
+      "^": 156,
+      ".": 151
+    },
+    "window": {
+      "topline": 1,
+      "botline": 9,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20,
+    "changelist": [
+      0,
+      151
+    ],
+    "changelist_idx": 2
+  }
+}

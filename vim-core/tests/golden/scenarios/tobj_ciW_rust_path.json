@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "use std::collections::HashMap;",
+    "cursor": [
+      0,
+      8
+    ],
+    "mode": "Normal",
+    "keys": "ciWstd::collections::BTreeMap<Esc>"
+  },
+  "expected": {
+    "text": "use std::collections::BTreeMap",
+    "cursor_offset": 29,
+    "cursor_line": 0,
+    "cursor_col": 29,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "std::collections::HashMap;",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "std::collections::HashMap;",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 30,
+      ".": 4,
+      "[": 4,
+      "]": 30
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 29,
+    "changelist": [
+      4
+    ],
+    "changelist_idx": 1
+  }
+}

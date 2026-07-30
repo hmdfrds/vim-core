@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "source /home/user/.config/nvim/init.lua here",
+    "cursor": [
+      0,
+      10
+    ],
+    "mode": "Normal",
+    "keys": "diW"
+  },
+  "expected": {
+    "text": "source  here",
+    "cursor_offset": 7,
+    "cursor_line": 0,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "/home/user/.config/nvim/init.lua",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "/home/user/.config/nvim/init.lua",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 7,
+      "[": 7,
+      ".": 7
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7,
+    "changelist": [
+      7
+    ],
+    "changelist_idx": 1
+  }
+}

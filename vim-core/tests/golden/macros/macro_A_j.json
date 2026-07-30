@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "hello\nworld\ntest",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qaAX<Esc>jq@a"
+  },
+  "expected": {
+    "text": "helloX\nworldX\ntest",
+    "cursor_offset": 17,
+    "cursor_line": 2,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "AX\u001bj",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 13,
+      ".": 12,
+      "[": 12,
+      "^": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 5
+  }
+}

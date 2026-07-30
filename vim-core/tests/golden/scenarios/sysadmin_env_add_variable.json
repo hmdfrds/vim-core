@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "APP_NAME=myservice\nAPP_PORT=8080",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "GoAPP_SECRET=changeme<Esc>"
+  },
+  "expected": {
+    "text": "APP_NAME=myservice\nAPP_PORT=8080\nAPP_SECRET=changeme",
+    "cursor_offset": 51,
+    "cursor_line": 2,
+    "cursor_col": 18,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 33,
+      "^": 52,
+      "]": 52,
+      "[": 33
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 18,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      33
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "a\n1\nb\n2\nc",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":g/^[a-z]/j<CR>"
+  },
+  "expected": {
+    "text": "a 1\nb 2\nc",
+    "cursor_offset": 8,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "g/^[a-z]/j",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "^[a-z]",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 8,
+      "[": 5,
+      "]": 7
+    },
+    "search_pattern": "^[a-z]",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

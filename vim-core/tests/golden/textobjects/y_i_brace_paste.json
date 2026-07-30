@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "{ code }",
+    "cursor": [
+      0,
+      2
+    ],
+    "mode": "Normal",
+    "keys": "yi{$p"
+  },
+  "expected": {
+    "text": "{ code } code ",
+    "cursor_offset": 13,
+    "cursor_line": 0,
+    "cursor_col": 13,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " code ",
+        "regtype": "v"
+      },
+      "0": {
+        "text": " code ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 8,
+      ".": 8,
+      "]": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 13
+  }
+}

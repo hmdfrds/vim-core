@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103514",
+  "input": {
+    "text": "hello\nworld",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Goappended<Esc>"
+  },
+  "expected": {
+    "text": "hello\nworld\nappended",
+    "cursor_offset": 19,
+    "cursor_line": 2,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 12,
+      "^": 20,
+      "[": 12,
+      "]": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

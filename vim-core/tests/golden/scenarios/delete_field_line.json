@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107694",
+  "input": {
+    "text": "field1: 1\nfield2: 2\nfield3: 3",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "dd"
+  },
+  "expected": {
+    "text": "field1: 1\nfield3: 3",
+    "cursor_offset": 10,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "field2: 2\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "field2: 2\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 10,
+      ".": 10,
+      "]": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "fn start() {}\n\nfn target() {}\n\nfn end() {}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "2jmawcwmodified<Esc>'a"
+  },
+  "expected": {
+    "text": "fn start() {}\n\nfn modified() {}\n\nfn end() {}",
+    "cursor_offset": 15,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "target",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "target",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "a": 15,
+      "[": 18,
+      "^": 26,
+      ".": 18,
+      "]": 26
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

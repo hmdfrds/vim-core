@@ -1,0 +1,51 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1776474014",
+  "input": {
+    "text": "Line 001: content text here\nLine 002: content text here\nLine 003: content text here\nLine 004: content text here\nLine 005: content text here\nLine 006: content text here\nLine 007: content text here\nLine 008: content text here\nLine 009: content text here\nLine 010: content text here\nLine 011: content text here\nLine 012: content text here\nLine 013: content text here\nLine 014: content text here\nLine 015: content text here\nLine 016: content text here\nLine 017: content text here\nLine 018: content text here\nLine 019: content text here\nLine 020: content text here\nLine 021: content text here\nLine 022: content text here\nLine 023: content text here\nLine 024: content text here\nLine 025: content text here\nLine 026: content text here\nLine 027: content text here\nLine 028: content text here\nLine 029: content text here\nLine 030: content text here\nLine 031: content text here\nLine 032: content text here\nLine 033: content text here\nLine 034: content text here\nLine 035: content text here\nLine 036: content text here\nLine 037: content text here\nLine 038: content text here\nLine 039: content text here\nLine 040: content text here\nLine 041: content text here\nLine 042: content text here\nLine 043: content text here\nLine 044: content text here\nLine 045: content text here\nLine 046: content text here\nLine 047: content text here\nLine 048: content text here\nLine 049: content text here\nLine 050: content text here\nLine 051: content text here\nLine 052: content text here\nLine 053: content text here\nLine 054: content text here\nLine 055: content text here\nLine 056: content text here\nLine 057: content text here\nLine 058: content text here\nLine 059: content text here\nLine 060: content text here\nLine 061: content text here\nLine 062: content text here\nLine 063: content text here\nLine 064: content text here\nLine 065: content text here\nLine 066: content text here\nLine 067: content text here\nLine 068: content text here\nLine 069: content text here\nLine 070: content text here\nLine 071: content text here\nLine 072: content text here\nLine 073: content text here\nLine 074: content text here\nLine 075: content text here\nLine 076: content text here\nLine 077: content text here\nLine 078: content text here\nLine 079: content text here\nLine 080: content text here\nLine 081: content text here\nLine 082: content text here\nLine 083: content text here\nLine 084: content text here\nLine 085: content text here\nLine 086: content text here\nLine 087: content text here\nLine 088: content text here\nLine 089: content text here\nLine 090: content text here\nLine 091: content text here\nLine 092: content text here\nLine 093: content text here\nLine 094: content text here\nLine 095: content text here\nLine 096: content text here\nLine 097: content text here\nLine 098: content text here\nLine 099: content text here\nLine 100: content text here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "50Gdd"
+  },
+  "expected": {
+    "text": "Line 001: content text here\nLine 002: content text here\nLine 003: content text here\nLine 004: content text here\nLine 005: content text here\nLine 006: content text here\nLine 007: content text here\nLine 008: content text here\nLine 009: content text here\nLine 010: content text here\nLine 011: content text here\nLine 012: content text here\nLine 013: content text here\nLine 014: content text here\nLine 015: content text here\nLine 016: content text here\nLine 017: content text here\nLine 018: content text here\nLine 019: content text here\nLine 020: content text here\nLine 021: content text here\nLine 022: content text here\nLine 023: content text here\nLine 024: content text here\nLine 025: content text here\nLine 026: content text here\nLine 027: content text here\nLine 028: content text here\nLine 029: content text here\nLine 030: content text here\nLine 031: content text here\nLine 032: content text here\nLine 033: content text here\nLine 034: content text here\nLine 035: content text here\nLine 036: content text here\nLine 037: content text here\nLine 038: content text here\nLine 039: content text here\nLine 040: content text here\nLine 041: content text here\nLine 042: content text here\nLine 043: content text here\nLine 044: content text here\nLine 045: content text here\nLine 046: content text here\nLine 047: content text here\nLine 048: content text here\nLine 049: content text here\nLine 051: content text here\nLine 052: content text here\nLine 053: content text here\nLine 054: content text here\nLine 055: content text here\nLine 056: content text here\nLine 057: content text here\nLine 058: content text here\nLine 059: content text here\nLine 060: content text here\nLine 061: content text here\nLine 062: content text here\nLine 063: content text here\nLine 064: content text here\nLine 065: content text here\nLine 066: content text here\nLine 067: content text here\nLine 068: content text here\nLine 069: content text here\nLine 070: content text here\nLine 071: content text here\nLine 072: content text here\nLine 073: content text here\nLine 074: content text here\nLine 075: content text here\nLine 076: content text here\nLine 077: content text here\nLine 078: content text here\nLine 079: content text here\nLine 080: content text here\nLine 081: content text here\nLine 082: content text here\nLine 083: content text here\nLine 084: content text here\nLine 085: content text here\nLine 086: content text here\nLine 087: content text here\nLine 088: content text here\nLine 089: content text here\nLine 090: content text here\nLine 091: content text here\nLine 092: content text here\nLine 093: content text here\nLine 094: content text here\nLine 095: content text here\nLine 096: content text here\nLine 097: content text here\nLine 098: content text here\nLine 099: content text here\nLine 100: content text here",
+    "cursor_offset": 1372,
+    "cursor_line": 49,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Line 050: content text here\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "Line 050: content text here\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 1372,
+      "]": 1372,
+      ".": 1372
+    },
+    "window": {
+      "topline": 40,
+      "botline": 61,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      1372
+    ],
+    "changelist_idx": 2
+  }
+}

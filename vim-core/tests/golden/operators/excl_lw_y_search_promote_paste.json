@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107696",
+  "input": {
+    "text": "hello\nworld\nafter",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "y/world<CR>Gp"
+  },
+  "expected": {
+    "text": "hello\nworld\nafter\nhello",
+    "cursor_offset": 18,
+    "cursor_line": 3,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "world",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "hello\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "hello\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 18,
+      "]": 22,
+      "[": 18
+    },
+    "search_pattern": "world",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

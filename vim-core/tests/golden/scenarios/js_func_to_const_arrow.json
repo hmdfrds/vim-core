@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "function handleClick(e) {",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwconst<Esc>ea = <Esc>f{i=> <Esc>"
+  },
+  "expected": {
+    "text": "const handleClick = (e) => {",
+    "cursor_offset": 26,
+    "cursor_line": 0,
+    "cursor_col": 26,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "function",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "function",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 27,
+      "[": 24,
+      ".": 24,
+      "]": 27
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 26,
+    "changelist": [
+      24
+    ],
+    "changelist_idx": 1
+  }
+}

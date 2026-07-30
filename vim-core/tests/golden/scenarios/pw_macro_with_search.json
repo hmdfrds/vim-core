@@ -1,0 +1,67 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "TODO fix\nok line\nTODO fix\nok line",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qa/TODO<CR>ddq@a"
+  },
+  "expected": {
+    "text": "ok line\nok line",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "TODO",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "TODO fix\n",
+        "regtype": "V"
+      },
+      "a": {
+        "text": "/TODO\rdd",
+        "regtype": "v"
+      },
+      "2": {
+        "text": "TODO fix\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "TODO fix\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 0,
+      "]": 0,
+      "[": 0
+    },
+    "search_pattern": "TODO",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0,
+      8
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      0,
+      8,
+      0
+    ],
+    "changelist_idx": 3
+  }
+}

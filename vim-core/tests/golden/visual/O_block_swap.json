@@ -1,0 +1,33 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "abc\ndef\nghi",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "<C-v>jlOO"
+  },
+  "expected": {
+    "text": "abc\ndef\nghi",
+    "cursor_offset": 5,
+    "cursor_line": 1,
+    "cursor_col": 1,
+    "mode": "VisualBlock",
+    "visual_type": "Block",
+    "selection_anchor": 0,
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1
+  }
+}

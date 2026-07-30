@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107691",
+  "input": {
+    "text": "malloc(100)",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f1cisizeof(struct Data)<Esc>"
+  },
+  "expected": {
+    "text": "izeof(struct Data)",
+    "cursor_offset": 17,
+    "cursor_line": 0,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "malloc(100)",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "malloc(100)",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 18,
+      "[": 0,
+      "^": 18,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17
+  }
+}

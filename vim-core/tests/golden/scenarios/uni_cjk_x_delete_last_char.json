@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "中文测试",
+    "cursor": [
+      0,
+      3
+    ],
+    "mode": "Normal",
+    "keys": "x"
+  },
+  "expected": {
+    "text": "中文测",
+    "cursor_offset": 6,
+    "cursor_line": 0,
+    "cursor_col": 6,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "试",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "试",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 9,
+      "]": 9,
+      "[": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      9
+    ],
+    "changelist_idx": 1
+  }
+}

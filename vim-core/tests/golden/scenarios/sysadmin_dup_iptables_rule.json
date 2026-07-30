@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "-A INPUT -p tcp --dport 22 -j ACCEPT\n-A INPUT -p tcp --dport 80 -j ACCEPT",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yypf8ciw443<Esc>"
+  },
+  "expected": {
+    "text": "-A INPUT -p tcp --dport 22 -j ACCEPT\n-A INPUT -p tcp --dport 80 -j ACCEPT\n-A INPUT -p tcp --dport 443 -j ACCEPT",
+    "cursor_offset": 100,
+    "cursor_line": 2,
+    "cursor_col": 26,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "-A INPUT -p tcp --dport 80 -j ACCEPT\n",
+        "regtype": "V"
+      },
+      "-": {
+        "text": "80",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "80",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 98,
+      "]": 101,
+      "[": 98,
+      "^": 101
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 26,
+    "changelist": [
+      0,
+      98
+    ],
+    "changelist_idx": 2
+  }
+}

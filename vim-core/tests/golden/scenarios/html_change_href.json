@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "<a href=\"/old-page\">Click here</a>",
+    "cursor": [
+      0,
+      9
+    ],
+    "mode": "Normal",
+    "keys": "ci\"/new-page<Esc>"
+  },
+  "expected": {
+    "text": "<a href=\"/new-page\">Click here</a>",
+    "cursor_offset": 17,
+    "cursor_line": 0,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "/old-page",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "/old-page",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 18,
+      "[": 9,
+      "]": 18,
+      ".": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17,
+    "changelist": [
+      9
+    ],
+    "changelist_idx": 1
+  }
+}

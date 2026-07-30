@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "recieve",
+    "cursor": [
+      0,
+      3
+    ],
+    "mode": "Normal",
+    "keys": "rece"
+  },
+  "expected": {
+    "text": "rec",
+    "cursor_offset": 2,
+    "cursor_line": 0,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "eeve",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "eeve",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 3,
+      "]": 3,
+      "[": 3,
+      ".": 3
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

@@ -1,0 +1,17 @@
+[package]
+name = "vim-text"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+arrayvec = "0.7"
+compact_str = "0.8"
+memchr = "2.7"
+bitflags = "2"
+
+[dev-dependencies]
+proptest = "1.4"
+

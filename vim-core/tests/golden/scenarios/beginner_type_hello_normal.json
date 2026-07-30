@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Hello world\nThis is a test\nLine three",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "hello<Esc>"
+  },
+  "expected": {
+    "text": "Hello world\n\nThis is a test\nLine three",
+    "cursor_offset": 12,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 12,
+      ".": 12,
+      "[": 12,
+      "]": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "struct Data {\n    name: String,\n    age: u32,\n    active: bool,\n}",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "<C-v>2jIpub <Esc>"
+  },
+  "expected": {
+    "text": "struct Data {\n    pub name: String,\n    pub age: u32,\n    pub active: bool,\n}",
+    "cursor_offset": 18,
+    "cursor_line": 1,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 22,
+      "]": 62,
+      "<": 18,
+      "[": 18,
+      ".": 36,
+      ">": 58
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      0,
+      36
+    ],
+    "changelist_idx": 2
+  }
+}

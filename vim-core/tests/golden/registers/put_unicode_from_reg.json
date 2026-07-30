@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "日本語",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "\"ayiw$\"ap"
+  },
+  "expected": {
+    "text": "日本語日本語",
+    "cursor_offset": 15,
+    "cursor_line": 0,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "日本語",
+        "regtype": "v"
+      },
+      "a": {
+        "text": "日本語",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 9,
+      ".": 9,
+      "]": 15
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 10
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "if cond { if nested { value } }",
+    "cursor": [
+      0,
+      23
+    ],
+    "mode": "Normal",
+    "keys": "di{"
+  },
+  "expected": {
+    "text": "if cond { if nested {} }",
+    "cursor_offset": 21,
+    "cursor_line": 0,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " value ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": " value ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 21,
+      ".": 21,
+      "]": 21
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21,
+    "changelist": [
+      21
+    ],
+    "changelist_idx": 1
+  }
+}

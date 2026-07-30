@@ -1,0 +1,31 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107691",
+  "input": {
+    "text": "aaa\n\nccc",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "x"
+  },
+  "expected": {
+    "text": "aaa\n\nccc",
+    "cursor_offset": 4,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

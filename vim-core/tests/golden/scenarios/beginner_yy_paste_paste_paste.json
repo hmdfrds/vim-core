@@ -1,0 +1,49 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Hello world\nThis is a test\nLine three",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yyppp"
+  },
+  "expected": {
+    "text": "Hello world\nHello world\nHello world\nHello world\nThis is a test\nLine three",
+    "cursor_offset": 36,
+    "cursor_line": 3,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Hello world\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "Hello world\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 36,
+      "]": 46,
+      "[": 36
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      12,
+      24,
+      36
+    ],
+    "changelist_idx": 4
+  }
+}

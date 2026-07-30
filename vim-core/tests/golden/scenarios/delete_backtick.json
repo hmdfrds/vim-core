@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107694",
+  "input": {
+    "text": "hello cruel world",
+    "cursor": [
+      0,
+      6
+    ],
+    "mode": "Normal",
+    "keys": "maw0d`a"
+  },
+  "expected": {
+    "text": "cruel world",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "hello ",
+        "regtype": "v"
+      },
+      "1": {
+        "text": "hello ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "hello ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "a": 6,
+      ".": 0,
+      "[": 0,
+      "]": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

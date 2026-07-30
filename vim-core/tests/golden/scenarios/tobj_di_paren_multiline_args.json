@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "fn build(\n    name: &str,\n    age: u32,\n) -> Self {",
+    "cursor": [
+      1,
+      8
+    ],
+    "mode": "Normal",
+    "keys": "di("
+  },
+  "expected": {
+    "text": "fn build(\n) -> Self {",
+    "cursor_offset": 10,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    name: &str,\n    age: u32,\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "    name: &str,\n    age: u32,\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 10,
+      "]": 10,
+      ".": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      10
+    ],
+    "changelist_idx": 2
+  }
+}

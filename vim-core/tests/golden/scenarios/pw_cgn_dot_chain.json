@@ -1,0 +1,55 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "err err err ok err",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/err<CR>cgnfixed<Esc>..."
+  },
+  "expected": {
+    "text": "fixed fixed fixed ok fixed",
+    "cursor_offset": 4,
+    "cursor_line": 0,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "err",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "err",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "err",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 5,
+      "]": 5,
+      "[": 0,
+      "<": 0,
+      ".": 0,
+      ">": 2
+    },
+    "search_pattern": "err",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

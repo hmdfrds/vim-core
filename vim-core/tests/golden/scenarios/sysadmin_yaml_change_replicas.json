@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 1",
+    "cursor": [
+      5,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f1r3"
+  },
+  "expected": {
+    "text": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 3",
+    "cursor_offset": 77,
+    "cursor_line": 5,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 77,
+      "]": 77,
+      ".": 77
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12,
+    "changelist": [
+      0,
+      77
+    ],
+    "changelist_idx": 2
+  }
+}

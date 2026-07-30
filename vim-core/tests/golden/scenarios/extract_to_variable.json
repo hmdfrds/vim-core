@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107696",
+  "input": {
+    "text": "process(compute(x))",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f(ldt)Ilet val = <Esc>"
+  },
+  "expected": {
+    "text": "let val = process())",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "compute(x",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "compute(x",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0,
+      "]": 10,
+      "[": 0,
+      "^": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

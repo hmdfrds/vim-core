@@ -1,0 +1,41 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "The quick\nbrown fox\njumps over",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "JJFbi<CR><Esc>"
+  },
+  "expected": {
+    "text": "The quick \nbrown fox jumps over",
+    "cursor_offset": 11,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 10,
+      ".": 10,
+      "]": 11,
+      "^": 11
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      9,
+      19,
+      32,
+      10
+    ],
+    "changelist_idx": 4
+  }
+}

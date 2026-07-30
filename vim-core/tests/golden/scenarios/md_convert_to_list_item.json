@@ -1,0 +1,40 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "Install dependencies\nRun the dev server\nOpen browser",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "I- <Esc>j.j."
+  },
+  "expected": {
+    "text": "- Install dependencies\n- Run the dev server\n- Open browser",
+    "cursor_offset": 45,
+    "cursor_line": 2,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 46,
+      ".": 44,
+      "^": 46,
+      "[": 44
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      0,
+      23,
+      44
+    ],
+    "changelist_idx": 3
+  }
+}

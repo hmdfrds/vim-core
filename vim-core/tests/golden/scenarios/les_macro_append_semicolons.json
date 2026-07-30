@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "let a = 1\nlet b = 2\nlet c = 3\nlet d = 4",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qaA;<Esc>jq3@a"
+  },
+  "expected": {
+    "text": "let a = 1;\nlet b = 2;\nlet c = 3;\nlet d = 4;",
+    "cursor_offset": 42,
+    "cursor_line": 3,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "A;\u001bj",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 42,
+      "^": 43,
+      "]": 43,
+      ".": 42
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9,
+    "changelist": [
+      9,
+      42
+    ],
+    "changelist_idx": 2
+  }
+}

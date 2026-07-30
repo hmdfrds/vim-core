@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107696",
+  "input": {
+    "text": "  long_expr + calc",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "^yw o  let val = <C-r>\";<Esc>"
+  },
+  "expected": {
+    "text": "  long_expr + calc\n    let val = long_expr ;",
+    "cursor_offset": 43,
+    "cursor_line": 1,
+    "cursor_col": 24,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "long_expr ",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "long_expr ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 44,
+      "[": 19,
+      "^": 44,
+      ".": 33
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 24
+  }
+}

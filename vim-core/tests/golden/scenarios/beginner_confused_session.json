@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Hello world\nThis is a test\nLine three",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "hello<Esc>u<Esc>iHi there<Esc>"
+  },
+  "expected": {
+    "text": "Hello Hi thereworld\nThis is a test\nLine three",
+    "cursor_offset": 13,
+    "cursor_line": 0,
+    "cursor_col": 13,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 14,
+      "]": 14,
+      ".": 6,
+      "[": 6
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 13,
+    "jumplist": [
+      20
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      20,
+      6
+    ],
+    "changelist_idx": 3
+  }
+}

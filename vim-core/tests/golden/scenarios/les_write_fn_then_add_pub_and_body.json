@@ -1,0 +1,45 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ifn process(data: &[u8]) -> Result<()> {<CR>    todo!()<CR>}<Esc>ggIpub <Esc>jA // implement later<Esc>"
+  },
+  "expected": {
+    "text": "pub fn process(data: &[u8]) -> Result<()> {\n    todo!() // implement later\n    }",
+    "cursor_offset": 73,
+    "cursor_line": 1,
+    "cursor_col": 29,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 55,
+      "^": 74,
+      "]": 74,
+      ".": 55
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 29,
+    "jumplist": [
+      79
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      39,
+      79,
+      0,
+      55
+    ],
+    "changelist_idx": 4
+  }
+}

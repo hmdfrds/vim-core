@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "functoin main()",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwfunction<Esc>"
+  },
+  "expected": {
+    "text": "function main()",
+    "cursor_offset": 7,
+    "cursor_line": 0,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "functoin",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "functoin",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 8,
+      "]": 8,
+      "[": 0,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7
+  }
+}

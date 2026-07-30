@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "enum Dir { Up }",
+    "cursor": [
+      0,
+      11
+    ],
+    "mode": "Normal",
+    "keys": "ciwNorth<Esc>"
+  },
+  "expected": {
+    "text": "enum Dir { North }",
+    "cursor_offset": 15,
+    "cursor_line": 0,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Up",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "Up",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 11,
+      "^": 16,
+      ".": 11,
+      "]": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15
+  }
+}

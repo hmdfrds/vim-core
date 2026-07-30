@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "{ outer { inner } }",
+    "cursor": [
+      0,
+      3
+    ],
+    "mode": "Normal",
+    "keys": "da{"
+  },
+  "expected": {
+    "text": "",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "{ outer { inner } }",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "{ outer { inner } }",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0,
+      "[": 0,
+      "]": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "match color {\n    Red => \"red\",\n    Blue => \"blue\",\n}",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "oGreen => \"green\",<Esc>"
+  },
+  "expected": {
+    "text": "match color {\n    Red => \"red\",\n    Blue => \"blue\",\n    Green => \"green\",\n}",
+    "cursor_offset": 72,
+    "cursor_line": 3,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 73,
+      ".": 56,
+      "^": 73,
+      "[": 52
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20,
+    "changelist": [
+      0,
+      56
+    ],
+    "changelist_idx": 2
+  }
+}

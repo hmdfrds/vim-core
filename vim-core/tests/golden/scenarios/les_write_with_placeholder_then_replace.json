@@ -1,0 +1,51 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777116597",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ilet XXX = get_value();<CR>process(XXX);<CR>println!(\"{}\", XXX);<Esc>:%s/XXX/result/g<CR>"
+  },
+  "expected": {
+    "text": "let result = get_value();\nprocess(result);\nprintln!(\"{}\", result);",
+    "cursor_offset": 43,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "%s/XXX/result/g",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "XXX",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 0,
+      ".": 0,
+      "]": 43,
+      "^": 63
+    },
+    "search_pattern": "XXX",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      22,
+      43,
+      0
+    ],
+    "changelist_idx": 3
+  }
+}

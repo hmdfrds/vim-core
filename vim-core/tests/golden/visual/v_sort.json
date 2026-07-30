@@ -1,0 +1,45 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107701",
+  "input": {
+    "text": "c\nb\na",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "VGg:sort<CR>"
+  },
+  "expected": {
+    "text": "ort\n",
+    "cursor_offset": 4,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "c\nb\na\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "c\nb\na\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "<": 0,
+      ">": 2147483651,
+      "^": 4,
+      ".": 3,
+      "[": 0,
+      "]": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

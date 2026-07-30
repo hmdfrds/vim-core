@@ -1,0 +1,33 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "value is -5 here",
+    "cursor": [
+      0,
+      10
+    ],
+    "mode": "Normal",
+    "keys": "<C-a>"
+  },
+  "expected": {
+    "text": "value is -4 here",
+    "cursor_offset": 10,
+    "cursor_line": 0,
+    "cursor_col": 10,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 10,
+      ".": 0,
+      "[": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 10
+  }
+}

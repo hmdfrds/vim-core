@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "obj.method.call",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f.;lcwresult<Esc>"
+  },
+  "expected": {
+    "text": "obj.method.result",
+    "cursor_offset": 16,
+    "cursor_line": 0,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "call",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "call",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 11,
+      "[": 11,
+      "]": 17,
+      "^": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16
+  }
+}

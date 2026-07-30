@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "header\ndata1\ndata2\ndata3\nfooter",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "jma2jmby'aGp"
+  },
+  "expected": {
+    "text": "header\ndata1\ndata2\ndata3\nfooter\ndata1\ndata2\ndata3",
+    "cursor_offset": 32,
+    "cursor_line": 5,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "data1\ndata2\ndata3\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "data1\ndata2\ndata3\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "b": 19,
+      ".": 32,
+      "]": 48,
+      "a": 7,
+      "[": 32
+    },
+    "window": {
+      "topline": 1,
+      "botline": 8,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

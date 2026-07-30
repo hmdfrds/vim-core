@@ -1,0 +1,59 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "#[test]\nfn test_add() {\n    assert!(true);\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Vjjjyp4Gwciwtest_sub<Esc>"
+  },
+  "expected": {
+    "text": "#[test]\n#[test]\nfn test_add() {\n    test_sub!(true);\n}\nfn test_add() {\n    assert!(true);\n}",
+    "cursor_offset": 43,
+    "cursor_line": 3,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "assert",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "assert",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "#[test]\nfn test_add() {\n    assert!(true);\n}\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "<": 0,
+      "]": 44,
+      "^": 44,
+      "[": 36,
+      ">": 2147483736,
+      ".": 36
+    },
+    "window": {
+      "topline": 1,
+      "botline": 8,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11,
+    "jumplist": [
+      8
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      8,
+      36
+    ],
+    "changelist_idx": 3
+  }
+}

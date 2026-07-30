@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    data.iter().map(|x| x + 1).collect();",
+    "cursor": [
+      0,
+      30
+    ],
+    "mode": "Normal",
+    "keys": "i.filter(|x| *x > 0)<Esc>"
+  },
+  "expected": {
+    "text": "    data.iter().map(|x| x + 1).filter(|x| *x > 0).collect();",
+    "cursor_offset": 48,
+    "cursor_line": 0,
+    "cursor_col": 48,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 30,
+      "^": 49,
+      "]": 49,
+      ".": 48
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 48,
+    "changelist": [
+      48
+    ],
+    "changelist_idx": 1
+  }
+}

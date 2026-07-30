@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "server {\n    listen 80;\n    server_name app.io;\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yypf8ciw443<Esc>A ssl<Esc>"
+  },
+  "expected": {
+    "text": "server {\n    listen 80;\n    listen 443; ssl\n    server_name app.io;\n}",
+    "cursor_offset": 42,
+    "cursor_line": 2,
+    "cursor_col": 18,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "80",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "80",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "    listen 80;\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 39,
+      ".": 39,
+      "]": 43,
+      "^": 43
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 18,
+    "changelist": [
+      0,
+      39
+    ],
+    "changelist_idx": 2
+  }
+}

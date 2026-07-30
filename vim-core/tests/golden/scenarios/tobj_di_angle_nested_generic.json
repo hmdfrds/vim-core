@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "Box<dyn Iterator<Item = u8>>",
+    "cursor": [
+      0,
+      20
+    ],
+    "mode": "Normal",
+    "keys": "di<lt>"
+  },
+  "expected": {
+    "text": "Box<dyn Iterator<>>",
+    "cursor_offset": 17,
+    "cursor_line": 0,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Item = u8",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "Item = u8",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 17,
+      "[": 17,
+      "]": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17,
+    "changelist": [
+      17
+    ],
+    "changelist_idx": 1
+  }
+}

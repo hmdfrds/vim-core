@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "fn main() {\n    println!(\"hi\");\n}",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "di{"
+  },
+  "expected": {
+    "text": "fn main() {\n}",
+    "cursor_offset": 12,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    println!(\"hi\");\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "    println!(\"hi\");\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 12,
+      "]": 12,
+      ".": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

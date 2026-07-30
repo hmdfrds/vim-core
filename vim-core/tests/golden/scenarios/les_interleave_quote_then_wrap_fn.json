@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "let name = hello;",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f=lllwi\"<Esc>ea\"<Esc>F\"iString::from(<Esc>f\"a)<Esc>"
+  },
+  "expected": {
+    "text": "let name = helloString::from(\");\"",
+    "cursor_offset": 30,
+    "cursor_line": 0,
+    "cursor_col": 30,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 30,
+      ".": 30,
+      "^": 31,
+      "]": 31
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 30,
+    "changelist": [
+      30
+    ],
+    "changelist_idx": 1
+  }
+}

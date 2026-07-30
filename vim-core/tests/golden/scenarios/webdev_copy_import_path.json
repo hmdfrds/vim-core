@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "import { foo } from './utils/helpers';\nimport { bar } from '';",
+    "cursor": [
+      0,
+      20
+    ],
+    "mode": "Normal",
+    "keys": "yi'jf'p"
+  },
+  "expected": {
+    "text": "import { foo } from './utils/helpers';\nimport { bar } from ''./utils/helpers;",
+    "cursor_offset": 75,
+    "cursor_line": 1,
+    "cursor_col": 36,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "./utils/helpers",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "./utils/helpers",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 61,
+      "[": 61,
+      "]": 75
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 36,
+    "changelist": [
+      0,
+      61
+    ],
+    "changelist_idx": 2
+  }
+}

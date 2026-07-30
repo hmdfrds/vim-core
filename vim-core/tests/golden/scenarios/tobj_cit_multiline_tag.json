@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "<div>\n  <span>old text</span>\n</div>",
+    "cursor": [
+      1,
+      10
+    ],
+    "mode": "Normal",
+    "keys": "citnew text<Esc>"
+  },
+  "expected": {
+    "text": "<div>\n  <span>new text</span>\n</div>",
+    "cursor_offset": 21,
+    "cursor_line": 1,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "old text",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "old text",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 14,
+      "^": 22,
+      "[": 14,
+      "]": 22
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      0,
+      14
+    ],
+    "changelist_idx": 2
+  }
+}

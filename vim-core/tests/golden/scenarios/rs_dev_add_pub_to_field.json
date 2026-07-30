@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "struct Api {\n    client: Client,\n}",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "Ipub <Esc>"
+  },
+  "expected": {
+    "text": "struct Api {\n    pub client: Client,\n}",
+    "cursor_offset": 20,
+    "cursor_line": 1,
+    "cursor_col": 7,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 21,
+      "]": 21,
+      ".": 17,
+      "[": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 7,
+    "changelist": [
+      0,
+      17
+    ],
+    "changelist_idx": 2
+  }
+}

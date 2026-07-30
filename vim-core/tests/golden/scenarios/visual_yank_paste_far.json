@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107701",
+  "input": {
+    "text": "copy me\nmore\nmore\nmore\npaste here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "viwyjjjjp"
+  },
+  "expected": {
+    "text": "copy me\nmore\nmore\nmore\npcopyaste here",
+    "cursor_offset": 27,
+    "cursor_line": 4,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "copy",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "copy",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 24,
+      "]": 27,
+      ">": 3,
+      "<": 0,
+      "[": 24
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "header\n\nfn target() {}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "gg/target<CR>cwmodified<Esc>"
+  },
+  "expected": {
+    "text": "header\n\nfn modified() {}",
+    "cursor_offset": 18,
+    "cursor_line": 2,
+    "cursor_col": 10,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "target",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "target",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "target",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 19,
+      "^": 19,
+      "[": 11,
+      ".": 11
+    },
+    "search_pattern": "target",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 10
+  }
+}

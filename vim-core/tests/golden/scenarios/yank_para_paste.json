@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "p1\np2\n\np3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "y}Gp"
+  },
+  "expected": {
+    "text": "p1\np2\n\np3\np1\np2",
+    "cursor_offset": 10,
+    "cursor_line": 4,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "p1\np2\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "p1\np2\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 14,
+      ".": 10,
+      "[": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

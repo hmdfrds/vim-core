@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "let configuration_manager = ConfigManager::new();",
+    "cursor": [
+      0,
+      12
+    ],
+    "mode": "Normal",
+    "keys": "diw"
+  },
+  "expected": {
+    "text": "let  = ConfigManager::new();",
+    "cursor_offset": 4,
+    "cursor_line": 0,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "configuration_manager",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "configuration_manager",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 4,
+      "]": 4,
+      ".": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      4
+    ],
+    "changelist_idx": 1
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "fn parse<T: FromStr>(input: &str) -> T {",
+    "cursor": [
+      0,
+      12
+    ],
+    "mode": "Normal",
+    "keys": "di<lt>"
+  },
+  "expected": {
+    "text": "fn parse<>(input: &str) -> T {",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "T: FromStr",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "T: FromStr",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 9,
+      ".": 9,
+      "[": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9,
+    "changelist": [
+      9
+    ],
+    "changelist_idx": 1
+  }
+}

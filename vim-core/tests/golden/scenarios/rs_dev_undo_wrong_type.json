@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "fn get() -> String {",
+    "cursor": [
+      0,
+      12
+    ],
+    "mode": "Normal",
+    "keys": "ciw&stir<Esc>uciw&str<Esc>"
+  },
+  "expected": {
+    "text": "fn get() -> &str {",
+    "cursor_offset": 15,
+    "cursor_line": 0,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "String",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "String",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 16,
+      "[": 12,
+      ".": 12,
+      "]": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      12
+    ],
+    "changelist_idx": 1
+  }
+}

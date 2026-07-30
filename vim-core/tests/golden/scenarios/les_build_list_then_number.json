@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "iApples<Esc>oOranges<Esc>oBananas<Esc>ggI1. <Esc>jI2. <Esc>jI3. <Esc>"
+  },
+  "expected": {
+    "text": "1. Apples\n2. Oranges\n3. Bananas",
+    "cursor_offset": 23,
+    "cursor_line": 2,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 21,
+      "]": 24,
+      "^": 24,
+      ".": 21
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2,
+    "changelist": [
+      0,
+      10,
+      21,
+      0,
+      10,
+      21
+    ],
+    "changelist_idx": 6
+  }
+}

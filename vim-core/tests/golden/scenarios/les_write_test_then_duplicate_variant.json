@@ -1,0 +1,61 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "i#[test]<CR>fn test_empty_input() {<CR>    assert_eq!(parse(\"\"), None);<CR>}<Esc>VkkkyjGpjwciwtest_valid_input<Esc>jf(ci(parse(\"hello\"), Some(\"hello\")<Esc>"
+  },
+  "expected": {
+    "text": "#[test]\nfn test_empty_input() {\n    assert_eq!(parse(\"\"), None);\n    }\n#[test]\nfn test_valid_input() {\n    assert_eq!(parse(parse(\"hello\"), Some(\"hello\")), None);\n    }",
+    "cursor_offset": 152,
+    "cursor_line": 6,
+    "cursor_col": 49,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "#[test]\nfn test_empty_input() {\n    assert_eq!(parse(\"\"), None);\n    }\n",
+        "regtype": "V"
+      },
+      "-": {
+        "text": "\"\"",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "\"\"",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 124,
+      "[": 124,
+      "^": 153,
+      "]": 153,
+      "<": 0,
+      ">": 2147483711
+    },
+    "window": {
+      "topline": 1,
+      "botline": 8,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 49,
+    "jumplist": [
+      12
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      7,
+      69,
+      71,
+      82,
+      124
+    ],
+    "changelist_idx": 5
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "fn procss(data: &str) {\n    data.len()\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "wciwprocess<Esc>f{i -> usize <Esc>jI    return <Esc>A;<Esc>"
+  },
+  "expected": {
+    "text": "fn process(data: &str)  -> usize {\n        return data.len();\n}",
+    "cursor_offset": 60,
+    "cursor_line": 1,
+    "cursor_col": 25,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "procss",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "procss",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 61,
+      "]": 61,
+      "[": 60,
+      ".": 60
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 25,
+    "changelist": [
+      23,
+      60
+    ],
+    "changelist_idx": 2
+  }
+}

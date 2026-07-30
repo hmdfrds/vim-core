@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "日本語\nテスト",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Vjd"
+  },
+  "expected": {
+    "text": "",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "日本語\nテスト\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "日本語\nテスト\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ">": 2147483646,
+      "[": 0,
+      ".": 0,
+      "]": 0,
+      "<": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

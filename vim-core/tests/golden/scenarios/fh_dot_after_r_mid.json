@@ -1,0 +1,33 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107696",
+  "input": {
+    "text": "abcdef",
+    "cursor": [
+      0,
+      2
+    ],
+    "mode": "Normal",
+    "keys": "rxll."
+  },
+  "expected": {
+    "text": "abxdxf",
+    "cursor_offset": 4,
+    "cursor_line": 0,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 4,
+      "]": 4,
+      "[": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

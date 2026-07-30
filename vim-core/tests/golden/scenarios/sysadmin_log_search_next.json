@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "INFO: ok\nERROR: first\nINFO: ok\nERROR: second\nINFO: ok\nERROR: third",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/ERROR<CR>nn"
+  },
+  "expected": {
+    "text": "INFO: ok\nERROR: first\nINFO: ok\nERROR: second\nINFO: ok\nERROR: third",
+    "cursor_offset": 54,
+    "cursor_line": 5,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "ERROR",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0
+    },
+    "search_pattern": "ERROR",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0,
+      9,
+      31
+    ],
+    "jumplist_idx": 3,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

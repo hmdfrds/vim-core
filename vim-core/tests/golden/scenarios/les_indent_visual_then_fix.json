@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "if true {\nfirst\nsecond\nthird\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "jV2j>jV>k<<"
+  },
+  "expected": {
+    "text": "if true {\nfirst\n        second\n    third\n}",
+    "cursor_offset": 10,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 14,
+      ".": 10,
+      ">": 2147483662,
+      "[": 10,
+      "<": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      10,
+      16,
+      10
+    ],
+    "changelist_idx": 4
+  }
+}

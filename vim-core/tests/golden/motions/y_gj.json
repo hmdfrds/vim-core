@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "aaa\nbbb\nccc",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ygjGp"
+  },
+  "expected": {
+    "text": "aaa\nbbb\nccc\naaa",
+    "cursor_offset": 12,
+    "cursor_line": 3,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "aaa\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "aaa\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 12,
+      "[": 12,
+      "]": 14
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

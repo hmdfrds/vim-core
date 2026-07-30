@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "0 2 * * * /usr/local/bin/backup.sh\n0 6 * * * /usr/local/bin/cleanup.sh",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yypr6"
+  },
+  "expected": {
+    "text": "0 2 * * * /usr/local/bin/backup.sh\n6 2 * * * /usr/local/bin/backup.sh\n0 6 * * * /usr/local/bin/cleanup.sh",
+    "cursor_offset": 35,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "0 2 * * * /usr/local/bin/backup.sh\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "0 2 * * * /usr/local/bin/backup.sh\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 35,
+      "]": 35,
+      ".": 35
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      35
+    ],
+    "changelist_idx": 2
+  }
+}

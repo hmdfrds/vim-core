@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "para1\n\ntarget word\n\npara3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "}wcwnew<Esc>"
+  },
+  "expected": {
+    "text": "para1\n\nnew word\n\npara3",
+    "cursor_offset": 9,
+    "cursor_line": 2,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "target",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "target",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 7,
+      ".": 7,
+      "^": 10,
+      "]": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "teh quick fox",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "cwthe<Esc>wwcwfox<Esc>"
+  },
+  "expected": {
+    "text": "the quick fox",
+    "cursor_offset": 12,
+    "cursor_line": 0,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "fox",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "fox",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 10,
+      "]": 13,
+      "[": 10,
+      "^": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12
+  }
+}

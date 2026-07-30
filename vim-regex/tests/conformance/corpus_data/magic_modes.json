@@ -1,0 +1,47 @@
+[
+  {
+    "pattern": "(a|b)+",
+    "magic_mode": "very_magic",
+    "input": "xxabbay",
+    "expected_matches": [
+      {"start": 2, "end": 6}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\(a\\|b\\)\\+",
+    "magic_mode": "magic",
+    "input": "xxabbay",
+    "expected_matches": [
+      {"start": 2, "end": 6}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\(a\\|b\\)\\+",
+    "magic_mode": "nomagic",
+    "input": "xxabbay",
+    "expected_matches": [
+      {"start": 2, "end": 6}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "a.b",
+    "magic_mode": "nomagic",
+    "input": "a.b axb",
+    "expected_matches": [
+      {"start": 0, "end": 3}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "a\\.b",
+    "magic_mode": "magic",
+    "input": "a.b axb",
+    "expected_matches": [
+      {"start": 0, "end": 3}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  }
+]

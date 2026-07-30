@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "hello world\nfoo bar\nbaz qux",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "zzx"
+  },
+  "expected": {
+    "text": "hello world\nfoo ar\nbaz qux",
+    "cursor_offset": 16,
+    "cursor_line": 1,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "b",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "b",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 16,
+      "]": 16,
+      "[": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      0,
+      16
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "config = {\n    'host': 'localhost',\n    'port': 8080,\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f'lci'0.0.0.0<Esc>"
+  },
+  "expected": {
+    "text": "config = {\n    '0.0.0.0': 'localhost',\n    'port': 8080,\n}",
+    "cursor_offset": 22,
+    "cursor_line": 1,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "host",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "host",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 16,
+      ".": 22,
+      "^": 23,
+      "]": 23
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11,
+    "changelist": [
+      0,
+      22
+    ],
+    "changelist_idx": 2
+  }
+}

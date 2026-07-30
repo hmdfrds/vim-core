@@ -1,0 +1,31 @@
+[
+  {
+    "pattern": "\\(foo\\)\\(bar\\)",
+    "magic_mode": "magic",
+    "input": "foobar",
+    "expected_matches": [
+      {"start": 0, "end": 6}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\(\\w\\+\\) \\1",
+    "magic_mode": "magic",
+    "input": "hello hello world world",
+    "expected_matches": [
+      {"start": 0, "end": 11},
+      {"start": 12, "end": 23}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\%(foo\\|bar\\)baz",
+    "magic_mode": "magic",
+    "input": "foobaz barbaz",
+    "expected_matches": [
+      {"start": 0, "end": 6},
+      {"start": 7, "end": 13}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  }
+]

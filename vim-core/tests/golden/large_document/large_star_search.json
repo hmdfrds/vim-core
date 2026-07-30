@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1776474014",
+  "input": {
+    "text": "MARKER on line 0\nfiller text on line 1\nfiller text on line 2\nfiller text on line 3\nfiller text on line 4\nfiller text on line 5\nfiller text on line 6\nfiller text on line 7\nfiller text on line 8\nfiller text on line 9\nMARKER on line 10\nfiller text on line 11\nfiller text on line 12\nfiller text on line 13\nfiller text on line 14\nfiller text on line 15\nfiller text on line 16\nfiller text on line 17\nfiller text on line 18\nfiller text on line 19\nMARKER on line 20\nfiller text on line 21\nfiller text on line 22\nfiller text on line 23\nfiller text on line 24\nfiller text on line 25\nfiller text on line 26\nfiller text on line 27\nfiller text on line 28\nfiller text on line 29\nMARKER on line 30\nfiller text on line 31\nfiller text on line 32\nfiller text on line 33\nfiller text on line 34\nfiller text on line 35\nfiller text on line 36\nfiller text on line 37\nfiller text on line 38\nfiller text on line 39\nMARKER on line 40\nfiller text on line 41\nfiller text on line 42\nfiller text on line 43\nfiller text on line 44\nfiller text on line 45\nfiller text on line 46\nfiller text on line 47\nfiller text on line 48\nfiller text on line 49",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "*"
+  },
+  "expected": {
+    "text": "MARKER on line 0\nfiller text on line 1\nfiller text on line 2\nfiller text on line 3\nfiller text on line 4\nfiller text on line 5\nfiller text on line 6\nfiller text on line 7\nfiller text on line 8\nfiller text on line 9\nMARKER on line 10\nfiller text on line 11\nfiller text on line 12\nfiller text on line 13\nfiller text on line 14\nfiller text on line 15\nfiller text on line 16\nfiller text on line 17\nfiller text on line 18\nfiller text on line 19\nMARKER on line 20\nfiller text on line 21\nfiller text on line 22\nfiller text on line 23\nfiller text on line 24\nfiller text on line 25\nfiller text on line 26\nfiller text on line 27\nfiller text on line 28\nfiller text on line 29\nMARKER on line 30\nfiller text on line 31\nfiller text on line 32\nfiller text on line 33\nfiller text on line 34\nfiller text on line 35\nfiller text on line 36\nfiller text on line 37\nfiller text on line 38\nfiller text on line 39\nMARKER on line 40\nfiller text on line 41\nfiller text on line 42\nfiller text on line 43\nfiller text on line 44\nfiller text on line 45\nfiller text on line 46\nfiller text on line 47\nfiller text on line 48\nfiller text on line 49",
+    "cursor_offset": 215,
+    "cursor_line": 10,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "\\<MARKER\\>",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0
+    },
+    "search_pattern": "\\<MARKER\\>",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 22,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

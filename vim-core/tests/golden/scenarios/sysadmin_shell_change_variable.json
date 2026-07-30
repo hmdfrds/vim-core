@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "#!/bin/bash\nBACKUP_DIR=\"/old/backup\"\ntar czf $BACKUP_DIR/archive.tar.gz /data",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f\"ci\"/mnt/nfs/backup<Esc>"
+  },
+  "expected": {
+    "text": "#!/bin/bash\nBACKUP_DIR=\"/mnt/nfs/backup\"\ntar czf $BACKUP_DIR/archive.tar.gz /data",
+    "cursor_offset": 38,
+    "cursor_line": 1,
+    "cursor_col": 26,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "/old/backup",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "/old/backup",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 24,
+      "]": 39,
+      ".": 24,
+      "^": 39
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 26,
+    "changelist": [
+      0,
+      24
+    ],
+    "changelist_idx": 2
+  }
+}

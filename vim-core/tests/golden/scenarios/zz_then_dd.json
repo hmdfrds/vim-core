@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10",
+    "cursor": [
+      4,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "zzdd"
+  },
+  "expected": {
+    "text": "l1\nl2\nl3\nl4\nl6\nl7\nl8\nl9\nl10",
+    "cursor_offset": 12,
+    "cursor_line": 4,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "l5\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "l5\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 12,
+      "]": 12,
+      "[": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 9,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "fn() {\n  let x = 1;\n  let y = 2;\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ci{X<Esc>"
+  },
+  "expected": {
+    "text": "fn() {\n  X\n}",
+    "cursor_offset": 9,
+    "cursor_line": 1,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "  let x = 1;\n  let y = 2;\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "  let x = 1;\n  let y = 2;\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 9,
+      "^": 10,
+      "]": 10,
+      ".": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

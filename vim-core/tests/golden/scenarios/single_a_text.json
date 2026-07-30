@@ -1,0 +1,34 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107700",
+  "input": {
+    "text": "a",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "aX<Esc>"
+  },
+  "expected": {
+    "text": "aX",
+    "cursor_offset": 1,
+    "cursor_line": 0,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 2,
+      "[": 1,
+      "^": 2,
+      ".": 1
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1
+  }
+}

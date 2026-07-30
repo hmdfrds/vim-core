@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "function validateEmail(input) {\n  return true;\n}\nconst result = (data);",
+    "cursor": [
+      0,
+      9
+    ],
+    "mode": "Normal",
+    "keys": "yiwjjjf(P"
+  },
+  "expected": {
+    "text": "function validateEmail(input) {\n  return true;\n}\nconst result = validateEmail(data);",
+    "cursor_offset": 76,
+    "cursor_line": 3,
+    "cursor_col": 27,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "validateEmail",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "validateEmail",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 64,
+      "[": 64,
+      "]": 76
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 27,
+    "changelist": [
+      0,
+      64
+    ],
+    "changelist_idx": 2
+  }
+}

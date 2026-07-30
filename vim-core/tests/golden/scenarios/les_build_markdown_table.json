@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "i| Name  | Value |<CR>|-------|-------|<CR>| alpha | 1     |<CR>| beta  | 2     |<CR>| gamma | 3     |<Esc>"
+  },
+  "expected": {
+    "text": "| Name  | Value |\n|-------|-------|\n| alpha | 1     |\n| beta  | 2     |\n| gamma | 3     |",
+    "cursor_offset": 88,
+    "cursor_line": 4,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 89,
+      "^": 89,
+      "[": 0,
+      ".": 72
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "changelist": [
+      17,
+      72
+    ],
+    "changelist_idx": 2
+  }
+}

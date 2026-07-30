@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "#!/bin/bash\n\necho \"starting backup\"",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "oset -euo pipefail<Esc>"
+  },
+  "expected": {
+    "text": "#!/bin/bash\nset -euo pipefail\n\necho \"starting backup\"",
+    "cursor_offset": 28,
+    "cursor_line": 1,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 12,
+      "^": 29,
+      ".": 12,
+      "]": 29
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "code1\ncode2\ncode3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "I// <Esc>j.j."
+  },
+  "expected": {
+    "text": "// code1\n// code2\n// code3",
+    "cursor_offset": 20,
+    "cursor_line": 2,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 21,
+      "[": 18,
+      "]": 21,
+      ".": 18
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

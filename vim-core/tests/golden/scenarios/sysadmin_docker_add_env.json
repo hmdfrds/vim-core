@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "FROM ubuntu:22.04\nRUN apt-get update\nCMD [\"/bin/bash\"]",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "oENV DEBIAN_FRONTEND=noninteractive<Esc>"
+  },
+  "expected": {
+    "text": "FROM ubuntu:22.04\nRUN apt-get update\nENV DEBIAN_FRONTEND=noninteractive\nCMD [\"/bin/bash\"]",
+    "cursor_offset": 70,
+    "cursor_line": 2,
+    "cursor_col": 33,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 37,
+      "^": 71,
+      "]": 71,
+      ".": 37
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 33,
+    "changelist": [
+      0,
+      37
+    ],
+    "changelist_idx": 2
+  }
+}

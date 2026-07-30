@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "#!/bin/bash\ncp /etc/config /backup/config\necho done",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "A || exit 1<Esc>"
+  },
+  "expected": {
+    "text": "#!/bin/bash\ncp /etc/config /backup/config || exit 1\necho done",
+    "cursor_offset": 50,
+    "cursor_line": 1,
+    "cursor_col": 38,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 51,
+      ".": 41,
+      "[": 41,
+      "]": 51
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 38,
+    "changelist": [
+      0,
+      41
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "iThis was a bad idea.<Esc>uiThis is much better.<Esc>"
+  },
+  "expected": {
+    "text": "This is much better.",
+    "cursor_offset": 19,
+    "cursor_line": 0,
+    "cursor_col": 19,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 20,
+      "[": 0,
+      "^": 20,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 19,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "l1\nl2",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy:$put<CR>"
+  },
+  "expected": {
+    "text": "l1\nl2\nl1",
+    "cursor_offset": 6,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "l1\n",
+        "regtype": "V"
+      },
+      ":": {
+        "text": "$put",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "l1\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 7,
+      ".": 6,
+      "[": 6
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

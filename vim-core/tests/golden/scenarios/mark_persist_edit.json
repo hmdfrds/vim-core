@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "hello\nworld\nfoo",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "jmayyddGp'a"
+  },
+  "expected": {
+    "text": "hello\nfoo\nworld",
+    "cursor_offset": 10,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "world\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "world\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "world\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 14,
+      ".": 10,
+      "[": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "errmsg": "E20: Mark not set"
+  }
+}

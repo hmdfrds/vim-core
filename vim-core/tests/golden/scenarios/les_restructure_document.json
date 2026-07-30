@@ -1,0 +1,54 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Introduction paragraph here.\n\nMiddle content stays.\n\nConclusion goes first.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "GVky1GP"
+  },
+  "expected": {
+    "text": "\nConclusion goes first.\nIntroduction paragraph here.\n\nMiddle content stays.\n\nConclusion goes first.",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "\nConclusion goes first.\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "\nConclusion goes first.\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ">": 2147483723,
+      "]": 22,
+      "<": 76,
+      ".": 0,
+      "[": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 7,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      24,
+      76
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      24,
+      0
+    ],
+    "changelist_idx": 2
+  }
+}

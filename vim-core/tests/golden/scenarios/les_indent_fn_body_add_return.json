@@ -1,0 +1,40 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "fn compute(a: i32, b: i32) -> i32 {\na + b\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "j>>oreturn a * b;<Esc>>>"
+  },
+  "expected": {
+    "text": "fn compute(a: i32, b: i32) -> i32 {\n    a + b\n        return a * b;\n}",
+    "cursor_offset": 62,
+    "cursor_line": 2,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 66,
+      "[": 62,
+      "^": 63,
+      ".": 46
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "changelist": [
+      0,
+      36,
+      46
+    ],
+    "changelist_idx": 3
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "match dir {\n    Up => 1,\n    Down => -1,\n    Left => 0,\n}",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "dd"
+  },
+  "expected": {
+    "text": "match dir {\n    Up => 1,\n    Down => -1,\n}",
+    "cursor_offset": 41,
+    "cursor_line": 3,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    Left => 0,\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "    Left => 0,\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 41,
+      ".": 41,
+      "]": 41
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      41
+    ],
+    "changelist_idx": 2
+  }
+}

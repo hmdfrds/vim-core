@@ -1,0 +1,54 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "    Success(String),",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy3pjwciwFailure<Esc>jwciwPending<Esc>jwciwTimeout<Esc>"
+  },
+  "expected": {
+    "text": "    Success(String),\n    Success(String),\n    SuccessFailureString),\n    Success(Timeout",
+    "cursor_offset": 87,
+    "cursor_line": 3,
+    "cursor_col": 18,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "StringPending",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "StringPending",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "    Success(String),\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 81,
+      "[": 81,
+      "]": 88,
+      "^": 88
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 18,
+    "changelist": [
+      0,
+      21,
+      53,
+      81
+    ],
+    "changelist_idx": 4
+  }
+}

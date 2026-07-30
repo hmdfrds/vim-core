@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.1",
+  "generated_at": "1778644065",
+  "input": {
+    "text": "hello\nworld",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ywp"
+  },
+  "expected": {
+    "text": "hello\nwworldorld",
+    "cursor_offset": 11,
+    "cursor_line": 1,
+    "cursor_col": 5,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "world",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "world",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 11,
+      "[": 7,
+      ".": 7
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 5,
+    "changelist": [
+      0,
+      7
+    ],
+    "changelist_idx": 2
+  }
+}

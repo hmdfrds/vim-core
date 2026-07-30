@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.1",
+  "generated_at": "1778644065",
+  "input": {
+    "text": "\n",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "onew<Esc>"
+  },
+  "expected": {
+    "text": "\nnew\n",
+    "cursor_offset": 3,
+    "cursor_line": 1,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 4,
+      "[": 1,
+      "^": 4,
+      ".": 1
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2,
+    "changelist": [
+      0,
+      1
+    ],
+    "changelist_idx": 2
+  }
+}

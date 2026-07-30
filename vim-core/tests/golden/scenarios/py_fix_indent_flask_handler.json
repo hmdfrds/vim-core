@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "class Api:\n    def index(self):\nreturn jsonify(data)",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ">>>>>>>"
+  },
+  "expected": {
+    "text": "class Api:\n    def index(self):\n            return jsonify(data)",
+    "cursor_offset": 32,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 32,
+      "]": 63,
+      ".": 32
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      32
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "pattern": "\\w\\+",
+    "magic_mode": "magic",
+    "input": "hello world 123",
+    "expected_matches": [
+      {"start": 0, "end": 5},
+      {"start": 6, "end": 11},
+      {"start": 12, "end": 15}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\d\\+",
+    "magic_mode": "magic",
+    "input": "abc 42 def 7",
+    "expected_matches": [
+      {"start": 4, "end": 6},
+      {"start": 11, "end": 12}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\s\\+",
+    "magic_mode": "magic",
+    "input": "a  b\tc",
+    "expected_matches": [
+      {"start": 1, "end": 3},
+      {"start": 4, "end": 5}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\a\\+",
+    "magic_mode": "magic",
+    "input": "abc123DEF",
+    "expected_matches": [
+      {"start": 0, "end": 3},
+      {"start": 6, "end": 9}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\l\\+",
+    "magic_mode": "magic",
+    "input": "abcDEFghi",
+    "expected_matches": [
+      {"start": 0, "end": 3},
+      {"start": 6, "end": 9}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  },
+  {
+    "pattern": "\\u\\+",
+    "magic_mode": "magic",
+    "input": "abcDEFghi",
+    "expected_matches": [
+      {"start": 3, "end": 6}
+    ],
+    "source": "neovim-oracle-v0.10.0"
+  }
+]

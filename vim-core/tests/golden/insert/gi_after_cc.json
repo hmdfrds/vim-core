@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "hello\nworld",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ccnew<Esc>jgiX<Esc>"
+  },
+  "expected": {
+    "text": "newX\nworld",
+    "cursor_offset": 3,
+    "cursor_line": 0,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "hello\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "hello\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 3,
+      ".": 3,
+      "^": 4,
+      "]": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

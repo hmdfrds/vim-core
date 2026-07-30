@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "old\nold\nold",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":%norm cwne w<CR>"
+  },
+  "expected": {
+    "text": "ne w\nne w\nne w",
+    "cursor_offset": 13,
+    "cursor_line": 2,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "old",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "old",
+        "regtype": "v"
+      },
+      ":": {
+        "text": "%norm cwne w",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 10,
+      "^": 14,
+      ".": 10,
+      "]": 14
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

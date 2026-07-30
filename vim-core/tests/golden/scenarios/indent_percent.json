@@ -1,0 +1,33 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "(\nhello\n)",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ">%"
+  },
+  "expected": {
+    "text": "    (\n    hello\n    )",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 0,
+      ".": 0,
+      "]": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

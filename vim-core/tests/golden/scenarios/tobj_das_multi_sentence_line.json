@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "Call init().  Then run().  Finally cleanup().",
+    "cursor": [
+      0,
+      15
+    ],
+    "mode": "Normal",
+    "keys": "das"
+  },
+  "expected": {
+    "text": "Call init().  Finally cleanup().",
+    "cursor_offset": 14,
+    "cursor_line": 0,
+    "cursor_col": 14,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "Then run().  ",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "Then run().  ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 14,
+      "[": 14,
+      ".": 14
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 14,
+    "changelist": [
+      14
+    ],
+    "changelist_idx": 1
+  }
+}

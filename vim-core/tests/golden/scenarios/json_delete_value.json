@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "{\"key\": \"remove\"}",
+    "cursor": [
+      0,
+      8
+    ],
+    "mode": "Normal",
+    "keys": "di\""
+  },
+  "expected": {
+    "text": "{\"key\": \"\"}",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "remove",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "remove",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 9,
+      ".": 9,
+      "[": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "old content goes here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ccnew content<Esc>"
+  },
+  "expected": {
+    "text": "new content",
+    "cursor_offset": 10,
+    "cursor_line": 0,
+    "cursor_col": 10,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "old content goes here\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "old content goes here\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 0,
+      "]": 11,
+      "^": 11,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 10
+  }
+}

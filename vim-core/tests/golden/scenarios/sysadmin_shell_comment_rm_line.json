@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "#!/bin/bash\nrm -rf /tmp/build/*\necho done",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "I# <Esc>"
+  },
+  "expected": {
+    "text": "#!/bin/bash\n# rm -rf /tmp/build/*\necho done",
+    "cursor_offset": 13,
+    "cursor_line": 1,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 14,
+      "[": 12,
+      "^": 14,
+      ".": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

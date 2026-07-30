@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "foo\nfoo\nfoo",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qa:s/foo/bar/<CR>jq2@a"
+  },
+  "expected": {
+    "text": "bar\nbar\nbar",
+    "cursor_offset": 8,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "foo",
+        "regtype": "v"
+      },
+      ":": {
+        "text": "s/foo/bar/",
+        "regtype": "v"
+      },
+      "a": {
+        "text": ":s/foo/bar/\rj",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 8,
+      "]": 8,
+      ".": 8
+    },
+    "search_pattern": "foo",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

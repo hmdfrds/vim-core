@@ -1,0 +1,40 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "alpha\nbeta\ngamma\ndelta",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "AX<Esc>jjAY<Esc>jAZ<Esc>g;g;g;"
+  },
+  "expected": {
+    "text": "alphaX\nbeta\ngammaY\ndeltaZ",
+    "cursor_offset": 5,
+    "cursor_line": 0,
+    "cursor_col": 5,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 24,
+      "^": 25,
+      "[": 24,
+      "]": 25
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 5,
+    "changelist": [
+      5,
+      17,
+      24
+    ],
+    "changelist_idx": 0
+  }
+}

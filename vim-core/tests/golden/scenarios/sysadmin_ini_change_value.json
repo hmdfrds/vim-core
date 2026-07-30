@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "[server]\nport = 8080\nworkers = 4",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f=lcW9090<Esc>"
+  },
+  "expected": {
+    "text": "[server]\nport =90908080\nworkers = 4",
+    "cursor_offset": 18,
+    "cursor_line": 1,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": " ",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": " ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 15,
+      ".": 18,
+      "^": 19,
+      "]": 19
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9,
+    "changelist": [
+      0,
+      18
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "abcdef\nghijkl\nmnopqr",
+    "cursor": [
+      0,
+      3
+    ],
+    "mode": "Normal",
+    "keys": "iXYZ<Esc>GgiABC<Esc>"
+  },
+  "expected": {
+    "text": "abcXYZABCdef\nghijkl\nmnopqr",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 9,
+      ".": 6,
+      "[": 6,
+      "^": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8,
+    "changelist": [
+      6
+    ],
+    "changelist_idx": 1
+  }
+}

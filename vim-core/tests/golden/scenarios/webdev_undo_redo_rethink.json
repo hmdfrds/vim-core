@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "const API_URL = '/api/v1';",
+    "cursor": [
+      0,
+      17
+    ],
+    "mode": "Normal",
+    "keys": "ci'/api/v2<Esc>uci'/api/v3<Esc>"
+  },
+  "expected": {
+    "text": "const API_URL = '/api/v3';",
+    "cursor_offset": 23,
+    "cursor_line": 0,
+    "cursor_col": 23,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "/api/v1",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "/api/v1",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 17,
+      "]": 24,
+      "^": 24,
+      ".": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 23,
+    "changelist": [
+      17
+    ],
+    "changelist_idx": 1
+  }
+}

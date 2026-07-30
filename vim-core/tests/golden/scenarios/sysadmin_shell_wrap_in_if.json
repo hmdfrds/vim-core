@@ -1,0 +1,41 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "systemctl restart nginx",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Oif systemctl is-active nginx; then<Esc>jofi<Esc>k>>>"
+  },
+  "expected": {
+    "text": "if systemctl is-active nginx; then\n    systemctl restart nginx\nfi",
+    "cursor_offset": 36,
+    "cursor_line": 1,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 36,
+      "]": 61,
+      "^": 65,
+      ".": 35
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      35,
+      0,
+      63,
+      35
+    ],
+    "changelist_idx": 4
+  }
+}

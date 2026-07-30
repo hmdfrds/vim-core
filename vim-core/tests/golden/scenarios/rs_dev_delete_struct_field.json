@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "struct Config {\n    name: String,\n    debug: bool,\n    port: u16,\n}",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "dd"
+  },
+  "expected": {
+    "text": "struct Config {\n    name: String,\n    port: u16,\n}",
+    "cursor_offset": 34,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    debug: bool,\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "    debug: bool,\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 34,
+      "[": 34,
+      ".": 34
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      34
+    ],
+    "changelist_idx": 2
+  }
+}

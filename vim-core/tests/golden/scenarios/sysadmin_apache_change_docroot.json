@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "<VirtualHost *:80>\n    DocumentRoot /var/www/old-site\n    <Directory /var/www/old-site>\n</VirtualHost>",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":%s/old-site/new-site/g<CR>"
+  },
+  "expected": {
+    "text": "<VirtualHost *:80>\n    DocumentRoot /var/www/new-site\n    <Directory /var/www/new-site>\n</VirtualHost>",
+    "cursor_offset": 58,
+    "cursor_line": 2,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "%s/old-site/new-site/g",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "old-site",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 88,
+      ".": 19,
+      "[": 0
+    },
+    "search_pattern": "old-site",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      19
+    ],
+    "changelist_idx": 2
+  }
+}

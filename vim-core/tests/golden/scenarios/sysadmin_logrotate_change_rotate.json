@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "/var/log/app/*.log {\n    daily\n    rotate 7\n    compress\n    missingok\n}",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f7r30"
+  },
+  "expected": {
+    "text": "/var/log/app/*.log {\n    daily\n    rotate 3\n    compress\n    missingok\n}",
+    "cursor_offset": 31,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 42,
+      "[": 42,
+      "]": 42
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      42
+    ],
+    "changelist_idx": 2
+  }
+}

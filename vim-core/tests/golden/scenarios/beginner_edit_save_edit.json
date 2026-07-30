@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "Hello world\nThis is a test\nLine three",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "itext <Esc>:w<CR>imore <Esc>"
+  },
+  "expected": {
+    "text": "textmore  Hello world\nThis is a test\nLine three",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "w",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 9,
+      ".": 4,
+      "^": 9,
+      "[": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8,
+    "changelist": [
+      4
+    ],
+    "changelist_idx": 1,
+    "errmsg": "E32: No file name"
+  }
+}

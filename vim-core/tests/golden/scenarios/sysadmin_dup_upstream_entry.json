@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "upstream backend {\n    server 10.0.0.1:8080;\n    server 10.0.0.2:8080;\n}",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yypf2r3"
+  },
+  "expected": {
+    "text": "upstream backend {\n    server 10.0.0.1:8080;\n    server 10.0.0.2:8080;\n    server 10.0.0.3:8080;\n}",
+    "cursor_offset": 89,
+    "cursor_line": 3,
+    "cursor_col": 18,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "    server 10.0.0.2:8080;\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "    server 10.0.0.2:8080;\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 89,
+      "]": 89,
+      "[": 89
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 18,
+    "changelist": [
+      0,
+      89
+    ],
+    "changelist_idx": 2
+  }
+}

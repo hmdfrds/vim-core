@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "const data = fetch('/api/users');",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "^ciwconst<Esc>f=la await<Esc>"
+  },
+  "expected": {
+    "text": "const data =  awaitfetch('/api/users');",
+    "cursor_offset": 18,
+    "cursor_line": 0,
+    "cursor_col": 18,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "const",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "const",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 19,
+      "^": 19,
+      ".": 13,
+      "[": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 18,
+    "changelist": [
+      13
+    ],
+    "changelist_idx": 1
+  }
+}

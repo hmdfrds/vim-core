@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1778201734",
+  "input": {
+    "text": "aaa\nbbb\naaa\nccc",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":g/aaa/s/aaa/REPLACED/<CR>"
+  },
+  "expected": {
+    "text": "REPLACED\nbbb\nREPLACED\nccc",
+    "cursor_offset": 13,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "g/aaa/s/aaa/REPLACED/",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "aaa",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 13,
+      ".": 13,
+      "]": 13
+    },
+    "search_pattern": "aaa",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      13
+    ],
+    "changelist_idx": 2
+  }
+}

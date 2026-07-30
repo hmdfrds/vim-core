@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    .map(|s| s.trim())",
+    "cursor": [
+      0,
+      12
+    ],
+    "mode": "Normal",
+    "keys": "C {\n        s.trim()\n    })<Esc>"
+  },
+  "expected": {
+    "text": "    .map(|s| {\n            s.trim()\n                })",
+    "cursor_offset": 53,
+    "cursor_line": 2,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": " s.trim())",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": " s.trim())",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 48,
+      "]": 54,
+      "[": 12,
+      "^": 54
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17,
+    "changelist": [
+      14,
+      48
+    ],
+    "changelist_idx": 2
+  }
+}

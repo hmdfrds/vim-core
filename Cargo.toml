@@ -1,0 +1,83 @@
+[workspace]
+members = [
+    # Everything godot-vim compiles against, plus the dev-only crates its
+    # tests need. vim-ffi, vim-oracle, vim-extism, examples/ and xtask are
+    # separate integration surfaces with no bearing on godot-vim, and are
+    # not published here.
+    "vim-core",
+    "vim-text",
+    "vim-regex",
+    "vim-test",
+]
+resolver = "2"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Core
+smallvec = { version = "1.11", features = ["union"] }
+bitflags = "2.4"
+static_assertions = "1.1"
+compact_str = "0.7"
+tracing = "0.1"
+cbindgen = "0.27"
+syn = { version = "2", features = ["full", "extra-traits", "visit"] }
+quote = "1"
+walkdir = "2"
+proc-macro2 = "1"
+strum = { version = "0.26", features = ["derive"] }
+aho-corasick = "1.1"
+memchr = "2.7"
+ahash = "0.8"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Profile Taxonomy
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# release          — Default `cargo build --release`. Fast iteration, thin LTO.
+# release-dist     — Tagged releases & CI artifacts. Fat LTO, full strip.
+# release-profiling — perf/flamegraph/samply sessions. Symbols preserved.
+# release-wasm     — WASM targets. Size-optimized, fat LTO.
+# bench            — Criterion benchmarks. Matches release opt, keeps unwind.
+#
+# Usage:
+#   cargo build --release -p vim-ffi            # development
+#   cargo build --profile release-dist -p vim-ffi  # shipping
+#   cargo build --profile release-profiling -p vim-ffi  # profiling
+#   cargo build --profile release-wasm --target wasm32-unknown-unknown -p vim-extism
+#   cargo bench -p vim-core                     # benchmarks (automatic)
+
+# ── Default release: fast iteration, representative optimization ──────
+[profile.release]
+opt-level = 2
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+overflow-checks = true
+
+# ── Distribution: maximum optimization, one-time CI cost ──────────────
+[profile.release-dist]
+inherits = "release"
+lto = true
+strip = true
+
+# ── Profiling: symbols preserved for perf/flamegraph/samply ───────────
+[profile.release-profiling]
+inherits = "release"
+strip = false
+debug = 2
+
+# ── WASM: size-optimized for download, fat LTO for dead code elimination ──
+[profile.release-wasm]
+inherits = "release"
+opt-level = "s"
+lto = true
+strip = true
+
+# ── Benchmarks: matches release optimization, keeps unwind for Criterion ──
+[profile.bench]
+opt-level = 2
+lto = "thin"
+codegen-units = 1
+debug = 1
+overflow-checks = true

@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "10.0.0.10  app-01.prod\n10.0.0.11  app-02.prod",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yypf1ciw12<Esc>f-lciwapp-03<Esc>"
+  },
+  "expected": {
+    "text": "10.0.0.10  app-01.prod\n10.0.0.11  app-02.prod\n10.0.0.12  app-app-03.prod",
+    "cursor_offset": 66,
+    "cursor_line": 2,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "10.0.0.11  app-02.prod\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "02",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "02",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 61,
+      "]": 67,
+      "^": 67,
+      ".": 66
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20,
+    "changelist": [
+      0,
+      66
+    ],
+    "changelist_idx": 2
+  }
+}

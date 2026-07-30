@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "server {\n    listen 80;\n    server_name example.com;\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f8ciw8080<Esc>"
+  },
+  "expected": {
+    "text": "server {\n    listen 8080;\n    server_name example.com;\n}",
+    "cursor_offset": 23,
+    "cursor_line": 1,
+    "cursor_col": 14,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "80",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "80",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 20,
+      "^": 24,
+      ".": 23,
+      "]": 24
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 14,
+    "changelist": [
+      0,
+      23
+    ],
+    "changelist_idx": 2
+  }
+}

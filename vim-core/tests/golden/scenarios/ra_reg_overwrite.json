@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "alpha beta",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "\"ayww\"aywo<C-r>a<Esc>"
+  },
+  "expected": {
+    "text": "alpha beta\nbeta",
+    "cursor_offset": 14,
+    "cursor_line": 1,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "beta",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "beta",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 11,
+      "^": 15,
+      "]": 15,
+      "[": 11
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

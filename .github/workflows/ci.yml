@@ -1,0 +1,43 @@
+name: CI
+
+# Two jobs, deliberately. This repository is consumed as a tag, not developed
+# in, so the check that earns its keep is: after refreshing vim-text or
+# vim-regex from upstream, does it still build and is the failure set still
+# exactly the 82 recorded ones?
+on:
+  push:
+    branches: [main, evolve-crates]
+  pull_request:
+  workflow_dispatch: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The reason this repository exists: a third party must be able to build
+  # godot-vim from it. Anything that breaks the library build breaks that, so
+  # this job comes first.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab  # v2
+        with:
+          shared-key: ${{ github.job }}
+      - run: cargo build --workspace --locked
+
+  # The suite does not pass, and is not meant to -- see README.md. Asserting
+  # the exact set of failures keeps the useful half of a green build: a new
+  # failure is a regression and fails CI, while the pinned defects stay
+  # visible instead of being silenced with #[ignore].
+  known-failures:
+    name: tests (known-failure baseline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+      - uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab  # v2
+        with:
+          shared-key: ${{ github.job }}
+      - run: ./scripts/known-failures.sh

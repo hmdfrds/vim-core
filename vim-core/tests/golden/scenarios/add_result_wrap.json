@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "fn parse() -> Data",
+    "cursor": [
+      0,
+      14
+    ],
+    "mode": "Normal",
+    "keys": "C-> Result<Data, Error><Esc>"
+  },
+  "expected": {
+    "text": "fn parse() -> -> Result<Data, Error>",
+    "cursor_offset": 35,
+    "cursor_line": 0,
+    "cursor_col": 35,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "Data",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "Data",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 36,
+      "^": 36,
+      "[": 14,
+      ".": 14
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 35
+  }
+}

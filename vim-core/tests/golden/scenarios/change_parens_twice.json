@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "(old1) and (old2)",
+    "cursor": [
+      0,
+      1
+    ],
+    "mode": "Normal",
+    "keys": "ci(new1<Esc>f(ci(new2<Esc>"
+  },
+  "expected": {
+    "text": "(new1) and (new2)",
+    "cursor_offset": 15,
+    "cursor_line": 0,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "old2",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "old2",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 16,
+      ".": 12,
+      "^": 16,
+      "[": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15
+  }
+}

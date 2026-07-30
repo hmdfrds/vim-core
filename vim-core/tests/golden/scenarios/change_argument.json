@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "call(old_arg)",
+    "cursor": [
+      0,
+      5
+    ],
+    "mode": "Normal",
+    "keys": "ciwnew_arg<Esc>"
+  },
+  "expected": {
+    "text": "call(new_arg)",
+    "cursor_offset": 11,
+    "cursor_line": 0,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "old_arg",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "old_arg",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 12,
+      "[": 5,
+      "]": 12,
+      ".": 5
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11
+  }
+}

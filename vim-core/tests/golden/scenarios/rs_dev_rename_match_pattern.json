@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "match token {\n    Ident(name) => name.clone(),\n}",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "ciwKeyword<Esc>"
+  },
+  "expected": {
+    "text": "match token {\n    Keyword(name) => name.clone(),\n}",
+    "cursor_offset": 24,
+    "cursor_line": 1,
+    "cursor_col": 10,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "Ident",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "Ident",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 18,
+      ".": 18,
+      "^": 25,
+      "]": 25
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 10,
+    "changelist": [
+      0,
+      18
+    ],
+    "changelist_idx": 2
+  }
+}

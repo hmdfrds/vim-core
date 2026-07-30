@@ -1,0 +1,40 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "keep this\ndelete me\ninsert here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ioops<Esc>j\"_ddgi fixed<Esc>"
+  },
+  "expected": {
+    "text": "oops fixedkeep this\ninsert here",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 10,
+      "^": 10,
+      "[": 4,
+      ".": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9,
+    "changelist": [
+      0,
+      20,
+      4
+    ],
+    "changelist_idx": 3
+  }
+}

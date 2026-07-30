@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "192.168.1.10  web-01.internal\n192.168.1.11  web-02.internal",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "cW10.0.0.10<Esc>"
+  },
+  "expected": {
+    "text": "10.0.0.10  web-01.internal\n192.168.1.11  web-02.internal",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "192.168.1.10",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "192.168.1.10",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 9,
+      "[": 0,
+      "]": 9,
+      ".": 8
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8,
+    "changelist": [
+      8
+    ],
+    "changelist_idx": 1
+  }
+}

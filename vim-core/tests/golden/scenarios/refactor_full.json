@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "fn old() {\n    dbg!(x);\n    old();\n}",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "wcwnew<Esc>jddjcwnew<Esc>"
+  },
+  "expected": {
+    "text": "fn new() {\n    old();\nnew",
+    "cursor_offset": 24,
+    "cursor_line": 2,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "}",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "}",
+        "regtype": "v"
+      },
+      "1": {
+        "text": "    dbg!(x);\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 25,
+      "^": 25,
+      ".": 22,
+      "[": 22
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

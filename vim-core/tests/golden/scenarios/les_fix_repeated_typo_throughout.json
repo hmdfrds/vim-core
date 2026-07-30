@@ -1,0 +1,62 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Use the recieve function.\nThe recieve buffer is full.\nCall recieve again.\nCheck recieve status.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/recieve<CR>cwreceive<Esc>n.n.n."
+  },
+  "expected": {
+    "text": "Use the receive function.\nThe receive buffer is full.\nCall receive again.\nCheck receive status.",
+    "cursor_offset": 86,
+    "cursor_line": 3,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "recieve",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "recieve",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "recieve",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 80,
+      "]": 87,
+      "[": 80,
+      "^": 87
+    },
+    "search_pattern": "recieve",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12,
+    "jumplist": [
+      14,
+      36,
+      65
+    ],
+    "jumplist_idx": 3,
+    "changelist": [
+      8,
+      30,
+      59,
+      80
+    ],
+    "changelist_idx": 4
+  }
+}

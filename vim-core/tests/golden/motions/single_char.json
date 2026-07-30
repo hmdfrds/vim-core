@@ -1,0 +1,24 @@
+{
+  "nvim_version": "0.11.5",
+  "generated_at": "1769463990",
+  "input": {
+    "text": "a",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "l"
+  },
+  "expected": {
+    "text": "a",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    }
+  }
+}

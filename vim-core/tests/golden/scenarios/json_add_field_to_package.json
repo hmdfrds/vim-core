@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "{\n  \"name\": \"my-app\",\n  \"version\": \"1.0.0\"\n}",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "A,<CR>  \"description\": \"A web app\"<Esc>"
+  },
+  "expected": {
+    "text": "{\n  \"name\": \"my-app\",\n  \"version\": \"1.0.0\",\n    \"description\": \"A web app\"\n}",
+    "cursor_offset": 73,
+    "cursor_line": 3,
+    "cursor_col": 29,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 46,
+      "]": 74,
+      "[": 42,
+      "^": 74
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 29,
+    "changelist": [
+      0,
+      46
+    ],
+    "changelist_idx": 2
+  }
+}

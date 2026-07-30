@@ -1,0 +1,55 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "iFunction signaure is wrong.<CR>But the body is fine.<Esc>gg$bbciwsignature<Esc>GA Totally fine.<Esc>"
+  },
+  "expected": {
+    "text": "Function signaure signature wrong.\nBut the body is fine. Totally fine.",
+    "cursor_offset": 69,
+    "cursor_line": 1,
+    "cursor_col": 34,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "is",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "is",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 70,
+      "[": 56,
+      ".": 56,
+      "]": 70
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 34,
+    "jumplist": [
+      55,
+      26
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      27,
+      35,
+      18,
+      56
+    ],
+    "changelist_idx": 4
+  }
+}

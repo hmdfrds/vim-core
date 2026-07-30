@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "struct User {\n    name: String,\n}",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "ciwusername<Esc>"
+  },
+  "expected": {
+    "text": "struct User {\n    username: String,\n}",
+    "cursor_offset": 25,
+    "cursor_line": 1,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "name",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "name",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 26,
+      "^": 26,
+      "[": 18,
+      ".": 18
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11,
+    "changelist": [
+      0,
+      18
+    ],
+    "changelist_idx": 2
+  }
+}

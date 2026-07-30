@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.1",
+  "generated_at": "1778730236",
+  "input": {
+    "text": "hello\nworld\nfinal",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "l<C-v>2jl>"
+  },
+  "expected": {
+    "text": "h    ello\nw    orld\nf    inal",
+    "cursor_offset": 1,
+    "cursor_line": 0,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0,
+      ">": 22,
+      "<": 1,
+      "]": 28,
+      "[": 1
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      10,
+      0
+    ],
+    "changelist_idx": 2
+  }
+}

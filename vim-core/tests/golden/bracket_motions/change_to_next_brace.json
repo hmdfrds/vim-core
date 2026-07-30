@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "{\n  foo\n  bar\n}",
+    "cursor": [
+      1,
+      2
+    ],
+    "mode": "Normal",
+    "keys": "c]}X<Esc>"
+  },
+  "expected": {
+    "text": "{\n  X\n}",
+    "cursor_offset": 4,
+    "cursor_line": 1,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "  foo\n  bar\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "  foo\n  bar\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 4,
+      "]": 5,
+      ".": 4,
+      "^": 5
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

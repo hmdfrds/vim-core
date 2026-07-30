@@ -1,0 +1,40 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "[debug]\nenable = true\nverbose = true\n\n[production]\nenable = false",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "I; <Esc>jI; <Esc>jI; <Esc>"
+  },
+  "expected": {
+    "text": "; [debug]\n; enable = true\n; verbose = true\n\n[production]\nenable = false",
+    "cursor_offset": 27,
+    "cursor_line": 2,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 26,
+      "^": 28,
+      "[": 26,
+      "]": 28
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      0,
+      10,
+      26
+    ],
+    "changelist_idx": 3
+  }
+}

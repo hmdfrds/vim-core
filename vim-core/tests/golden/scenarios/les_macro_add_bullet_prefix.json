@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Apples\nBananas\nCherries\nDates\nElderberries",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qaI- <Esc>jq4@a"
+  },
+  "expected": {
+    "text": "- Apples\n- Bananas\n- Cherries\n- Dates\n- Elderberries",
+    "cursor_offset": 39,
+    "cursor_line": 4,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "I- \u001bj",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 38,
+      "^": 40,
+      "]": 40,
+      "[": 38
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      0,
+      38
+    ],
+    "changelist_idx": 2
+  }
+}

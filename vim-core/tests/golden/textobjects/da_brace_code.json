@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107693",
+  "input": {
+    "text": "fn foo() { bar(); }",
+    "cursor": [
+      0,
+      12
+    ],
+    "mode": "Normal",
+    "keys": "da{"
+  },
+  "expected": {
+    "text": "fn foo() ",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "{ bar(); }",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "{ bar(); }",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 9,
+      ".": 9,
+      "[": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8
+  }
+}

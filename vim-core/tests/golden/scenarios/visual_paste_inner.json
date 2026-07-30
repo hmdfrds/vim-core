@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107701",
+  "input": {
+    "text": "text (old) rest",
+    "cursor": [
+      0,
+      6
+    ],
+    "mode": "Normal",
+    "keys": "yi(fovi(p"
+  },
+  "expected": {
+    "text": "text (old) rest",
+    "cursor_offset": 8,
+    "cursor_line": 0,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "old",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "old",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "old",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 6,
+      ".": 6,
+      "<": 6,
+      ">": 8,
+      "]": 8
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8
+  }
+}

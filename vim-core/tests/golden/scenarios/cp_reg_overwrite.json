@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "first second",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "\"ayww\"ayw$\"ap"
+  },
+  "expected": {
+    "text": "first secondsecond",
+    "cursor_offset": 17,
+    "cursor_line": 0,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "a": {
+        "text": "second",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "second",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 12,
+      ".": 12,
+      "]": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17
+  }
+}

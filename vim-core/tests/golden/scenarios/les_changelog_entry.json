@@ -1,0 +1,49 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "i## v2.1.0<CR><CR>- Added new parser backend<CR>- Fixed memoyr leak in tokenizer<CR>- Improved error messages<Esc>2kfmciwmemory<Esc>"
+  },
+  "expected": {
+    "text": "## v2.1.0\n\n- Added new parser memory\n- Fixed memoyr leak in tokenizer\n- Improved error messages",
+    "cursor_offset": 35,
+    "cursor_line": 2,
+    "cursor_col": 24,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "backend",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "backend",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 30,
+      "^": 36,
+      "]": 36,
+      ".": 30
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 24,
+    "changelist": [
+      9,
+      70,
+      30
+    ],
+    "changelist_idx": 3
+  }
+}

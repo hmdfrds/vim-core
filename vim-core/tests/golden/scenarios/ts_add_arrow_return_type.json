@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "const add = (a: number, b: number) => a + b;",
+    "cursor": [
+      0,
+      34
+    ],
+    "mode": "Normal",
+    "keys": "i: number <Esc>"
+  },
+  "expected": {
+    "text": "const add = (a: number, b: number): number  => a + b;",
+    "cursor_offset": 42,
+    "cursor_line": 0,
+    "cursor_col": 42,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 43,
+      "[": 34,
+      "]": 43,
+      ".": 34
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 42,
+    "changelist": [
+      34
+    ],
+    "changelist_idx": 1
+  }
+}

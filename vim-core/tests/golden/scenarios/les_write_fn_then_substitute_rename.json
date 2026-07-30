@@ -1,0 +1,55 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ifn foo(x: i32) -> i32 {<CR>    foo(x - 1) + x<CR>}<Esc>:%s/foo/factorial/g<CR>"
+  },
+  "expected": {
+    "text": "fn factorial(x: i32) -> i32 {\n    factorial(x - 1) + x\n    }",
+    "cursor_offset": 34,
+    "cursor_line": 1,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "%s/foo/factorial/g",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "foo",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 0,
+      "]": 55,
+      "^": 60,
+      ".": 0
+    },
+    "search_pattern": "foo",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "jumplist": [
+      59
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      23,
+      59,
+      0
+    ],
+    "changelist_idx": 3
+  }
+}

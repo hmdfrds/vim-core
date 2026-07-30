@@ -1,0 +1,53 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "Hello world\nThis is a test\nLine three",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":%s/is/was/g<CR>u"
+  },
+  "expected": {
+    "text": "Hello world\nThis is a test\nLine three",
+    "cursor_offset": 12,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      ":": {
+        "text": "%s/is/was/g",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "is",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 12,
+      "]": 12,
+      "[": 12
+    },
+    "search_pattern": "is",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

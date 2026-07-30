@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "config = {\n    'debug': True,\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o    'verbose': False,<Esc>"
+  },
+  "expected": {
+    "text": "config = {\n    'debug': True,\n        'verbose': False,\n}",
+    "cursor_offset": 54,
+    "cursor_line": 2,
+    "cursor_col": 24,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 55,
+      "^": 55,
+      "[": 30,
+      ".": 34
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 24,
+    "changelist": [
+      0,
+      34
+    ],
+    "changelist_idx": 2
+  }
+}

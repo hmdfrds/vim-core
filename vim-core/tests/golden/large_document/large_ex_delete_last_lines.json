@@ -1,0 +1,55 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1776474014",
+  "input": {
+    "text": "let var_0 = 0;\nconst val_1 = 1;\n// comment 2\nlet var_3 = 3;\nconst val_4 = 4;\n// comment 5\nlet var_6 = 6;\nconst val_7 = 7;\n// comment 8\nlet var_9 = 9;\nconst val_10 = 10;\n// comment 11\nlet var_12 = 12;\nconst val_13 = 13;\n// comment 14\nlet var_15 = 15;\nconst val_16 = 16;\n// comment 17\nlet var_18 = 18;\nconst val_19 = 19;\n// comment 20\nlet var_21 = 21;\nconst val_22 = 22;\n// comment 23\nlet var_24 = 24;\nconst val_25 = 25;\n// comment 26\nlet var_27 = 27;\nconst val_28 = 28;\n// comment 29\nlet var_30 = 30;\nconst val_31 = 31;\n// comment 32\nlet var_33 = 33;\nconst val_34 = 34;\n// comment 35\nlet var_36 = 36;\nconst val_37 = 37;\n// comment 38\nlet var_39 = 39;\nconst val_40 = 40;\n// comment 41\nlet var_42 = 42;\nconst val_43 = 43;\n// comment 44\nlet var_45 = 45;\nconst val_46 = 46;\n// comment 47\nlet var_48 = 48;\nconst val_49 = 49;",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":45,50d<CR>"
+  },
+  "expected": {
+    "text": "let var_0 = 0;\nconst val_1 = 1;\n// comment 2\nlet var_3 = 3;\nconst val_4 = 4;\n// comment 5\nlet var_6 = 6;\nconst val_7 = 7;\n// comment 8\nlet var_9 = 9;\nconst val_10 = 10;\n// comment 11\nlet var_12 = 12;\nconst val_13 = 13;\n// comment 14\nlet var_15 = 15;\nconst val_16 = 16;\n// comment 17\nlet var_18 = 18;\nconst val_19 = 19;\n// comment 20\nlet var_21 = 21;\nconst val_22 = 22;\n// comment 23\nlet var_24 = 24;\nconst val_25 = 25;\n// comment 26\nlet var_27 = 27;\nconst val_28 = 28;\n// comment 29\nlet var_30 = 30;\nconst val_31 = 31;\n// comment 32\nlet var_33 = 33;\nconst val_34 = 34;\n// comment 35\nlet var_36 = 36;\nconst val_37 = 37;\n// comment 38\nlet var_39 = 39;\nconst val_40 = 40;\n// comment 41\nlet var_42 = 42;\nconst val_43 = 43;",
+    "cursor_offset": 700,
+    "cursor_line": 43,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "// comment 44\nlet var_45 = 45;\nconst val_46 = 46;\n// comment 47\nlet var_48 = 48;\nconst val_49 = 49;\n",
+        "regtype": "V"
+      },
+      ":": {
+        "text": "45,50d",
+        "regtype": "v"
+      },
+      "1": {
+        "text": "// comment 44\nlet var_45 = 45;\nconst val_46 = 46;\n// comment 47\nlet var_48 = 48;\nconst val_49 = 49;\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 719,
+      "]": 719,
+      "[": 719
+    },
+    "window": {
+      "topline": 23,
+      "botline": 44,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      719
+    ],
+    "changelist_idx": 2
+  }
+}

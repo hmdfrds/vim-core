@@ -1,0 +1,52 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "iFirst<Esc>oSecond<Esc>oThird<Esc>ggciwAlpha<Esc>jciwBeta<Esc>jciwGamma<Esc>"
+  },
+  "expected": {
+    "text": "Alpha\nBeta\nGamma",
+    "cursor_offset": 15,
+    "cursor_line": 2,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Third",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "Third",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 16,
+      ".": 11,
+      "[": 11,
+      "^": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      0,
+      6,
+      11,
+      0,
+      6,
+      11
+    ],
+    "changelist_idx": 6
+  }
+}

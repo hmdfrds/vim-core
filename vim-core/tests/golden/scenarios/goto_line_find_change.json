@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "l1\nl2\nlet x = old;\nl4",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "3Gf=lcw new_val<Esc>"
+  },
+  "expected": {
+    "text": "l1\nl2\nlet x = new_valold;\nl4",
+    "cursor_offset": 20,
+    "cursor_line": 2,
+    "cursor_col": 14,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": " ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 13,
+      "]": 21,
+      "[": 13,
+      "^": 21
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 14
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "alpha beta\ntarget: _ and _",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "\"ayiww\"byiwj/_ <CR>\"bP/_ <CR>\"aP"
+  },
+  "expected": {
+    "text": "alpha beta\ntarget: betaalpha_ and _",
+    "cursor_offset": 27,
+    "cursor_line": 1,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {
+      "/": {
+        "text": "_ ",
+        "regtype": "v"
+      },
+      "a": {
+        "text": "alpha",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "beta",
+        "regtype": "v"
+      },
+      "b": {
+        "text": "beta",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 23,
+      "]": 27,
+      ".": 23
+    },
+    "search_pattern": "_ ",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "changelist": [
+      0,
+      23
+    ],
+    "changelist_idx": 2
+  }
+}

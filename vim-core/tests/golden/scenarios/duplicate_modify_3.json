@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107695",
+  "input": {
+    "text": "template",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy2p2GcwA<Esc>3GcwB<Esc>"
+  },
+  "expected": {
+    "text": "template\nA\nB",
+    "cursor_offset": 11,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "template\n",
+        "regtype": "V"
+      },
+      "-": {
+        "text": "template",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "template",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 12,
+      ".": 11,
+      "[": 11,
+      "]": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 2dce061809357ba8cba5815f1b0a2fbbef18067d2652dd38ba9e1a15864c7dd9 # shrinks to text = "¡", ops = [1]
+cc 9429c857537d848558dbe5dfa491dc20bb8597b08662a43f464c5e69edc075f3 # shrinks to text = "¡", range_tuple = (0, 1)
+cc 976dd121200bac81270443ba5b0669d5f36d2ad03cb663ef97664c70192a1dee # shrinks to text = "ਖ਼a®0ࠀ", range_tuple = (0, 8), replacement = ""
+cc 01af660ea434793cb356a2d320dd5879a41f8315b6503688ca25ee463ac1c0d8 # shrinks to text = "\u{b}¡", ops = [1, 1]

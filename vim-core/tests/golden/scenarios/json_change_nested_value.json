@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc && vite build\"\n  }",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f\"lf\"lci\"next dev<Esc>"
+  },
+  "expected": {
+    "text": "  \"scripts\": {\n    \"dev\"next dev\"vite\",\n    \"build\": \"tsc && vite build\"\n  }",
+    "cursor_offset": 31,
+    "cursor_line": 1,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": ": ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": ": ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 32,
+      "]": 32,
+      "[": 24,
+      ".": 24
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16,
+    "changelist": [
+      0,
+      24
+    ],
+    "changelist_idx": 2
+  }
+}

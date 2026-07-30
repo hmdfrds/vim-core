@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "the cat sat",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwA<Esc>wdwwciwZ<Esc>uu<C-r>raX"
+  },
+  "expected": {
+    "text": "Aaat",
+    "cursor_offset": 1,
+    "cursor_line": 0,
+    "cursor_col": 1,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": " ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 1,
+      "^": 3,
+      "[": 1,
+      ".": 1
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 1,
+    "changelist": [
+      1
+    ],
+    "changelist_idx": 1
+  }
+}

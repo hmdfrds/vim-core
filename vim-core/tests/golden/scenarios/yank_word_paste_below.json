@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "source\ntarget",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ywjwp"
+  },
+  "expected": {
+    "text": "source\ntargetsource",
+    "cursor_offset": 18,
+    "cursor_line": 1,
+    "cursor_col": 11,
+    "mode": "Normal",
+    "registers": {
+      "0": {
+        "text": "source",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "source",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 13,
+      "[": 13,
+      "]": 18
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 11
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "i[ ] Write tests<CR>[ ] Fix linter<CR>[ ] Ship release<Esc>ggf r x<Esc>jf r x<Esc>"
+  },
+  "expected": {
+    "text": "[ ] Write test\n[ ] Fix linte\n[ ] Ship release",
+    "cursor_offset": 27,
+    "cursor_line": 1,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " ",
+        "regtype": "v"
+      },
+      "-": {
+        "text": " ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 28,
+      "[": 28,
+      "]": 28,
+      "^": 45
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12,
+    "jumplist": [
+      44
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      15,
+      29,
+      14,
+      28
+    ],
+    "changelist_idx": 4
+  }
+}

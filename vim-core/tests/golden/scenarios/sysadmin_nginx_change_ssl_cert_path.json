@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "ssl_certificate /etc/ssl/certs/old.pem;\nssl_certificate_key /etc/ssl/private/old.key;",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f/ct;/etc/letsencrypt/live/example.com/fullchain.pem<Esc>"
+  },
+  "expected": {
+    "text": "ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;\nssl_certificate_key /etc/ssl/private/old.key;",
+    "cursor_offset": 62,
+    "cursor_line": 0,
+    "cursor_col": 62,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "/etc/ssl/certs/old.pem",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "/etc/ssl/certs/old.pem",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 63,
+      "^": 63,
+      "[": 16,
+      ".": 16
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 62,
+    "changelist": [
+      16
+    ],
+    "changelist_idx": 1
+  }
+}

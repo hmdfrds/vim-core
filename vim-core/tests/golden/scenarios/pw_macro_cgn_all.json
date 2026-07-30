@@ -1,0 +1,59 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "bug bug ok bug",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/bug<CR>qacgnfix<Esc>q2@a"
+  },
+  "expected": {
+    "text": "fix fix ok fix",
+    "cursor_offset": 2,
+    "cursor_line": 0,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "bug",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "bug",
+        "regtype": "v"
+      },
+      "a": {
+        "text": "cgnfix\u001b",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "bug",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "<": 0,
+      ".": 0,
+      "]": 3,
+      "^": 3,
+      ">": 2,
+      "[": 0
+    },
+    "search_pattern": "bug",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2,
+    "changelist": [
+      0
+    ],
+    "changelist_idx": 1
+  }
+}

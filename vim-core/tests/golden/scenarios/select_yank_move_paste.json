@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "keep copy\nmove here",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "viwyjwP"
+  },
+  "expected": {
+    "text": "keep copy\nmove keephere",
+    "cursor_offset": 18,
+    "cursor_line": 1,
+    "cursor_col": 8,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "keep",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "keep",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ">": 3,
+      ".": 15,
+      "]": 18,
+      "[": 15,
+      "<": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 8
+  }
+}

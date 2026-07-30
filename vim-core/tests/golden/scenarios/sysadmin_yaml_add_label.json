@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "metadata:\n  name: my-service\n  labels:\n    app: web",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o    tier: frontend<Esc>"
+  },
+  "expected": {
+    "text": "metadata:\n  name: my-service\n  labels:\n    app: web\n        tier: frontend",
+    "cursor_offset": 73,
+    "cursor_line": 4,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 74,
+      "[": 52,
+      ".": 56,
+      "^": 74
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21,
+    "changelist": [
+      0,
+      56
+    ],
+    "changelist_idx": 2
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103514",
+  "input": {
+    "text": "hello\nworld\ntest",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "jmaddkdd2u'a"
+  },
+  "expected": {
+    "text": "hello\nworld\ntest",
+    "cursor_offset": 6,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "hello\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "hello\n",
+        "regtype": "V"
+      },
+      "2": {
+        "text": "world\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 6,
+      "a": 6,
+      ".": 6,
+      "[": 6
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      12,
+      0
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      12,
+      12,
+      6
+    ],
+    "changelist_idx": 3
+  }
+}

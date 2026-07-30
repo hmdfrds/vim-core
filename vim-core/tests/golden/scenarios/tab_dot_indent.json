@@ -1,0 +1,32 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774268367",
+  "input": {
+    "text": "\thello\n\tworld",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ">>j."
+  },
+  "expected": {
+    "text": "        hello\n        world",
+    "cursor_offset": 17,
+    "cursor_line": 1,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "marks": {
+      "]": 26,
+      ".": 14,
+      "[": 14
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

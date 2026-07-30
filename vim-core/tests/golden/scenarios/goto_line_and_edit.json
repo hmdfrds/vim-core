@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "line1\nline2\nline3",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "2Gccnew<Esc>"
+  },
+  "expected": {
+    "text": "line1\nnew\nline3",
+    "cursor_offset": 8,
+    "cursor_line": 1,
+    "cursor_col": 2,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "line2\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "line2\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 6,
+      "^": 9,
+      "[": 6,
+      "]": 9
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 2
+  }
+}

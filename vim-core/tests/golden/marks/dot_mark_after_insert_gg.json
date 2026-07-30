@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.1",
+  "generated_at": "1778417336",
+  "input": {
+    "text": "one\ntwo\nthree\nfour\n",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "3jA added<Esc>gg'."
+  },
+  "expected": {
+    "text": "one\ntwo\nthree\nfour added\n",
+    "cursor_offset": 14,
+    "cursor_line": 3,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 18,
+      "]": 24,
+      "[": 18,
+      "^": 24
+    },
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      23,
+      2
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      0,
+      18
+    ],
+    "changelist_idx": 2
+  }
+}

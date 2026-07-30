@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "<div>\n  <span>Hello</span>\n</div>",
+    "cursor": [
+      1,
+      7
+    ],
+    "mode": "Normal",
+    "keys": "hi className=\"greeting\"<Esc>"
+  },
+  "expected": {
+    "text": "<div>\n  <spa className=\"greeting\"n>Hello</span>\n</div>",
+    "cursor_offset": 32,
+    "cursor_line": 1,
+    "cursor_col": 26,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 12,
+      "^": 33,
+      "]": 33,
+      ".": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 26,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

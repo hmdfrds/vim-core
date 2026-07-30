@@ -1,0 +1,32 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774271691",
+  "input": {
+    "text": "        mnynsriyhn\n                gmjh\nxcwsk\n        cazamlwijh\n                potrmdrlo\naatz\n    cszcguodow",
+    "cursor": [
+      5,
+      3
+    ],
+    "mode": "Normal",
+    "keys": "gukFp"
+  },
+  "expected": {
+    "text": "        mnynsriyhn\n                gmjh\nxcwsk\n        cazamlwijh\n                potrmdrlo\naatz\n    cszcguodow",
+    "cursor_offset": 68,
+    "cursor_line": 4,
+    "cursor_col": 3,
+    "mode": "Normal",
+    "marks": {
+      "]": 94,
+      "[": 65,
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 7,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3
+  }
+}

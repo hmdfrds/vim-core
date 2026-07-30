@@ -1,0 +1,56 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107697",
+  "input": {
+    "text": "aaa\nbbb\naaa\nbbb",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "qa/bbb<CR>dd<Esc>q@a"
+  },
+  "expected": {
+    "text": "aaa\naaa",
+    "cursor_offset": 4,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "bbb\n",
+        "regtype": "V"
+      },
+      "/": {
+        "text": "bbb",
+        "regtype": "v"
+      },
+      "1": {
+        "text": "bbb\n",
+        "regtype": "V"
+      },
+      "a": {
+        "text": "/bbb\rdd\u001b",
+        "regtype": "v"
+      },
+      "2": {
+        "text": "bbb\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      ".": 8,
+      "]": 8,
+      "[": 8
+    },
+    "search_pattern": "bbb",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

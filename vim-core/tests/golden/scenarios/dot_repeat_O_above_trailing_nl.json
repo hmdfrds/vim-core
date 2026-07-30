@@ -1,0 +1,44 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777125112",
+  "input": {
+    "text": "footer\n",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "Oheader<Esc>G."
+  },
+  "expected": {
+    "text": "header\nfooter\nheader\n",
+    "cursor_offset": 19,
+    "cursor_line": 2,
+    "cursor_col": 5,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 14,
+      "^": 20,
+      "[": 14,
+      "]": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 5,
+    "jumplist": [
+      5
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      7,
+      0,
+      14
+    ],
+    "changelist_idx": 3
+  }
+}

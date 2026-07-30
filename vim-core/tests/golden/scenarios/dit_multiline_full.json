@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107694",
+  "input": {
+    "text": "<div>\n  <p>hello</p>\n  <p>world</p>\n</div>",
+    "cursor": [
+      1,
+      2
+    ],
+    "mode": "Normal",
+    "keys": "dit"
+  },
+  "expected": {
+    "text": "<div>\n  <p></p>\n  <p>world</p>\n</div>",
+    "cursor_offset": 11,
+    "cursor_line": 1,
+    "cursor_col": 5,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "hello",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "hello",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 11,
+      "]": 11,
+      "[": 11
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 5
+  }
+}

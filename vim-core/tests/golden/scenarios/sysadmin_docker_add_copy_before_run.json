@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "FROM golang:1.22\nRUN go build -o app .\nCMD [\"./app\"]",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "OCOPY go.mod go.sum ./<Esc>"
+  },
+  "expected": {
+    "text": "FROM golang:1.22\nCOPY go.mod go.sum ./\nRUN go build -o app .\nCMD [\"./app\"]",
+    "cursor_offset": 37,
+    "cursor_line": 1,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 17,
+      ".": 17,
+      "]": 38,
+      "^": 38
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20,
+    "changelist": [
+      0,
+      17
+    ],
+    "changelist_idx": 2
+  }
+}

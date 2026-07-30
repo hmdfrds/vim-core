@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107692",
+  "input": {
+    "text": "arr[old_idx]",
+    "cursor": [
+      0,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "ci[new_idx<Esc>"
+  },
+  "expected": {
+    "text": "arr[new_idx]",
+    "cursor_offset": 10,
+    "cursor_line": 0,
+    "cursor_col": 10,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "old_idx",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "old_idx",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 4,
+      "[": 4,
+      "^": 11,
+      "]": 11
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 10
+  }
+}

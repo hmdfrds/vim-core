@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "        deep\n    shallow",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "yy[p"
+  },
+  "expected": {
+    "text": "        deep\n    shallow\n    shallow",
+    "cursor_offset": 17,
+    "cursor_line": 1,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "    shallow\n",
+        "regtype": "V"
+      },
+      "0": {
+        "text": "    shallow\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 23,
+      ".": 13,
+      "[": 13
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4,
+    "changelist": [
+      0,
+      13
+    ],
+    "changelist_idx": 2
+  }
+}

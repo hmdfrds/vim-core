@@ -1,0 +1,60 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "// TODO: fix parser\ncode();\n// TODO: add tests\nmore();\n// TODO: update docs",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/TODO<CR>cwDONE<Esc>n.n."
+  },
+  "expected": {
+    "text": "// DONE: fix parser\ncode();\n// DONE: add tests\nmore();\n// DONE: update docs",
+    "cursor_offset": 61,
+    "cursor_line": 4,
+    "cursor_col": 6,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "TODO",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "TODO",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "TODO",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 58,
+      "]": 62,
+      "^": 62,
+      "[": 58
+    },
+    "search_pattern": "TODO",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 5,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 6,
+    "jumplist": [
+      6,
+      34
+    ],
+    "jumplist_idx": 2,
+    "changelist": [
+      3,
+      31,
+      58
+    ],
+    "changelist_idx": 3
+  }
+}

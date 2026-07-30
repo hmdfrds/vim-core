@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "impl Parser {\n    fn parse(&self) -> Node {\n        todo!()\n    }\n}",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o\n    fn reset(&mut self) {\n        todo!()\n    }<Esc>"
+  },
+  "expected": {
+    "text": "impl Parser {\n    fn parse(&self) -> Node {\n        todo!()\n    }\n\n        fn reset(&mut self) {\n                todo!()\n                    }\n}",
+    "cursor_offset": 141,
+    "cursor_line": 7,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 137,
+      "[": 66,
+      "]": 142,
+      "^": 142
+    },
+    "window": {
+      "topline": 1,
+      "botline": 9,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20,
+    "changelist": [
+      0,
+      137
+    ],
+    "changelist_idx": 2
+  }
+}

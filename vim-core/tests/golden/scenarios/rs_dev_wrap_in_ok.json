@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    return value;",
+    "cursor": [
+      0,
+      11
+    ],
+    "mode": "Normal",
+    "keys": "ciwOk(value)<Esc>"
+  },
+  "expected": {
+    "text": "    return Ok(value);",
+    "cursor_offset": 19,
+    "cursor_line": 0,
+    "cursor_col": 19,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "value",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "value",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 20,
+      "^": 20,
+      "[": 11,
+      ".": 11
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 19,
+    "changelist": [
+      11
+    ],
+    "changelist_idx": 1
+  }
+}

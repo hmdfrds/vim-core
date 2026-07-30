@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "put last. put first.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "d)$p"
+  },
+  "expected": {
+    "text": "put first.put last. ",
+    "cursor_offset": 19,
+    "cursor_line": 0,
+    "cursor_col": 19,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "put last. ",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "put last. ",
+        "regtype": "v"
+      },
+      "1": {
+        "text": "put last. ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 10,
+      "]": 19,
+      ".": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 19
+  }
+}

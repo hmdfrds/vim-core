@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103515",
+  "input": {
+    "text": "start",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "raerberc$ard$areuuuuu<C-r><C-r><C-r>"
+  },
+  "expected": {
+    "text": "atarcrd$areuuuuu",
+    "cursor_offset": 15,
+    "cursor_line": 0,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 16,
+      "]": 16,
+      "[": 5,
+      ".": 5
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      5
+    ],
+    "changelist_idx": 1
+  }
+}

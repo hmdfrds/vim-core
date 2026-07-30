@@ -1,0 +1,34 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107700",
+  "input": {
+    "text": "a b c d",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "wwiINSERTED <Esc>"
+  },
+  "expected": {
+    "text": "a b INSERTED c d",
+    "cursor_offset": 12,
+    "cursor_line": 0,
+    "cursor_col": 12,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "]": 13,
+      "^": 13,
+      ".": 4,
+      "[": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 12
+  }
+}

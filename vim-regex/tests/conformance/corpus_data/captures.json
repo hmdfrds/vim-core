@@ -1,0 +1,34 @@
+[
+  {
+    "pattern": "\\(a\\)\\{2}\\(b\\)",
+    "magic_mode": "magic",
+    "input": "aab",
+    "expected_matches": [{ "start": 0, "end": 3 }],
+    "expected_captures": [["a", "b"]],
+    "source": "neovim matchlist, verified (C2/NFA-01)"
+  },
+  {
+    "pattern": "\\(.\\)\\{2}\\1",
+    "magic_mode": "magic",
+    "input": "abb",
+    "expected_matches": [{ "start": 0, "end": 3 }],
+    "expected_captures": [["b"]],
+    "source": "neovim matchlist, verified (C2/ADV-1)"
+  },
+  {
+    "pattern": "\\(a\\)\\{2}\\(b\\)\\2",
+    "magic_mode": "magic",
+    "input": "aabb",
+    "expected_matches": [{ "start": 0, "end": 4 }],
+    "expected_captures": [["a", "b"]],
+    "source": "neovim matchlist, verified (C2/ADV-2)"
+  },
+  {
+    "pattern": "\\(\\(a\\)\\)",
+    "magic_mode": "magic",
+    "input": "a",
+    "expected_matches": [{ "start": 0, "end": 1 }],
+    "expected_captures": [["a", "a"]],
+    "source": "neovim matchlist, verified (nesting order)"
+  }
+]

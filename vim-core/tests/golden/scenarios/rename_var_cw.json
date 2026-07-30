@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "let count = 0;",
+    "cursor": [
+      0,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "ciwresult<Esc>"
+  },
+  "expected": {
+    "text": "let result = 0;",
+    "cursor_offset": 9,
+    "cursor_line": 0,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "count",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "count",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 4,
+      "]": 10,
+      "^": 10,
+      "[": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

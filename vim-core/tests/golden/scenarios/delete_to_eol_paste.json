@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107694",
+  "input": {
+    "text": "keep delete this",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "wDjP"
+  },
+  "expected": {
+    "text": "keepdelete this ",
+    "cursor_offset": 14,
+    "cursor_line": 0,
+    "cursor_col": 14,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "delete this",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "delete this",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 14,
+      ".": 4,
+      "[": 4
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 14
+  }
+}

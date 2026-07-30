@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "spec:\n  containers:\n  - name: web\n    image: nginx:1.21",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "f:lC1.25<Esc>"
+  },
+  "expected": {
+    "text": "spec:\n  containers:\n  - name: web\n    image:1.25",
+    "cursor_offset": 47,
+    "cursor_line": 3,
+    "cursor_col": 13,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": " nginx:1.21",
+        "regtype": "v"
+      },
+      "-": {
+        "text": " nginx:1.21",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "^": 48,
+      "[": 44,
+      "]": 48,
+      ".": 44
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 13,
+    "changelist": [
+      0,
+      44
+    ],
+    "changelist_idx": 2
+  }
+}

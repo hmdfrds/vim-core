@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "{\n  \"key\": \"value\",\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "$hx"
+  },
+  "expected": {
+    "text": "{\n  \"key\": \"value,\n}",
+    "cursor_offset": 17,
+    "cursor_line": 1,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "\"",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "\"",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 17,
+      ".": 17,
+      "[": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      0,
+      17
+    ],
+    "changelist_idx": 2
+  }
+}

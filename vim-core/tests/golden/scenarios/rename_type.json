@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "Vec<String>",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ciwHashMap<Esc>"
+  },
+  "expected": {
+    "text": "HashMap<String>",
+    "cursor_offset": 6,
+    "cursor_line": 0,
+    "cursor_col": 6,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "Vec",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "Vec",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 0,
+      "^": 7,
+      "]": 7,
+      "[": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 6
+  }
+}

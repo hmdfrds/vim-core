@@ -1,0 +1,47 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "let arr = [\n    1,\n    2,\n    3,\n];",
+    "cursor": [
+      2,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "di["
+  },
+  "expected": {
+    "text": "let arr = [\n];",
+    "cursor_offset": 12,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "    1,\n    2,\n    3,\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "    1,\n    2,\n    3,\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 12,
+      "[": 12,
+      ".": 12
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      12
+    ],
+    "changelist_idx": 2
+  }
+}

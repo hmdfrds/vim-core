@@ -1,0 +1,41 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "listen 80;\nserver_name app;\nroot /var/www;",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "<C-v>jjI# <Esc>"
+  },
+  "expected": {
+    "text": "# listen 80;\n# server_name app;\n# root /var/www;",
+    "cursor_offset": 0,
+    "cursor_line": 0,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ">": 32,
+      "[": 0,
+      ".": 13,
+      "^": 2,
+      "<": 0,
+      "]": 34
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      0,
+      13
+    ],
+    "changelist_idx": 2
+  }
+}

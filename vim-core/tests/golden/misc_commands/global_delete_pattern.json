@@ -1,0 +1,65 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1778201734",
+  "input": {
+    "text": "keep\nremove\nkeep\nremove",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": ":g/remove/d<CR>"
+  },
+  "expected": {
+    "text": "keep\nkeep",
+    "cursor_offset": 5,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "remove\n",
+        "regtype": "V"
+      },
+      "/": {
+        "text": "remove",
+        "regtype": "v"
+      },
+      ":": {
+        "text": "g/remove/d",
+        "regtype": "v"
+      },
+      "2": {
+        "text": "remove\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "remove\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "[": 10,
+      ".": 10,
+      "]": 10
+    },
+    "search_pattern": "remove",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "jumplist": [
+      0
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      0,
+      10
+    ],
+    "changelist_idx": 2
+  }
+}

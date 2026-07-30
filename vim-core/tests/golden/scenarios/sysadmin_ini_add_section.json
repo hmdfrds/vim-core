@@ -1,0 +1,39 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "[database]\nhost = localhost\nport = 5432\n\n[logging]\nlevel = info",
+    "cursor": [
+      3,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "o[cache]\nbackend = redis\nhost = 127.0.0.1<Esc>"
+  },
+  "expected": {
+    "text": "[database]\nhost = localhost\nport = 5432\n\n[cache]\nbackend = redis\nhost = 127.0.0.1\n[logging]\nlevel = info",
+    "cursor_offset": 80,
+    "cursor_line": 6,
+    "cursor_col": 15,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 41,
+      "]": 81,
+      ".": 79,
+      "^": 81
+    },
+    "window": {
+      "topline": 1,
+      "botline": 9,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 15,
+    "changelist": [
+      0,
+      79
+    ],
+    "changelist_idx": 2
+  }
+}

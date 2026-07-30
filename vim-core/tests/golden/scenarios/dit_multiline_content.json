@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107694",
+  "input": {
+    "text": "<ul>\n  <li>a</li>\n  <li>b</li>\n</ul>",
+    "cursor": [
+      1,
+      4
+    ],
+    "mode": "Normal",
+    "keys": "dit"
+  },
+  "expected": {
+    "text": "<ul>\n  <li></li>\n  <li>b</li>\n</ul>",
+    "cursor_offset": 11,
+    "cursor_line": 1,
+    "cursor_col": 6,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "a",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "a",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 11,
+      "[": 11,
+      ".": 11
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 6
+  }
+}

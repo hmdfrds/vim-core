@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107701",
+  "input": {
+    "text": "keep this\naccident",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "ddu"
+  },
+  "expected": {
+    "text": "keep this\naccident",
+    "cursor_offset": 10,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "1": {
+        "text": "accident\n",
+        "regtype": "V"
+      },
+      "\"": {
+        "text": "accident\n",
+        "regtype": "V"
+      }
+    },
+    "marks": {
+      "]": 10,
+      "[": 0,
+      ".": 10
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "location /app {\n    proxy_pass http://localhost:5000;\n}",
+    "cursor": [
+      1,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "/localhost<CR>ciw10.0.0.5<Esc>"
+  },
+  "expected": {
+    "text": "location /app {\n    proxy_pass http://10.0.0.5:5000;\n}",
+    "cursor_offset": 45,
+    "cursor_line": 1,
+    "cursor_col": 29,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "localhost",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "localhost",
+        "regtype": "v"
+      },
+      "/": {
+        "text": "localhost",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 38,
+      "^": 46,
+      ".": 44,
+      "]": 46
+    },
+    "search_pattern": "localhost",
+    "search_direction": "Forward",
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 29,
+    "changelist": [
+      0,
+      44
+    ],
+    "changelist_idx": 2
+  }
+}

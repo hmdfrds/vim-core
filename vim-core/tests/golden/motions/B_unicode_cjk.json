@@ -1,0 +1,31 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107690",
+  "input": {
+    "text": "hello 日本語.test",
+    "cursor": [
+      0,
+      12
+    ],
+    "mode": "Normal",
+    "keys": "B"
+  },
+  "expected": {
+    "text": "hello 日本語.test",
+    "cursor_offset": 6,
+    "cursor_line": 0,
+    "cursor_col": 6,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 6
+  }
+}

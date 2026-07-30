@@ -1,0 +1,27 @@
+# Build output
+/target
+Cargo.lock.orig
+
+# Editor and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Secrets — never commit
+.env
+.env.*
+
+# Profiling output, if you run a profiler by hand
+*.profraw
+*.profdata
+flamegraph.svg
+perf.data
+perf.data.old
+
+# Stray rustc and miri output. Three of these (rust_out, stdin,
+# const_vec_test) were committed here by accident once, at 4.2 MB each.
+/rust_out
+/stdin
+/const_vec_test

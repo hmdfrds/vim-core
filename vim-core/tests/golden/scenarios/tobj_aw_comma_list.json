@@ -1,0 +1,46 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103516",
+  "input": {
+    "text": "let items = vec![alpha, beta, gamma];",
+    "cursor": [
+      0,
+      17
+    ],
+    "mode": "Normal",
+    "keys": "daw"
+  },
+  "expected": {
+    "text": "let items = vec![, beta, gamma];",
+    "cursor_offset": 17,
+    "cursor_line": 0,
+    "cursor_col": 17,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "alpha",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "alpha",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 17,
+      "]": 17,
+      ".": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 17,
+    "changelist": [
+      17
+    ],
+    "changelist_idx": 1
+  }
+}

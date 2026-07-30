@@ -1,0 +1,31 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107699",
+  "input": {
+    "text": "fn foo() {\n  body\n}\nfn bar() {\n  body2\n}",
+    "cursor": [
+      4,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "[M"
+  },
+  "expected": {
+    "text": "fn foo() {\n  body\n}\nfn bar() {\n  body2\n}",
+    "cursor_offset": 29,
+    "cursor_line": 3,
+    "cursor_col": 9,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 6,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 9
+  }
+}

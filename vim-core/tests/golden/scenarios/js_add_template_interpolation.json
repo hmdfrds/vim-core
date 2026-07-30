@@ -1,0 +1,37 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103159",
+  "input": {
+    "text": "const msg = \"Hello, \" + name + \"!\";",
+    "cursor": [
+      0,
+      13
+    ],
+    "mode": "Normal",
+    "keys": "r`f\"r`"
+  },
+  "expected": {
+    "text": "const msg = \"`ello, ` + name + \"!\";",
+    "cursor_offset": 20,
+    "cursor_line": 0,
+    "cursor_col": 20,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "[": 20,
+      "]": 20,
+      ".": 20
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 20,
+    "changelist": [
+      20
+    ],
+    "changelist_idx": 1
+  }
+}

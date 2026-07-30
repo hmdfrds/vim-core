@@ -1,0 +1,31 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "{\n  {\n    {\n      foo\n    }\n  }\n}",
+    "cursor": [
+      3,
+      6
+    ],
+    "mode": "Normal",
+    "keys": "]}"
+  },
+  "expected": {
+    "text": "{\n  {\n    {\n      foo\n    }\n  }\n}",
+    "cursor_offset": 26,
+    "cursor_line": 4,
+    "cursor_col": 4,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      ".": 0
+    },
+    "window": {
+      "topline": 1,
+      "botline": 7,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 4
+  }
+}

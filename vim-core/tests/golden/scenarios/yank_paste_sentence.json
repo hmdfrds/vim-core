@@ -1,0 +1,42 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107702",
+  "input": {
+    "text": "Copy this. Target.",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "y)$p"
+  },
+  "expected": {
+    "text": "Copy this. Target.Copy this. ",
+    "cursor_offset": 28,
+    "cursor_line": 0,
+    "cursor_col": 28,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "Copy this. ",
+        "regtype": "v"
+      },
+      "0": {
+        "text": "Copy this. ",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 18,
+      ".": 18,
+      "]": 28
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 28
+  }
+}

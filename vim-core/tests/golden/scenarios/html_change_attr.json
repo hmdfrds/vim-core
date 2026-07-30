@@ -1,0 +1,43 @@
+{
+  "nvim_version": "0.11.6",
+  "generated_at": "1774107698",
+  "input": {
+    "text": "<img src=\"old.png\">",
+    "cursor": [
+      0,
+      10
+    ],
+    "mode": "Normal",
+    "keys": "ci\"new.png<Esc>"
+  },
+  "expected": {
+    "text": "<img src=\"new.png\">",
+    "cursor_offset": 16,
+    "cursor_line": 0,
+    "cursor_col": 16,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "old.png",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "old.png",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 10,
+      "]": 17,
+      "[": 10,
+      "^": 17
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 16
+  }
+}

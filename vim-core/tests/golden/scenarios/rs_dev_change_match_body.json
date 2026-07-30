@@ -1,0 +1,48 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "match cmd {\n    Quit => break,\n    Run => continue,\n}",
+    "cursor": [
+      1,
+      14
+    ],
+    "mode": "Normal",
+    "keys": "C return,<Esc>"
+  },
+  "expected": {
+    "text": "match cmd {\n    Quit => br return,\n    Run => continue,\n}",
+    "cursor_offset": 33,
+    "cursor_line": 1,
+    "cursor_col": 21,
+    "mode": "Normal",
+    "registers": {
+      "-": {
+        "text": "eak,",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "eak,",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "[": 26,
+      "]": 34,
+      "^": 34,
+      ".": 26
+    },
+    "window": {
+      "topline": 1,
+      "botline": 4,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 21,
+    "changelist": [
+      0,
+      26
+    ],
+    "changelist_idx": 2
+  }
+}

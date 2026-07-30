@@ -1,0 +1,17 @@
+[
+  { "pattern": "\\(a*\\)b", "magic_mode": "magic", "input": "xb",
+    "expected_matches": [{ "start": 1, "end": 2 }], "expected_captures": [[""]],
+    "source": "neovim, verified (C8/ACCEL-01/ADV-18)" },
+  { "pattern": "\\(\\s*\\)=", "magic_mode": "magic", "input": "x=",
+    "expected_matches": [{ "start": 1, "end": 2 }], "expected_captures": [[""]],
+    "source": "neovim, verified (C8 align idiom)" },
+  { "pattern": "a*b", "magic_mode": "magic", "input": "b",
+    "expected_matches": [{ "start": 0, "end": 1 }], "expected_captures": [],
+    "source": "neovim, verified (C8 nullable prefix at offset 0)" },
+  { "pattern": "\\c[a-m]\\+[A-M]", "magic_mode": "magic", "input": "aaB",
+    "expected_matches": [{ "start": 0, "end": 3 }], "expected_captures": [],
+    "source": "neovim, verified (C6/HIR-01/ADV-9)" },
+  { "pattern": "[А-В]\\+", "magic_mode": "magic", "input": "АБ",
+    "expected_matches": [{ "start": 0, "end": 4 }], "expected_captures": [],
+    "source": "neovim, verified (multibyte start-byte soundness)" }
+]

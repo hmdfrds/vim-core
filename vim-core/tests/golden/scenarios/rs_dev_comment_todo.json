@@ -1,0 +1,38 @@
+{
+  "nvim_version": "0.12.1",
+  "generated_at": "1777103160",
+  "input": {
+    "text": "    old_cleanup();",
+    "cursor": [
+      0,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "I// TODO: remove -- <Esc>"
+  },
+  "expected": {
+    "text": "    // TODO: remove -- old_cleanup();",
+    "cursor_offset": 22,
+    "cursor_line": 0,
+    "cursor_col": 22,
+    "mode": "Normal",
+    "registers": {},
+    "marks": {
+      "^": 23,
+      ".": 4,
+      "[": 4,
+      "]": 23
+    },
+    "window": {
+      "topline": 1,
+      "botline": 1,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 22,
+    "changelist": [
+      4
+    ],
+    "changelist_idx": 1
+  }
+}
