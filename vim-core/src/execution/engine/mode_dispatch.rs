@@ -612,10 +612,10 @@ impl VimEngine {
             insert_mode,
             text,
             cursor,
-            self.options.tabstop(),
-            self.options.autoindent(),
+            self.resolved_options.tabstop(),
+            self.resolved_options.autoindent(),
             ctx.providers().indent,
-            &self.options,
+            &self.resolved_options,
         );
         // 2. Read entry_offset BEFORE mutations (read-only)
         let entry_offset = self
@@ -675,9 +675,9 @@ impl VimEngine {
         // 4. Build InsertContext and dispatch directly (no executor)
         let mut insert_ctx = InsertContext::new(text, crate::primitives::Offset::new(cursor))
             .with_precomputed(precomputed)
-            .with_shift_width(self.options.shiftwidth())
-            .with_tabstop(self.options.tabstop())
-            .with_auto_pairs(self.options.auto_pairs());
+            .with_shift_width(self.resolved_options.shiftwidth())
+            .with_tabstop(self.resolved_options.tabstop())
+            .with_auto_pairs(self.resolved_options.auto_pairs());
         if let Some(offset) = entry_offset {
             insert_ctx = insert_ctx.with_entry_offset(offset);
         }
@@ -687,7 +687,7 @@ impl VimEngine {
         // inserted with 'showmatch' enabled. Scan backward in the pre-edit
         // text (the bracket hasn't been spliced in yet, but the text before
         // `cursor` is identical in both T0 and T1).
-        if self.options.showmatch() {
+        if self.resolved_options.showmatch() {
             if let Command::Insert(InsertKind::Char { char } | InsertKind::LiteralChar { char }) =
                 &command
             {
@@ -706,8 +706,8 @@ impl VimEngine {
         // 4c. Auto-format textwidth wrap: when textwidth > 0 and a non-whitespace
         // character is inserted, check if the post-edit line exceeds textwidth.
         // If so, break at the last whitespace before the limit.
-        if self.options.textwidth() > 0
-            && self.options.auto_format_text()
+        if self.resolved_options.textwidth() > 0
+            && self.resolved_options.auto_format_text()
             && matches!(insert_mode, crate::mode::InsertMode::Insert)
         {
             if let Command::Insert(InsertKind::Char { char }) = &command {
@@ -717,7 +717,7 @@ impl VimEngine {
                             text,
                             cursor,
                             *char,
-                            self.options.textwidth(),
+                            self.resolved_options.textwidth(),
                         )
                     {
                         // Delete the whitespace at the break point and insert
@@ -749,8 +749,8 @@ impl VimEngine {
         // insert commands use the existing algebraic rebase path.
         let is_insert_cd = if let Command::Insert(ref kind) = command {
             kind.is_content_dependent(
-                self.options.expandtab(),
-                self.options.auto_pairs().is_some(),
+                self.resolved_options.expandtab(),
+                self.resolved_options.auto_pairs().is_some(),
             )
         } else {
             false
@@ -824,10 +824,10 @@ impl VimEngine {
                         insert_mode,
                         exec_text,
                         cur,
-                        self.options.tabstop(),
-                        self.options.autoindent(),
+                        self.resolved_options.tabstop(),
+                        self.resolved_options.autoindent(),
                         ctx.providers().indent,
-                        &self.options,
+                        &self.resolved_options,
                     );
 
                     let entry_offset_i = self
@@ -839,9 +839,9 @@ impl VimEngine {
                     let mut insert_ctx_i =
                         InsertContext::new(exec_text, crate::primitives::Offset::new(cur))
                             .with_precomputed(precomputed_i)
-                            .with_shift_width(self.options.shiftwidth())
-                            .with_tabstop(self.options.tabstop())
-                            .with_auto_pairs(self.options.auto_pairs());
+                            .with_shift_width(self.resolved_options.shiftwidth())
+                            .with_tabstop(self.resolved_options.tabstop())
+                            .with_auto_pairs(self.resolved_options.auto_pairs());
                     if let Some(offset) = entry_offset_i {
                         insert_ctx_i = insert_ctx_i.with_entry_offset(offset);
                     }
@@ -1033,8 +1033,8 @@ impl VimEngine {
             &mut response,
             Some(text),
             None,
-            self.options.tabstop(),
-            self.options.undo_auto_group_ms(),
+            self.resolved_options.tabstop(),
+            self.resolved_options.undo_auto_group_ms(),
             self.resolved_options.cursor_shape_overrides(),
         );
 
@@ -1085,7 +1085,7 @@ impl VimEngine {
                 cur,
                 &mut response,
                 &mut self.state,
-                self.options.tabstop(),
+                self.resolved_options.tabstop(),
             );
         }
 
@@ -1113,9 +1113,9 @@ impl VimEngine {
                 false,
                 &mut exit_response,
                 Some(text),
-                self.options.undolevels(),
-                self.options.tabstop(),
-                self.options.undo_auto_group_ms(),
+                self.resolved_options.undolevels(),
+                self.resolved_options.tabstop(),
+                self.resolved_options.undo_auto_group_ms(),
                 self.resolved_options.cursor_shape_overrides(),
             );
             response.effects.extend(exit_response.effects);
@@ -1143,7 +1143,7 @@ impl VimEngine {
                     let trigger_byte_len = trigger_char.len_utf8();
                     if acc.len() >= trigger_byte_len {
                         let text_before = &acc[..acc.len() - trigger_byte_len];
-                        let wcs = self.options.word_char_set().clone();
+                        let wcs = self.resolved_options.word_char_set().clone();
                         let is_keyword = |c: char| wcs.contains(c);
                         if let Some((delete_count, replacement)) = self.abbrev_table.try_expand(
                             trigger_char,
@@ -2012,8 +2012,8 @@ impl VimEngine {
                 last_cursor_offset: result.last_cursor_offset,
                 doc_text,
                 indent_provider,
-                tabstop: self.options.tabstop(),
-                autoindent: self.options.autoindent(),
+                tabstop: self.resolved_options.tabstop(),
+                autoindent: self.resolved_options.autoindent(),
             };
             if self.state.multi_cursor().is_active() {
                 let primary_offset = self.state.multi_cursor().selections().primary().head();

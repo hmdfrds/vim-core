@@ -419,3 +419,79 @@ fn operator_on_option_without_id() {
         "E474: Invalid argument: mlf+=1"
     );
 }
+
+// ── Commands read the resolved options ───────────────────────────────────────
+
+mod commands_read_resolved_options {
+    use vim_core::execution::{parse_keys_from_string, HostSession};
+    use vim_core::primitives::VimOptions;
+
+    fn feed(session: &mut HostSession, keys: &str) {
+        for key in parse_keys_from_string(keys) {
+            session.process_key_host(key);
+        }
+    }
+
+    fn session_with_textwidth(text: &str, tw: usize) -> HostSession {
+        let mut session = HostSession::new(text);
+        let mut opts = VimOptions::default();
+        opts.set_textwidth(tw);
+        session.set_options(opts);
+        session
+    }
+
+    const LONG: &str = "aaaa bbbb cccc dddd eeee ffff";
+
+    #[test]
+    fn global_textwidth_wraps() {
+        // Baseline for the tests below: the global value alone wraps.
+        let mut session = session_with_textwidth("", 20);
+        feed(&mut session, &format!("i{LONG}<Esc>"));
+        assert!(session.text().to_string().contains('\n'));
+    }
+
+    #[test]
+    fn setlocal_textwidth_zero_stops_wrapping() {
+        let mut session = session_with_textwidth("", 20);
+        feed(&mut session, ":setlocal tw=0<CR>");
+        feed(&mut session, &format!("i{LONG}<Esc>"));
+        assert_eq!(session.text().to_string(), LONG);
+    }
+
+    #[test]
+    fn setlocal_textwidth_enables_wrapping() {
+        let mut session = session_with_textwidth("", 0);
+        feed(&mut session, ":setlocal tw=20<CR>");
+        feed(&mut session, &format!("i{LONG}<Esc>"));
+        assert!(session.text().to_string().contains('\n'));
+    }
+
+    #[test]
+    fn setlocal_formatoptions_without_t_stops_wrapping() {
+        let mut session = session_with_textwidth("", 20);
+        feed(&mut session, ":setlocal fo-=t<CR>");
+        feed(&mut session, &format!("i{LONG}<Esc>"));
+        assert_eq!(session.text().to_string(), LONG);
+    }
+
+    #[test]
+    fn ex_commands_see_setlocal_textwidth() {
+        // `:center` without a width uses 'textwidth'. Vim 9.1 gives
+        // "    abc" for tw=11.
+        let mut session = HostSession::new("abc");
+        feed(&mut session, ":setlocal tw=11<CR>:center<CR>");
+        assert_eq!(session.text().to_string(), "    abc");
+    }
+
+    #[test]
+    fn setlocal_shiftwidth_reaches_every_cursor() {
+        // Ctrl-T is re-run per cursor; both the primary and the secondary
+        // must indent by the buffer-local shiftwidth, not the global 4.
+        let mut session = HostSession::new("a\nb");
+        feed(&mut session, ":setlocal sw=2<CR>");
+        session.set_cursor_offset(0);
+        session.add_cursor(2).unwrap();
+        feed(&mut session, "i<C-t><Esc>");
+        assert_eq!(session.text().to_string(), "  a\n  b");
+    }
+}
