@@ -29,6 +29,7 @@ mod clipboard_mode;
 mod command_line_edit;
 mod command_line_prompt;
 mod command_properties;
+mod comments;
 mod completion_kind;
 mod cursor_style;
 pub mod digraph;
@@ -89,6 +90,10 @@ pub use clipboard_mode::UseSystemClipboard;
 pub use command_line_edit::CommandLineEdit;
 pub use command_line_prompt::CommandLinePrompt;
 pub use command_properties::{CommandProperties, RepeatBehavior};
+pub use comments::{
+    CommentContinuation, CommentFlags, CommentPart, CommentSpec, CommentsError, LeaderMatch,
+    DEFAULT_COMMENTS,
+};
 pub use completion_kind::CompletionKind;
 pub use cursor_style::{mode_to_override_index, CursorShape, CursorStyle, CURSOR_OVERRIDE_COUNT};
 pub use digraph::{lookup_digraph, DigraphRegistry};

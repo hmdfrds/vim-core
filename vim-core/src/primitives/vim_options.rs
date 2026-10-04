@@ -7,9 +7,11 @@
 use compact_str::CompactString;
 use smallvec::SmallVec;
 use std::fmt;
+use std::sync::Arc;
 
 use super::byte_delta;
 use super::clipboard_mode::UseSystemClipboard;
+use super::comments::{CommentSpec, DEFAULT_COMMENTS};
 use super::cursor_style::CursorShape;
 use super::format_flags::FormatFlags;
 use super::option_scope::{is_sentinel, OptionId, OptionOverrides, OptionScope, OptionValue};
@@ -300,6 +302,12 @@ pub struct VimOptions {
     /// Comment string format (e.g., `"// %s"`, `"# %s"`).
     /// `%s` is replaced with the line content.
     commentstring: CompactString,
+    /// Comment leaders for formatting (Vim `comments`), e.g. `"b:#,://"`.
+    comments: CompactString,
+    /// Parsed `comments`. Rebuilt when comments changes; shared so that
+    /// resolving options per buffer does not copy the parts.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    comment_spec: Arc<CommentSpec>,
 
     // ── Command-line preview ───────────────────────────────────────────────
     /// Live substitute preview mode.
@@ -682,6 +690,20 @@ impl VimOptions {
         &self.commentstring
     }
 
+    /// Comment leaders for formatting (Vim `comments`).
+    #[inline]
+    #[must_use]
+    pub fn comments(&self) -> &str {
+        &self.comments
+    }
+
+    /// Parsed `comments`, for matching comment leaders.
+    #[inline]
+    #[must_use]
+    pub fn comment_spec(&self) -> &CommentSpec {
+        &self.comment_spec
+    }
+
     // ── Quote escape getter ──────────────────────────────────────────────
 
     /// Characters used to escape the quote character in quote text objects.
@@ -923,6 +945,17 @@ impl VimOptions {
     #[inline]
     pub fn set_commentstring(&mut self, value: impl Into<CompactString>) {
         self.commentstring = value.into();
+    }
+
+    /// Set comments. Rebuilds the cached [`CommentSpec`].
+    ///
+    /// The value is stored as given. Parts without a colon are skipped when
+    /// matching; `:set` rejects a malformed value with E524, E525 or E539
+    /// before it gets here.
+    #[inline]
+    pub fn set_comments(&mut self, value: impl Into<CompactString>) {
+        self.comments = value.into();
+        self.comment_spec = Arc::new(CommentSpec::parse_lossy(&self.comments));
     }
 
     /// Set iskeyword. Rebuilds the cached `WordCharSet` bitmap.
@@ -1759,6 +1792,8 @@ impl Default for VimOptions {
             selection: SelectionMode::Inclusive,
             clipboard: CompactString::new_inline(""),
             commentstring: CompactString::new_inline("// %s"),
+            comments: CompactString::new(DEFAULT_COMMENTS),
+            comment_spec: Arc::new(CommentSpec::parse_lossy(DEFAULT_COMMENTS)),
             inccommand: IncCommandMode::NoSplit,
             iskeyword: CompactString::new("@,48-57,_,192-255"),
             word_char_set: WordCharSet::default_vim(),
@@ -1825,6 +1860,8 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             selection: SelectionMode,
             clipboard: CompactString,
             commentstring: CompactString,
+            #[serde(default = "default_comments")]
+            comments: CompactString,
             inccommand: IncCommandMode,
             iskeyword: CompactString,
             gdefault: bool,
@@ -1890,6 +1927,9 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
         fn default_formatoptions() -> CompactString {
             CompactString::new_inline("tcqj")
         }
+        fn default_comments() -> CompactString {
+            CompactString::new(DEFAULT_COMMENTS)
+        }
         fn default_quoteescape() -> CompactString {
             CompactString::new_inline("\\")
         }
@@ -1932,6 +1972,8 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             selection: raw.selection,
             clipboard: raw.clipboard,
             commentstring: raw.commentstring,
+            comment_spec: Arc::new(CommentSpec::parse_lossy(&raw.comments)),
+            comments: raw.comments,
             inccommand: raw.inccommand,
             word_char_set: WordCharSet::from_iskeyword(&raw.iskeyword),
             iskeyword: raw.iskeyword,
@@ -2043,6 +2085,28 @@ mod tests {
         opts.set_formatoptions("tZ");
         assert_eq!(opts.formatoptions(), "tZ");
         assert_eq!(opts.format_flags(), FormatFlags::WRAP_TEXT);
+    }
+
+    #[test]
+    fn default_comments_is_vim_default() {
+        let opts = VimOptions::default();
+        assert_eq!(
+            opts.comments(),
+            "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+        );
+        assert_eq!(opts.comment_spec().parts().len(), 9);
+        assert!(opts.comment_spec().match_line("# note").is_some());
+    }
+
+    #[test]
+    fn set_comments_rebuilds_spec() {
+        let mut opts = VimOptions::default();
+        opts.set_comments("b:##,b:#");
+        assert_eq!(opts.comments(), "b:##,b:#");
+        assert_eq!(opts.comment_spec().parts().len(), 2);
+        assert!(opts.comment_spec().match_line("// x").is_none());
+        opts.set_comments("");
+        assert!(opts.comment_spec().is_empty());
     }
 
     #[test]
