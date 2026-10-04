@@ -1023,7 +1023,7 @@ fn option_name_to_id(name: &str) -> Option<OptionId> {
         "expandtab" | "et" => Some(OptionId::ExpandTab),
         "autoindent" | "ai" => Some(OptionId::AutoIndent),
         "smartindent" | "si" => Some(OptionId::SmartIndent),
-        "commentstring" => Some(OptionId::CommentString),
+        "commentstring" | "cms" => Some(OptionId::CommentString),
         "iskeyword" | "isk" => Some(OptionId::IsKeyword),
         "textwidth" | "tw" => Some(OptionId::TextWidth),
         "scrolloff" | "so" => Some(OptionId::ScrollOff),
@@ -1038,6 +1038,8 @@ fn option_name_to_id(name: &str) -> Option<OptionId> {
         "undoautogroupms" | "uagm" => Some(OptionId::UndoAutoGroupMs),
         "belloff" | "bo" => Some(OptionId::BellOff),
         "softtabstop" | "sts" => Some(OptionId::SoftTabStop),
+        "formatoptions" | "fo" => Some(OptionId::FormatOptions),
+        "comments" | "com" => Some(OptionId::Comments),
         _ => None,
     }
 }
@@ -1097,7 +1099,9 @@ pub(crate) fn apply_set_assignments(
                 messages.push(format_all_options(global));
             }
             SetAssignment::Query(name) => {
-                if let Some(val) = query_option(global, name) {
+                if let Some(val) =
+                    query_in_scope(scope, global, buffer_overrides, window_overrides, name)
+                {
                     messages.push(val);
                 } else {
                     error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
@@ -1119,6 +1123,17 @@ pub(crate) fn apply_set_assignments(
                     (name.as_str(), true)
                 };
 
+                // `:set tw` on a number or string option shows its value,
+                // like `:set tw?`.
+                if !is_bool_option_name(canonical) {
+                    if let Some(val) =
+                        query_in_scope(scope, global, buffer_overrides, window_overrides, canonical)
+                    {
+                        messages.push(val);
+                        continue;
+                    }
+                }
+
                 if let Some(id) = option_name_to_id(canonical) {
                     apply_bool_with_scope(
                         scope,
@@ -1133,7 +1148,9 @@ pub(crate) fn apply_set_assignments(
                 }
             }
             SetAssignment::UnsetBool(name) => {
-                if let Some(id) = option_name_to_id(name) {
+                if is_value_option_name(name) {
+                    error_effects.extend(set_error("E474: Invalid argument", &format!("no{name}")));
+                } else if let Some(id) = option_name_to_id(name) {
                     apply_bool_with_scope(
                         scope,
                         id,
@@ -1147,7 +1164,10 @@ pub(crate) fn apply_set_assignments(
                 }
             }
             SetAssignment::ToggleBool(name) => {
-                if let Some(id) = option_name_to_id(name) {
+                if is_value_option_name(name) {
+                    error_effects
+                        .extend(set_error("E488: Trailing characters", &format!("{name}!")));
+                } else if let Some(id) = option_name_to_id(name) {
                     // Read the *effective* value (not just global) so that
                     // toggling respects local overrides.
                     let current = match crate::primitives::resolve_option(
@@ -1175,7 +1195,8 @@ pub(crate) fn apply_set_assignments(
                 if let Some(id) = option_name_to_id(name) {
                     // Build the OptionValue by parsing through the existing helper on a temp
                     // copy, then extract the result. Simpler: parse directly.
-                    let opt_value = parse_option_value(id, name, value, &mut error_effects);
+                    let arg = format!("{name}={value}");
+                    let opt_value = parse_option_value(id, &arg, value, &mut error_effects);
                     if let Some(opt_value) = opt_value {
                         apply_value_with_scope(
                             scope,
@@ -1207,7 +1228,7 @@ pub(crate) fn apply_set_assignments(
 /// Emits error effects for parse failures. Returns `None` on failure.
 fn parse_option_value(
     id: OptionId,
-    name: &str,
+    arg: &str,
     value: &str,
     error_effects: &mut Effects,
 ) -> Option<OptionValue> {
@@ -1221,7 +1242,7 @@ fn parse_option_value(
                 "0" | "false" | "off" => Some(OptionValue::Bool(false)),
                 _ => {
                     error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                        format!("Invalid boolean value for {name}: {value}").into(),
+                        format!("Invalid boolean value: {arg}").into(),
                     )));
                     None
                 }
@@ -1231,9 +1252,7 @@ fn parse_option_value(
             if let Ok(v) = value.parse::<usize>() {
                 Some(OptionValue::Unsigned(v))
             } else {
-                error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                    format!("E521: Number required after =: {name}={value}").into(),
-                )));
+                error_effects.extend(set_error("E521: Number required after =", arg));
                 None
             }
         }
@@ -1242,14 +1261,75 @@ fn parse_option_value(
             if let Ok(v) = value.parse::<i64>() {
                 Some(OptionValue::Signed(v))
             } else {
-                error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                    format!("E521: Number required after =: {name}={value}").into(),
-                )));
+                error_effects.extend(set_error("E521: Number required after =", arg));
                 None
             }
         }
-        OptionValue::Str(_) => Some(OptionValue::Str(CompactString::from(value))),
+        OptionValue::Str(_) => match validate_string_value(id, value) {
+            Ok(v) => Some(OptionValue::Str(v)),
+            Err(msg) => {
+                error_effects.extend(set_error(&msg, arg));
+                None
+            }
+        },
     }
+}
+
+/// Check a new string value the way Vim's per-option check does, and
+/// normalize it the way Vim stores it.
+///
+/// Returns the error message without the trailing `: {arg}`.
+fn validate_string_value(id: OptionId, value: &str) -> Result<CompactString, String> {
+    match id {
+        OptionId::FormatOptions => {
+            let normalized = crate::primitives::FormatFlags::normalize(value);
+            crate::primitives::FormatFlags::parse(&normalized)
+                .map_err(|c| format!("E539: Illegal character <{c}>"))?;
+            Ok(CompactString::from(normalized))
+        }
+        OptionId::Comments => {
+            crate::primitives::CommentSpec::validate(value).map_err(|e| e.to_string())?;
+            Ok(CompactString::from(value))
+        }
+        _ => Ok(CompactString::from(value)),
+    }
+}
+
+/// An error effect in Vim's `:set` format: the message, then the argument
+/// as typed (`E539: Illegal character <Z>: fo+=Z`).
+fn set_error(message: &str, arg: &str) -> Effects {
+    Effects::new().show_error(VimError::OptionValue(format!("{message}: {arg}").into()))
+}
+
+/// Answer `:set name?` from the layer the command looks at: `:setglobal`
+/// shows the global value, `:set` and `:setlocal` the effective one.
+fn query_in_scope(
+    scope: SetScope,
+    global: &crate::primitives::VimOptions,
+    buffer_overrides: &OptionOverrides,
+    window_overrides: &OptionOverrides,
+    name: &str,
+) -> Option<String> {
+    if scope == SetScope::Global {
+        return query_option(global, name);
+    }
+    let effective =
+        crate::primitives::VimOptions::resolve_all(global, buffer_overrides, window_overrides);
+    query_option(&effective, name)
+}
+
+/// Whether `name` is a boolean option, with or without an [`OptionId`].
+fn is_bool_option_name(name: &str) -> bool {
+    option_name_to_id(name).map_or_else(
+        || is_known_bool_option(name),
+        |id| id.kind() == crate::primitives::OptionKind::Bool,
+    )
+}
+
+/// Whether `name` is a known option that holds a number or string, so that
+/// `no{name}` and `{name}!` are errors rather than unknown options.
+fn is_value_option_name(name: &str) -> bool {
+    option_name_to_id(name).is_some_and(|id| id.kind() != crate::primitives::OptionKind::Bool)
 }
 
 /// Write a boolean option value through the correct scope layers.
@@ -1354,6 +1434,9 @@ fn query_option(options: &crate::primitives::VimOptions, name: &str) -> Option<S
         "number" | "nu" => format_bool("number", options.number()),
         "relativenumber" | "rnu" => format_bool("relativenumber", options.relativenumber()),
         "textwidth" | "tw" => format!("textwidth={}", options.textwidth()),
+        "formatoptions" | "fo" => format!("formatoptions={}", options.formatoptions()),
+        "comments" | "com" => format!("comments={}", options.comments()),
+        "commentstring" | "cms" => format!("commentstring={}", options.commentstring()),
         "timeoutlen" | "tm" => format!("timeoutlen={}", options.timeoutlen_ms()),
         "undolevels" | "ul" => match options.undolevels() {
             Some(n) => format!("undolevels={n}"),
@@ -2253,6 +2336,8 @@ mod tests {
             ("commentstring", OptionId::CommentString),
             ("belloff", OptionId::BellOff),
             ("softtabstop", OptionId::SoftTabStop),
+            ("formatoptions", OptionId::FormatOptions),
+            ("comments", OptionId::Comments),
         ];
         for (name, expected_id) in expected {
             assert_eq!(
@@ -2261,6 +2346,13 @@ mod tests {
                 "failed for option: {name}"
             );
         }
+    }
+
+    #[test]
+    fn option_name_formatting_short_forms() {
+        assert_eq!(option_name_to_id("fo"), Some(OptionId::FormatOptions));
+        assert_eq!(option_name_to_id("com"), Some(OptionId::Comments));
+        assert_eq!(option_name_to_id("cms"), Some(OptionId::CommentString));
     }
 
     #[test]

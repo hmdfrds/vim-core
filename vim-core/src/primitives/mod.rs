@@ -117,7 +117,7 @@ pub use operator::ComposedPair;
 pub use operator::Operator;
 pub use operator::OperatorKind;
 pub use option_scope::{
-    is_sentinel, resolve_option, OptionId, OptionOverrides, OptionScope, OptionValue,
+    is_sentinel, resolve_option, OptionId, OptionKind, OptionOverrides, OptionScope, OptionValue,
 };
 pub use position::{Column, LineNumber, Offset, Position};
 pub use range::{LineRange, Range};

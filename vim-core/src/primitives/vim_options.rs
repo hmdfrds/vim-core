@@ -1436,6 +1436,8 @@ impl VimOptions {
             OptionId::Clipboard => OptionValue::Str(CompactString::from(self.clipboard())),
             OptionId::IsKeyword => OptionValue::Str(CompactString::from(self.iskeyword())),
             OptionId::CommentString => OptionValue::Str(CompactString::from(self.commentstring())),
+            OptionId::FormatOptions => OptionValue::Str(self.formatoptions.clone()),
+            OptionId::Comments => OptionValue::Str(self.comments.clone()),
             OptionId::IncCommand => OptionValue::Str(CompactString::from(self.inccommand())),
 
             // Special: undolevels is Option<usize>; -1 means unlimited
@@ -1592,6 +1594,16 @@ impl VimOptions {
                     self.set_commentstring(v.clone());
                 }
             }
+            OptionId::FormatOptions => {
+                if let OptionValue::Str(v) = value {
+                    self.set_formatoptions(v.clone());
+                }
+            }
+            OptionId::Comments => {
+                if let OptionValue::Str(v) = value {
+                    self.set_comments(v.clone());
+                }
+            }
             OptionId::IncCommand => {
                 if let OptionValue::Str(v) = value {
                     self.set_inccommand(v.as_str());
@@ -1636,7 +1648,7 @@ impl VimOptions {
     /// Produce a merged `VimOptions` by applying buffer-local and window-local
     /// overrides on top of `global`.
     ///
-    /// For each of the 26 known `OptionId` values:
+    /// For each known `OptionId` value:
     /// - If the option's scope is `LocalToBuffer` or `GlobalOrLocalBuffer`
     ///   (and the value is not a sentinel for `GlobalOrLocal*`), apply the
     ///   buffer override if present.
@@ -1676,6 +1688,8 @@ impl VimOptions {
             OptionId::UndoAutoGroupMs,
             OptionId::BellOff,
             OptionId::SoftTabStop,
+            OptionId::FormatOptions,
+            OptionId::Comments,
         ];
 
         let mut result = global.clone();

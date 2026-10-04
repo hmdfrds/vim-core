@@ -37,6 +37,30 @@ pub enum OptionScope {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// OptionKind
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// The value shape of a Vim option, which decides what `:set` accepts for it.
+///
+/// Mirrors the distinctions Vim's `:set` makes (`:help set-option`): a
+/// boolean takes `name`/`noname`/`name!`; a number takes `=`, `+=`, `-=` and
+/// `^=` as arithmetic; a string takes `+=`/`^=`/`-=` as append, prepend and
+/// remove; a flag list and a comma list add and remove whole flags or items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionKind {
+    /// On or off (`ignorecase`).
+    Bool,
+    /// A number (`textwidth`).
+    Number,
+    /// A free-form string (`commentstring`).
+    String,
+    /// A string of single-letter flags (`formatoptions`).
+    FlagList,
+    /// A comma-separated list (`comments`, `backspace`).
+    CommaList,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // OptionId
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -87,6 +111,10 @@ pub enum OptionId {
     TextWidth = 17,
     /// `softtabstop` — number of columns for Tab in insert mode (local to buffer).
     SoftTabStop = 29,
+    /// `formatoptions` -- flags that control automatic formatting (local to buffer).
+    FormatOptions = 30,
+    /// `comments` -- comment leaders recognized when formatting (local to buffer).
+    Comments = 31,
 
     // ── LocalToWindow ────────────────────────────────────────────────────
     /// `scrolloff` — minimum lines to keep above/below cursor (local to window).
@@ -122,6 +150,47 @@ pub enum OptionId {
 }
 
 impl OptionId {
+    /// The value shape of this option.
+    #[must_use]
+    pub const fn kind(self) -> OptionKind {
+        match self {
+            Self::IgnoreCase
+            | Self::SmartCase
+            | Self::HlSearch
+            | Self::IncSearch
+            | Self::WrapScan
+            | Self::GDefault
+            | Self::ExpandTab
+            | Self::AutoIndent
+            | Self::SmartIndent
+            | Self::Number
+            | Self::RelativeNumber
+            | Self::VisualStar
+            | Self::BellOff => OptionKind::Bool,
+
+            Self::TimeoutLen
+            | Self::UndoLevels
+            | Self::TabStop
+            | Self::ShiftWidth
+            | Self::TextWidth
+            | Self::ScrollOff
+            | Self::SideScrollOff
+            | Self::UndoAutoGroupMs
+            | Self::SoftTabStop => OptionKind::Number,
+
+            Self::CommentString | Self::Selection | Self::IncCommand => OptionKind::String,
+
+            Self::FormatOptions => OptionKind::FlagList,
+
+            Self::Clipboard
+            | Self::IsKeyword
+            | Self::VirtualEdit
+            | Self::Backspace
+            | Self::WhichWrap
+            | Self::Comments => OptionKind::CommaList,
+        }
+    }
+
     /// The scope this option belongs to.
     #[must_use]
     pub const fn scope(self) -> OptionScope {
@@ -148,7 +217,9 @@ impl OptionId {
             | Self::CommentString
             | Self::IsKeyword
             | Self::TextWidth
-            | Self::SoftTabStop => OptionScope::LocalToBuffer,
+            | Self::SoftTabStop
+            | Self::FormatOptions
+            | Self::Comments => OptionScope::LocalToBuffer,
 
             Self::ScrollOff | Self::Number | Self::RelativeNumber => OptionScope::LocalToWindow,
 
@@ -334,6 +405,8 @@ mod tests {
         assert_eq!(OptionId::IsKeyword.scope(), OptionScope::LocalToBuffer);
         assert_eq!(OptionId::TextWidth.scope(), OptionScope::LocalToBuffer);
         assert_eq!(OptionId::SoftTabStop.scope(), OptionScope::LocalToBuffer);
+        assert_eq!(OptionId::FormatOptions.scope(), OptionScope::LocalToBuffer);
+        assert_eq!(OptionId::Comments.scope(), OptionScope::LocalToBuffer);
     }
 
     #[test]
@@ -369,6 +442,69 @@ mod tests {
             OptionId::WhichWrap.scope(),
             OptionScope::GlobalOrLocalBuffer
         );
+    }
+
+    // ── OptionId::kind ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_kind_agrees_with_value_type() {
+        // Every Bool kind holds a Bool value and every Number kind holds a
+        // number, so `:set` can trust the kind when parsing a value.
+        let defaults = VimOptions::default();
+        for id in [
+            OptionId::IgnoreCase,
+            OptionId::SmartCase,
+            OptionId::HlSearch,
+            OptionId::IncSearch,
+            OptionId::WrapScan,
+            OptionId::GDefault,
+            OptionId::Clipboard,
+            OptionId::IncCommand,
+            OptionId::TimeoutLen,
+            OptionId::UndoLevels,
+            OptionId::TabStop,
+            OptionId::ShiftWidth,
+            OptionId::ExpandTab,
+            OptionId::AutoIndent,
+            OptionId::SmartIndent,
+            OptionId::CommentString,
+            OptionId::IsKeyword,
+            OptionId::TextWidth,
+            OptionId::SoftTabStop,
+            OptionId::FormatOptions,
+            OptionId::Comments,
+            OptionId::ScrollOff,
+            OptionId::Number,
+            OptionId::RelativeNumber,
+            OptionId::SideScrollOff,
+            OptionId::VirtualEdit,
+            OptionId::Selection,
+            OptionId::Backspace,
+            OptionId::WhichWrap,
+            OptionId::VisualStar,
+            OptionId::UndoAutoGroupMs,
+            OptionId::BellOff,
+        ] {
+            let value = defaults.get_option(id);
+            let consistent = match id.kind() {
+                OptionKind::Bool => matches!(value, OptionValue::Bool(_)),
+                OptionKind::Number => {
+                    matches!(value, OptionValue::Unsigned(_) | OptionValue::Signed(_))
+                }
+                OptionKind::String | OptionKind::FlagList | OptionKind::CommaList => {
+                    matches!(value, OptionValue::Str(_))
+                }
+            };
+            assert!(consistent, "{id:?} kind {:?} vs {value:?}", id.kind());
+        }
+    }
+
+    #[test]
+    fn test_formatting_option_kinds() {
+        assert_eq!(OptionId::FormatOptions.kind(), OptionKind::FlagList);
+        assert_eq!(OptionId::Comments.kind(), OptionKind::CommaList);
+        assert_eq!(OptionId::TextWidth.kind(), OptionKind::Number);
+        assert_eq!(OptionId::CommentString.kind(), OptionKind::String);
     }
 
     // ── is_sentinel ──────────────────────────────────────────────────────
