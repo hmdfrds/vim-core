@@ -34,6 +34,7 @@ mod cursor_style;
 pub mod digraph;
 mod direction;
 mod find_direction;
+mod format_flags;
 mod host_settings;
 mod insert_entry_type;
 mod join_style;
@@ -93,6 +94,7 @@ pub use cursor_style::{mode_to_override_index, CursorShape, CursorStyle, CURSOR_
 pub use digraph::{lookup_digraph, DigraphRegistry};
 pub use direction::Direction;
 pub use find_direction::{FindDirection, LastFind};
+pub use format_flags::FormatFlags;
 pub use host_settings::HostSettings;
 pub use insert_entry_type::InsertEntryType;
 pub use join_style::JoinStyle;

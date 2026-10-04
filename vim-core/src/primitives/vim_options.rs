@@ -11,6 +11,7 @@ use std::fmt;
 use super::byte_delta;
 use super::clipboard_mode::UseSystemClipboard;
 use super::cursor_style::CursorShape;
+use super::format_flags::FormatFlags;
 use super::option_scope::{is_sentinel, OptionId, OptionOverrides, OptionScope, OptionValue};
 use super::subword_config::SubwordConfig;
 use super::word_char_set::WordCharSet;
@@ -269,8 +270,11 @@ pub struct VimOptions {
     /// Format options string (e.g. "tcqj"). Controls auto-formatting behavior.
     /// - `t`: auto-wrap text using textwidth
     /// - `c`: auto-wrap comments using textwidth
-    /// Neovim default: "tcqj"
+    /// Neovim default: "tcqj" (Vim's is "tcq")
     formatoptions: CompactString,
+    /// Parsed flags from `formatoptions`. Rebuilt when formatoptions changes.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    format_flags: FormatFlags,
 
     // ── Mapping ──────────────────────────────────────────────────────────
     /// Timeout for ambiguous mapping prefixes in milliseconds.
@@ -563,11 +567,18 @@ impl VimOptions {
         &self.formatoptions
     }
 
+    /// Parsed `formatoptions` flags.
+    #[inline]
+    #[must_use]
+    pub const fn format_flags(&self) -> FormatFlags {
+        self.format_flags
+    }
+
     /// Whether auto-format text wrapping is enabled (`t` in formatoptions).
     #[inline]
     #[must_use]
-    pub fn auto_format_text(&self) -> bool {
-        self.formatoptions.contains('t')
+    pub const fn auto_format_text(&self) -> bool {
+        self.format_flags.contains(FormatFlags::WRAP_TEXT)
     }
 
     // ── Mapping getters ──────────────────────────────────────────────────
@@ -829,10 +840,15 @@ impl VimOptions {
         self.textwidth = value;
     }
 
-    /// Set formatoptions.
+    /// Set formatoptions. Rebuilds the cached [`FormatFlags`].
+    ///
+    /// The value is stored as given. Characters that are not `formatoptions`
+    /// flags are kept in the string but have no effect; `:set` rejects them
+    /// with E539 before they get here.
     #[inline]
     pub fn set_formatoptions(&mut self, value: impl Into<CompactString>) {
         self.formatoptions = value.into();
+        self.format_flags = FormatFlags::parse_lossy(&self.formatoptions);
     }
 
     /// Set mapping timeout in milliseconds.
@@ -1732,6 +1748,10 @@ impl Default for VimOptions {
             relativenumber: false,
             textwidth: 0,
             formatoptions: CompactString::new_inline("tcqj"),
+            format_flags: FormatFlags::WRAP_TEXT
+                .union(FormatFlags::WRAP_COMMENTS)
+                .union(FormatFlags::FORMAT_COMMENTS)
+                .union(FormatFlags::REMOVE_COMMENT_LEADER),
             timeoutlen_ms: 500,
             whichwrap: CompactString::new_inline("b,s"),
             backspace: CompactString::new("indent,eol,start"),
@@ -1903,6 +1923,7 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             number: raw.number,
             relativenumber: raw.relativenumber,
             textwidth: raw.textwidth,
+            format_flags: FormatFlags::parse_lossy(&raw.formatoptions),
             formatoptions: raw.formatoptions,
             timeoutlen_ms: raw.timeoutlen_ms,
             whichwrap: raw.whichwrap,
@@ -1996,6 +2017,32 @@ mod tests {
         let mut o = VimOptions::default();
         o.set_shiftwidth(0);
         assert_eq!(o.shiftwidth(), 1);
+    }
+
+    #[test]
+    fn default_format_flags_match_formatoptions_string() {
+        let opts = VimOptions::default();
+        assert_eq!(
+            opts.format_flags(),
+            FormatFlags::parse(opts.formatoptions()).unwrap()
+        );
+        assert!(opts.auto_format_text());
+    }
+
+    #[test]
+    fn set_formatoptions_rebuilds_flags() {
+        let mut opts = VimOptions::default();
+        opts.set_formatoptions("cq");
+        assert_eq!(opts.formatoptions(), "cq");
+        assert!(!opts.auto_format_text());
+        assert_eq!(
+            opts.format_flags(),
+            FormatFlags::WRAP_COMMENTS | FormatFlags::FORMAT_COMMENTS
+        );
+        // Unknown letters stay in the string but set no flag.
+        opts.set_formatoptions("tZ");
+        assert_eq!(opts.formatoptions(), "tZ");
+        assert_eq!(opts.format_flags(), FormatFlags::WRAP_TEXT);
     }
 
     #[test]
