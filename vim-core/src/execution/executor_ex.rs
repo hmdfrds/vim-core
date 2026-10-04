@@ -21,6 +21,7 @@ use crate::primitives::{
 use compact_str::CompactString;
 use smallvec::SmallVec;
 
+use super::set_operator::{apply_set_operator, number_value, parse_vim_number, SetOperator};
 use super::shell_expand::expand_shell_tokens;
 use super::ExecutionContext;
 
@@ -1191,6 +1192,53 @@ pub(crate) fn apply_set_assignments(
                     error_effects.extend(toggle_bool_option(global, name));
                 }
             }
+            SetAssignment::Append(name, value)
+            | SetAssignment::Remove(name, value)
+            | SetAssignment::Prepend(name, value) => {
+                let op = match assignment {
+                    SetAssignment::Append(..) => SetOperator::Append,
+                    SetAssignment::Remove(..) => SetOperator::Remove,
+                    _ => SetOperator::Prepend,
+                };
+                let arg = format!("{name}{}{value}", op.symbol());
+                if let Some(id) = option_name_to_id(name) {
+                    // `:setglobal` works from the global value; `:set` and
+                    // `:setlocal` from the effective one, and `:set` then
+                    // writes the result to both layers, as in Vim.
+                    let base = if scope == SetScope::Global {
+                        global.get_option(id)
+                    } else {
+                        crate::primitives::resolve_option(
+                            id,
+                            global,
+                            Some(buffer_overrides),
+                            Some(window_overrides),
+                        )
+                    };
+                    let result =
+                        apply_set_operator(id.kind(), id == OptionId::WhichWrap, &base, op, value)
+                            .map_err(str::to_owned)
+                            .and_then(|new| match new {
+                                OptionValue::Str(s) => {
+                                    validate_string_value(id, &s).map(OptionValue::Str)
+                                }
+                                other => Ok(other),
+                            });
+                    match result {
+                        Ok(new) => apply_value_with_scope(
+                            scope,
+                            id,
+                            new,
+                            global,
+                            buffer_overrides,
+                            window_overrides,
+                        ),
+                        Err(msg) => error_effects.extend(set_error(&msg, &arg)),
+                    }
+                } else {
+                    error_effects.extend(apply_operator_by_name(global, name, op, value, &arg));
+                }
+            }
             SetAssignment::Assign(name, value) => {
                 if let Some(id) = option_name_to_id(name) {
                     // Build the OptionValue by parsing through the existing helper on a temp
@@ -1248,21 +1296,15 @@ fn parse_option_value(
                 }
             }
         }
-        OptionValue::Unsigned(_) => {
-            if let Ok(v) = value.parse::<usize>() {
-                Some(OptionValue::Unsigned(v))
-            } else {
-                error_effects.extend(set_error("E521: Number required after =", arg));
-                None
-            }
-        }
-        OptionValue::Signed(_) => {
-            // undolevels: -1 means unlimited
-            if let Ok(v) = value.parse::<i64>() {
-                Some(OptionValue::Signed(v))
-            } else {
-                error_effects.extend(set_error("E521: Number required after =", arg));
-                None
+        like @ (OptionValue::Unsigned(_) | OptionValue::Signed(_)) => {
+            // Signed options use -1 as a sentinel (undolevels: unlimited).
+            let parsed = parse_vim_number(value).ok_or("E521: Number required after =");
+            match parsed.and_then(|n| number_value(n, &like)) {
+                Ok(v) => Some(v),
+                Err(msg) => {
+                    error_effects.extend(set_error(msg, arg));
+                    None
+                }
             }
         }
         OptionValue::Str(_) => match validate_string_value(id, value) {
@@ -1316,6 +1358,41 @@ fn query_in_scope(
     let effective =
         crate::primitives::VimOptions::resolve_all(global, buffer_overrides, window_overrides);
     query_option(&effective, name)
+}
+
+/// Apply a `:set` operator to an option that has no [`OptionId`] and lives
+/// only in the global layer (`langmap`, `multilinefindrange`).
+fn apply_operator_by_name(
+    options: &mut crate::primitives::VimOptions,
+    name: &str,
+    op: SetOperator,
+    value: &str,
+    arg: &str,
+) -> Effects {
+    use crate::primitives::OptionKind;
+
+    let Some(current) = query_option(options, name) else {
+        return Effects::new().show_error(VimError::NotEditorCommand(
+            format!("Unknown option: {name}").into(),
+        ));
+    };
+    // A boolean shows as `name` or `noname`, with no `=`.
+    let Some((_, current_value)) = current.split_once('=') else {
+        return set_error("E474: Invalid argument", arg);
+    };
+    let (kind, base) = match current_value.parse::<usize>() {
+        Ok(n) => (OptionKind::Number, OptionValue::Unsigned(n)),
+        Err(_) => (
+            OptionKind::CommaList,
+            OptionValue::Str(CompactString::from(current_value)),
+        ),
+    };
+    match apply_set_operator(kind, false, &base, op, value) {
+        Ok(OptionValue::Unsigned(n)) => assign_option(options, name, &n.to_string()),
+        Ok(OptionValue::Str(s)) => assign_option(options, name, &s),
+        Ok(_) => Effects::new(),
+        Err(msg) => set_error(msg, arg),
+    }
 }
 
 /// Whether `name` is a boolean option, with or without an [`OptionId`].

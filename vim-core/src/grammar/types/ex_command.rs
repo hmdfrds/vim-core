@@ -883,6 +883,14 @@ pub enum SetAssignment {
     Query(CompactString),
     /// Assign numeric/string value: `:set tabstop=8`
     Assign(CompactString, CompactString),
+    /// Add to a number, append to a string, or add a flag or list item:
+    /// `:set tw+=4`, `:set fo+=c`, `:set com+=b:##`
+    Append(CompactString, CompactString),
+    /// Subtract from a number, or remove a substring, flag or list item:
+    /// `:set fo-=t`, `:set com-=b:#`
+    Remove(CompactString, CompactString),
+    /// Multiply a number, or prepend to a string or list: `:set com^=b:##`
+    Prepend(CompactString, CompactString),
     /// Show all options: `:set all`
     ShowAll,
 }

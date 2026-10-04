@@ -1326,7 +1326,15 @@ fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExComma
 /// - `:set noexpandtab` → `UnsetBool("expandtab")`
 /// - `:set expandtab!` → `ToggleBool("expandtab")`
 /// - `:set expandtab?` → `Query("expandtab")`
-/// - `:set tabstop=8` → `Assign("tabstop", "8")`
+/// - `:set tabstop=8` or `:set tabstop:8` → `Assign("tabstop", "8")`
+/// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
+///   `Prepend`
+///
+/// Arguments are separated by white space that is not escaped with a
+/// backslash. In a value, a backslash makes the next character literal and
+/// is removed, so `commentstring=#\ %s` gives `# %s` and `\\` gives one
+/// backslash (`:help option-backslash`). White space before the `=` or
+/// operator is allowed, as in Vim.
 fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     let mut assignments = smallvec::SmallVec::new();
 
@@ -1335,57 +1343,123 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
         return assignments;
     }
 
-    for token in args.split_whitespace() {
-        if token == "all" {
-            assignments.push(SetAssignment::ShowAll);
-            continue;
-        }
-
-        // `:set name?` — query
-        if let Some(name) = token.strip_suffix('?') {
-            assignments.push(SetAssignment::Query(CompactString::from(name)));
-            continue;
-        }
-
-        // `:set name!` — toggle
-        if let Some(name) = token.strip_suffix('!') {
-            assignments.push(SetAssignment::ToggleBool(CompactString::from(name)));
-            continue;
-        }
-
-        // `:set name=value` — assignment
-        if let Some((name, value)) = token.split_once('=') {
-            assignments.push(SetAssignment::Assign(
-                CompactString::from(name),
-                CompactString::from(value),
-            ));
-            continue;
-        }
-
-        // `:set name:value` — alternate assignment syntax
-        if let Some((name, value)) = token.split_once(':') {
-            assignments.push(SetAssignment::Assign(
-                CompactString::from(name),
-                CompactString::from(value),
-            ));
-            continue;
-        }
-
-        // `:set noname` → UnsetBool("name"), `:set name` → SetBool("name").
-        // The "no" prefix is stripped here so the grammar layer emits the
-        // semantically correct variant.
-        if let Some(stripped) = token.strip_prefix("no") {
-            if stripped.is_empty() {
-                assignments.push(SetAssignment::SetBool(CompactString::from(token)));
-            } else {
-                assignments.push(SetAssignment::UnsetBool(CompactString::from(stripped)));
-            }
-        } else {
-            assignments.push(SetAssignment::SetBool(CompactString::from(token)));
-        }
+    for token in split_set_args(args) {
+        assignments.push(parse_set_token(&token));
     }
 
     assignments
+}
+
+/// Split `:set` arguments on white space not preceded by a backslash, and
+/// join `name =value` back into one argument. Backslashes are kept; the
+/// value is unescaped once the argument's shape is known.
+fn split_set_args(args: &str) -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut chars = args.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                current.push(c);
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+            }
+            c if c.is_whitespace() => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    // Vim ignores white space between the option name and '=' or an
+    // operator: `:set tw =5` and `:set fo +=r` work.
+    let mut joined: Vec<String> = Vec::with_capacity(tokens.len());
+    for token in tokens {
+        let starts_with_operator = ["=", ":", "+=", "-=", "^="]
+            .iter()
+            .any(|op| token.starts_with(op));
+        match joined.last_mut() {
+            Some(prev) if starts_with_operator && is_option_name(prev) => prev.push_str(&token),
+            _ => joined.push(token),
+        }
+    }
+    joined
+}
+
+/// Whether `s` is a bare option name (letters, digits and `_`).
+fn is_option_name(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Remove `:set` value escapes: a backslash makes the next character literal.
+fn unescape_set_value(value: &str) -> CompactString {
+    let mut out = CompactString::default();
+    let mut chars = value.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(next) = chars.next() {
+                out.push(next);
+                continue;
+            }
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Parse one `:set` argument.
+fn parse_set_token(token: &str) -> SetAssignment {
+    if token == "all" {
+        return SetAssignment::ShowAll;
+    }
+
+    let name_len = token
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .unwrap_or(token.len());
+    let (name, rest) = token.split_at(name_len);
+
+    if !name.is_empty() {
+        let name_str = CompactString::from(name);
+        // Operators are checked before the plain `=`, so `fo-=t` is a
+        // removal from `fo` and not an assignment to an option `fo-`.
+        for (op, make) in [
+            ("+=", SetAssignment::Append as fn(_, _) -> _),
+            ("-=", SetAssignment::Remove),
+            ("^=", SetAssignment::Prepend),
+        ] {
+            if let Some(value) = rest.strip_prefix(op) {
+                return make(name_str, unescape_set_value(value));
+            }
+        }
+        if let Some(value) = rest.strip_prefix('=').or_else(|| rest.strip_prefix(':')) {
+            return SetAssignment::Assign(name_str, unescape_set_value(value));
+        }
+        match rest {
+            "?" => return SetAssignment::Query(name_str),
+            "!" => return SetAssignment::ToggleBool(name_str),
+            _ => {}
+        }
+    }
+
+    // `:set noname` → UnsetBool("name"), `:set name` → SetBool("name").
+    // The "no" prefix is stripped here so the grammar layer emits the
+    // semantically correct variant. Anything else that is not a bare name
+    // also lands here and is reported as an unknown option.
+    if let Some(stripped) = token.strip_prefix("no") {
+        if stripped.is_empty() {
+            SetAssignment::SetBool(CompactString::from(token))
+        } else {
+            SetAssignment::UnsetBool(CompactString::from(stripped))
+        }
+    } else {
+        SetAssignment::SetBool(CompactString::from(token))
+    }
 }
 
 /// Parse `:sethandler` arguments.

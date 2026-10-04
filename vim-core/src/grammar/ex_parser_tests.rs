@@ -4810,3 +4810,122 @@ fn smap_no_prefix_conflict_with_sort() {
     let cmd = parse_ex_command("sort").unwrap();
     assert!(matches!(cmd, ExCommand::Sort { .. }));
 }
+
+// ─── :set operators and escapes ─────────────────────────────────
+
+fn set_args(line: &str) -> Vec<SetAssignment> {
+    match parse_ex_command(line).unwrap() {
+        ExCommand::Set { assignments }
+        | ExCommand::SetLocal { assignments }
+        | ExCommand::SetGlobal { assignments } => assignments.into_vec(),
+        other => panic!("expected a :set command, got {other:?}"),
+    }
+}
+
+fn cs(s: &str) -> compact_str::CompactString {
+    compact_str::CompactString::from(s)
+}
+
+#[test]
+fn set_operators_parse_before_plain_assign() {
+    assert_eq!(
+        set_args("set fo-=t fo+=c com^=b:## tw+=4"),
+        vec![
+            SetAssignment::Remove(cs("fo"), cs("t")),
+            SetAssignment::Append(cs("fo"), cs("c")),
+            SetAssignment::Prepend(cs("com"), cs("b:##")),
+            SetAssignment::Append(cs("tw"), cs("4")),
+        ]
+    );
+}
+
+#[test]
+fn set_operator_values_may_contain_equals_and_colons() {
+    assert_eq!(
+        set_args("setlocal com-=fb:- com=s1:/*,mb:*,ex:*/"),
+        vec![
+            SetAssignment::Remove(cs("com"), cs("fb:-")),
+            SetAssignment::Assign(cs("com"), cs("s1:/*,mb:*,ex:*/")),
+        ]
+    );
+    assert_eq!(
+        set_args("set cms==%s"),
+        vec![SetAssignment::Assign(cs("cms"), cs("=%s"))]
+    );
+}
+
+#[test]
+fn set_empty_operator_value() {
+    assert_eq!(
+        set_args("set fo-= com+="),
+        vec![
+            SetAssignment::Remove(cs("fo"), cs("")),
+            SetAssignment::Append(cs("com"), cs("")),
+        ]
+    );
+}
+
+#[test]
+fn set_colon_assignment() {
+    assert_eq!(
+        set_args("set tw:7"),
+        vec![SetAssignment::Assign(cs("tw"), cs("7"))]
+    );
+}
+
+#[test]
+fn set_backslash_escapes_in_values() {
+    // Vim 9.1: `set cms=#\ %s` gives "# %s", `a\\b%s` gives "a\b%s",
+    // `a\b%s` gives "ab%s", `a\,b%s` gives "a,b%s".
+    assert_eq!(
+        set_args(r"setlocal commentstring=#\ %s"),
+        vec![SetAssignment::Assign(cs("commentstring"), cs("# %s"))]
+    );
+    assert_eq!(
+        set_args(r"set cms=a\\b%s cms=a\b%s cms=a\,b%s"),
+        vec![
+            SetAssignment::Assign(cs("cms"), cs(r"a\b%s")),
+            SetAssignment::Assign(cs("cms"), cs("ab%s")),
+            SetAssignment::Assign(cs("cms"), cs("a,b%s")),
+        ]
+    );
+    assert_eq!(
+        set_args(r"set cms+=\ x"),
+        vec![SetAssignment::Append(cs("cms"), cs(" x"))]
+    );
+}
+
+#[test]
+fn set_white_space_before_operator_is_ignored() {
+    // Vim 9.1: `set fo +=r` and `set tw =5` both work.
+    assert_eq!(
+        set_args("set fo +=r tw =5"),
+        vec![
+            SetAssignment::Append(cs("fo"), cs("r")),
+            SetAssignment::Assign(cs("tw"), cs("5")),
+        ]
+    );
+}
+
+#[test]
+fn set_bool_forms_unchanged() {
+    assert_eq!(
+        set_args("set ic noai et! ts? all"),
+        vec![
+            SetAssignment::SetBool(cs("ic")),
+            SetAssignment::UnsetBool(cs("ai")),
+            SetAssignment::ToggleBool(cs("et")),
+            SetAssignment::Query(cs("ts")),
+            SetAssignment::ShowAll,
+        ]
+    );
+}
+
+#[test]
+fn set_unrecognized_shape_is_kept_whole() {
+    // `tw+:7` is E488 in Vim; it reaches the executor as an unknown name.
+    assert_eq!(
+        set_args("set tw+:7"),
+        vec![SetAssignment::SetBool(cs("tw+:7"))]
+    );
+}

@@ -251,3 +251,171 @@ fn commentstring_short_name_and_query() {
     assert_eq!(engine.options().commentstring(), "#%s");
     assert_eq!(query(&mut engine, "set cms?"), "commentstring=#%s");
 }
+
+// ── :set +=, -=, ^= ──────────────────────────────────────────────────────────
+
+#[test]
+fn remove_t_from_formatoptions() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set fo-=t");
+    assert_eq!(engine.options().formatoptions(), "cqj");
+    assert!(!engine.resolved_options().auto_format_text());
+}
+
+#[test]
+fn formatoptions_operators_chain() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set fo=tcq");
+    set(&mut engine, "set fo-=t fo+=r fo^=l");
+    assert_eq!(engine.options().formatoptions(), "lcqr");
+}
+
+#[test]
+fn formatoptions_operator_unknown_flag_is_e539() {
+    let mut engine = VimEngine::new();
+    // Vim 9.1: "E539: Illegal character <Z>: fo+=Z"
+    assert_eq!(
+        error(&mut engine, "set fo+=Z"),
+        "E539: Illegal character <Z>: fo+=Z"
+    );
+    assert_eq!(engine.options().formatoptions(), "tcqj");
+}
+
+// Vim 9.1 with `setglobal fo=tcq | setlocal fo=cq`:
+//   set fo+=r       -> global cqr, local cqr
+//   setlocal fo+=r  -> global tcq, local cqr
+//   setglobal fo+=r -> global tcqr, local cq
+#[test]
+fn operator_scopes_match_vim() {
+    let start = |engine: &mut VimEngine| {
+        set(engine, "setglobal fo=tcq");
+        set(engine, "setlocal fo=cq");
+    };
+
+    let mut engine = VimEngine::new();
+    start(&mut engine);
+    set(&mut engine, "set fo+=r");
+    assert_eq!(engine.options().formatoptions(), "cqr");
+    assert_eq!(effective_str(&engine, OptionId::FormatOptions), "cqr");
+
+    let mut engine = VimEngine::new();
+    start(&mut engine);
+    set(&mut engine, "setlocal fo+=r");
+    assert_eq!(engine.options().formatoptions(), "tcq");
+    assert_eq!(effective_str(&engine, OptionId::FormatOptions), "cqr");
+
+    let mut engine = VimEngine::new();
+    start(&mut engine);
+    set(&mut engine, "setglobal fo+=r");
+    assert_eq!(engine.options().formatoptions(), "tcqr");
+    assert_eq!(effective_str(&engine, OptionId::FormatOptions), "cq");
+}
+
+// Vim 9.1 with `setglobal tw=10 | setlocal tw=20`: `set tw+=1` gives 21/21,
+// `setglobal tw+=1` 11/20, `setlocal tw+=1` 10/21.
+#[test]
+fn number_operator_scopes_match_vim() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, "setglobal tw=10");
+    set(&mut engine, "setlocal tw=20");
+    set(&mut engine, "setglobal tw+=1");
+    assert_eq!(engine.options().textwidth(), 11);
+    assert_eq!(
+        engine.effective_option(OptionId::TextWidth),
+        OptionValue::Unsigned(20)
+    );
+    set(&mut engine, "setlocal tw+=1");
+    assert_eq!(engine.options().textwidth(), 11);
+    assert_eq!(
+        engine.effective_option(OptionId::TextWidth),
+        OptionValue::Unsigned(21)
+    );
+    set(&mut engine, "set tw+=1");
+    assert_eq!(engine.options().textwidth(), 22);
+    assert_eq!(
+        engine.effective_option(OptionId::TextWidth),
+        OptionValue::Unsigned(22)
+    );
+}
+
+#[test]
+fn number_operator_errors_match_vim() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set tw=10");
+    assert_eq!(
+        error(&mut engine, "set tw-=40"),
+        "E487: Argument must be positive: tw-=40"
+    );
+    assert_eq!(
+        error(&mut engine, "set tw+=x"),
+        "E521: Number required after =: tw+=x"
+    );
+    assert_eq!(
+        error(&mut engine, "set tw=-1"),
+        "E487: Argument must be positive: tw=-1"
+    );
+    assert_eq!(
+        error(&mut engine, "set ai+=1"),
+        "E474: Invalid argument: ai+=1"
+    );
+    assert_eq!(engine.options().textwidth(), 10);
+}
+
+#[test]
+fn number_assignment_accepts_vim_number_syntax() {
+    let mut engine = VimEngine::new();
+    // Vim 9.1: `tw=010` and `tw=0o10` are 8, `tw+=0x10` adds 16.
+    set(&mut engine, "set tw=010");
+    assert_eq!(engine.options().textwidth(), 8);
+    set(&mut engine, "set tw+=0x10");
+    assert_eq!(engine.options().textwidth(), 24);
+}
+
+#[test]
+fn comments_operators_match_vim() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set com-=b:#");
+    assert_eq!(
+        engine.options().comments(),
+        "s1:/*,mb:*,ex:*/,://,:%,:XCOMM,n:>,fb:-"
+    );
+    set(&mut engine, "set com^=b:#");
+    assert_eq!(
+        engine.options().comments(),
+        "b:#,s1:/*,mb:*,ex:*/,://,:%,:XCOMM,n:>,fb:-"
+    );
+    // Already present: unchanged.
+    set(&mut engine, "set com+=b:#");
+    assert_eq!(
+        engine.options().comments(),
+        "b:#,s1:/*,mb:*,ex:*/,://,:%,:XCOMM,n:>,fb:-"
+    );
+}
+
+#[test]
+fn comments_operator_result_is_validated() {
+    let mut engine = VimEngine::new();
+    // Vim 9.1: "E524: Missing colon: com+=b"
+    assert_eq!(
+        error(&mut engine, "set com+=b"),
+        "E524: Missing colon: com+=b"
+    );
+}
+
+#[test]
+fn escaped_space_in_commentstring() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, r"setlocal commentstring=#\ %s");
+    assert_eq!(effective_str(&engine, OptionId::CommentString), "# %s");
+}
+
+#[test]
+fn operator_on_option_without_id() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set mlfr+=2");
+    assert_eq!(engine.options().multiline_find_range(), 7);
+    assert_eq!(
+        error(&mut engine, "set mlf+=1"),
+        "E474: Invalid argument: mlf+=1"
+    );
+}
