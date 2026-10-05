@@ -734,15 +734,21 @@ impl VimEngine {
             .filter(|_| formats_typed)
             .map(|_| result.effects.clone());
         if formats_typed && abbreviation.is_none() {
+            // The host cursor need not be the primary cursor yet: the
+            // per-cursor path below makes the cursor sitting at the host
+            // cursor the primary one, and only when no cursor sits there does
+            // the primary stand for the host cursor.
             let mc = self.state.multi_cursor();
+            let selections = mc.selections();
+            let host_is_a_cursor = selections.iter().any(|sr| sr.head().get() == cursor);
             let shares_line = mc.is_active()
                 && cursor_shares_line(
                     text,
                     cursor,
-                    mc.selections()
+                    selections
                         .iter()
                         .enumerate()
-                        .filter(|&(i, _)| i != mc.selections().primary_index())
+                        .filter(|&(i, _)| host_is_a_cursor || i != selections.primary_index())
                         .map(|(_, sr)| sr.head().get()),
                 );
             if !shares_line {

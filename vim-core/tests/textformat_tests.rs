@@ -362,6 +362,38 @@ fn two_cursors_on_one_line_leave_it_unbroken() {
     assert_eq!(s.text(), "aaaaxy bbbb cccc ddddxy");
 }
 
+#[test]
+fn shared_line_stays_unbroken_whichever_cursor_is_primary() {
+    // On the first key after `i` the host cursor is the last cursor a
+    // SetCursor put it on, which need not be the primary one yet. The line
+    // must count as shared either way, or the blanks after one cursor are
+    // deleted under the other cursor's text.
+    for (primary, secondary) in [(22, 20), (20, 22)] {
+        let mut s = session("aaaa bbbb cccc dddd     z", 20, "tq");
+        s.options_mut().set_autoindent(true);
+        s.set_cursor_offset(primary);
+        s.add_cursor(secondary).unwrap();
+        feed(&mut s, "iEF<Esc>");
+        assert_eq!(
+            s.text(),
+            "aaaa bbbb cccc dddd EF  EF  z",
+            "primary {primary}"
+        );
+    }
+    for (primary, secondary) in [(32, 27), (27, 32)] {
+        let mut s = session("    aaaa bbbb cccc dddd eeee ffff", 20, "tq");
+        s.options_mut().set_autoindent(true);
+        s.set_cursor_offset(primary);
+        s.add_cursor(secondary).unwrap();
+        feed(&mut s, "axyz<Esc>");
+        assert_eq!(
+            s.text(),
+            "    aaaa bbbb cccc dddd eeeexyz ffffxyz",
+            "primary {primary}"
+        );
+    }
+}
+
 // ── Property: breaks only replace blanks ─────────────────────────────────────
 
 fn non_blank(s: &str) -> String {
