@@ -4698,6 +4698,129 @@
      65
     ]
    }
+  },
+  {
+   "name": "b flag: Tab typed before tw with et",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh\ta",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 8,
+    "sw": 8,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh",
+     "a"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed before tw with et ts=4",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh\ta",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 4,
+    "sw": 4,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh",
+     "a"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed before tw with noet",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh\ta",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh",
+     "a"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed past tw with et",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefghijk\ta b",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 8,
+    "sw": 8,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefghijk     a b"
+    ],
+    "cursor": [
+     0,
+     19
+    ]
+   }
   }
  ]
 }

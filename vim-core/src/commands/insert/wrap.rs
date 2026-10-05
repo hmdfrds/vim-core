@@ -273,8 +273,21 @@ pub fn format_typed_char(
             .get(cursor..)
             .and_then(|rest| rest.chars().next())
             .is_some_and(|next| next != '\n');
+    // A Tab under 'expandtab' or 'softtabstop' types several blanks at
+    // once. They all belong to the run, so that `b` records the column
+    // where the Tab was typed, as Vim's ins_tab() sets Insstart_blank_vcol.
+    let char_start = end - c.len_utf8();
+    let run_start = cursor
+        .checked_sub(base)
+        .filter(|&s| {
+            s < char_start
+                && window
+                    .get(s..end)
+                    .is_some_and(|typed| typed.chars().all(is_blank))
+        })
+        .unwrap_or(char_start);
     let run = TypedRun {
-        range: end - c.len_utf8()..end,
+        range: run_start..end,
         line: line_of(text, cursor),
         overwritten: usize::from(overwrites),
     };
