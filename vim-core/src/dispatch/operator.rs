@@ -791,6 +791,9 @@ pub fn dispatch_operator_find(input: &OperatorFindInput<'_>) -> CommandResult {
                 Offset::new(cursor),
             )
             .with_motion_target(target)
+            .with_shiftwidth(options.shiftwidth())
+            .with_tabstop(options.tabstop())
+            .with_expandtab(options.expandtab())
             .with_textwidth(options.textwidth())
             .with_format_options(options)
             .with_commentstring(options.commentstring());
@@ -883,6 +886,9 @@ pub fn dispatch_operator_mark(input: &OperatorMarkInput<'_>) -> CommandResult {
             Offset::new(mark_offset)
         }
     })
+    .with_shiftwidth(options.shiftwidth())
+    .with_tabstop(options.tabstop())
+    .with_expandtab(options.expandtab())
     .with_textwidth(options.textwidth())
     .with_format_options(options)
     .with_force_numbered();

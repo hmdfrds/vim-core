@@ -5736,6 +5736,103 @@
    }
   },
   {
+   "name": ">t to the next char shifts by shiftwidth with the tabstop",
+   "lines": [
+    "\td "
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": ">t #",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "        d "
+    ],
+    "cursor": [
+     0,
+     8
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": ">t builds the indent with Tabs under noexpandtab",
+   "lines": [
+    "\tdx ",
+    "a"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": ">tx",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t\tdx ",
+     "a"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<t takes shiftwidth and tabstop from the options",
+   "lines": [
+    "\tdx ",
+    "a"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "<tx#",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 2
+   },
+   "expected": {
+    "lines": [
+     "      dx ",
+     "a"
+    ],
+    "cursor": [
+     0,
+     8
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
    "name": "gg on the same line after a failed 2$ goes to curswant",
    "lines": [
     "icexpialidociousandthensomemore"
