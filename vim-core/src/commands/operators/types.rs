@@ -778,6 +778,8 @@ pub struct SelectionOperatorContext<'text> {
     pub tabstop: usize,
     /// Whether to use spaces instead of tabs for indentation.
     pub expandtab: bool,
+    /// Engine options, for the format operators.
+    pub options: &'text crate::primitives::VimOptions,
     /// Sticky column (curswant) for nosol cursor placement after linewise delete.
     pub sticky_column: Option<crate::primitives::VirtualColumn>,
 }

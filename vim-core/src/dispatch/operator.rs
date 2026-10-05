@@ -728,6 +728,7 @@ pub fn dispatch_operator_find(input: &OperatorFindInput<'_>) -> CommandResult {
                 Offset::new(cursor),
             )
             .with_motion_target(target)
+            .with_textwidth(options.textwidth())
             .with_commentstring(options.commentstring());
             if let Some(provider) = input.custom_operators {
                 op_ctx = op_ctx.with_custom_operators(provider);
@@ -755,6 +756,8 @@ pub struct OperatorMarkInput<'a> {
     pub mark_type: crate::grammar::types::MarkType,
     /// Target register, if specified.
     pub register: Option<crate::primitives::RegisterName>,
+    /// Engine options, for the format operators.
+    pub options: &'a crate::primitives::VimOptions,
     /// Custom operator provider for `Operator::Custom(id)`.
     pub custom_operators: Option<&'a dyn crate::document::CustomOperatorProvider>,
 }
@@ -775,6 +778,7 @@ pub fn dispatch_operator_mark(input: &OperatorMarkInput<'_>) -> CommandResult {
         mark_offset,
         mark_type,
         register,
+        options,
         ..
     } = *input;
 
@@ -815,6 +819,7 @@ pub fn dispatch_operator_mark(input: &OperatorMarkInput<'_>) -> CommandResult {
             Offset::new(mark_offset)
         }
     })
+    .with_textwidth(options.textwidth())
     .with_force_numbered();
     if let Some(provider) = input.custom_operators {
         op_ctx = op_ctx.with_custom_operators(provider);
@@ -989,6 +994,7 @@ pub fn dispatch_operator_selection(ctx: &SelectionOperatorContext<'_>) -> Comman
     .with_shiftwidth(ctx.shiftwidth)
     .with_tabstop(ctx.tabstop)
     .with_expandtab(ctx.expandtab)
+    .with_textwidth(ctx.options.textwidth())
     .with_commentstring(ctx.commentstring)
     .with_sticky_column(ctx.sticky_column)
     .with_from_visual();

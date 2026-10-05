@@ -484,6 +484,28 @@ mod commands_read_resolved_options {
     }
 
     #[test]
+    fn visual_gq_reads_textwidth() {
+        // Vim 9.1 with tw=12.
+        let mut session = session_with_textwidth("aa bb cc dd ee ff gg hh ii jj", 12);
+        feed(&mut session, "Vgq");
+        assert_eq!(
+            session.text().to_string(),
+            "aa bb cc dd\nee ff gg hh\nii jj"
+        );
+    }
+
+    #[test]
+    fn gq_to_a_mark_reads_textwidth() {
+        // Vim 9.1 with tw=12.
+        let mut session = session_with_textwidth("aa bb cc dd ee ff\ngg hh ii jj", 12);
+        feed(&mut session, "majgq'a");
+        assert_eq!(
+            session.text().to_string(),
+            "aa bb cc dd\nee ff gg hh\nii jj"
+        );
+    }
+
+    #[test]
     fn setlocal_shiftwidth_reaches_every_cursor() {
         // Ctrl-T is re-run per cursor; both the primary and the secondary
         // must indent by the buffer-local shiftwidth, not the global 4.
