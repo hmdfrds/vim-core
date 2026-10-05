@@ -44,15 +44,23 @@ pub(crate) fn parse_vim_number(s: &str) -> Option<i64> {
     if digits.is_empty() {
         return None;
     }
+    // from_str_radix() takes a leading sign, which Vim does not after the
+    // prefix, so the digits are checked first.
     let magnitude = if let Some(hex) = digits
         .strip_prefix("0x")
         .or_else(|| digits.strip_prefix("0X"))
     {
+        if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
         i64::from_str_radix(hex, 16).ok()?
     } else if let Some(oct) = digits
         .strip_prefix("0o")
         .or_else(|| digits.strip_prefix("0O"))
     {
+        if !oct.bytes().all(|b| (b'0'..=b'7').contains(&b)) {
+            return None;
+        }
         i64::from_str_radix(oct, 8).ok()?
     } else if digits.len() > 1
         && digits.starts_with('0')
@@ -273,6 +281,13 @@ mod tests {
         assert_eq!(parse_vim_number("5x"), None);
         assert_eq!(parse_vim_number(" 5"), None);
         assert_eq!(parse_vim_number("x"), None);
+        // Vim gives E521 for a sign after the prefix.
+        assert_eq!(parse_vim_number("0x+5"), None);
+        assert_eq!(parse_vim_number("0x-5"), None);
+        assert_eq!(parse_vim_number("0o+7"), None);
+        assert_eq!(parse_vim_number("0o-7"), None);
+        assert_eq!(parse_vim_number("0x"), None);
+        assert_eq!(parse_vim_number("-0x1f"), Some(-31));
     }
 
     // Vim 9.1, tw=10: `tw+=4` 14, `tw-=4` 6, `tw^=4` 40, `tw^=0` 0,
