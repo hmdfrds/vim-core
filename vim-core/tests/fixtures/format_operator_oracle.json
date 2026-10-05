@@ -3740,6 +3740,67 @@
    }
   },
   {
+   "name": "motion: gq} with no blank line below",
+   "lines": [
+    "aa bb cc",
+    "d"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gq}",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "cc d"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "motion: gq} over two short lines at the end",
+   "lines": [
+    "aa",
+    "d"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gq}",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa d"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
    "name": "motion: gq} goes past a white-space-only line",
    "lines": [
     "aa bb cc",

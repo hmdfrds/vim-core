@@ -218,8 +218,21 @@ pub fn compute_motion_range_with_sticky<'text>(
                 && target >= cursor
                 && crate::commands::motions::sentence::close_paren_runs_off_end(&motion_ctx);
 
+            // `}` that runs into a non-empty last line lands on its last
+            // character, and Vim's findpar() makes the motion inclusive. It is
+            // then an ordinary charwise motion.
+            let paragraph_to_end = motion == Motion::ParagraphForward
+                && target >= cursor
+                && target < text.len()
+                && !text.ends_with('\n')
+                && crate::primitives::text_util::prev_char_boundary(text, text.len()) == target;
+
             // Determine motion type before inclusivity adjustment
-            let motion_type = determine_motion_type(&motion);
+            let motion_type = if paragraph_to_end {
+                MotionType::CharWise
+            } else {
+                determine_motion_type(&motion)
+            };
 
             // Some motions are classified as LineWise (for register storage) but their
             // range computation is exclusive/charwise. Skip extend_to_full_lines for these
@@ -238,7 +251,7 @@ pub fn compute_motion_range_with_sticky<'text>(
             } else {
                 // Handle inclusivity for charwise motions (and paragraph motions)
                 // Pass last_find direction for RepeatFind/RepeatFindReverse
-                let mut end = if sentence_to_end {
+                let mut end = if paragraph_to_end || sentence_to_end {
                     text.len()
                 } else if cursor == target
                     && cursor < text.len()

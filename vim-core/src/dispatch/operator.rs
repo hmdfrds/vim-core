@@ -416,8 +416,8 @@ pub fn dispatch_operator_with_motion(input: &OperatorMotionInput<'_>) -> Command
     };
 
     // Vi blank-line delete promotion (Neovim ops.c:742-757): when a charwise
-    // delete spans multiple lines and remaining text after start is all
-    // whitespace with cursor in indent region, promote to linewise.
+    // delete spans multiple lines, only white space follows its end on the
+    // last line, and the start is in the indent, promote to linewise.
     let (final_range, final_motion_type) = {
         use crate::commands::helpers::{
             first_non_blank_in_line, line_end_for_offset, line_of, line_start_for_offset,
@@ -435,10 +435,12 @@ pub fn dispatch_operator_with_motion(input: &OperatorMotionInput<'_>) -> Command
             if line_of(text, end) > line_of(text, start) {
                 let ls = line_start_for_offset(text, start);
                 let le = line_end_for_offset(text, start);
-                let after_start = &text[start..le];
+                let after_end = text
+                    .get(end..line_end_for_offset(text, end))
+                    .unwrap_or_default();
                 let in_indent = first_non_blank_in_line(&text[ls..le]) >= (start - ls);
 
-                if after_start.trim().is_empty() && in_indent {
+                if after_end.trim().is_empty() && in_indent {
                     let (ls, le) = extend_to_full_lines(text, start, end);
                     (
                         crate::primitives::Range::from_raw(ls, le),
