@@ -1095,6 +1095,7 @@ impl VimEngine {
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
+                false,
             );
         }
 
@@ -1963,6 +1964,7 @@ impl VimEngine {
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
+                true,
             );
         }
         // Note: the algebraic rebase selection update is deferred to after

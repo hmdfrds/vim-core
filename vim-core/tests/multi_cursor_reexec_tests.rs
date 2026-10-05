@@ -1091,6 +1091,34 @@ fn three_motions_then_operator() {
     );
 }
 
+/// Typing through the per-cursor path after `a` keeps both cursors.
+///
+/// `a` moves each cursor right but used to leave the secondary's anchor
+/// behind, so the per-cursor insert update took it for a visual selection.
+/// The range grew with every character until it reached the primary and the
+/// two cursors merged, after which only one line received the typing.
+/// Auto-pairs makes plain characters take the per-cursor path.
+#[test]
+fn per_cursor_insert_after_append_keeps_cursors_apart() {
+    let mut session = session_with_cursors("aaaa bbbb cccc dddd\nxxxx yyyy zzzz wwww", &[18, 38]);
+    let mut opts = session.options().clone();
+    opts.set_auto_pairs(Some(vim_core::primitives::AutoPairs {
+        pairs: [vim_core::primitives::Pair {
+            open: '(',
+            close: ')',
+        }]
+        .into_iter()
+        .collect(),
+    }));
+    session.set_options(opts);
+    feed(&mut session, "a eeee ffff gggg hhhh iiii");
+    assert_eq!(
+        session.text(),
+        "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii\nxxxx yyyy zzzz wwww eeee ffff gggg hhhh iiii"
+    );
+    assert_eq!(session.cursor_count(), 2);
+}
+
 // =============================================================================
 // COMPOSITE / INTEGRATION TESTS
 // =============================================================================
