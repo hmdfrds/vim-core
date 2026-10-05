@@ -41,12 +41,15 @@ fn get_or_build_index<'a>(
     }
 }
 
-/// The text of line `line`, without its newline.
+/// The text of line `line`, without its newline. A '\r' before the
+/// newline goes too, so that a blank line of CRLF text is empty, as it is
+/// in Vim with 'fileformat' dos.
 #[inline]
 fn line_text<'t>(text: &'t str, idx: &LineIndex, line: usize) -> &'t str {
     let start = idx.line_start(line).unwrap_or(0);
     let end = idx.line_end(line, text.len());
-    text.get(start..end).unwrap_or_default()
+    let line = text.get(start..end).unwrap_or_default();
+    line.strip_suffix('\r').unwrap_or(line)
 }
 
 /// Vim's `startPS(lnum, NUL, FALSE)`: a line `{` and `}` stop at. That is
@@ -209,6 +212,22 @@ mod tests {
         let result = open_brace(&ctx);
         // Should stop at the empty line (offset 6)
         assert_eq!(result, MotionResult::Position(Offset::new(6)));
+    }
+
+    /// In CRLF text a blank line holds only "\r", and `{` and `}` stop
+    /// there as on an empty line.
+    #[test]
+    fn braces_stop_at_blank_lines_of_crlf_text() {
+        let o = opts();
+        let text = "a\r\n\r\nb\r\nc";
+        assert_eq!(
+            close_brace(&make_ctx(text, 0, &o)),
+            MotionResult::Position(Offset::new(3))
+        );
+        assert_eq!(
+            open_brace(&make_ctx(text, 8, &o)),
+            MotionResult::Position(Offset::new(3))
+        );
     }
 
     /// A line starting with a form feed or an nroff macro stops `}`.

@@ -661,9 +661,11 @@ const PARAGRAPH_MACROS: &str = "IPLPPPQPP TPHPLIPpLpItpplpipbp";
 const SECTION_MACROS: &str = "SHNHH HUnhsh";
 
 /// Vim's `startPS(lnum, NUL, false)`: an empty line, a form feed, or an
-/// nroff paragraph or section macro.
+/// nroff paragraph or section macro. A trailing '\r' is ignored, so that
+/// CRLF text behaves as in Vim with 'fileformat' dos.
 #[must_use]
 pub(crate) fn starts_paragraph_or_section(line: &str) -> bool {
+    let line = line.strip_suffix('\r').unwrap_or(line);
     match line.as_bytes() {
         [] | [b'\x0c', ..] => true,
         [b'.', rest @ ..] => in_macro(SECTION_MACROS, rest) || in_macro(PARAGRAPH_MACROS, rest),
