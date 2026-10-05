@@ -410,6 +410,22 @@ fn escaped_space_in_commentstring() {
 }
 
 #[test]
+fn whichwrap_operators_treat_items_as_flags() {
+    // Vim 9.1: 'whichwrap' is a comma list whose items are flags, so += on
+    // an item that is there moves it to the end.
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set ww=b,s");
+    set(&mut engine, "set ww+=b");
+    assert_eq!(query(&mut engine, "set ww?"), "whichwrap=s,b");
+    set(&mut engine, "set ww=b,s,h");
+    set(&mut engine, "set ww-=s");
+    assert_eq!(query(&mut engine, "set ww?"), "whichwrap=b,h");
+    set(&mut engine, "set ww=s");
+    set(&mut engine, "set ww^=b,s");
+    assert_eq!(query(&mut engine, "set ww?"), "whichwrap=b,s");
+}
+
+#[test]
 fn operator_on_option_without_id() {
     let mut engine = VimEngine::new();
     set(&mut engine, "set mlfr+=2");
