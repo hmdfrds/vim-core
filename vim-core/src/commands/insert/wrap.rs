@@ -276,6 +276,40 @@ pub fn format_typed_char(
     true
 }
 
+/// Format text that a repeat inserts in one piece, a dot-repeat or the count
+/// of an insert, and splice the line breaks into `effects`. Vim replays the
+/// text as typed, so it breaks the same way.
+///
+/// `earlier` are edits applied to `text` before `effects`, and `typed` is
+/// the range of the inserted text once `effects` are applied. `start` is
+/// the insert start to use; without one, the insert starts where the text
+/// goes, as for a new insert. Returns where the cursor ends after the last
+/// typed character, or `None` when no line broke.
+pub fn format_inserted_text(
+    effects: &mut Effects,
+    text: &str,
+    earlier: &[Effect],
+    typed: Range<usize>,
+    policy: &FormatPolicy<'_>,
+    start: Option<InsertStart>,
+) -> Option<usize> {
+    if !policy.is_active() {
+        return None;
+    }
+    let before = apply_text_effects(text, earlier)?;
+    let after = apply_text_effects(&before, effects.as_slice())?;
+    let mut start =
+        start.unwrap_or_else(|| insert_start_at(&before, typed.start, policy.tabstop, None));
+    let run = TypedRun {
+        line: line_of(&after, typed.start),
+        range: typed,
+        overwritten: 0,
+    };
+    let plan = plan_typed_format(&after, &run, policy, Some(&mut start))?;
+    splice_format_plan(effects, &plan);
+    Some(plan.cursor)
+}
+
 /// Splice the edits of `plan` into `effects` right before the last
 /// `SetCursor`, and move that cursor past the edits. Without a `SetCursor`
 /// the edits go at the end.
@@ -374,6 +408,26 @@ pub fn line_after_effects(
         line.replace_range(local, insert);
     }
     Some((line, base))
+}
+
+/// `text` after the text edits in `effects`, applied in order, or `None`
+/// when an edit does not fit.
+#[must_use]
+pub fn apply_text_effects(text: &str, effects: &[Effect]) -> Option<String> {
+    let mut out = text.to_owned();
+    for effect in effects {
+        let (range, insert) = match effect {
+            Effect::Insert { offset, text } => (offset.get()..offset.get(), text.as_str()),
+            Effect::Delete { range } => (range.start().get()..range.end().get(), ""),
+            Effect::Replace { range, text } => {
+                (range.start().get()..range.end().get(), text.as_str())
+            }
+            _ => continue,
+        };
+        out.get(range.clone())?;
+        out.replace_range(range, insert);
+    }
+    Some(out)
 }
 
 /// The offset of the last `SetCursor` in `effects`.

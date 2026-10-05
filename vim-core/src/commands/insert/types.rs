@@ -285,6 +285,11 @@ pub struct InsertExitParams<'text> {
     /// The byte offset where insert mode was entered (Insstart in Neovim).
     /// Used to set mark `[` on exit.  `None` means unknown / use computed fallback.
     pub entry_offset: Option<Offset>,
+    /// Formatting options for the count repeat, which Vim types like the
+    /// first round. `None` leaves the repeated text unformatted.
+    pub format: Option<&'text crate::commands::insert::wrap::FormatPolicy<'text>>,
+    /// Insert start of the session, for the `l`, `v` and `b` flags.
+    pub insert_start: Option<crate::state::InsertStart>,
 }
 
 /// Context for insert mode exit computations.

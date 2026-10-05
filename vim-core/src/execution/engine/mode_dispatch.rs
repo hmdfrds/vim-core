@@ -1167,8 +1167,12 @@ impl VimEngine {
             // Determine the cursor after the insert (the last SetCursor in effects).
             let new_cursor = Self::last_cursor_in_effects(&response.effects)
                 .map_or(cursor, crate::primitives::Offset::get);
-            let (mut exit_response, _exit_info2) =
-                super::super::insert_handler::handle_insert_exit(&mut self.state, new_cursor, text);
+            let (mut exit_response, _exit_info2) = super::super::insert_handler::handle_insert_exit(
+                &mut self.state,
+                new_cursor,
+                text,
+                None,
+            );
             super::super::effect_processor::process_effects_with_text(
                 &mut self.state,
                 &mut self.parser,
@@ -1382,8 +1386,14 @@ impl VimEngine {
             is.block_insert()
                 .map(|bc| (bc.lines_below(), is.accumulated_text().len()))
         });
-        let (mut response, exit_info) =
-            super::super::insert_handler::handle_insert_exit(&mut self.state, cursor, text);
+        let (mut response, exit_info) = super::super::insert_handler::handle_insert_exit(
+            &mut self.state,
+            cursor,
+            text,
+            Some(&crate::commands::insert::wrap::FormatPolicy::from_options(
+                &self.resolved_options,
+            )),
+        );
 
         // ── Precompute undo/redo marks for block visual insert ──────────
         //
@@ -2153,6 +2163,9 @@ impl VimEngine {
                 indent_provider,
                 tabstop: self.resolved_options.tabstop(),
                 autoindent: self.resolved_options.autoindent(),
+                format: crate::commands::insert::wrap::FormatPolicy::from_options(
+                    &self.resolved_options,
+                ),
             };
             if self.state.multi_cursor().is_active() {
                 let primary_offset = self.state.multi_cursor().selections().primary().head();

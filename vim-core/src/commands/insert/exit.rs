@@ -149,13 +149,27 @@ pub fn build_insert_exit_effects(
         );
         if !repeat_text.is_empty() {
             let is_replace = params.entry_type == crate::primitives::InsertEntryType::ReplaceMode;
-            let (repeat_fx, new_offset) = super::effects::repeat_text(
+            let (mut repeat_fx, mut new_offset) = super::effects::repeat_text(
                 insert_offset,
                 &repeat_text,
                 params.count,
                 is_replace,
                 params.text,
             );
+            // Vim types the repeats, so they break lines like the first
+            // round did. Replace mode repeats are not formatted.
+            if let (Some(policy), false) = (params.format, is_replace) {
+                if let Some(cursor) = super::wrap::format_inserted_text(
+                    &mut repeat_fx,
+                    params.text,
+                    &[],
+                    insert_offset..new_offset,
+                    policy,
+                    params.insert_start,
+                ) {
+                    new_offset = cursor;
+                }
+            }
             all_effects.extend(repeat_fx);
             // For counted inserts (3iX<Esc>), mark '.' should point to
             // the last character of the repeated text. sync_change_marks

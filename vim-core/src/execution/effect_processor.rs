@@ -2315,6 +2315,14 @@ fn reindent_for_repeat(
     compact_str::CompactString::from(result)
 }
 
+/// The offset of the last `SetCursor` in `effects`.
+fn last_cursor_offset_in(effects: &[Effect]) -> Option<usize> {
+    effects.iter().rev().find_map(|e| match e {
+        Effect::SetCursor { offset } => Some(offset.get()),
+        _ => None,
+    })
+}
+
 /// Inject saved text for dot-repeat after all other effects have been processed.
 ///
 /// `last_cursor_offset` comes from the single-pass `ProcessResult`, avoiding
@@ -2342,6 +2350,9 @@ pub(crate) struct RepeatText<'a> {
     pub tabstop: usize,
     /// Effective `'autoindent'`.
     pub autoindent: bool,
+    /// Effective formatting options. Vim replays the inserted text as typed,
+    /// so the replay breaks lines like typing does.
+    pub format: crate::commands::insert::wrap::FormatPolicy<'a>,
 }
 
 pub(crate) fn inject_repeat_text(
@@ -2361,6 +2372,7 @@ pub(crate) fn inject_repeat_text(
         indent_provider,
         tabstop,
         autoindent,
+        ref format,
     } = repeat;
     let saved_text = state.last_inserted_text();
     if saved_text.is_empty() {
@@ -2409,6 +2421,8 @@ pub(crate) fn inject_repeat_text(
     // Track the byte offset where the LAST Insert effect starts (needed
     // for mark '.' and mark ']' corrections for block insert).
     let mut last_insert_offset = insert_pos;
+    // Where the cursor ends when formatting broke the replayed text.
+    let mut formatted_cursor: Option<usize> = None;
 
     if is_replace {
         // Replace mode dot-repeat: delete existing chars then insert
@@ -2424,8 +2438,26 @@ pub(crate) fn inject_repeat_text(
         }
     } else {
         // Normal insert dot-repeat
-        let effects =
+        let mut effects =
             insert_effects::repeat_insert(insert_pos, text_clone.clone(), last_grapheme_len);
+        let is_block = state
+            .insert_state()
+            .is_some_and(|is| is.block_insert().is_some());
+        if let (Some(text), false) = (doc_text, is_block) {
+            let typed = insert_pos..insert_pos + text_clone.len();
+            if crate::commands::insert::wrap::format_inserted_text(
+                &mut effects,
+                text,
+                response.effects.as_slice(),
+                typed,
+                format,
+                None,
+            )
+            .is_some()
+            {
+                formatted_cursor = last_cursor_offset_in(effects.as_slice());
+            }
+        }
         for mut effect in effects.into_inner() {
             sync_effect_mut(state, parser, &mut effect, doc_text, undolevels_max);
             response.effects.push(effect);
@@ -2549,6 +2581,10 @@ pub(crate) fn inject_repeat_text(
             }
         } else if is_replace {
             last_insert_offset + text_clone.len() - last_grapheme_len
+        } else if let Some(cursor) = formatted_cursor {
+            // The replay was broken into lines: the last change is the
+            // last character, where the cursor ends.
+            cursor
         } else if count > 1 {
             // Counted insert (e.g., 3iX<Esc>.): mark '.' = last character
             // position, matching exit_finalize's `new_offset.saturating_sub(1)`.
@@ -2704,6 +2740,7 @@ pub(crate) fn build_repeat_positional_effects(
         indent_provider,
         tabstop,
         autoindent,
+        format: _,
     } = repeat;
     let saved_text = state.last_inserted_text();
     if saved_text.is_empty() {

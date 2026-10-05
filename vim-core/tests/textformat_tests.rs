@@ -165,6 +165,45 @@ fn matches_vim_oracle() {
 // ── Typing paths (expected values from Vim 9.1) ──────────────────────────────
 
 #[test]
+fn dot_repeat_breaks_the_replayed_text() {
+    let mut s = session("first\nsecond", 20, "tq");
+    feed(&mut s, "Aaa bb cc dd ee ff gg<Esc>G.");
+    assert_eq!(
+        s.text(),
+        "firstaa bb cc dd ee\nff gg\nsecondaa bb cc dd ee\nff gg"
+    );
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [3, 4]);
+}
+
+#[test]
+fn dot_repeat_of_insert_before_text() {
+    let mut s = session("xx\nyy", 20, "tq");
+    feed(&mut s, "iaa bb cc dd ee ff gg hh <Esc>j0.");
+    assert_eq!(
+        s.text(),
+        "aa bb cc dd ee ff gg\nhh xx\naa bb cc dd ee ff gg\nhh yy"
+    );
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [3, 2]);
+}
+
+#[test]
+fn count_repeat_breaks_like_typing() {
+    let mut s = session("", 20, "tq");
+    feed(&mut s, "3iabc def <Esc>");
+    assert_eq!(s.text(), "abc def abc def abc\ndef ");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 3]);
+}
+
+#[test]
+fn count_repeat_keeps_the_indent_with_autoindent() {
+    let mut s = session("    x", 20, "tq");
+    s.options_mut().set_autoindent(true);
+    feed(&mut s, "$3iabc def <Esc>");
+    assert_eq!(s.text(), "    abc def abc def\n    abc def x");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 11]);
+}
+
+#[test]
 fn undo_removes_the_text_and_the_breaks_in_one_step() {
     let mut s = session("aaaa bbbb cccc", 20, "tq");
     feed(&mut s, "A dddd eeee ffff gggg<Esc>");
