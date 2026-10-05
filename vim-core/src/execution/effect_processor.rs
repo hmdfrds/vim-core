@@ -2425,13 +2425,36 @@ pub(crate) fn inject_repeat_text(
     let mut formatted_cursor: Option<usize> = None;
 
     if is_replace {
-        // Replace mode dot-repeat: delete existing chars then insert
-        let effects = insert_effects::repeat_replace(
+        // Replace mode dot-repeat: delete existing chars then insert. Vim
+        // retypes the text in Replace mode, so the part that runs past the
+        // end of the line breaks like typed text.
+        let mut effects = insert_effects::repeat_replace(
             insert_pos,
             text_clone.clone(),
             last_grapheme_len,
             doc_text.unwrap_or(""),
         );
+        if let Some(text) = doc_text {
+            let typed = insert_pos..insert_pos + text_clone.len();
+            let overwritten = crate::commands::insert::wrap::overwritten_chars(
+                effects.as_slice(),
+                text,
+                insert_pos,
+            );
+            if crate::commands::insert::wrap::format_inserted_text(
+                &mut effects,
+                text,
+                response.effects.as_slice(),
+                typed,
+                format,
+                None,
+                overwritten,
+            )
+            .is_some()
+            {
+                formatted_cursor = last_cursor_offset_in(effects.as_slice());
+            }
+        }
         for mut effect in effects.into_inner() {
             sync_effect_mut(state, parser, &mut effect, doc_text, undolevels_max);
             response.effects.push(effect);
@@ -2452,6 +2475,7 @@ pub(crate) fn inject_repeat_text(
                 typed,
                 format,
                 None,
+                0,
             )
             .is_some()
             {

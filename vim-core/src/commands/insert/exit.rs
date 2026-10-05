@@ -157,8 +157,14 @@ pub fn build_insert_exit_effects(
                 params.text,
             );
             // Vim types the repeats, so they break lines like the first
-            // round did. Replace mode repeats are not formatted.
-            if let (Some(policy), false) = (params.format, is_replace) {
+            // round did. In Replace mode only the text past the end of the
+            // line formats.
+            if let Some(policy) = params.format {
+                let overwritten = super::wrap::overwritten_chars(
+                    repeat_fx.as_slice(),
+                    params.text,
+                    insert_offset,
+                );
                 if let Some(cursor) = super::wrap::format_inserted_text(
                     &mut repeat_fx,
                     params.text,
@@ -166,6 +172,7 @@ pub fn build_insert_exit_effects(
                     insert_offset..new_offset,
                     policy,
                     params.insert_start,
+                    overwritten,
                 ) {
                     new_offset = cursor;
                 }

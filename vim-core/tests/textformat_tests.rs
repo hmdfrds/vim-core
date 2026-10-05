@@ -265,6 +265,33 @@ fn count_repeat_keeps_the_indent_with_autoindent() {
 }
 
 #[test]
+fn replace_dot_repeat_breaks_where_it_appends() {
+    // Vim retypes the text in Replace mode, which formats once the text
+    // runs past the end of the line.
+    for text in ["aa\nbb", "aaaa bbbb\ncccc dddd"] {
+        let mut s = session(text, 12, "tq");
+        feed(&mut s, "Rxx yy zz ww vv<Esc>j0.");
+        assert_eq!(s.text(), "xx yy zz ww\nvv\nxx yy zz ww\nvv", "{text:?}");
+        assert_eq!(position_of(s.text(), s.cursor_offset()), [3, 1]);
+    }
+}
+
+#[test]
+fn replace_dot_repeat_does_not_break_while_it_overwrites() {
+    let mut s = session("aaaaaaaaaaaa\nbbbbbbbbbbbbbbbbbbbb", 12, "tq");
+    feed(&mut s, "Rxx yy zz ww vv<Esc>j0.");
+    assert_eq!(s.text(), "xx yy zz ww\nvv\nxx yy zz ww vvbbbbbb");
+}
+
+#[test]
+fn counted_replace_breaks_the_repeats() {
+    let mut s = session("aa\nbb", 12, "tq");
+    feed(&mut s, "3Rxx yy <Esc>");
+    assert_eq!(s.text(), "xx yy xx yy\nxx yy \nbb");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 5]);
+}
+
+#[test]
 fn undo_removes_the_text_and_the_breaks_in_one_step() {
     let mut s = session("aaaa bbbb cccc", 20, "tq");
     feed(&mut s, "A dddd eeee ffff gggg<Esc>");

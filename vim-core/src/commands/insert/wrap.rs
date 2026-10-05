@@ -292,8 +292,10 @@ pub fn format_typed_char(
 /// `earlier` are edits applied to `text` before `effects`, and `typed` is
 /// the range of the inserted text once `effects` are applied. `start` is
 /// the insert start to use; without one, the insert starts where the text
-/// goes, as for a new insert. Returns where the cursor ends after the last
-/// typed character, or `None` when no line broke.
+/// goes, as for a new insert. In Replace mode the first `overwritten`
+/// characters replaced existing text, and Vim does not format while it
+/// overwrites. Returns where the cursor ends after the last typed
+/// character, or `None` when no line broke.
 pub fn format_inserted_text(
     effects: &mut Effects,
     text: &str,
@@ -301,6 +303,7 @@ pub fn format_inserted_text(
     typed: Range<usize>,
     policy: &FormatPolicy<'_>,
     start: Option<InsertStart>,
+    overwritten: usize,
 ) -> Option<usize> {
     if !policy.is_active() {
         return None;
@@ -312,11 +315,26 @@ pub fn format_inserted_text(
     let run = TypedRun {
         line: line_of(&after, typed.start),
         range: typed,
-        overwritten: 0,
+        overwritten,
     };
     let plan = plan_typed_format(&after, &run, policy, Some(&mut start))?;
     splice_format_plan(effects, &plan);
     Some(plan.cursor)
+}
+
+/// How many characters of `text` from `at` the deletions in `effects`
+/// remove: the text a Replace-mode repeat overwrote, which is contiguous
+/// from where the repeat starts.
+#[must_use]
+pub fn overwritten_chars(effects: &[Effect], text: &str, at: usize) -> usize {
+    let bytes: usize = effects
+        .iter()
+        .map(|e| match e {
+            Effect::Delete { range } => range.len(),
+            _ => 0,
+        })
+        .sum();
+    text.get(at..at + bytes).map_or(0, |s| s.chars().count())
 }
 
 /// Splice the edits of `plan` into `effects` right before the last
