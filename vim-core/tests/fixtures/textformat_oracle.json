@@ -3024,6 +3024,37 @@
    }
   },
   {
+   "name": "three-part end after the break",
+   "lines": [
+    "/* aaaa bbbb cccc*/"
+   ],
+   "cursor": [
+    0,
+    17
+   ],
+   "cmd": "i",
+   "typed": " dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "/* aaaa bbbb cccc",
+     " * dddd eeee*/"
+    ],
+    "cursor": [
+     1,
+     12
+    ]
+   }
+  },
+  {
    "name": "leader without space after",
    "lines": [
     "#"

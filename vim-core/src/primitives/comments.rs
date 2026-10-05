@@ -446,8 +446,8 @@ impl LeaderMatch {
     /// - An `s` part is replaced by the middle part, aligned left (or right
     ///   with `r`) and shifted by the part's offset.
     /// - An `m` part repeats.
-    /// - An `e` part, or a three-piece comment that already ends on this
-    ///   line, gives no leader: `None`.
+    /// - An `e` part, or a three-piece comment that ends on this line
+    ///   before `split_at`, gives no leader: `None`.
     #[must_use]
     pub fn continuation(
         &self,
@@ -473,10 +473,11 @@ impl LeaderMatch {
             let middle = spec.parts.get(middle_idx)?;
             let end = spec.parts.get(end_idx).map_or("", |p| p.string());
             // A comment that ends later on the same line is not continued.
-            // With no end part Vim compares zero bytes, which matches as
-            // soon as any text follows the leader.
+            // Vim only looks at the text that stays on this line, before
+            // `split_at`. With no end part it compares zero bytes, which
+            // matches as soon as any text follows the leader.
             if line
-                .get(self.ws_end..)
+                .get(self.ws_end..split_at.min(line.len()).max(self.ws_end))
                 .is_some_and(|rest| !rest.is_empty() && rest.contains(end))
             {
                 return None;
@@ -926,6 +927,18 @@ mod tests {
     fn three_piece_comment_closed_on_same_line_is_not_continued() {
         let spec = default_spec();
         assert_eq!(open_below(&spec, "/* foo */", false), "");
+    }
+
+    #[test]
+    fn three_piece_comment_closed_after_the_break_is_continued() {
+        // Only the text that stays on the line counts: an end string that
+        // moves to the new line does not stop the leader.
+        let spec = default_spec();
+        let line = "/* aaaa bbbb*/";
+        let m = spec.match_line(line).unwrap();
+        let c = m.continuation(&spec, line, 7, false, 8).unwrap();
+        assert_eq!((c.indent, c.leader.as_str()), (1, "* "));
+        assert_eq!(m.continuation(&spec, line, line.len(), false, 8), None);
     }
 
     #[test]
