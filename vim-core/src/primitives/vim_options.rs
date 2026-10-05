@@ -267,7 +267,9 @@ pub struct VimOptions {
     relativenumber: bool,
 
     // ── Formatting ───────────────────────────────────────────────────────
-    /// Maximum line width for formatting (gq). 0 means no limit.
+    /// Maximum line width. Typing past it breaks the line when
+    /// `formatoptions` has `t` or `c`, and `gq` formats to it. 0 turns
+    /// breaking while typing off; `gq` then formats to 79 columns.
     textwidth: usize,
     /// Format options string (e.g. "tcqj"). Controls auto-formatting behavior.
     /// - `t`: auto-wrap text using textwidth

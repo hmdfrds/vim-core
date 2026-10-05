@@ -63,6 +63,13 @@ pub struct OperatorContext<'text> {
     /// Commentstring for commentary operator (e.g., `"// %s"`).
     pub commentstring: &'text str,
 
+    /// Options for the format operators (`gq`, `gw`): `textwidth`,
+    /// `formatoptions`, `comments`, `tabstop`, `expandtab` and
+    /// `autoindent`. Without them the format operators use the
+    /// [`VimOptions`](crate::primitives::VimOptions) defaults with this
+    /// context's `textwidth`, `tabstop` and `expandtab`.
+    pub format_options: Option<&'text crate::primitives::VimOptions>,
+
     /// Custom operator provider for `Operator::Custom(id)`.
     ///
     /// When set, `dispatch_operator` queries this provider before falling
@@ -156,6 +163,7 @@ impl<'text> OperatorContext<'text> {
             shiftwidth: 4,          // overridden by executor via .with_shiftwidth()
             textwidth: 80,          // overridden by executor via .with_textwidth()
             commentstring: "// %s", // overridden by executor via .with_commentstring()
+            format_options: None,
             custom_operators: None,
             viewport: None,
             origin: OperatorOrigin::Motion,
@@ -216,6 +224,7 @@ impl<'text> OperatorContext<'text> {
             shiftwidth: 4,          // overridden by executor via .with_shiftwidth()
             textwidth: 80,          // overridden by executor via .with_textwidth()
             commentstring: "// %s", // overridden by executor via .with_commentstring()
+            format_options: None,
             custom_operators: None,
             viewport: None,
             origin: OperatorOrigin::Motion,
@@ -299,6 +308,17 @@ impl<'text> OperatorContext<'text> {
     #[must_use]
     pub const fn with_textwidth(mut self, tw: usize) -> Self {
         self.textwidth = tw;
+        self
+    }
+
+    /// Builder method: set the options the format operators read.
+    #[inline]
+    #[must_use]
+    pub const fn with_format_options(
+        mut self,
+        options: &'text crate::primitives::VimOptions,
+    ) -> Self {
+        self.format_options = Some(options);
         self
     }
 

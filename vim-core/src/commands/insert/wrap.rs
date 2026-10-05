@@ -15,6 +15,12 @@
 //! - the parts of `open_line()` (change.c) that build the new line: the
 //!   indent with `autoindent` and the continued comment leader with `c`.
 //!
+//! The format operator (`gq`, `gw`) breaks its joined paragraphs through the
+//! same loop, called the way Vim's `format_lines()` calls it: with the
+//! cursor on the last non-blank character, `q` instead of `c` deciding
+//! whether comment leaders count, and no `t`, `l`, `v` or `b` checks. See
+//! `format_line_for_operator()`.
+//!
 //! Vim formats before it inserts the character. Here the typed text is
 //! already in the buffer, and the plan lists the breaks as edits to apply
 //! after it, in order, so a host that applies effects in sequence ends with
@@ -159,6 +165,7 @@ pub fn plan_typed_format(
         policy,
         edits: Vec::new(),
         run_end: run_end - window_start,
+        operator: None,
     };
     let mut pos = run_start - window_start;
     let mut line = run.line;
@@ -363,7 +370,7 @@ pub fn splice_format_plan(effects: &mut Effects, plan: &FormatPlan) {
 }
 
 /// Where `offset` ends up after `edits` are applied in order.
-fn map_offset(mut offset: usize, edits: &[FormatEdit]) -> usize {
+pub(crate) fn map_offset(mut offset: usize, edits: &[FormatEdit]) -> usize {
     for edit in edits {
         if offset >= edit.range.end {
             offset = offset - edit.range.len() + edit.text.len();
@@ -460,19 +467,66 @@ fn may_format(
     }
 }
 
+/// How the format operator calls `internal_format()`, as `format_lines()`
+/// passes it in `second_indent` and the `INSCHAR_COM_LIST` flag.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OperatorCall {
+    /// With `2`: the indent, in display columns, for the line broken off
+    /// first. With `com_list`: the leader length the new lines pad to.
+    pub second_indent: Option<usize>,
+    /// The paragraph is a comment and `2` applies to its leader
+    /// (`INSCHAR_COM_LIST`).
+    pub com_list: bool,
+}
+
+/// Break `line` the way `gq` does: Vim's `internal_format()` with the cursor
+/// on the last non-blank character and no character typed. Comment leaders
+/// count with `q`. `policy.textwidth` must already be the width `gq` uses.
+///
+/// Returns the line with a `\n` at each break, and the breaks as edits of
+/// `line` to apply in order.
+pub(crate) fn format_line_for_operator(
+    line: &str,
+    policy: &FormatPolicy<'_>,
+    call: OperatorCall,
+) -> (String, Vec<FormatEdit>) {
+    let mut buf = line.to_owned();
+    // Vim's `ascii_isspace()`: blank, or a control character from tab to
+    // carriage return.
+    let content = line.trim_end_matches(|c: char| c == ' ' || ('\t'..='\r').contains(&c));
+    let Some((pos, c)) = content.char_indices().next_back() else {
+        return (buf, Vec::new());
+    };
+    let mut state = Formatter {
+        policy,
+        edits: Vec::new(),
+        run_end: buf.len(),
+        operator: Some(call),
+    };
+    let mut line_index = 0;
+    state.internal_format(&mut buf, pos, c, &mut line_index, None);
+    (buf, state.edits)
+}
+
 /// Working state while one run is formatted.
 struct Formatter<'p, 'a> {
     policy: &'p FormatPolicy<'a>,
     edits: Vec<FormatEdit>,
     /// End of the typed run in the window, kept up to date as lines break.
     run_end: usize,
+    /// Set when the format operator formats the line instead of a typed
+    /// character. `c` is then the character under the cursor, already part
+    /// of the line.
+    operator: Option<OperatorCall>,
 }
 
 impl Formatter<'_, '_> {
     /// Port of Vim's `internal_format()` for the character `c` at `pos`.
     ///
     /// Breaks the line until the cursor fits, records each break, and
-    /// returns the new position of `c`.
+    /// returns the new position of `c`. For a typed character Vim has not
+    /// inserted `c` yet, so it is left out where Vim looks at the line; for
+    /// the format operator `c` is the character under the cursor.
     fn internal_format(
         &mut self,
         buf: &mut String,
@@ -486,6 +540,15 @@ impl Formatter<'_, '_> {
         let tw = policy.textwidth;
         let c_len = c.len_utf8();
         let mut no_leader = false;
+        let operator = self.operator;
+        // `INSCHAR_DO_COM`: `q` for the format operator. A typed character
+        // uses `c` instead.
+        let comment_flag = if operator.is_some() {
+            FormatFlags::FORMAT_COMMENTS
+        } else {
+            FormatFlags::WRAP_COMMENTS
+        };
+        let mut first_line = true;
 
         loop {
             let ls = line_start_for_offset(buf, pos);
@@ -506,10 +569,14 @@ impl Formatter<'_, '_> {
                 break;
             }
 
-            // Vim formats before inserting the character, so the comment
-            // leader is matched on the line without it.
-            let line0 = format!("{before}{after}");
-            let do_comments = !no_leader && flags.contains(FormatFlags::WRAP_COMMENTS);
+            // Vim formats before inserting a typed character, so the
+            // comment leader is matched on the line without it.
+            let line0 = if operator.is_some() {
+                line1.to_owned()
+            } else {
+                format!("{before}{after}")
+            };
+            let do_comments = !no_leader && flags.contains(comment_flag);
             let leader = if do_comments {
                 policy.comments.match_line(&line0)
             } else {
@@ -520,7 +587,7 @@ impl Formatter<'_, '_> {
             // the lines broken off it.
             if leader_len == 0 {
                 no_leader = true;
-                if !flags.contains(FormatFlags::WRAP_TEXT) {
+                if operator.is_none() && !flags.contains(FormatFlags::WRAP_TEXT) {
                     break;
                 }
             }
@@ -555,7 +622,8 @@ impl Formatter<'_, '_> {
                 0
             };
 
-            let new_line = self.new_line_text(&line0, leader, split);
+            let new_line = self.new_line_text(&line0, leader, split, first_line);
+            first_line = false;
             if trailing_blanks > 0 {
                 let range = self.run_end..self.run_end + trailing_blanks;
                 buf.replace_range(range.clone(), "");
@@ -593,12 +661,19 @@ impl Formatter<'_, '_> {
     }
 
     /// The text that replaces the blanks at a break: a newline, the new
-    /// indent and, on a comment line with `c`, the continued leader.
+    /// indent and, on a comment line with `c` (`q` for the operator), the
+    /// continued leader.
+    ///
+    /// For the format operator `first_line` is the first break of the call,
+    /// where `2` sets the indent of the new line; with `INSCHAR_COM_LIST`
+    /// every continued leader is padded with spaces to the length of the
+    /// second line's leader instead.
     fn new_line_text(
         &self,
         line0: &str,
         leader: Option<LeaderMatch>,
         split: usize,
+        first_line: bool,
     ) -> CompactString {
         let policy = self.policy;
         let continuation = leader.and_then(|m| {
@@ -610,7 +685,8 @@ impl Formatter<'_, '_> {
                 policy.tabstop,
             )
         });
-        let (indent, leader_text) = match continuation {
+        let continues = continuation.is_some();
+        let (mut indent, mut leader_text) = match continuation {
             Some(cont) => (cont.indent, cont.leader),
             None if policy.autoindent => (
                 indent_width(line0, policy.tabstop),
@@ -618,6 +694,16 @@ impl Formatter<'_, '_> {
             ),
             None => (0, CompactString::default()),
         };
+        if let Some(call) = self.operator {
+            match call.second_indent {
+                Some(width) if call.com_list && continues => {
+                    let padding = width.saturating_sub(indent + leader_text.len());
+                    leader_text.extend(std::iter::repeat_n(' ', padding));
+                }
+                Some(width) if !call.com_list && first_line => indent = width,
+                _ => {}
+            }
+        }
         let mut text = CompactString::from("\n");
         text.push_str(&build_indent_string(
             indent,

@@ -418,6 +418,7 @@ pub fn dispatch_operator_with_motion(input: &OperatorMotionInput<'_>) -> Command
     .with_tabstop(input.options.tabstop())
     .with_expandtab(input.options.expandtab())
     .with_textwidth(input.textwidth)
+    .with_format_options(input.options)
     .with_commentstring(input.options.commentstring())
     .with_sticky_column(input.sticky_column)
     .with_force_applied(input.force_type.is_some());
@@ -496,6 +497,8 @@ pub struct OperatorLineInput<'a> {
     pub expandtab: bool,
     /// Text width for format operators.
     pub textwidth: usize,
+    /// Engine options, for the format operators.
+    pub options: &'a crate::primitives::VimOptions,
     /// Comment string for commentary operator (e.g., `"# %s"` for GDScript).
     pub commentstring: &'a str,
     /// Custom operator provider for `Operator::Custom(id)`.
@@ -552,6 +555,7 @@ pub fn dispatch_operator_line(input: &OperatorLineInput<'_>) -> CommandResult {
         cursor,
         shiftwidth,
         textwidth,
+        options,
         commentstring,
         ..
     } = *input;
@@ -641,6 +645,7 @@ pub fn dispatch_operator_line(input: &OperatorLineInput<'_>) -> CommandResult {
     .with_tabstop(input.tabstop)
     .with_expandtab(input.expandtab)
     .with_textwidth(textwidth)
+    .with_format_options(options)
     .with_commentstring(commentstring)
     .with_sticky_column(input.sticky_column);
 
@@ -729,6 +734,7 @@ pub fn dispatch_operator_find(input: &OperatorFindInput<'_>) -> CommandResult {
             )
             .with_motion_target(target)
             .with_textwidth(options.textwidth())
+            .with_format_options(options)
             .with_commentstring(options.commentstring());
             if let Some(provider) = input.custom_operators {
                 op_ctx = op_ctx.with_custom_operators(provider);
@@ -820,6 +826,7 @@ pub fn dispatch_operator_mark(input: &OperatorMarkInput<'_>) -> CommandResult {
         }
     })
     .with_textwidth(options.textwidth())
+    .with_format_options(options)
     .with_force_numbered();
     if let Some(provider) = input.custom_operators {
         op_ctx = op_ctx.with_custom_operators(provider);
@@ -947,6 +954,7 @@ pub fn dispatch_operator_textobject(input: &OperatorTextObjectInput<'_>) -> Comm
     .with_tabstop(input.tabstop)
     .with_expandtab(input.expandtab)
     .with_textwidth(textwidth)
+    .with_format_options(options)
     .with_commentstring(commentstring)
     .with_textobject_flag();
     if let Some(provider) = input.custom_operators {
@@ -995,6 +1003,7 @@ pub fn dispatch_operator_selection(ctx: &SelectionOperatorContext<'_>) -> Comman
     .with_tabstop(ctx.tabstop)
     .with_expandtab(ctx.expandtab)
     .with_textwidth(ctx.options.textwidth())
+    .with_format_options(ctx.options)
     .with_commentstring(ctx.commentstring)
     .with_sticky_column(ctx.sticky_column)
     .with_from_visual();
