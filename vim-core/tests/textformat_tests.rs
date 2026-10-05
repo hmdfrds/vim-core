@@ -6,7 +6,10 @@
 //! flags, comment leaders, Replace mode, and the eight issue #77 scenarios
 //! under three option sets. The fixture was recorded with `vim -Nu NONE -es`:
 //! explicit `:setlocal` options, the keys through `:normal!`, and the cursor
-//! read with `<C-R>=` right before `<Esc>`.
+//! read with `<C-R>=` right before `<Esc>`. An `InsertCharPre` autocommand
+//! makes Vim take the keys one at a time, as typed. Without it Vim reads
+//! plain characters ahead in one batch and never records where a blank was
+//! typed, so every `b` case would show no break.
 //!
 //! `format_operator_matches_vim_oracle` does the same for `gq` and `gw`:
 //! prose, joins, indent and `tabstop`, `#`, `##`, `//` and three-piece

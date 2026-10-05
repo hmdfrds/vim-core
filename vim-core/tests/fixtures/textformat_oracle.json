@@ -1,5 +1,5 @@
 {
- "generator": "headless vim -Nu NONE -es: explicit setlocal options, :normal! with the typed keys, cursor read through <C-R>= before <Esc>",
+ "generator": "headless vim -Nu NONE -es: explicit setlocal options, :normal! with the typed keys taken one at a time (InsertCharPre autocommand), cursor read through <C-R>= before <Esc>",
  "vim": "VIM - Vi IMproved 9.1 (2024 Jan 02, compiled Aug 24 2026 22:11:12) / Included patches: 1-948, 950-2141",
  "cases": [
   {
@@ -3429,6 +3429,129 @@
     "cursor": [
      2,
      9
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed before margin, break later",
+   "lines": [
+    "aaaa bbbb cccc ddd"
+   ],
+   "cursor": [
+    0,
+    18
+   ],
+   "cmd": "A",
+   "typed": " eeee ffff gggg",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddd",
+     "eeee ffff gggg"
+    ],
+    "cursor": [
+     1,
+     14
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed at margin",
+   "lines": [
+    "aaaa bbbb cccc dddd"
+   ],
+   "cursor": [
+    0,
+    19
+   ],
+   "cmd": "A",
+   "typed": " eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee"
+    ],
+    "cursor": [
+     1,
+     4
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed early, long run",
+   "lines": [
+    "aaaa"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": " bbbb cccc dddd eeee ffff gggg hhhh",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee ffff gggg hhhh"
+    ],
+    "cursor": [
+     1,
+     19
+    ]
+   }
+  },
+  {
+   "name": "b: typed mid-line before margin",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "cmd": "i",
+   "typed": " xx yy",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb xx yy cccc dddd eeee"
+    ],
+    "cursor": [
+     0,
+     15
     ]
    }
   },
