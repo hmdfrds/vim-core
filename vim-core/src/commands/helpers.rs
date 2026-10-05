@@ -654,6 +654,46 @@ pub fn is_blank_line_range(text: &str, start: usize, end: usize) -> bool {
         .is_none_or(|s| s.bytes().all(|b| b == b' ' || b == b'\t' || b == b'\r'))
 }
 
+/// Vim's default `paragraphs`: nroff macros that start a paragraph.
+const PARAGRAPH_MACROS: &str = "IPLPPPQPP TPHPLIPpLpItpplpipbp";
+
+/// Vim's default `sections`: nroff macros that start a section.
+const SECTION_MACROS: &str = "SHNHH HUnhsh";
+
+/// Vim's `startPS(lnum, NUL, false)`: an empty line, a form feed, or an
+/// nroff paragraph or section macro.
+#[must_use]
+pub(crate) fn starts_paragraph_or_section(line: &str) -> bool {
+    match line.as_bytes() {
+        [] | [b'\x0c', ..] => true,
+        [b'.', rest @ ..] => in_macro(SECTION_MACROS, rest) || in_macro(PARAGRAPH_MACROS, rest),
+        _ => false,
+    }
+}
+
+/// Vim's `inmacro()`: whether `s` starts with one of the two-letter macro
+/// names in `macros`. A space in a name matches a space or the end of the
+/// line.
+fn in_macro(macros: &str, s: &[u8]) -> bool {
+    let s0 = s.first().copied().unwrap_or(0);
+    let s1 = s.get(1).copied().unwrap_or(0);
+    let m = macros.as_bytes();
+    let mut i = 0;
+    while let Some(&m0) = m.get(i) {
+        let m1 = m.get(i + 1).copied().unwrap_or(0);
+        let first = m0 == s0 || (m0 == b' ' && (s0 == 0 || s0 == b' '));
+        let second = m1 == s1 || ((m1 == 0 || m1 == b' ') && (s0 == 0 || s1 == 0 || s1 == b' '));
+        if first && second {
+            return true;
+        }
+        if m1 == 0 {
+            break;
+        }
+        i += 2;
+    }
+    false
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Tab Expansion
 // ═══════════════════════════════════════════════════════════════════════════════
