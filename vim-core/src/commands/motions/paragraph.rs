@@ -41,15 +41,14 @@ fn get_or_build_index<'a>(
     }
 }
 
-/// The text of line `line`, without its newline. A '\r' before the
-/// newline goes too, so that a blank line of CRLF text is empty, as it is
-/// in Vim with 'fileformat' dos.
+/// The text of line `line`, without its newline. A '\r' stays: a line
+/// that holds only one is not empty, as in a Vim buffer with 'fileformat'
+/// unix.
 #[inline]
 fn line_text<'t>(text: &'t str, idx: &LineIndex, line: usize) -> &'t str {
     let start = idx.line_start(line).unwrap_or(0);
     let end = idx.line_end(line, text.len());
-    let line = text.get(start..end).unwrap_or_default();
-    line.strip_suffix('\r').unwrap_or(line)
+    text.get(start..end).unwrap_or_default()
 }
 
 /// Vim's `startPS(lnum, NUL, FALSE)`: a line `{` and `}` stop at. That is
@@ -214,19 +213,19 @@ mod tests {
         assert_eq!(result, MotionResult::Position(Offset::new(6)));
     }
 
-    /// In CRLF text a blank line holds only "\r", and `{` and `}` stop
-    /// there as on an empty line.
+    /// A line that holds only "\r" is not empty, so `{` and `}` go past
+    /// it, as in Vim.
     #[test]
-    fn braces_stop_at_blank_lines_of_crlf_text() {
+    fn braces_pass_lines_holding_a_carriage_return() {
         let o = opts();
         let text = "a\r\n\r\nb\r\nc";
         assert_eq!(
             close_brace(&make_ctx(text, 0, &o)),
-            MotionResult::Position(Offset::new(3))
+            MotionResult::Position(Offset::new(text.len() - 1))
         );
         assert_eq!(
             open_brace(&make_ctx(text, 8, &o)),
-            MotionResult::Position(Offset::new(3))
+            MotionResult::Position(Offset::new(0))
         );
     }
 
