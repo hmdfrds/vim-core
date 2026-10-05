@@ -1091,6 +1091,31 @@ fn three_motions_then_operator() {
     );
 }
 
+/// The per-cursor insert path follows the host cursor even when it is not
+/// the primary cursor.
+///
+/// After `a` with the primary cursor last, the host cursor ends on the other
+/// cursor. The per-cursor path used to overwrite the primary head with it,
+/// so both cursors typed at the same place. Auto-pairs makes plain
+/// characters take the per-cursor path.
+#[test]
+fn per_cursor_insert_when_host_cursor_is_not_primary() {
+    let mut session = session_with_cursors("aaaa bbbb cccc dddd", &[18, 3]);
+    let mut opts = session.options().clone();
+    opts.set_auto_pairs(Some(vim_core::primitives::AutoPairs {
+        pairs: [vim_core::primitives::Pair {
+            open: '(',
+            close: ')',
+        }]
+        .into_iter()
+        .collect(),
+    }));
+    session.set_options(opts);
+    feed(&mut session, "axy");
+    assert_eq!(session.text(), "aaaaxy bbbb cccc ddddxy");
+    assert_eq!(session.cursor_count(), 2);
+}
+
 /// Typing through the per-cursor path after `a` keeps both cursors.
 ///
 /// `a` moves each cursor right but used to leave the secondary's anchor

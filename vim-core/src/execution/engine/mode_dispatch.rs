@@ -772,11 +772,24 @@ impl VimEngine {
             // in descending offset order so higher-offset edits don't
             // invalidate lower-offset positions when the host applies them.
 
-            // Sync primary selection head with actual cursor.
-            let primary = self.state.multi_cursor_mut().selections_mut().primary_mut();
-            *primary = crate::primitives::SelectionRange::insert_cursor(
-                crate::primitives::Offset::new(cursor),
-            );
+            // Sync the primary selection with the actual cursor. The host
+            // cursor can be another cursor than the primary one (it follows
+            // the last SetCursor applied), so when a cursor sits there it
+            // becomes the primary, as in the algebraic path below.
+            // Overwriting the primary head instead would put two cursors on
+            // the same offset.
+            let cursor_off = crate::primitives::Offset::new(cursor);
+            let selections = self.state.multi_cursor_mut().selections_mut();
+            if let Some(idx) = selections
+                .ranges()
+                .iter()
+                .position(|s| s.head() == cursor_off)
+            {
+                selections.set_primary_index(idx);
+            } else {
+                *selections.primary_mut() =
+                    crate::primitives::SelectionRange::insert_cursor(cursor_off);
+            }
 
             let selections = self.state.multi_cursor().selections().clone();
             let primary_offset = selections.primary().head().get();
