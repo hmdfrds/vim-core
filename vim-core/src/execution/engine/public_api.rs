@@ -694,7 +694,10 @@ impl VimEngine {
     ///
     /// Use this for a value the host means to apply now, such as an editor
     /// setting the user just changed. Local values saved for other buffers
-    /// (see [`on_buffer_leave`](Self::on_buffer_leave)) are not touched.
+    /// (see [`on_buffer_leave`](Self::on_buffer_leave)) are not touched, as
+    /// with `:set`. For the setting to win in those buffers too, also call
+    /// [`BufferLocalState::clear_local_option`](crate::execution::BufferLocalState::clear_local_option)
+    /// on every saved state.
     ///
     /// Rebuilds the resolved-options cache immediately.
     pub fn set_option(&mut self, id: OptionId, value: &OptionValue) {

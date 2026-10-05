@@ -120,6 +120,29 @@ fn formatoptions_override_follows_the_buffer() {
 }
 
 #[test]
+fn host_setting_reaches_buffers_left_after_set() {
+    // set_option() drops the local value of the current buffer only, as
+    // `:set` does. clear_local_option() drops it from a saved buffer, so a
+    // host setting applied to every buffer wins over an older `:set` there.
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set tw=20");
+    let mut a = engine.on_buffer_leave(0);
+    engine.on_buffer_enter(BufferLocalState::default());
+    engine.set_option(OptionId::TextWidth, &OptionValue::Unsigned(0));
+    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
+    let b = engine.on_buffer_leave(0);
+    engine.on_buffer_enter(a.clone());
+    assert_eq!(query(&mut engine, "set tw?"), "textwidth=20");
+    let _ = engine.on_buffer_leave(0);
+    a.clear_local_option(OptionId::TextWidth);
+    engine.on_buffer_enter(a);
+    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
+    let _ = engine.on_buffer_leave(0);
+    engine.on_buffer_enter(b);
+    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
+}
+
+#[test]
 fn formatoptions_unknown_flag_is_e539() {
     let mut engine = VimEngine::new();
     // Vim 9.1: "E539: Illegal character <Z>: fo=tZ"

@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use compact_str::CompactString;
 
 use crate::keymap::BufferMappings;
-use crate::primitives::{LastVisualInfo, OptionOverrides, VimValue, VirtualColumn};
+use crate::primitives::{LastVisualInfo, OptionId, OptionOverrides, VimValue, VirtualColumn};
 use crate::state::{BufferMarks, ChangeList, UndoTree};
 
 #[cfg(test)]
@@ -451,4 +451,20 @@ pub struct BufferLocalState {
     pub undo_tree: UndoTree,
     /// Buffer-local (b:) variables saved during buffer switch.
     pub buffer_variables: BTreeMap<CompactString, VimValue>,
+}
+
+impl BufferLocalState {
+    /// Drop the buffer's local value of option `id`, so the buffer sees
+    /// the global value again when it is entered.
+    ///
+    /// [`VimEngine::set_option`](super::VimEngine::set_option) drops the
+    /// local value of the current buffer only, as `:set` does. A host that
+    /// applies a setting to every buffer, such as an editor setting the
+    /// user just changed, calls this on each state it saved from
+    /// [`on_buffer_leave`](super::VimEngine::on_buffer_leave) as well, so
+    /// an earlier `:set` in a buffer the user has left does not win over
+    /// the newer setting.
+    pub fn clear_local_option(&mut self, id: OptionId) {
+        self.buffer_overrides.remove(id);
+    }
 }
