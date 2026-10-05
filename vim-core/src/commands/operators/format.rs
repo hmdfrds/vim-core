@@ -439,10 +439,16 @@ fn format_lines(
         let line = lines.get(cur).map_or("", String::as_str);
         let following = lines.get(cur + 1).map_or("", String::as_str);
         if last_of_buffer || !same_leader(line, leader, following, next_leader, comments) {
-            let continues_line_comment = next_leader
-                .zip(comments)
-                .is_some_and(|(l, spec)| is_plain_slash_comment(spec, l))
-                && check_line_comment(line).is_some();
+            // Vim reads the flags of the next line's leader. A line without
+            // one gets the flags of the last 'comments' entry, where Vim's
+            // get_leader_len() stopped scanning, so with c.vim's comments,
+            // which end in "://", a line without a leader stays in the
+            // paragraph after a line with a // comment.
+            let continues_line_comment = comments.is_some_and(|spec| {
+                let part =
+                    next_leader.map_or_else(|| spec.parts().len().wrapping_sub(1), |l| l.part);
+                is_plain_slash_comment(spec, part)
+            }) && check_line_comment(line).is_some();
             if !continues_line_comment {
                 is_end_par = true;
             }
@@ -677,11 +683,11 @@ fn same_leader(
     idx2 == len2 && idx1 == leader1.len
 }
 
-/// Whether the leader matched the part `://` exactly: Vim only lets a line
+/// Whether 'comments' part `part` is `://` exactly: Vim only lets a line
 /// comment after code continue onto a line comment for that part.
-fn is_plain_slash_comment(spec: &CommentSpec, leader: Leader) -> bool {
+fn is_plain_slash_comment(spec: &CommentSpec, part: usize) -> bool {
     spec.parts()
-        .get(leader.part)
+        .get(part)
         .is_some_and(|p| p.flags().is_empty() && p.offset() == 0 && p.string().starts_with("//"))
 }
 

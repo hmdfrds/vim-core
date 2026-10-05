@@ -3688,6 +3688,106 @@
      0
     ]
    }
+  },
+  {
+   "name": "comments: line without a leader joins after // when comments ends in ://",
+   "lines": [
+    "// aaa bbb ccc",
+    "code xxx yyy zzz"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqG",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://"
+   },
+   "expected": {
+    "lines": [
+     "// aaa bbb",
+     "// ccc",
+     "// code",
+     "// xxx yyy",
+     "// zzz"
+    ],
+    "cursor": [
+     4,
+     0
+    ]
+   }
+  },
+  {
+   "name": "comments: line without a leader stays apart when comments ends in b:#",
+   "lines": [
+    "// aaa bbb ccc",
+    "code xxx yyy zzz"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqG",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "://,b:#"
+   },
+   "expected": {
+    "lines": [
+     "// aaa bbb",
+     "// ccc",
+     "code xxx",
+     "yyy zzz"
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
+  },
+  {
+   "name": "comments: code with a // comment then a line without a leader",
+   "lines": [
+    "x = 1; // aaa bbb",
+    "code xxx yyy zzz"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqG",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://"
+   },
+   "expected": {
+    "lines": [
+     "x = 1; //",
+     "aaa bbb",
+     "code xxx",
+     "yyy zzz"
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
   }
  ]
 }
