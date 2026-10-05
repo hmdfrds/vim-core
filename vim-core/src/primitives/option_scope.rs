@@ -47,6 +47,7 @@ pub enum OptionScope {
 /// `^=` as arithmetic; a string takes `+=`/`^=`/`-=` as append, prepend and
 /// remove; a flag list and a comma list add and remove whole flags or items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OptionKind {
     /// On or off (`ignorecase`).
     Bool,
@@ -111,9 +112,9 @@ pub enum OptionId {
     TextWidth = 17,
     /// `softtabstop` — number of columns for Tab in insert mode (local to buffer).
     SoftTabStop = 29,
-    /// `formatoptions` -- flags that control automatic formatting (local to buffer).
+    /// `formatoptions`: flags that control automatic formatting (local to buffer).
     FormatOptions = 30,
-    /// `comments` -- comment leaders recognized when formatting (local to buffer).
+    /// `comments`: comment leaders recognized when formatting (local to buffer).
     Comments = 31,
 
     // ── LocalToWindow ────────────────────────────────────────────────────
