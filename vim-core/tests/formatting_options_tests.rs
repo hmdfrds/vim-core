@@ -424,7 +424,7 @@ fn operator_on_option_without_id() {
 
 mod commands_read_resolved_options {
     use vim_core::execution::{parse_keys_from_string, HostSession};
-    use vim_core::primitives::VimOptions;
+    use vim_core::primitives::{OptionId, OptionValue, VimOptions};
 
     fn feed(session: &mut HostSession, keys: &str) {
         for key in parse_keys_from_string(keys) {
@@ -502,6 +502,51 @@ mod commands_read_resolved_options {
         assert_eq!(
             session.text().to_string(),
             "aa bb cc dd\nee ff gg hh\nii jj"
+        );
+    }
+
+    #[test]
+    fn host_set_option_after_ex_set_wins() {
+        // `:set tw=20` writes the global value and the buffer's own value.
+        // A value the host sets later with set_option() replaces both, as
+        // a later `:set` would, so the last change wins.
+        let mut session = HostSession::new("");
+        feed(&mut session, ":set tw=20<CR>");
+        session.set_option(OptionId::TextWidth, &OptionValue::Unsigned(0));
+        assert_eq!(
+            session.effective_option(OptionId::TextWidth),
+            OptionValue::Unsigned(0)
+        );
+        feed(&mut session, &format!("i{LONG}<Esc>"));
+        assert_eq!(session.text().to_string(), LONG);
+    }
+
+    #[test]
+    fn host_set_option_after_setlocal_wins() {
+        let mut session = session_with_textwidth("", 0);
+        feed(&mut session, ":setlocal fo-=t<CR>");
+        session.set_option(OptionId::TextWidth, &OptionValue::Unsigned(20));
+        session.set_option(OptionId::FormatOptions, &OptionValue::Str("tcq".into()));
+        feed(&mut session, &format!("i{LONG}<Esc>"));
+        assert!(session.text().to_string().contains('\n'));
+        assert_eq!(
+            session.options().formatoptions(),
+            "tcq",
+            "the global value is written too"
+        );
+    }
+
+    #[test]
+    fn host_global_write_keeps_buffer_value() {
+        // options_mut() and set_options() write the global layer only, as
+        // `:setglobal` does, so the buffer's own value from `:set` stays.
+        let mut session = HostSession::new("");
+        feed(&mut session, ":set tw=20<CR>");
+        session.options_mut().set_textwidth(0);
+        session.invalidate_option_cache();
+        assert_eq!(
+            session.effective_option(OptionId::TextWidth),
+            OptionValue::Unsigned(20)
         );
     }
 

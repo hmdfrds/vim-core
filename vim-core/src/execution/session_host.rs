@@ -1754,6 +1754,17 @@ impl VimSession<SessionHost> {
         self.engine_mut().options_mut()
     }
 
+    /// Set one option the way `:set` does, so that it takes effect in the
+    /// current buffer over an earlier `:set` or `:setlocal`. See
+    /// [`VimEngine::set_option`](crate::execution::VimEngine::set_option).
+    pub fn set_option(
+        &mut self,
+        id: crate::primitives::OptionId,
+        value: &crate::primitives::OptionValue,
+    ) {
+        self.engine_mut().set_option(id, value);
+    }
+
     /// Force an immediate rebuild of the resolved-options cache.
     pub fn invalidate_option_cache(&mut self) {
         self.engine_mut().invalidate_option_cache();
