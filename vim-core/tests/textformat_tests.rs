@@ -8,6 +8,14 @@
 //! explicit `:setlocal` options, the keys through `:normal!`, and the cursor
 //! read with `<C-R>=` right before `<Esc>`.
 //!
+//! `format_operator_matches_vim_oracle` does the same for `gq` and `gw`:
+//! prose, joins, indent and `tabstop`, `#`, `##`, `//` and three-piece
+//! comment blocks, leader changes, leader-only lines, comments after code,
+//! the `2`, `w`, `1`, `p`, `M` and `B` flags, motions, Visual mode, where
+//! `gw` leaves the cursor, and GDScript-like options. Its fixture was
+//! recorded the same way, with `nojoinspaces` and the cursor read after
+//! the keys.
+//!
 //! The other tests check the typing paths (repeats, undo, literal
 //! characters, abbreviations, multiple cursors) against Vim, and that typing
 //! never loses, adds or reorders a character.
@@ -32,6 +40,21 @@ struct OracleCase {
     cursor: [usize; 2],
     cmd: String,
     typed: String,
+    opts: Opts,
+    expected: Expected,
+}
+
+#[derive(Debug, Deserialize)]
+struct FormatFixture {
+    cases: Vec<FormatCase>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FormatCase {
+    name: String,
+    lines: Vec<String>,
+    cursor: [usize; 2],
+    keys: String,
     opts: Opts,
     expected: Expected,
 }
@@ -156,6 +179,41 @@ fn matches_vim_oracle() {
     assert!(
         failures.is_empty(),
         "{} of {} oracle cases differ from Vim:\n\n{}",
+        failures.len(),
+        fixture.cases.len(),
+        failures.join("\n\n")
+    );
+}
+
+#[test]
+fn format_operator_matches_vim_oracle() {
+    let fixture: FormatFixture =
+        serde_json::from_str(include_str!("fixtures/format_operator_oracle.json")).unwrap();
+    assert!(!fixture.cases.is_empty());
+    let mut failures = Vec::new();
+    for case in &fixture.cases {
+        let text = case.lines.join("\n");
+        let mut session = HostSession::new(&text);
+        session.set_options(options(&case.opts));
+        session.set_cursor_offset(offset_of(&text, case.cursor));
+        feed(&mut session, &case.keys);
+        let cursor = position_of(session.text(), session.cursor_offset());
+        let lines: Vec<String> = session.text().split('\n').map(str::to_owned).collect();
+        if lines != case.expected.lines || cursor != case.expected.cursor {
+            failures.push(format!(
+                "{} ({})\n  expected cursor {:?}:\n{}\n  actual cursor {:?}:\n{}",
+                case.name,
+                case.keys,
+                case.expected.cursor,
+                show(&case.expected.lines),
+                cursor,
+                show(&lines),
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} format operator cases differ from Vim:\n\n{}",
         failures.len(),
         fixture.cases.len(),
         failures.join("\n\n")
