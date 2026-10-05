@@ -15,10 +15,13 @@ bitflags! {
     ///
     /// # Supported flags
     ///
-    /// The engine acts on `t`, `c`, `q`, `w`, `2`, `v`, `b`, `l`, `1`, `p`,
-    /// `M`, `B` and `j`. `:set` accepts every flag Vim knows, but these have no
-    /// effect yet:
+    /// The engine acts on `t`, `c`, `q`, `w`, `2`, `v`, `b`, `l`, `1` and
+    /// `p`, and on `M` and `B` when `gq` joins lines. `:set` accepts every flag
+    /// Vim knows, but these have no effect yet:
     ///
+    /// - `j`: `J` and `:join` keep the comment leader of the joined line;
+    /// - `M` and `B` in `J` and `:join`, which put a space between multibyte
+    ///   characters as without them;
     /// - `r` and `o`: Enter, `o` and `O` do not continue a comment leader, and
     ///   `/` (which only changes `o`) does nothing either;
     /// - `a`: paragraphs are not reformatted automatically while typing;
@@ -61,14 +64,17 @@ bitflags! {
         /// `m`: also break at a multibyte character above 255. Not supported yet.
         const MBYTE_BREAK = 1 << 13;
         /// `M`: no space before or after a multibyte character when joining.
+        /// Only `gq` follows it yet.
         const MBYTE_JOIN = 1 << 14;
-        /// `B`: no space between two multibyte characters when joining.
+        /// `B`: no space between two multibyte characters when joining. Only
+        /// `gq` follows it yet.
         const MBYTE_JOIN_BETWEEN = 1 << 15;
         /// `1`: do not break a line after a one-letter word.
         const ONE_LETTER = 1 << 16;
         /// `]`: respect `textwidth` rigorously. Not supported yet.
         const RIGOROUS_TEXTWIDTH = 1 << 17;
-        /// `j`: remove the comment leader when joining lines.
+        /// `j`: remove the comment leader when joining lines. Not supported
+        /// yet.
         const REMOVE_COMMENT_LEADER = 1 << 18;
         /// `p`: do not break at a single space after a period.
         const PERIOD_ABBREVIATION = 1 << 19;
