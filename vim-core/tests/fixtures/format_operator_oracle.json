@@ -2872,6 +2872,65 @@
    }
   },
   {
+   "name": "long word: 32 letters at tw=4 breaks",
+   "lines": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqq",
+   "opts": {
+    "tw": 4,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "x"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "long word: 33 letters at tw=4 does not break",
+   "lines": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqq",
+   "opts": {
+    "tw": 4,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
    "name": "gdscript: long # comment in function",
    "lines": [
     "func _ready() -> void:",

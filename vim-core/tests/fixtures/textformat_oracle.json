@@ -3556,6 +3556,256 @@
    }
   },
   {
+   "name": "long word below 8 * textwidth breaks",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 4,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "x"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "long word at 8 * textwidth does not break",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 4,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+    ],
+    "cursor": [
+     0,
+     34
+    ]
+   }
+  },
+  {
+   "name": "long word at 8 * textwidth, tw=10",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+    ],
+    "cursor": [
+     0,
+     82
+    ]
+   }
+  },
+  {
+   "name": "long word below 8 * textwidth, tw=10",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "x"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "tw=1 long word then a word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh add",
+   "opts": {
+    "tw": 1,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh add"
+    ],
+    "cursor": [
+     0,
+     12
+    ]
+   }
+  },
+  {
+   "name": "tw=1 seven letters then a word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefg add",
+   "opts": {
+    "tw": 1,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefg",
+     "add"
+    ],
+    "cursor": [
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "name": "tw=1 one-letter flag in a comment",
+   "lines": [
+    "    # bb eeeee"
+   ],
+   "cursor": [
+    0,
+    14
+   ],
+   "cmd": "A",
+   "typed": "x",
+   "opts": {
+    "tw": 1,
+    "fo": "tq1",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "    # bb eeeeex"
+    ],
+    "cursor": [
+     0,
+     15
+    ]
+   }
+  },
+  {
+   "name": "blank past 8 * textwidth still breaks",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee ffff gggg hhhh"
+   ],
+   "cursor": [
+    0,
+    39
+   ],
+   "cmd": "A",
+   "typed": "i",
+   "opts": {
+    "tw": 4,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbb",
+     "cccc",
+     "dddd",
+     "eeee",
+     "ffff",
+     "gggg",
+     "hhhhi"
+    ],
+    "cursor": [
+     7,
+     5
+    ]
+   }
+  },
+  {
    "name": "repro 1 long func signature [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
    "lines": [
     "extends Node",

@@ -11,7 +11,9 @@
 //! - the loop in `internal_format()` (textformat.c): trigger on the cursor's
 //!   display column, scan backward from the cursor for a blank, never break
 //!   inside the indent or the comment leader, and fall back to the first
-//!   blank after a word that is too long;
+//!   blank after a word that is too long. Like Vim 9.1 the scan starts at
+//!   most 8 * `textwidth` bytes into the line, so a word that reaches past
+//!   that column is not broken after;
 //! - the parts of `open_line()` (change.c) that build the new line: the
 //!   indent with `autoindent` and the continued comment leader with `c`.
 //!
@@ -562,11 +564,18 @@ impl Formatter<'_, '_> {
                 break;
             };
             let startcol = pos - ls;
-            let mut c_buf = [0u8; 4];
-            let virtcol = display_width(before, policy.tabstop);
-            let cells = grapheme_display_width(c.encode_utf8(&mut c_buf), virtcol, policy.tabstop);
-            if virtcol + cells <= tw {
-                break;
+            // Vim 9.1 only measures the line when the cursor is less than
+            // 8 * textwidth bytes in. Past that it goes on to look for a
+            // break, and the scan below starts at that column.
+            let safe_tw = tw.saturating_mul(8);
+            if startcol < safe_tw {
+                let mut c_buf = [0u8; 4];
+                let virtcol = display_width(before, policy.tabstop);
+                let cells =
+                    grapheme_display_width(c.encode_utf8(&mut c_buf), virtcol, policy.tabstop);
+                if virtcol + cells <= tw {
+                    break;
+                }
             }
 
             // Vim formats before inserting a typed character, so the
@@ -597,9 +606,14 @@ impl Formatter<'_, '_> {
 
             let wantcol = column_at(line1, tw, policy.tabstop);
             let restrict_col = start.filter(|s| s.line == *line).map(|s| s.col);
-            let Some(foundcol) =
-                find_break(line1, startcol, wantcol, leader_len, restrict_col, flags)
-            else {
+            let scan = Scan {
+                from: line1.floor_char_boundary(startcol.min(safe_tw)),
+                typed: operator.is_none(),
+                wantcol,
+                leader_len,
+                restrict_col,
+            };
+            let Some(foundcol) = find_break(line1, &scan, flags) else {
                 break;
             };
 
@@ -715,7 +729,24 @@ impl Formatter<'_, '_> {
     }
 }
 
-/// The scan in Vim's `internal_format()`: walk back from the cursor to the
+/// Where [`find_break`] scans and what it may use.
+struct Scan {
+    /// Byte column the scan starts at: the cursor, but at most
+    /// 8 * `textwidth` (Vim 9.1 caps it so a long line is not quadratic).
+    from: usize,
+    /// A character is being typed. Vim has not inserted it yet and takes
+    /// the first position it looks at to hold it, so with the start capped
+    /// a blank there is not seen.
+    typed: bool,
+    /// Byte column of the `textwidth` border.
+    wantcol: usize,
+    /// Length of the comment leader, which is never broken.
+    leader_len: usize,
+    /// With `v` or `b` on the insert-start line, the insert-start column.
+    restrict_col: Option<usize>,
+}
+
+/// The scan in Vim's `internal_format()`: walk back from `scan.from` to the
 /// blank to break at. Returns the column of the first blank of the run of
 /// blanks found, which the line is split at.
 ///
@@ -723,27 +754,29 @@ impl Formatter<'_, '_> {
 /// leaves the last blank found, the leftmost one, which breaks after the
 /// word. Positions inside the indent or the comment leader are never used.
 /// With `v` or `b` on the insert-start line, only blanks at or after the
-/// insert-start column (`restrict_col`) count.
-fn find_break(
-    line: &str,
-    startcol: usize,
-    wantcol: usize,
-    leader_len: usize,
-    restrict_col: Option<usize>,
-    flags: FormatFlags,
-) -> Option<usize> {
+/// insert-start column count.
+fn find_break(line: &str, scan: &Scan, flags: FormatFlags) -> Option<usize> {
     let vi_scan = flags.intersects(FormatFlags::VI_WRAP.union(FormatFlags::BLANK_WRAP));
     let one_letter = flags.contains(FormatFlags::ONE_LETTER);
     let period = flags.contains(FormatFlags::PERIOD_ABBREVIATION);
     let blank_at = |col: usize| byte_at(line, col).is_some_and(is_blank_byte);
+    let Scan {
+        from,
+        typed,
+        wantcol,
+        leader_len,
+        restrict_col,
+    } = *scan;
 
-    let mut col = startcol;
+    let mut col = from;
     let mut foundcol = 0;
+    let mut first_typed = typed;
     loop {
         if vi_scan && restrict_col.is_some_and(|rc| col < rc) {
             break;
         }
-        if blank_at(col) {
+        let holds_typed = std::mem::take(&mut first_typed);
+        if blank_at(col) && !holds_typed {
             // Find the start of this run of blanks.
             let mut blanks = 0;
             while col > 0 && blank_at(col) {
