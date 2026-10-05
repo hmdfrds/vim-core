@@ -495,7 +495,8 @@ pub struct OperatorLineInput<'a> {
     pub tabstop: usize,
     /// Whether to expand tabs to spaces for indent operators.
     pub expandtab: bool,
-    /// Text width for format operators.
+    /// Textwidth from VimOptions. The format operators read `options`
+    /// instead, so this matters only to a context built without them.
     pub textwidth: usize,
     /// Engine options, for the format operators.
     pub options: &'a crate::primitives::VimOptions,
@@ -859,7 +860,8 @@ pub struct OperatorTextObjectInput<'a> {
     pub tabstop: usize,
     /// Whether to expand tabs to spaces for indent operators.
     pub expandtab: bool,
-    /// Text width for format operators.
+    /// Textwidth from VimOptions. The format operators read `options`
+    /// instead, so this matters only to a context built without them.
     pub textwidth: usize,
     /// Comment string for commentary operator.
     pub commentstring: &'a str,
