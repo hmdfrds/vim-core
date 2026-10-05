@@ -602,8 +602,7 @@ impl Formatter<'_, '_> {
             if startcol < safe_tw {
                 let mut c_buf = [0u8; 4];
                 let virtcol = display_width(before, policy.tabstop);
-                let cells =
-                    grapheme_display_width(c.encode_utf8(&mut c_buf), virtcol, policy.tabstop);
+                let cells = cell_width(c.encode_utf8(&mut c_buf), virtcol, policy.tabstop);
                 if virtcol + cells <= tw {
                     break;
                 }
@@ -855,7 +854,7 @@ fn find_break(line: &str, scan: &Scan, flags: FormatFlags) -> Option<usize> {
 fn column_at(line: &str, vcol: usize, tabstop: usize) -> usize {
     let mut col = 0;
     for (i, g) in line.grapheme_indices(true) {
-        let w = grapheme_display_width(g, col, tabstop);
+        let w = cell_width(g, col, tabstop);
         if col + w > vcol {
             return i;
         }
@@ -867,7 +866,17 @@ fn column_at(line: &str, vcol: usize, tabstop: usize) -> usize {
 /// Display width of `s`, which starts at a line start.
 fn display_width(s: &str, tabstop: usize) -> usize {
     s.graphemes(true)
-        .fold(0, |col, g| col + grapheme_display_width(g, col, tabstop))
+        .fold(0, |col, g| col + cell_width(g, col, tabstop))
+}
+
+/// Cells grapheme `g` takes at display column `vcol`. Vim shows an ASCII
+/// control character other than a Tab as `^X`, two cells, and textwidth
+/// counts them; the shared helper gives them none.
+fn cell_width(g: &str, vcol: usize, tabstop: usize) -> usize {
+    match g.chars().next() {
+        Some(c) if c != '\t' && (c < ' ' || c == '\x7f') => 2,
+        _ => grapheme_display_width(g, vcol, tabstop),
+    }
 }
 
 /// Width of the leading white space of `line` in display columns.
@@ -967,6 +976,8 @@ mod tests {
             ("tab indent ts=8", "\t|", "foo bar baz qux quux", 20, "tq", 8, true, DEFAULT_COMMENTS, "\tfoo bar baz\n\tqux quux|"),
             ("space indent", "    |", "foo bar baz qux quux", 20, "tq", 8, true, DEFAULT_COMMENTS, "    foo bar baz qux\n    quux|"),
             ("space indent without autoindent", "    |", "foo bar baz qux quux", 20, "tq", 8, false, DEFAULT_COMMENTS, "    foo bar baz qux\nquux|"),
+            ("control character", "line one here\r|", "// vWis", 20, "tq", 8, false, DEFAULT_COMMENTS, "line one here\r//\nvWis|"),
+            ("l with a control character", "line four\r|", " x", 10, "tql", 8, false, DEFAULT_COMMENTS, "line four\r x|"),
             ("cjk", "|", "日本語 日本語 日本語", 10, "tq", 8, false, DEFAULT_COMMENTS, "日本語\n日本語\n日本語|"),
             ("cursor left of textwidth", "a|a bbbb cccc dddd eeee ffff", "xy", 20, "tq", 8, false, DEFAULT_COMMENTS, "axy|a bbbb cccc dddd eeee ffff"),
             ("indent-only line", "            |", "abc def", 10, "tq", 8, false, DEFAULT_COMMENTS, "            abc\ndef|"),
