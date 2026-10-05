@@ -3111,6 +3111,355 @@
    }
   },
   {
+   "name": "eof: jgqG leaves the first line",
+   "lines": [
+    "aa bb cc dd ee",
+    "ff gg hh ii jj"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "jgqG",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc dd ee",
+     "ff gg",
+     "hh ii",
+     "jj"
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: jgwG leaves the first line",
+   "lines": [
+    "aa bb cc dd ee",
+    "ff gg hh ii jj"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "jgwG",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc dd ee",
+     "ff gg",
+     "hh ii",
+     "jj"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: gqj on the last two lines",
+   "lines": [
+    "aa",
+    "bb cc dd ee ff",
+    "gg hh ii jj"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gqj",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "bb cc",
+     "dd ee",
+     "ff gg",
+     "hh ii",
+     "jj"
+    ],
+    "cursor": [
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: gwj on the last two lines",
+   "lines": [
+    "aa",
+    "bb cc dd ee ff",
+    "gg hh ii jj"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gwj",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "bb cc",
+     "dd ee",
+     "ff gg",
+     "hh ii",
+     "jj"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: Vjgq on the last two lines",
+   "lines": [
+    "aa",
+    "bb",
+    "cc dd ee ff gg",
+    "hh ii jj kk"
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "Vjgq",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "bb",
+     "cc dd",
+     "ee ff",
+     "gg hh",
+     "ii jj",
+     "kk"
+    ],
+    "cursor": [
+     6,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: gq2j reaches the last line",
+   "lines": [
+    "aa bb",
+    "cc",
+    "dd ee ff gg",
+    "hh",
+    "ii jj kk ll"
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "gq2j",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "cc",
+     "dd ee",
+     "ff gg",
+     "hh ii",
+     "jj kk",
+     "ll"
+    ],
+    "cursor": [
+     6,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: Vgq on the last line",
+   "lines": [
+    "aa bb cc dd",
+    "ee ff gg hh"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "Vgq",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc dd",
+     "ee ff",
+     "gg hh"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: gq} from the middle of a line",
+   "lines": [
+    "aa bb cc dd",
+    "ee ff gg"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "keys": "gq}",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "cc dd",
+     "ee ff",
+     "gg"
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: gqap from the middle of the last line",
+   "lines": [
+    "aa bb",
+    "",
+    "cc dd ee ff gg"
+   ],
+   "cursor": [
+    2,
+    7
+   ],
+   "keys": "gqap",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "",
+     "cc dd",
+     "ee ff",
+     "gg"
+    ],
+    "cursor": [
+     4,
+     0
+    ]
+   }
+  },
+  {
+   "name": "eof: gqG from an empty line",
+   "lines": [
+    "aa bb cc",
+    "",
+    "dd ee ff gg"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gqG",
+   "opts": {
+    "tw": 6,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc",
+     "",
+     "dd ee",
+     "ff gg"
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
+  },
+  {
    "name": "long word: 32 letters at tw=4 breaks",
    "lines": [
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"

@@ -81,7 +81,7 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
 
     // Neovim's gq sets `[` = start of range, `]` = cursor position after
     // formatting (b_op_end = curwin->w_cursor from op_format).
-    let mark_start = ctx.range.start();
+    let mark_start = Offset::new(formatted.range_start);
     if !formatted.changed() {
         return CommandResult::new(
             Effects::new()
@@ -127,7 +127,7 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
 
     // Neovim's gw sets `[` = start, `]` = first non-blank of first line,
     // regardless of whether text changed (same as gq marks).
-    let mark_start = ctx.range.start();
+    let mark_start = Offset::new(formatted.range_start);
     let mark_end = Offset::new(begin_line(&new_text, formatted.first_line));
 
     if !formatted.changed() {
@@ -158,6 +158,8 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
 /// The whole lines a format operator replaced and what replaced them.
 #[derive(Debug)]
 struct Formatted<'t> {
+    /// Start of the operator's range, where the `[` mark goes.
+    range_start: usize,
     /// Byte offset of the first formatted line.
     start: usize,
     /// Byte offset of the end of the last formatted line, before its newline.
@@ -212,7 +214,17 @@ impl Formatted<'_> {
 /// carry through the changes.
 fn format_range<'t>(ctx: &OperatorContext<'t>, keep: Option<usize>) -> Formatted<'t> {
     let text = ctx.text;
-    let range_start = ctx.range.start().get().min(text.len());
+    let mut range_start = ctx.range.start().get().min(text.len());
+    // A linewise range that ends on the last line starts at the newline
+    // before its first line, so that deleting it leaves no empty line. The
+    // operator formats from the line after that newline.
+    if ctx.motion_type.is_line_wise()
+        && range_start > 0
+        && text.as_bytes().get(range_start) == Some(&b'\n')
+        && text.as_bytes().get(range_start - 1) != Some(&b'\n')
+    {
+        range_start = (line_end_for_offset(text, range_start) + 1).min(text.len());
+    }
     let range_end = ctx.range.end().get().clamp(range_start, text.len());
     let last_included = if range_end > range_start {
         prev_char_boundary(text, range_end)
@@ -267,6 +279,7 @@ fn format_range<'t>(ctx: &OperatorContext<'t>, keep: Option<usize>) -> Formatted
     });
 
     Formatted {
+        range_start,
         start,
         end,
         original,
