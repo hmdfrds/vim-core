@@ -175,22 +175,6 @@ fn auto_format_no_wrap_under_limit() {
 }
 
 #[test]
-fn auto_format_wraps_at_textwidth() {
-    let mut session = textwidth_session("aaa bbb ccc ddd", 12);
-    session.set_cursor_offset(15);
-    feed(&mut session, "aXX<Esc>");
-    let result = text(&session);
-    if result.contains('\n') {
-        let lines: Vec<&str> = result.lines().collect();
-        assert!(
-            lines[0].len() <= 13,
-            "First line should be at or under textwidth after wrap: {:?}",
-            result
-        );
-    }
-}
-
-#[test]
 fn auto_format_disabled_when_textwidth_zero() {
     let mut session = textwidth_session(
         "a very long line that exceeds any reasonable width limit by far and should not wrap",

@@ -81,6 +81,24 @@ impl BlockInsertContext {
     }
 }
 
+/// Where an insert started, as Vim's formatting sees it: `Insstart`,
+/// `Insstart_textlen` and `Insstart_blank_vcol` in edit.c.
+///
+/// The `l` and `b` flags of `formatoptions` look at the line the insert
+/// started on, and `v` and `b` only break at blanks typed after the start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct InsertStart {
+    /// Line of the insert start (0-based).
+    pub line: usize,
+    /// Byte column of the insert start on that line.
+    pub col: usize,
+    /// Display width of that line when the insert started.
+    pub textlen: usize,
+    /// Display column of the first blank typed on that line, if any.
+    pub blank_vcol: Option<usize>,
+}
+
 /// State of an active insert session.
 ///
 /// Created when entering insert mode, destroyed when exiting.
@@ -152,6 +170,12 @@ pub struct InsertState {
     /// line and clears it. Cleared on mode exit (InsertState destruction).
     /// Matches Neovim's `can_si_back` + `old_indent` behavior.
     saved_indent: Option<CompactString>,
+    /// Insert start for formatting, recorded by the first insert command
+    /// and again after the cursor moved (Vim's `stop_arrow()`).
+    insert_start: Option<InsertStart>,
+    /// Where the last insert command left the cursor, to tell when the
+    /// cursor moved in between and the insert start must be recorded again.
+    insert_start_cursor: Option<Offset>,
 }
 
 impl InsertState {
@@ -182,6 +206,8 @@ impl InsertState {
             arrow_used: false,
             pasting: false,
             saved_indent: None,
+            insert_start: None,
+            insert_start_cursor: None,
         }
     }
 
@@ -456,6 +482,38 @@ impl InsertState {
     #[must_use]
     pub const fn arrow_used(&self) -> bool {
         self.arrow_used
+    }
+
+    /// The insert start used by formatting, if recorded.
+    #[inline]
+    #[must_use]
+    pub const fn insert_start(&self) -> Option<InsertStart> {
+        self.insert_start
+    }
+
+    /// Mutable access to the recorded insert start.
+    #[inline]
+    pub const fn insert_start_mut(&mut self) -> Option<&mut InsertStart> {
+        self.insert_start.as_mut()
+    }
+
+    /// Record the insert start.
+    #[inline]
+    pub const fn set_insert_start(&mut self, start: InsertStart) {
+        self.insert_start = Some(start);
+    }
+
+    /// Where the last insert command left the cursor.
+    #[inline]
+    #[must_use]
+    pub const fn insert_start_cursor(&self) -> Option<Offset> {
+        self.insert_start_cursor
+    }
+
+    /// Remember where the last insert command left the cursor.
+    #[inline]
+    pub const fn set_insert_start_cursor(&mut self, cursor: Offset) {
+        self.insert_start_cursor = Some(cursor);
     }
 
     /// Whether bracketed paste mode is active.
