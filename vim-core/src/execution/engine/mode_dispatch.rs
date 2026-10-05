@@ -1261,6 +1261,26 @@ impl VimEngine {
         let final_cursor =
             Self::last_cursor_in_effects(&response.effects).unwrap_or_else(|| Offset::new(cursor));
         if let Some(is) = self.state.insert_state_mut() {
+            // ins_bs(): a backspace at the start of the line the insert
+            // started on moves that start to the end of the line above. The
+            // line length that 'l' looks at stays.
+            if matches!(command, Command::Insert(InsertKind::Backspace)) {
+                let line = crate::commands::helpers::line_of(text, cursor);
+                let at_line_start =
+                    crate::commands::helpers::line_start_for_offset(text, cursor) == cursor;
+                if let Some(start) = is.insert_start_mut() {
+                    if at_line_start
+                        && line > 0
+                        && start.line == line
+                        && final_cursor.get() < cursor
+                    {
+                        let above =
+                            crate::commands::helpers::line_start(text, line - 1).unwrap_or(0);
+                        start.line = line - 1;
+                        start.col = cursor.saturating_sub(1) - above;
+                    }
+                }
+            }
             is.set_insert_start_cursor(final_cursor);
         }
 

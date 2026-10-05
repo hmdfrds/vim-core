@@ -349,6 +349,30 @@ fn arrow_key_moves_the_insert_start() {
     );
 }
 
+#[test]
+fn backspace_to_the_line_above_keeps_the_long_line_start() {
+    // Vim's ins_bs() moves the insert start to the end of the line above
+    // when a backspace joins it, and keeps the length 'l' compares, so a
+    // long start line still keeps the line above from breaking.
+    for (enter, text) in [
+        ("R", " bit long./\n# More doc."),
+        ("i", " bit long./# More doc."),
+    ] {
+        let mut s = session(" bit long.\n# More doc.", 10, "tql");
+        feed(&mut s, &format!("G0{enter}<BS>/<Esc>"));
+        assert_eq!(s.text(), text, "{enter}");
+        assert_eq!(position_of(s.text(), s.cursor_offset()), [0, 10], "{enter}");
+
+        let mut s = session(" bit long.\n# More doc.", 10, "tq");
+        feed(&mut s, &format!("G0{enter}<BS>/<Esc>"));
+        assert!(
+            s.text().starts_with(" bit\nlong./"),
+            "{enter}: {:?}",
+            s.text()
+        );
+    }
+}
+
 // ── Multiple cursors ─────────────────────────────────────────────────────────
 
 #[test]
