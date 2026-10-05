@@ -835,6 +835,7 @@ impl VimEngine {
 
             let mut all_effects: Vec<crate::effects::Effect> = Vec::new();
             let mut cursor_deltas: Vec<(usize, crate::primitives::Offset, i64)> = Vec::new();
+            let mut secondary_starts: Vec<(usize, usize, crate::state::InsertStart)> = Vec::new();
 
             // For CopyCharAbove/CopyCharBelow, maintain a working text
             // buffer that includes higher-offset cursors' edits. These commands
@@ -891,10 +892,24 @@ impl VimEngine {
                     }
 
                     let mut r = crate::dispatch::dispatch_insert(&command, &insert_ctx_i);
-                    // Secondary cursors have no insert start of their own, so
-                    // 'l', 'v' and 'b' do not restrict them. Two cursors on
-                    // one line would break it under each other, so such a
-                    // line is left alone.
+                    // Every cursor has its own insert start for 'l', 'v' and
+                    // 'b', recorded again when an insert command did not
+                    // leave the cursor here, as for the primary cursor.
+                    let line_i = crate::commands::helpers::line_of(exec_text, cur);
+                    let mut start_i = self
+                        .state
+                        .insert_state()
+                        .and_then(|is| is.cursor_start(crate::primitives::Offset::new(cur), line_i))
+                        .unwrap_or_else(|| {
+                            crate::commands::insert::wrap::insert_start_at(
+                                exec_text,
+                                cur,
+                                self.resolved_options.tabstop(),
+                                None,
+                            )
+                        });
+                    // Two cursors on one line would break it under each
+                    // other, so such a line is left alone.
                     let shares_line = cursor_shares_line(
                         exec_text,
                         cur,
@@ -911,9 +926,19 @@ impl VimEngine {
                             cur,
                             insert_mode == InsertMode::Replace,
                             &format_policy,
-                            None,
+                            Some(&mut start_i),
                         );
                     }
+                    let own_cursor = Self::last_cursor_in_effects(r.effects.as_slice())
+                        .map_or(cur, crate::primitives::Offset::get);
+                    if matches!(command, Command::Insert(InsertKind::Backspace)) {
+                        move_insert_start_on_backspace(&mut start_i, exec_text, cur, own_cursor);
+                    }
+                    let lines_below =
+                        cursor_line_after(exec_text, r.effects.as_slice(), cur, own_cursor)
+                            .unwrap_or(line_i)
+                            .saturating_sub(start_i.line);
+                    secondary_starts.push((own_cursor, lines_below, start_i));
                     r.effects
                 };
 
@@ -978,6 +1003,26 @@ impl VimEngine {
                 }
             }
 
+            // The insert starts of the secondary cursors go with where the
+            // edits of every cursor leave them.
+            let new_starts = secondary_starts
+                .into_iter()
+                .map(|(own, lines_below, start)| {
+                    let shift: i64 = cursor_deltas
+                        .iter()
+                        .filter(|(_, raw, _)| raw.get() < own)
+                        .map(|&(_, _, delta)| delta)
+                        .sum();
+                    crate::state::CursorInsertStart {
+                        head: crate::primitives::Offset::new(byte_delta::shift(own, shift)),
+                        lines_below,
+                        start,
+                    }
+                })
+                .collect();
+            if let Some(is) = self.state.insert_state_mut() {
+                is.set_cursor_starts(new_starts);
+            }
             insert_cd_deltas = Some(cursor_deltas);
             all_effects.into_iter().collect()
         } else if self.state.multi_cursor().is_active() {
@@ -1265,20 +1310,8 @@ impl VimEngine {
             // started on moves that start to the end of the line above. The
             // line length that 'l' looks at stays.
             if matches!(command, Command::Insert(InsertKind::Backspace)) {
-                let line = crate::commands::helpers::line_of(text, cursor);
-                let at_line_start =
-                    crate::commands::helpers::line_start_for_offset(text, cursor) == cursor;
                 if let Some(start) = is.insert_start_mut() {
-                    if at_line_start
-                        && line > 0
-                        && start.line == line
-                        && final_cursor.get() < cursor
-                    {
-                        let above =
-                            crate::commands::helpers::line_start(text, line - 1).unwrap_or(0);
-                        start.line = line - 1;
-                        start.col = cursor.saturating_sub(1) - above;
-                    }
+                    move_insert_start_on_backspace(start, text, cursor, final_cursor.get());
                 }
             }
             is.set_insert_start_cursor(final_cursor);
@@ -2532,6 +2565,49 @@ const fn return_to_for_insert_mode(mode: InsertMode) -> crate::primitives::Retur
 const fn is_formatted_char(command: &Command) -> bool {
     matches!(command, Command::Insert(InsertKind::LiteralChar { .. }))
         || matches!(command, Command::Insert(InsertKind::Char { char }) if *char != '\n')
+}
+
+/// Vim's ins_bs(): a backspace at the start of the line the insert started
+/// on moves that start to the end of the line above. The line length that
+/// 'l' looks at stays. `cursor` is where the backspace was typed in `text`,
+/// and `after` where it left the cursor.
+fn move_insert_start_on_backspace(
+    start: &mut crate::state::InsertStart,
+    text: &str,
+    cursor: usize,
+    after: usize,
+) {
+    let line = crate::commands::helpers::line_of(text, cursor);
+    let at_line_start = crate::commands::helpers::line_start_for_offset(text, cursor) == cursor;
+    if at_line_start && line > 0 && start.line == line && after < cursor {
+        let above = crate::commands::helpers::line_start(text, line - 1).unwrap_or(0);
+        start.line = line - 1;
+        start.col = cursor.saturating_sub(1) - above;
+    }
+}
+
+/// The line a cursor is on once the text edits in `effects` are applied to
+/// `text`, where they leave it at `cursor`. It was at `before` in `text`.
+/// Only an edit that may add or remove a line break needs the text rebuilt.
+fn cursor_line_after(
+    text: &str,
+    effects: &[Effect],
+    before: usize,
+    cursor: usize,
+) -> Option<usize> {
+    let changes_lines = effects.iter().any(|e| match e {
+        Effect::Insert { text: t, .. } => t.contains('\n'),
+        Effect::Delete { .. } | Effect::Replace { .. } => true,
+        _ => false,
+    });
+    if !changes_lines {
+        return Some(crate::commands::helpers::line_of(text, before));
+    }
+    let after = crate::commands::insert::wrap::apply_text_effects(text, effects)?;
+    Some(crate::commands::helpers::line_of(
+        &after,
+        cursor.min(after.len()),
+    ))
 }
 
 /// Whether one of the cursors at `others` is on the same line as `cursor`.

@@ -57,7 +57,7 @@ pub use command_intent::{capture_intent, CommandIntent};
 pub use command_line::{CommandLinePrompt, CommandLineState, CompletionCandidate};
 
 // === Insert ===
-pub use insert::{BlockInsertContext, InsertStart, InsertState};
+pub use insert::{BlockInsertContext, CursorInsertStart, InsertStart, InsertState};
 
 // === Jump List ===
 pub use jumplist::{JumpEntry, JumpList};

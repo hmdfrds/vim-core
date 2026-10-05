@@ -406,6 +406,43 @@ fn every_cursor_keeps_typing_after_the_break() {
 }
 
 #[test]
+fn every_cursor_has_its_own_insert_start() {
+    // Each cursor formats as the same keys typed at that cursor alone. With
+    // 'l' a line that was already long when the insert started does not
+    // break, also under a cursor that is not the primary one.
+    let mut s = session("rrr sss ttt\nrrr sss ttt", 10, "tql");
+    feed(&mut s, "$");
+    s.add_cursor(22).unwrap();
+    feed(&mut s, "ar<Esc>");
+    assert_eq!(s.text(), "rrr sss tttr\nrrr sss tttr");
+
+    // The start stays with the cursor from one typed character to the next.
+    let mut s = session("rrr sss ttt\nrrr sss ttt", 10, "tql");
+    feed(&mut s, "$");
+    s.add_cursor(22).unwrap();
+    feed(&mut s, "a r s<Esc>");
+    assert_eq!(s.text(), "rrr sss ttt r s\nrrr sss ttt r s");
+
+    // After a typed line break the cursor is on another line than the
+    // insert start, so 'l' no longer keeps the line, at every cursor.
+    let mut s = session("rrr sss ttt\nrrr sss ttt", 10, "tql");
+    feed(&mut s, "$");
+    s.add_cursor(22).unwrap();
+    feed(&mut s, "a<CR>aaa bbb ccc<Esc>");
+    assert_eq!(
+        s.text(),
+        "rrr sss ttt\naaa bbb\nccc\nrrr sss ttt\naaa bbb\nccc"
+    );
+
+    // 'b' records the first blank typed on the start line per cursor.
+    let mut s = session("aaa\naaa", 6, "tqb");
+    feed(&mut s, "$");
+    s.add_cursor(6).unwrap();
+    feed(&mut s, "a bbbbbb<Esc>");
+    assert_eq!(s.text(), "aaa\nbbbbbb\naaa\nbbbbbb");
+}
+
+#[test]
 fn two_cursors_on_one_line_leave_it_unbroken() {
     // Breaking a line under another cursor on it would move that cursor's
     // text, so formatting skips lines shared by cursors.

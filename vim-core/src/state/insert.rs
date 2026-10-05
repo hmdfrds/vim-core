@@ -99,6 +99,21 @@ pub struct InsertStart {
     pub blank_vcol: Option<usize>,
 }
 
+/// The insert start of a cursor other than the primary one, which formats
+/// the text it types as if it typed it alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CursorInsertStart {
+    /// Where the last insert command left this cursor, after the edits of
+    /// every cursor.
+    pub head: Offset,
+    /// How many lines the cursor is below its insert start. Other cursors
+    /// add and remove lines above, so the start line is kept relative.
+    pub lines_below: usize,
+    /// The insert start, with its line as it was when it was stored.
+    pub start: InsertStart,
+}
+
 /// State of an active insert session.
 ///
 /// Created when entering insert mode, destroyed when exiting.
@@ -176,6 +191,8 @@ pub struct InsertState {
     /// Where the last insert command left the cursor, to tell when the
     /// cursor moved in between and the insert start must be recorded again.
     insert_start_cursor: Option<Offset>,
+    /// Insert starts of the cursors other than the primary one.
+    cursor_starts: Vec<CursorInsertStart>,
 }
 
 impl InsertState {
@@ -208,6 +225,7 @@ impl InsertState {
             saved_indent: None,
             insert_start: None,
             insert_start_cursor: None,
+            cursor_starts: Vec::new(),
         }
     }
 
@@ -514,6 +532,27 @@ impl InsertState {
     #[inline]
     pub const fn set_insert_start_cursor(&mut self, cursor: Offset) {
         self.insert_start_cursor = Some(cursor);
+    }
+
+    /// The insert start of the cursor other than the primary one that the
+    /// last insert command left at `head`, with its line moved to `line`
+    /// less the lines the cursor was below it. `None` when no insert command
+    /// left a cursor there, as after the cursor moved (Vim's `stop_arrow()`).
+    #[must_use]
+    pub fn cursor_start(&self, head: Offset, line: usize) -> Option<InsertStart> {
+        self.cursor_starts
+            .iter()
+            .find(|c| c.head == head)
+            .map(|c| InsertStart {
+                line: line.saturating_sub(c.lines_below),
+                ..c.start
+            })
+    }
+
+    /// Replace the insert starts of the cursors other than the primary one.
+    #[inline]
+    pub fn set_cursor_starts(&mut self, starts: Vec<CursorInsertStart>) {
+        self.cursor_starts = starts;
     }
 
     /// Whether bracketed paste mode is active.
