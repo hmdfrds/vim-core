@@ -120,6 +120,17 @@ fn formatoptions_override_follows_the_buffer() {
 }
 
 #[test]
+fn host_setting_replaces_a_window_local_value() {
+    // set_option() drops a window-local value as `:set` does, so the host
+    // value wins over an earlier `:setlocal`.
+    let mut engine = VimEngine::new();
+    set(&mut engine, "setlocal so=5");
+    assert_eq!(query(&mut engine, "set so?"), "scrolloff=5");
+    engine.set_option(OptionId::ScrollOff, &OptionValue::Unsigned(0));
+    assert_eq!(query(&mut engine, "set so?"), "scrolloff=0");
+}
+
+#[test]
 fn host_setting_reaches_buffers_left_after_set() {
     // set_option() drops the local value of the current buffer only, as
     // `:set` does. clear_local_option() drops it from a saved buffer, so a
@@ -542,6 +553,39 @@ mod commands_read_resolved_options {
             session.text().to_string(),
             "aa bb cc dd\nee ff gg hh\nii jj"
         );
+    }
+
+    // The Visual, mark and find paths of gq read 'comments' and
+    // 'formatoptions' too, not only 'textwidth'. Expected values from Vim
+    // 9.1; with the default comments, which have no "--" part, the lines
+    // would join as "-- aa -- bb" and a broken line would get no leader.
+
+    #[test]
+    fn visual_gq_reads_comments_and_formatoptions() {
+        let mut session = HostSession::new("-- aa\n-- bb");
+        feed(&mut session, ":setlocal com=:--<CR>Vjgq");
+        assert_eq!(session.text().to_string(), "-- aa bb");
+
+        let mut session = HostSession::new("# aa\n# bb");
+        feed(&mut session, ":setlocal fo-=q<CR>Vjgq");
+        assert_eq!(session.text().to_string(), "# aa # bb");
+    }
+
+    #[test]
+    fn gq_to_a_mark_reads_comments() {
+        let mut session = HostSession::new("-- aa\n-- bb");
+        feed(&mut session, ":setlocal com=:--<CR>majgq'a");
+        assert_eq!(session.text().to_string(), "-- aa bb");
+    }
+
+    #[test]
+    fn gq_with_a_find_reads_comments() {
+        for keys in ["gqfb", "gqtb"] {
+            let mut session = session_with_textwidth("-- aaaa bbbb", 8);
+            feed(&mut session, ":setlocal com=:--<CR>");
+            feed(&mut session, keys);
+            assert_eq!(session.text().to_string(), "-- aaaa\n-- bbbb", "{keys}");
+        }
     }
 
     #[test]
