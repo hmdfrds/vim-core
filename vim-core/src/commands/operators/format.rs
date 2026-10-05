@@ -523,7 +523,8 @@ fn break_line(
             // position in the blanks removed at a break ends up at the end
             // of the line above, where Vim leaves it too once the cursor is
             // put back on the line.
-            *mark = line_col(&broken, map_offset(mark.1, &edits));
+            let (line, col) = line_col(&broken, map_offset(mark.1, &edits));
+            *mark = (cur + line, col);
         } else if mark.0 > cur {
             mark.0 += added;
         }
@@ -871,10 +872,10 @@ fn line_col(text: &str, offset: usize) -> (usize, usize) {
 }
 
 /// Byte offset of (`line`, `col`) in `lines` joined with newlines, with the
-/// column clamped to the line.
+/// column clamped to the line and to a character boundary.
 fn offset_of(lines: &[String], line: usize, col: usize) -> usize {
     let before: usize = lines.iter().take(line).map(|l| l.len() + 1).sum();
-    before + lines.get(line).map_or(0, |l| col.min(l.len()))
+    before + lines.get(line).map_or(0, |l| l.floor_char_boundary(col))
 }
 
 #[cfg(test)]
@@ -1010,6 +1011,14 @@ mod tests {
         // A three-piece start continues on a middle line.
         assert!(same("/* aa", " * bb"));
         assert!(!same("/*", " * bb"));
+    }
+
+    #[test]
+    fn kept_cursor_lands_on_a_character_boundary() {
+        let lines = ["/* 日本".to_owned(), " * bb".to_owned()];
+        assert_eq!(offset_of(&lines, 0, 5), 3);
+        assert_eq!(offset_of(&lines, 0, 99), 9);
+        assert_eq!(offset_of(&lines, 1, 3), 13);
     }
 
     #[test]

@@ -2872,6 +2872,245 @@
    }
   },
   {
+   "name": "gw: cursor in a later paragraph, gwgg",
+   "lines": [
+    "aaaa",
+    "",
+    "bb ccc dd eeeee ff gg"
+   ],
+   "cursor": [
+    2,
+    11
+   ],
+   "keys": "gwgg",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "",
+     "bb ccc dd",
+     "eeeee ff",
+     "gg"
+    ],
+    "cursor": [
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "name": "gw: cursor in a later paragraph, gwk",
+   "lines": [
+    "aaaa",
+    "",
+    "bb ccc dd eeeee ff gg"
+   ],
+   "cursor": [
+    2,
+    11
+   ],
+   "keys": "gwk",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "",
+     "bb ccc dd",
+     "eeeee ff",
+     "gg"
+    ],
+    "cursor": [
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "name": "gw: cursor in a later paragraph after two lines",
+   "lines": [
+    "aaaa",
+    "bbbb",
+    "",
+    "bb ccc dd eeeee ff gg"
+   ],
+   "cursor": [
+    3,
+    11
+   ],
+   "keys": "gwgg",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb",
+     "",
+     "bb ccc dd",
+     "eeeee ff",
+     "gg"
+    ],
+    "cursor": [
+     3,
+     1
+    ]
+   }
+  },
+  {
+   "name": "gw: cursor in a later paragraph, gw{",
+   "lines": [
+    "aaaa",
+    "",
+    "cc dd ee ff gg hh ii"
+   ],
+   "cursor": [
+    2,
+    16
+   ],
+   "keys": "gw{",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "",
+     "cc dd ee",
+     "ff gg hh",
+     "ii"
+    ],
+    "cursor": [
+     3,
+     7
+    ]
+   }
+  },
+  {
+   "name": "gw: cursor after a leader change",
+   "lines": [
+    "/* aaaaa",
+    "/* ccc dddd"
+   ],
+   "cursor": [
+    1,
+    5
+   ],
+   "keys": "gwip",
+   "opts": {
+    "tw": 10,
+    "fo": "q",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/"
+   },
+   "expected": {
+    "lines": [
+     "/* aaaaa",
+     "/* ccc",
+     " * dddd"
+    ],
+    "cursor": [
+     1,
+     5
+    ]
+   }
+  },
+  {
+   "name": "gw: wide characters before the cursor's paragraph",
+   "lines": [
+    "/* 日本 bbbbb ccccc",
+    "/* ccc dddd"
+   ],
+   "cursor": [
+    1,
+    5
+   ],
+   "keys": "gwip",
+   "opts": {
+    "tw": 10,
+    "fo": "q",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/"
+   },
+   "expected": {
+    "lines": [
+     "/* 日本",
+     " * bbbbb",
+     " * ccccc",
+     "/* ccc",
+     " * dddd"
+    ],
+    "cursor": [
+     3,
+     5
+    ]
+   }
+  },
+  {
+   "name": "gw: comment line after a prose line",
+   "lines": [
+    "aaaa bbbb",
+    "# y, ccc x. eeeee bb y,"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "jwgwk",
+   "opts": {
+    "tw": 15,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb",
+     "# y, ccc x.",
+     "# eeeee bb y,"
+    ],
+    "cursor": [
+     1,
+     2
+    ]
+   }
+  },
+  {
    "name": "long word: 32 letters at tw=4 breaks",
    "lines": [
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
