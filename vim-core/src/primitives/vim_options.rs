@@ -868,7 +868,9 @@ impl VimOptions {
     ///
     /// The value is stored as given. Characters that are not `formatoptions`
     /// flags are kept in the string but have no effect; `:set` rejects them
-    /// with E539 before they get here.
+    /// with E539 before they get here. Some flags Vim knows are accepted but
+    /// not acted on yet (`r`, `o`, `/`, `a`, `n`, `m`, `]`); see
+    /// [`FormatFlags`].
     #[inline]
     pub fn set_formatoptions(&mut self, value: impl Into<CompactString>) {
         self.formatoptions = value.into();

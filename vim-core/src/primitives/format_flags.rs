@@ -12,25 +12,43 @@ bitflags! {
     ///
     /// Build one with [`FormatFlags::parse`], which rejects letters Vim does
     /// not know, or [`FormatFlags::parse_lossy`], which skips them.
+    ///
+    /// # Supported flags
+    ///
+    /// The engine acts on `t`, `c`, `q`, `w`, `2`, `v`, `b`, `l`, `1`, `p`,
+    /// `M`, `B` and `j`. `:set` accepts every flag Vim knows, but these have no
+    /// effect yet:
+    ///
+    /// - `r` and `o`: Enter, `o` and `O` do not continue a comment leader, and
+    ///   `/` (which only changes `o`) does nothing either;
+    /// - `a`: paragraphs are not reformatted automatically while typing;
+    /// - `n`: numbered lists are not recognized;
+    /// - `m` and `]`: text without blanks does not break at multibyte
+    ///   characters.
+    ///
+    /// Typing in Virtual Replace mode (`gR`) does not format either.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
     pub struct FormatFlags: u32 {
         /// `t`: auto-wrap text using `textwidth`.
         const WRAP_TEXT = 1 << 0;
         /// `c`: auto-wrap comments using `textwidth`, inserting the leader.
         const WRAP_COMMENTS = 1 << 1;
-        /// `r`: insert the comment leader after `<Enter>` in Insert mode.
+        /// `r`: insert the comment leader after `<Enter>` in Insert mode. Not
+        /// supported yet.
         const RETURN_COMMENTS = 1 << 2;
-        /// `o`: insert the comment leader after `o` or `O`.
+        /// `o`: insert the comment leader after `o` or `O`. Not supported yet.
         const OPEN_COMMENTS = 1 << 3;
-        /// `/`: with `o`, only insert the leader for a whole-line comment.
+        /// `/`: with `o`, only insert the leader for a whole-line comment. Not
+        /// supported yet.
         const NO_OPEN_TRAILING_COMMENTS = 1 << 4;
         /// `q`: allow formatting comments with `gq`.
         const FORMAT_COMMENTS = 1 << 5;
         /// `w`: trailing white space marks a paragraph that continues.
         const WHITE_PARAGRAPH = 1 << 6;
-        /// `a`: automatic formatting of paragraphs.
+        /// `a`: automatic formatting of paragraphs. Not supported yet.
         const AUTO_FORMAT = 1 << 7;
-        /// `n`: recognize numbered lists (uses `formatlistpat`).
+        /// `n`: recognize numbered lists (uses `formatlistpat`). Not supported
+        /// yet.
         const NUMBERED_LISTS = 1 << 8;
         /// `2`: use the second line's indent for the rest of the paragraph.
         const SECOND_LINE_INDENT = 1 << 9;
@@ -40,7 +58,7 @@ bitflags! {
         const BLANK_WRAP = 1 << 11;
         /// `l`: do not break lines that were already long when insert started.
         const LONG_LINES = 1 << 12;
-        /// `m`: also break at a multibyte character above 255.
+        /// `m`: also break at a multibyte character above 255. Not supported yet.
         const MBYTE_BREAK = 1 << 13;
         /// `M`: no space before or after a multibyte character when joining.
         const MBYTE_JOIN = 1 << 14;
@@ -48,7 +66,7 @@ bitflags! {
         const MBYTE_JOIN_BETWEEN = 1 << 15;
         /// `1`: do not break a line after a one-letter word.
         const ONE_LETTER = 1 << 16;
-        /// `]`: respect `textwidth` rigorously.
+        /// `]`: respect `textwidth` rigorously. Not supported yet.
         const RIGOROUS_TEXTWIDTH = 1 << 17;
         /// `j`: remove the comment leader when joining lines.
         const REMOVE_COMMENT_LEADER = 1 << 18;
