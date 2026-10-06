@@ -21,7 +21,7 @@ use crate::primitives::{
 use compact_str::CompactString;
 use smallvec::SmallVec;
 
-use super::set_operator::{apply_set_operator, number_value, parse_vim_number, SetOperator};
+use super::set_operator::{apply_set_operator, SetOperator};
 use super::shell_expand::expand_shell_tokens;
 use super::ExecutionContext;
 
@@ -1296,15 +1296,27 @@ fn parse_option_value(
                 }
             }
         }
-        like @ (OptionValue::Unsigned(_) | OptionValue::Signed(_)) => {
-            // Signed options use -1 as a sentinel (undolevels: unlimited).
-            let parsed = parse_vim_number(value).ok_or("E521: Number required after =");
-            match parsed.and_then(|n| number_value(n, &like)) {
-                Ok(v) => Some(v),
-                Err(msg) => {
-                    error_effects.extend(set_error(msg, arg));
-                    None
-                }
+        // A plain `=` parses a decimal number only. Vim's number syntax
+        // (`0x10`, `010`) applies to the `+=`, `-=` and `^=` operators.
+        OptionValue::Unsigned(_) => {
+            if let Ok(v) = value.parse::<usize>() {
+                Some(OptionValue::Unsigned(v))
+            } else {
+                error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
+                    format!("E521: Number required after =: {arg}").into(),
+                )));
+                None
+            }
+        }
+        OptionValue::Signed(_) => {
+            // undolevels: -1 means unlimited
+            if let Ok(v) = value.parse::<i64>() {
+                Some(OptionValue::Signed(v))
+            } else {
+                error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
+                    format!("E521: Number required after =: {arg}").into(),
+                )));
+                None
             }
         }
         OptionValue::Str(_) => match validate_string_value(id, value) {

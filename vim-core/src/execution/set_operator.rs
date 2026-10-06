@@ -33,10 +33,10 @@ impl SetOperator {
     }
 }
 
-/// Parse a number the way Vim's `:set` does: decimal, `0x` hex, `0o` or
-/// leading-zero octal, with an optional minus sign. The whole string must be
-/// the number.
-pub(crate) fn parse_vim_number(s: &str) -> Option<i64> {
+/// Parse an operand of `+=`, `-=` and `^=` the way Vim does: decimal,
+/// `0x` hex, `0o` or leading-zero octal, with an optional minus sign. The
+/// whole string must be the number. A plain `=` does not use this.
+fn parse_vim_number(s: &str) -> Option<i64> {
     let (negative, digits) = match s.strip_prefix('-') {
         Some(rest) => (true, rest),
         None => (false, s),
@@ -80,7 +80,7 @@ pub(crate) fn parse_vim_number(s: &str) -> Option<i64> {
 /// # Errors
 ///
 /// Returns Vim's E487 message for a negative value on an unsigned option.
-pub(crate) fn number_value(n: i64, like: &OptionValue) -> Result<OptionValue, &'static str> {
+fn number_value(n: i64, like: &OptionValue) -> Result<OptionValue, &'static str> {
     match like {
         OptionValue::Signed(_) => Ok(OptionValue::Signed(n)),
         _ => usize::try_from(n)

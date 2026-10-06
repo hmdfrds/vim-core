@@ -8,7 +8,9 @@ mod common;
 
 use common::document::TestDocument;
 use vim_core::effects::{Effect, InfoMessage};
-use vim_core::execution::{BufferLocalState, InputContext, VimEngine};
+use vim_core::execution::{
+    parse_keys_from_string, BufferLocalState, HostSession, InputContext, VimEngine,
+};
 use vim_core::keymap::KeyEvent;
 use vim_core::primitives::{OptionId, OptionValue};
 
@@ -65,6 +67,13 @@ fn error(engine: &mut VimEngine, command: &str) -> String {
     let (_, mut errors) = run_ex(engine, command);
     assert_eq!(errors.len(), 1, ":{command} gave {errors:?}");
     errors.remove(0)
+}
+
+/// Feed keys to a session.
+fn feed(session: &mut HostSession, keys: &str) {
+    for key in parse_keys_from_string(keys) {
+        session.process_key_host(key);
+    }
 }
 
 fn effective_str(engine: &VimEngine, id: OptionId) -> String {
@@ -384,9 +393,10 @@ fn number_operator_errors_match_vim() {
         error(&mut engine, "set tw+=x"),
         "E521: Number required after =: tw+=x"
     );
+    // A plain `=` parses a decimal number as before the operators.
     assert_eq!(
         error(&mut engine, "set tw=-1"),
-        "E487: Argument must be positive: tw=-1"
+        "E492: Not an editor command: E521: Number required after =: tw=-1"
     );
     assert_eq!(
         error(&mut engine, "set ai+=1"),
@@ -396,13 +406,33 @@ fn number_operator_errors_match_vim() {
 }
 
 #[test]
-fn number_assignment_accepts_vim_number_syntax() {
+fn number_operator_accepts_vim_number_syntax() {
     let mut engine = VimEngine::new();
-    // Vim 9.1: `tw=010` and `tw=0o10` are 8, `tw+=0x10` adds 16.
-    set(&mut engine, "set tw=010");
-    assert_eq!(engine.options().textwidth(), 8);
+    // Vim 9.1: `tw+=0x10` adds 16 and `tw+=010` adds 8.
     set(&mut engine, "set tw+=0x10");
+    assert_eq!(engine.options().textwidth(), 16);
+    set(&mut engine, "set tw+=010");
     assert_eq!(engine.options().textwidth(), 24);
+}
+
+#[test]
+fn plain_number_assignment_is_decimal() {
+    // A plain `=` keeps parsing the way it did before the operators were
+    // added: `010` is ten and `0x8` is refused, so the default 4 stays.
+    let mut session = HostSession::new("abc");
+    feed(&mut session, ":set ts=010 et<CR>i<Tab><Esc>");
+    assert_eq!(session.text().to_string(), format!("{}abc", " ".repeat(10)));
+
+    let mut session = HostSession::new("abc");
+    feed(&mut session, ":set ts=0x8 et<CR>i<Tab><Esc>");
+    assert_eq!(session.text().to_string(), "    abc");
+
+    let mut engine = VimEngine::new();
+    assert_eq!(
+        error(&mut engine, "set ts=0x8"),
+        "E492: Not an editor command: E521: Number required after =: ts=0x8"
+    );
+    assert_eq!(engine.options().tabstop(), 4);
 }
 
 #[test]
