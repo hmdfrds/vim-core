@@ -957,6 +957,123 @@
      8
     ]
    }
+  },
+  {
+   "name": "undo after a break before the insert start puts the cursor where it started",
+   "lines": [
+    "Tabbed n"
+   ],
+   "cursor": [
+    0,
+    7
+   ],
+   "keys": "i#<Esc>u",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "Tabbed n"
+    ],
+    "cursor": [
+     0,
+     7
+    ]
+   }
+  },
+  {
+   "name": "undo after a comment break before the insert start",
+   "lines": [
+    "//e re"
+   ],
+   "cursor": [
+    0,
+    5
+   ],
+   "keys": "is<Esc>u",
+   "opts": {
+    "tw": 5,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "//e re"
+    ],
+    "cursor": [
+     0,
+     5
+    ]
+   }
+  },
+  {
+   "name": "undo after Replace past the end of the line broke it",
+   "lines": [
+    "w"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "oor baz dolor <Esc>Ragilistic<Esc>u",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "w",
+     "or baz dolor "
+    ],
+    "cursor": [
+     1,
+     12
+    ]
+   }
+  },
+  {
+   "name": "undo after C typed past textwidth",
+   "lines": [
+    "thensomemore"
+   ],
+   "cursor": [
+    0,
+    11
+   ],
+   "keys": "2R <Esc>Cb<Esc>u",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "thensomemor  "
+    ],
+    "cursor": [
+     0,
+     12
+    ]
+   }
   }
  ]
 }
