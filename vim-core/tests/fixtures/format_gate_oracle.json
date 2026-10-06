@@ -762,6 +762,127 @@
    }
   },
   {
+   "name": "a counted $ on the last line cancels gq, so u undoes the insert",
+   "lines": [
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "az<Esc>gq3$u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "1"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted $ on the last line cancels gq",
+   "lines": [
+    "hensomemore"
+   ],
+   "cursor": [
+    0,
+    7
+   ],
+   "keys": "r gq2$f ",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "hensome ore"
+    ],
+    "cursor": [
+     0,
+     7
+    ]
+   }
+  },
+  {
+   "name": "2$ on the last of two lines cancels gq",
+   "lines": [
+    "aa bb cc dd",
+    "ee ff"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "gq2$",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc dd",
+     "ee ff"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "3$ from the first of two lines formats both",
+   "lines": [
+    "aa bb cc dd",
+    "ee ff"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "gq3$",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "cc dd",
+     "ee ff"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
    "name": "undo after gw from the empty last line",
    "lines": [
     "\td",

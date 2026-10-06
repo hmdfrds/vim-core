@@ -63,8 +63,8 @@ fn fails(
         // cannot move at all.
         Motion::UpFirstNonBlank => line == 0,
         Motion::DownFirstNonBlank => line == last_line,
-        // `_` moves count - 1 lines down.
-        Motion::FirstNonBlankLine => count > 1 && line == last_line,
+        // `_` and `$` move count - 1 lines down.
+        Motion::FirstNonBlankLine | Motion::LineEnd => count > 1 && line == last_line,
         // bck_word() and bckend_word() fail when a step starts at the
         // start of the buffer. A step that reaches it on the way stops
         // there and succeeds, so only the first step can start there, or a
