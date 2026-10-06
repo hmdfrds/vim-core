@@ -1,0 +1,1387 @@
+{
+ "generator": "interactive vim -Nu NONE --not-a-term: explicit setlocal options, nojoinspaces, the keys through feedkeys(..., 'xt'), cursor read after them. Interactive, as undo puts the cursor back differently under -es",
+ "vim": "VIM - Vi IMproved 9.1 (2024 Jan 02, compiled Aug 24 2026 22:11:12) / Included patches: 1-948, 950-2141",
+ "cases": [
+  {
+   "name": "undo after gw puts the cursor where gw was given",
+   "lines": [
+    "5:",
+    "\td"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A<Esc>gwwu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "5:",
+     "\td"
+    ],
+    "cursor": [
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "name": "undo after a counted gqq past the last line",
+   "lines": [
+    "e",
+    "#"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "3gqqu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "#"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "undo after Visual gw",
+   "lines": [
+    "new paragraph starts here! it short? Yes."
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "Vgwu",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "new paragraph starts here! it short? Yes."
+    ],
+    "cursor": [
+     0,
+     2
+    ]
+   }
+  },
+  {
+   "name": "undo after gq that changed nothing",
+   "lines": [
+    "",
+    "in"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gq)u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "",
+     "in"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "undo after gw that changed nothing undoes gw, not o",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "O<Esc>gw}u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "",
+     "re"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "undo after gw} from the middle of a line",
+   "lines": [
+    "jumps over the lazy dog. It barked twice."
+   ],
+   "cursor": [
+    0,
+    19
+   ],
+   "keys": "gw}u",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "jumps over the lazy dog. It barked twice."
+    ],
+    "cursor": [
+     0,
+     19
+    ]
+   }
+  },
+  {
+   "name": "2) past the last sentence cancels gw",
+   "lines": [
+    "uuu vvv www"
+   ],
+   "cursor": [
+    0,
+    10
+   ],
+   "keys": "2gw)",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "uuu vvv www"
+    ],
+    "cursor": [
+     0,
+     10
+    ]
+   }
+  },
+  {
+   "name": "2( before the first sentence cancels gw",
+   "lines": [
+    "k lll mmm nnn ooo ppp"
+   ],
+   "cursor": [
+    0,
+    15
+   ],
+   "keys": "gw2(",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "k lll mmm nnn ooo ppp"
+    ],
+    "cursor": [
+     0,
+     15
+    ]
+   }
+  },
+  {
+   "name": "3) cancels only past the last sentence",
+   "lines": [
+    "aa bb. cc dd."
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gq3)",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "bb.",
+     "cc",
+     "dd."
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
+  },
+  {
+   "name": "4) past the last sentence cancels gq",
+   "lines": [
+    "aa bb. cc dd."
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gq4)",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb. cc dd."
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "3} past the last paragraph cancels gw",
+   "lines": [
+    "ensomemore"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "keys": "i<Space><Esc>gw3}",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "ensomemor e"
+    ],
+    "cursor": [
+     0,
+     9
+    ]
+   }
+  },
+  {
+   "name": "3} in a one-line buffer cancels gw",
+   "lines": [
+    "t line"
+   ],
+   "cursor": [
+    0,
+    5
+   ],
+   "keys": "gw3}",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "t line"
+    ],
+    "cursor": [
+     0,
+     5
+    ]
+   }
+  },
+  {
+   "name": "ge at the start of the buffer cancels gq",
+   "lines": [
+    "aa bb cc dd ee"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqge",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc dd ee"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "+ on the last line cancels gq",
+   "lines": [
+    "aa bb cc",
+    "dd ee ff"
+   ],
+   "cursor": [
+    1,
+    3
+   ],
+   "keys": "gq5+",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc",
+     "dd ee ff"
+    ],
+    "cursor": [
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "name": "2b from below an empty first line cancels gq",
+   "lines": [
+    "",
+    "r"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gq2b",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "",
+     "r"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "2b that reaches the buffer start formats",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "gw2b",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "re"
+    ],
+    "cursor": [
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "name": "3b that reaches the buffer start formats",
+   "lines": [
+    "e",
+    "1"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gq3b",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "1"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "b from an empty line ends on the line above",
+   "lines": [
+    "r s t",
+    "",
+    "w"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gqb",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "r s t",
+     "",
+     "w"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "w with gq stops at the end of the line",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "w with gq moves on from an empty line",
+   "lines": [
+    "e",
+    "",
+    ":"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2gqw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "",
+     ":"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "2w across a line formats both lines",
+   "lines": [
+    "aa bb",
+    "cc dd ee ff"
+   ],
+   "cursor": [
+    0,
+    3
+   ],
+   "keys": "gq2w",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "cc dd",
+     "ee ff"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "am is not a Vim text object",
+   "lines": [
+    "re! Is it short? Yes."
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gwam",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "re! Is it short? Yes."
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "as from a blank line",
+   "lines": [
+    "",
+    "new paragraph starts here! it short? Yes."
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqas",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "",
+     "new paragraph starts here! it short? Yes."
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "aw on white space at the end of the buffer",
+   "lines": [
+    "fin"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "agilistic<Space>world - x <Esc>gwaw",
+   "opts": {
+    "tw": 20,
+    "fo": "cqlj",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "fingilistic world - x "
+    ],
+    "cursor": [
+     0,
+     21
+    ]
+   }
+  },
+  {
+   "name": "gwgg from the empty last line",
+   "lines": [
+    "f ggg hhh iii jjj kkk lll mmm nnn ooo ppp",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gwgg",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "f ggg hhh iii jjj kkk lll mmm nnn ooo",
+     "ppp",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted $ on the last line cancels gq, so u undoes the insert",
+   "lines": [
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "az<Esc>gq3$u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "1"
+    ],
+    "cursor": [
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted $ on the last line cancels gq",
+   "lines": [
+    "hensomemore"
+   ],
+   "cursor": [
+    0,
+    7
+   ],
+   "keys": "r gq2$f ",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "hensome ore"
+    ],
+    "cursor": [
+     0,
+     7
+    ]
+   }
+  },
+  {
+   "name": "2$ on the last of two lines cancels gq",
+   "lines": [
+    "aa bb cc dd",
+    "ee ff"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "gq2$",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb cc dd",
+     "ee ff"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "3$ from the first of two lines formats both",
+   "lines": [
+    "aa bb cc dd",
+    "ee ff"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "gq3$",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa bb",
+     "cc dd",
+     "ee ff"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted ap that fails leaves the cursor where it was",
+   "lines": [
+    "aa",
+    "",
+    "bb cc"
+   ],
+   "cursor": [
+    2,
+    1
+   ],
+   "keys": "3gqap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "",
+     "bb cc"
+    ],
+    "cursor": [
+     2,
+     1
+    ]
+   }
+  },
+  {
+   "name": "a counted ap that fails from a blank line leaves the cursor",
+   "lines": [
+    ".",
+    "",
+    "n"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "2gqapgqj",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "",
+     "n"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted gw ap that fails from blank lines",
+   "lines": [
+    "aa",
+    "",
+    "",
+    "bb cc"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "3gwap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "",
+     "",
+     "bb cc"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted ip past the end leaves the cursor",
+   "lines": [
+    "aa",
+    "",
+    "bb",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "5gqip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "",
+     "bb",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw to the empty last line formats the lines",
+   "lines": [
+    ".",
+    "z ",
+    "n",
+    ""
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "V2jgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "z n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw to the empty last line after gq and I",
+   "lines": [
+    ".",
+    "",
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqjIz <Esc>V2jgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "z n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw from the empty last line up",
+   "lines": [
+    ".",
+    "z ",
+    "n",
+    ""
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "GVkgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "z ",
+     "n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw after v) that stops on the end of a line",
+   "lines": [
+    "r",
+    "\td",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "v)gw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "r d",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw after v3iw that stops on the end of a line",
+   "lines": [
+    "",
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "om <Esc>v3iwgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "",
+     "m n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "undo after gw from the empty last line",
+   "lines": [
+    "\td",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gwbu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\td",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "3( from the empty last line",
+   "lines": [
+    "p",
+    "t",
+    "",
+    "w",
+    ""
+   ],
+   "cursor": [
+    4,
+    0
+   ],
+   "keys": "3gw(",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "p t",
+     "",
+     "w",
+     ""
+    ],
+    "cursor": [
+     3,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw on the end of a line",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "V)gwe",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "indent left by autoindent on an empty line",
+   "lines": [
+    "\tf",
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A<CR><Esc>gqip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\tf",
+     "",
+     "1"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "counted insert broken by formatting ends on its last character",
+   "lines": [
+    "//gh",
+    "i",
+    "t",
+    "r"
+   ],
+   "cursor": [
+    0,
+    3
+   ],
+   "keys": "2id <Esc>",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "//gd",
+     "//d h",
+     "i",
+     "t",
+     "r"
+    ],
+    "cursor": [
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "name": "undo after a dot-repeat appended past textwidth",
+   "lines": [
+    "ab",
+    "cccc dddd"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "Aeeee<Esc>j$.u",
+   "opts": {
+    "tw": 8,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abeeee",
+     "cccc dddd"
+    ],
+    "cursor": [
+     1,
+     8
+    ]
+   }
+  }
+ ]
+}

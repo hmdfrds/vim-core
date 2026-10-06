@@ -104,6 +104,7 @@ pub(crate) mod safety_harness;
 pub use property_overlay::PropertyOverlay;
 pub mod replay;
 mod response;
+mod set_operator;
 mod shell_expand;
 pub mod utilities;
 

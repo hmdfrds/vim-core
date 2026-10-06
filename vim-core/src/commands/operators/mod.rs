@@ -46,6 +46,8 @@ pub mod case;
 pub mod change;
 pub mod delete;
 pub mod format;
+mod format_cancel;
+mod format_legacy;
 pub mod inclusivity;
 pub mod indent;
 pub mod range;

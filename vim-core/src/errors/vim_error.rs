@@ -102,6 +102,13 @@ pub enum VimError {
     /// E521: Invalid argument (number required, wrong type, etc.).
     InvalidArgument(CompactString),
 
+    /// `:set` rejected an option value (E474, E487, E488, E521, E524,
+    /// E525, E539).
+    ///
+    /// Carries Vim's whole message, code and argument included, because the
+    /// code depends on the option: `E539: Illegal character <Z>: fo=Z`.
+    OptionValue(CompactString),
+
     /// E34: No previous command.
     NoPreviousCommand,
 
@@ -251,6 +258,7 @@ impl fmt::Display for VimError {
                 write!(f, "E134: Cannot move a range of lines into itself")
             }
             Self::InvalidArgument(msg) => write!(f, "E521: {msg}"),
+            Self::OptionValue(msg) => write!(f, "{msg}"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
@@ -299,6 +307,14 @@ impl std::error::Error for VimError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn option_value_displays_message_verbatim() {
+        assert_eq!(
+            VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()).to_string(),
+            "E539: Illegal character <Z>: fo=Z"
+        );
+    }
 
     // ── ErrorSeverity tests ───────────────────────────────────────────────
 
@@ -355,6 +371,7 @@ mod tests {
             VimError::BackwardsRange,
             VimError::MoveIntoItself,
             VimError::InvalidArgument("bad".into()),
+            VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()),
             VimError::NoPreviousCommand,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },

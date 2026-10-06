@@ -1327,6 +1327,13 @@ fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExComma
 /// - `:set expandtab!` → `ToggleBool("expandtab")`
 /// - `:set expandtab?` → `Query("expandtab")`
 /// - `:set tabstop=8` → `Assign("tabstop", "8")`
+/// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
+///   `Prepend`
+///
+/// Arguments are separated by white space. In a value of `commentstring`,
+/// `comments` or `formatoptions` a backslash before white space makes it
+/// part of the value (`commentstring=#\ %s` gives `# %s`); every other
+/// backslash is kept as typed.
 fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     let mut assignments = smallvec::SmallVec::new();
 
@@ -1335,7 +1342,8 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
         return assignments;
     }
 
-    for token in args.split_whitespace() {
+    for token in split_set_args(args) {
+        let token = token.as_str();
         if token == "all" {
             assignments.push(SetAssignment::ShowAll);
             continue;
@@ -1350,6 +1358,14 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
         // `:set name!` — toggle
         if let Some(name) = token.strip_suffix('!') {
             assignments.push(SetAssignment::ToggleBool(CompactString::from(name)));
+            continue;
+        }
+
+        // `:set name+=value`, `-=` and `^=`. These are checked before the
+        // plain `=`, so `fo-=t` is a removal from `fo` and not an assignment
+        // to an option `fo-`.
+        if let Some(op) = parse_set_operator(token) {
+            assignments.push(op);
             continue;
         }
 
@@ -1386,6 +1402,83 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     }
 
     assignments
+}
+
+/// Split `:set` arguments on white space.
+///
+/// An argument that sets `commentstring`, `comments` or `formatoptions`
+/// takes a backslash followed by white space as that white space inside
+/// the value (`commentstring=#\ %s` gives `# %s`); a backslash followed by
+/// anything else is kept with that character, so `\\ ` still ends the
+/// argument. Every other argument ends at the first white space, with its
+/// backslashes as typed.
+fn split_set_args(args: &str) -> smallvec::SmallVec<[String; 2]> {
+    let mut tokens = smallvec::SmallVec::new();
+    let mut rest = args.trim_start();
+    while !rest.is_empty() {
+        let mut current = String::new();
+        let mut chars = rest.char_indices();
+        let mut end = rest.len();
+        if takes_escaped_white_space(rest) {
+            while let Some((i, c)) = chars.next() {
+                if c == '\\' {
+                    match chars.next() {
+                        Some((_, next)) if next.is_whitespace() => current.push(next),
+                        Some((_, next)) => {
+                            current.push(c);
+                            current.push(next);
+                        }
+                        None => current.push(c),
+                    }
+                } else if c.is_whitespace() {
+                    end = i;
+                    break;
+                } else {
+                    current.push(c);
+                }
+            }
+        } else {
+            end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+            current.push_str(&rest[..end]);
+        }
+        tokens.push(current);
+        rest = rest[end..].trim_start();
+    }
+    tokens
+}
+
+/// Whether the argument at the start of `arg` sets `commentstring`,
+/// `comments` or `formatoptions` (with `=`, `:`, `+=`, `-=` or `^=`).
+fn takes_escaped_white_space(arg: &str) -> bool {
+    let name_len = arg
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(arg.len());
+    let (name, rest) = arg.split_at(name_len);
+    matches!(
+        name,
+        "commentstring" | "comments" | "com" | "formatoptions" | "fo"
+    ) && ["=", ":", "+=", "-=", "^="]
+        .iter()
+        .any(|op| rest.starts_with(op))
+}
+
+/// Parse `name+=value`, `name-=value` or `name^=value`, where `name` is a
+/// bare option name. Any other token gives `None`.
+fn parse_set_operator(token: &str) -> Option<SetAssignment> {
+    let name_len = token.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))?;
+    let (name, rest) = token.split_at(name_len);
+    if name.is_empty() {
+        return None;
+    }
+    let name = CompactString::from(name);
+    if let Some(value) = rest.strip_prefix("+=") {
+        Some(SetAssignment::Append(name, CompactString::from(value)))
+    } else if let Some(value) = rest.strip_prefix("-=") {
+        Some(SetAssignment::Remove(name, CompactString::from(value)))
+    } else {
+        rest.strip_prefix("^=")
+            .map(|value| SetAssignment::Prepend(name, CompactString::from(value)))
+    }
 }
 
 /// Parse `:sethandler` arguments.

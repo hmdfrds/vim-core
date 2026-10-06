@@ -140,6 +140,9 @@ pub fn build_insert_exit_effects(
 ) -> (crate::effects::Effects, usize) {
     let mut all_effects = crate::effects::Effects::new();
     let mut insert_offset = params.cursor.get();
+    // The buffer once the formatted repeats are in, when formatting broke
+    // their lines: the exit cursor is found in it.
+    let mut formatted_text: Option<String> = None;
 
     // 1. Repeat accumulated text count-1 more times
     if params.count > 1 {
@@ -149,13 +152,43 @@ pub fn build_insert_exit_effects(
         );
         if !repeat_text.is_empty() {
             let is_replace = params.entry_type == crate::primitives::InsertEntryType::ReplaceMode;
-            let (repeat_fx, new_offset) = super::effects::repeat_text(
+            let (mut repeat_fx, mut new_offset) = super::effects::repeat_text(
                 insert_offset,
                 &repeat_text,
                 params.count,
                 is_replace,
                 params.text,
             );
+            // Vim types the repeats, so they break lines like the first
+            // round did. In Replace mode only the text past the end of the
+            // line formats.
+            if let Some(policy) = params.format {
+                let overwritten = super::wrap::overwritten_chars(
+                    repeat_fx.as_slice(),
+                    params.text,
+                    insert_offset,
+                );
+                if let Some(cursor) = super::wrap::format_inserted_text(
+                    &mut repeat_fx,
+                    params.text,
+                    &[],
+                    insert_offset..new_offset,
+                    policy,
+                    params.insert_start,
+                    overwritten,
+                ) {
+                    new_offset = cursor;
+                    formatted_text =
+                        super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
+                } else if policy.is_active() {
+                    // Another cursor can have broken a line below this one,
+                    // so the end of the repeats can be a line start in the
+                    // buffer before them: the exit cursor is found in the
+                    // buffer with the repeats in.
+                    formatted_text =
+                        super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
+                }
+            }
             all_effects.extend(repeat_fx);
             // For counted inserts (3iX<Esc>), mark '.' should point to
             // the last character of the repeated text. sync_change_marks
@@ -249,7 +282,10 @@ pub fn build_insert_exit_effects(
     }
 
     // 4. Compute exit cursor position
-    let final_cursor = compute_exit_cursor(&exit_ctx);
+    let final_cursor = match formatted_text.as_deref() {
+        Some(text) => compute_exit_cursor(&InsertExitContext { text, ..exit_ctx }),
+        None => compute_exit_cursor(&exit_ctx),
+    };
 
     // 5. Finalize exit (delegated to commands)
     let is_replace = params.entry_type == crate::primitives::InsertEntryType::ReplaceMode;

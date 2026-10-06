@@ -21,6 +21,7 @@ use crate::primitives::{
 use compact_str::CompactString;
 use smallvec::SmallVec;
 
+use super::set_operator::{apply_set_operator, SetOperator};
 use super::shell_expand::expand_shell_tokens;
 use super::ExecutionContext;
 
@@ -1038,6 +1039,8 @@ fn option_name_to_id(name: &str) -> Option<OptionId> {
         "undoautogroupms" | "uagm" => Some(OptionId::UndoAutoGroupMs),
         "belloff" | "bo" => Some(OptionId::BellOff),
         "softtabstop" | "sts" => Some(OptionId::SoftTabStop),
+        "formatoptions" | "fo" => Some(OptionId::FormatOptions),
+        "comments" | "com" => Some(OptionId::Comments),
         _ => None,
     }
 }
@@ -1171,6 +1174,68 @@ pub(crate) fn apply_set_assignments(
                     error_effects.extend(toggle_bool_option(global, name));
                 }
             }
+            SetAssignment::Append(name, value)
+            | SetAssignment::Remove(name, value)
+            | SetAssignment::Prepend(name, value) => {
+                let op = match assignment {
+                    SetAssignment::Append(..) => SetOperator::Append,
+                    SetAssignment::Remove(..) => SetOperator::Remove,
+                    _ => SetOperator::Prepend,
+                };
+                let arg = format!("{name}{}{value}", op.symbol());
+                if let Some(id) = option_name_to_id(name) {
+                    // `:setglobal` works from the global value; `:set` and
+                    // `:setlocal` from the effective one, and `:set` then
+                    // writes the result to both layers, as in Vim.
+                    let global_value = global.get_option(id);
+                    let local_value = crate::primitives::resolve_option(
+                        id,
+                        global,
+                        Some(buffer_overrides),
+                        Some(window_overrides),
+                    );
+                    // A bare name can leave a boolean in the local layer of
+                    // a number or string option. The value in use is then
+                    // the global one, as in the resolved options.
+                    let base = if scope == SetScope::Global
+                        || std::mem::discriminant(&local_value)
+                            != std::mem::discriminant(&global_value)
+                    {
+                        global_value
+                    } else {
+                        local_value
+                    };
+                    let result =
+                        apply_set_operator(id.kind(), id == OptionId::WhichWrap, &base, op, value)
+                            .map_err(str::to_owned)
+                            .and_then(|new| match new {
+                                OptionValue::Str(s) => {
+                                    validate_string_value(id, &s).map(OptionValue::Str)
+                                }
+                                // Vim keeps 'tabstop' within 1..=9999.
+                                OptionValue::Unsigned(0) if id == OptionId::TabStop => {
+                                    Err("E487: Argument must be positive".to_owned())
+                                }
+                                OptionValue::Unsigned(n) if id == OptionId::TabStop && n > 9999 => {
+                                    Err("E474: Invalid argument".to_owned())
+                                }
+                                other => Ok(other),
+                            });
+                    match result {
+                        Ok(new) => apply_value_with_scope(
+                            scope,
+                            id,
+                            new,
+                            global,
+                            buffer_overrides,
+                            window_overrides,
+                        ),
+                        Err(msg) => error_effects.extend(set_error(&msg, &arg)),
+                    }
+                } else {
+                    error_effects.extend(apply_operator_by_name(global, name, op, value, &arg));
+                }
+            }
             SetAssignment::Assign(name, value) => {
                 if let Some(id) = option_name_to_id(name) {
                     // Build the OptionValue by parsing through the existing helper on a temp
@@ -1227,6 +1292,8 @@ fn parse_option_value(
                 }
             }
         }
+        // A plain `=` parses a decimal number only. Vim's number syntax
+        // (`0x10`, `010`) applies to the `+=`, `-=` and `^=` operators.
         OptionValue::Unsigned(_) => {
             if let Ok(v) = value.parse::<usize>() {
                 Some(OptionValue::Unsigned(v))
@@ -1248,7 +1315,76 @@ fn parse_option_value(
                 None
             }
         }
-        OptionValue::Str(_) => Some(OptionValue::Str(CompactString::from(value))),
+        // `formatoptions` and `comments` are checked like Vim does; every
+        // other string is stored as given.
+        OptionValue::Str(_) => match validate_string_value(id, value) {
+            Ok(v) => Some(OptionValue::Str(v)),
+            Err(msg) => {
+                error_effects.extend(set_error(&msg, &format!("{name}={value}")));
+                None
+            }
+        },
+    }
+}
+
+/// Check a new string value the way Vim's per-option check does, and
+/// normalize it the way Vim stores it.
+///
+/// Returns the error message without the trailing `: {arg}`.
+fn validate_string_value(id: OptionId, value: &str) -> Result<CompactString, String> {
+    match id {
+        OptionId::FormatOptions => {
+            let normalized = crate::primitives::FormatFlags::normalize(value);
+            crate::primitives::FormatFlags::parse(&normalized)
+                .map_err(|c| format!("E539: Illegal character <{c}>"))?;
+            Ok(CompactString::from(normalized))
+        }
+        OptionId::Comments => {
+            crate::primitives::CommentSpec::validate(value).map_err(|e| e.to_string())?;
+            Ok(CompactString::from(value))
+        }
+        _ => Ok(CompactString::from(value)),
+    }
+}
+
+/// An error effect in Vim's `:set` format: the message, then the argument
+/// as typed (`E539: Illegal character <Z>: fo+=Z`).
+fn set_error(message: &str, arg: &str) -> Effects {
+    Effects::new().show_error(VimError::OptionValue(format!("{message}: {arg}").into()))
+}
+
+/// Apply a `:set` operator to an option that has no [`OptionId`] and lives
+/// only in the global layer (`langmap`, `multilinefindrange`).
+fn apply_operator_by_name(
+    options: &mut crate::primitives::VimOptions,
+    name: &str,
+    op: SetOperator,
+    value: &str,
+    arg: &str,
+) -> Effects {
+    use crate::primitives::OptionKind;
+
+    let Some(current) = query_option(options, name) else {
+        return Effects::new().show_error(VimError::NotEditorCommand(
+            format!("Unknown option: {name}").into(),
+        ));
+    };
+    // A boolean shows as `name` or `noname`, with no `=`.
+    let Some((_, current_value)) = current.split_once('=') else {
+        return set_error("E474: Invalid argument", arg);
+    };
+    let (kind, base) = match current_value.parse::<usize>() {
+        Ok(n) => (OptionKind::Number, OptionValue::Unsigned(n)),
+        Err(_) => (
+            OptionKind::CommaList,
+            OptionValue::Str(CompactString::from(current_value)),
+        ),
+    };
+    match apply_set_operator(kind, false, &base, op, value) {
+        Ok(OptionValue::Unsigned(n)) => assign_option(options, name, &n.to_string()),
+        Ok(OptionValue::Str(s)) => assign_option(options, name, &s),
+        Ok(_) => Effects::new(),
+        Err(msg) => set_error(msg, arg),
     }
 }
 
@@ -1261,6 +1397,11 @@ fn apply_bool_with_scope(
     buffer_overrides: &mut OptionOverrides,
     window_overrides: &mut OptionOverrides,
 ) {
+    // A bare name, `no`, `!` or `inv` never changes 'formatoptions' or
+    // 'comments' in Vim; writing a boolean would hide their value.
+    if matches!(id, OptionId::FormatOptions | OptionId::Comments) {
+        return;
+    }
     let opt_value = OptionValue::Bool(value);
     apply_value_with_scope(
         scope,
@@ -1354,6 +1495,8 @@ fn query_option(options: &crate::primitives::VimOptions, name: &str) -> Option<S
         "number" | "nu" => format_bool("number", options.number()),
         "relativenumber" | "rnu" => format_bool("relativenumber", options.relativenumber()),
         "textwidth" | "tw" => format!("textwidth={}", options.textwidth()),
+        "formatoptions" | "fo" => format!("formatoptions={}", options.formatoptions()),
+        "comments" | "com" => format!("comments={}", options.comments()),
         "timeoutlen" | "tm" => format!("timeoutlen={}", options.timeoutlen_ms()),
         "undolevels" | "ul" => match options.undolevels() {
             Some(n) => format!("undolevels={n}"),
@@ -2253,6 +2396,8 @@ mod tests {
             ("commentstring", OptionId::CommentString),
             ("belloff", OptionId::BellOff),
             ("softtabstop", OptionId::SoftTabStop),
+            ("formatoptions", OptionId::FormatOptions),
+            ("comments", OptionId::Comments),
         ];
         for (name, expected_id) in expected {
             assert_eq!(
@@ -2261,6 +2406,12 @@ mod tests {
                 "failed for option: {name}"
             );
         }
+    }
+
+    #[test]
+    fn option_name_formatting_short_forms() {
+        assert_eq!(option_name_to_id("fo"), Some(OptionId::FormatOptions));
+        assert_eq!(option_name_to_id("com"), Some(OptionId::Comments));
     }
 
     #[test]

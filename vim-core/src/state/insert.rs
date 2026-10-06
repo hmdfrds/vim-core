@@ -81,6 +81,39 @@ impl BlockInsertContext {
     }
 }
 
+/// Where an insert started, as Vim's formatting sees it: `Insstart`,
+/// `Insstart_textlen` and `Insstart_blank_vcol` in edit.c.
+///
+/// The `l` and `b` flags of `formatoptions` look at the line the insert
+/// started on, and `v` and `b` only break at blanks typed after the start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct InsertStart {
+    /// Line of the insert start (0-based).
+    pub line: usize,
+    /// Byte column of the insert start on that line.
+    pub col: usize,
+    /// Display width of that line when the insert started.
+    pub textlen: usize,
+    /// Display column of the first blank typed on that line, if any.
+    pub blank_vcol: Option<usize>,
+}
+
+/// The insert start of a cursor other than the primary one, which formats
+/// the text it types as if it typed it alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CursorInsertStart {
+    /// Where the last insert command left this cursor, after the edits of
+    /// every cursor.
+    pub head: Offset,
+    /// How many lines the cursor is below its insert start. Other cursors
+    /// add and remove lines above, so the start line is kept relative.
+    pub lines_below: usize,
+    /// The insert start, with its line as it was when it was stored.
+    pub start: InsertStart,
+}
+
 /// State of an active insert session.
 ///
 /// Created when entering insert mode, destroyed when exiting.
@@ -152,6 +185,17 @@ pub struct InsertState {
     /// line and clears it. Cleared on mode exit (InsertState destruction).
     /// Matches Neovim's `can_si_back` + `old_indent` behavior.
     saved_indent: Option<CompactString>,
+    /// Insert start for formatting, recorded by the first insert command
+    /// and again after the cursor moved (Vim's `stop_arrow()`).
+    insert_start: Option<InsertStart>,
+    /// Where the last insert command left the cursor, to tell when the
+    /// cursor moved in between and the insert start must be recorded again.
+    insert_start_cursor: Option<Offset>,
+    /// Insert starts of the cursors other than the primary one.
+    cursor_starts: Vec<CursorInsertStart>,
+    /// Where the last insert command left the primary cursor itself, when
+    /// several cursors formatted. The host cursor can end on another cursor.
+    primary_head: Option<Offset>,
 }
 
 impl InsertState {
@@ -182,6 +226,10 @@ impl InsertState {
             arrow_used: false,
             pasting: false,
             saved_indent: None,
+            insert_start: None,
+            insert_start_cursor: None,
+            cursor_starts: Vec::new(),
+            primary_head: None,
         }
     }
 
@@ -456,6 +504,98 @@ impl InsertState {
     #[must_use]
     pub const fn arrow_used(&self) -> bool {
         self.arrow_used
+    }
+
+    /// The insert start used by formatting, if recorded.
+    #[inline]
+    #[must_use]
+    pub const fn insert_start(&self) -> Option<InsertStart> {
+        self.insert_start
+    }
+
+    /// Mutable access to the recorded insert start.
+    #[inline]
+    pub const fn insert_start_mut(&mut self) -> Option<&mut InsertStart> {
+        self.insert_start.as_mut()
+    }
+
+    /// Record the insert start.
+    #[inline]
+    pub const fn set_insert_start(&mut self, start: InsertStart) {
+        self.insert_start = Some(start);
+    }
+
+    /// Where the last insert command left the cursor.
+    #[inline]
+    #[must_use]
+    pub const fn insert_start_cursor(&self) -> Option<Offset> {
+        self.insert_start_cursor
+    }
+
+    /// Remember where the last insert command left the cursor.
+    #[inline]
+    pub const fn set_insert_start_cursor(&mut self, cursor: Offset) {
+        self.insert_start_cursor = Some(cursor);
+    }
+
+    /// The insert start of the cursor other than the primary one that the
+    /// last insert command left at `head`, with its line moved to `line`
+    /// less the lines the cursor was below it. `None` when no insert command
+    /// left a cursor there, as after the cursor moved (Vim's `stop_arrow()`).
+    #[must_use]
+    pub fn cursor_start(&self, head: Offset, line: usize) -> Option<InsertStart> {
+        self.cursor_starts
+            .iter()
+            .find(|c| c.head == head)
+            .map(|c| InsertStart {
+                line: line.saturating_sub(c.lines_below),
+                ..c.start
+            })
+    }
+
+    /// Replace the insert starts of the cursors other than the primary one.
+    #[inline]
+    pub fn set_cursor_starts(&mut self, starts: Vec<CursorInsertStart>) {
+        self.cursor_starts = starts;
+    }
+
+    /// Remember where the last insert command left the primary cursor.
+    #[inline]
+    pub const fn set_primary_head(&mut self, head: Option<Offset>) {
+        self.primary_head = head;
+    }
+
+    /// When the host cursor is now at `head`, another cursor than the one
+    /// the insert start was recorded for, swap that start with the start of
+    /// the cursor at `head`, so each start stays with its own cursor.
+    /// `line_of` gives the line of an offset. Returns whether the starts
+    /// were swapped.
+    pub fn follow_host_cursor(&mut self, head: Offset, line_of: impl Fn(Offset) -> usize) -> bool {
+        let Some(primary) = self.primary_head.take() else {
+            return false;
+        };
+        if primary == head {
+            return false;
+        }
+        let (Some(own), Some(slot)) = (
+            self.insert_start,
+            self.cursor_starts.iter_mut().find(|c| c.head == head),
+        ) else {
+            return false;
+        };
+        let theirs = std::mem::replace(
+            slot,
+            CursorInsertStart {
+                head: primary,
+                lines_below: line_of(primary).saturating_sub(own.line),
+                start: own,
+            },
+        );
+        self.insert_start = Some(InsertStart {
+            line: line_of(head).saturating_sub(theirs.lines_below),
+            ..theirs.start
+        });
+        true
     }
 
     /// Whether bracketed paste mode is active.

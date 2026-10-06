@@ -290,6 +290,56 @@ pub fn dispatch_operator_with_motion(input: &OperatorMotionInput<'_>) -> Command
         return CommandResult::effects_only(crate::effects::Effects::new());
     };
 
+    // Vim cancels the format operators on a motion that fails, where the
+    // engine's motion stops at the edge of the buffer.
+    if let Some(cancelled) = matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+        .then(|| {
+            crate::commands::operators::format::cancel_for_failed_motion(
+                text,
+                cursor.get(),
+                motion,
+                count,
+                |n| {
+                    compute_motion_range_with_sticky(
+                        text,
+                        cursor.get(),
+                        motion,
+                        n,
+                        search,
+                        last_find,
+                        options,
+                        dispatch_motion,
+                        input.viewport,
+                        input.sticky_column,
+                    )
+                    .map(|r| r.motion_target)
+                },
+            )
+        })
+        .flatten()
+    {
+        return cancelled;
+    }
+
+    // With an operator, Vim's last `w` step stops at the end of a line
+    // instead of moving on to the next one (fwd_word() with `eol`), so the
+    // format operators do not take that line as the end of their range. A
+    // step from an empty line does move on.
+    if matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+        && matches!(motion, Motion::WordForward | Motion::WORDForward)
+    {
+        let target = range_result.motion_target;
+        let start = range_result.range.start().get();
+        if target > cursor.get()
+            && target > start + 1
+            && text.as_bytes().get(target - 1) == Some(&b'\n')
+            && text.as_bytes().get(target - 2).is_some_and(|&b| b != b'\n')
+        {
+            range_result.motion_target = target - 1;
+            range_result.range = range_result.range.with_end(Offset::new(target - 1));
+        }
+    }
+
     // Vim cw→ce special case: strip trailing whitespace for change + word-forward.
     // If was promoted to linewise and trimming removed the newline, revert to charwise.
     if operator == Operator::Change && matches!(motion, Motion::WordForward | Motion::WORDForward) {
@@ -418,6 +468,7 @@ pub fn dispatch_operator_with_motion(input: &OperatorMotionInput<'_>) -> Command
     .with_tabstop(input.options.tabstop())
     .with_expandtab(input.options.expandtab())
     .with_textwidth(input.textwidth)
+    .with_format_options(input.options)
     .with_commentstring(input.options.commentstring())
     .with_sticky_column(input.sticky_column)
     .with_force_applied(input.force_type.is_some());
@@ -494,8 +545,11 @@ pub struct OperatorLineInput<'a> {
     pub tabstop: usize,
     /// Whether to expand tabs to spaces for indent operators.
     pub expandtab: bool,
-    /// Text width for format operators.
+    /// Textwidth from VimOptions. The format operators read `options`
+    /// instead, so this matters only to a context built without them.
     pub textwidth: usize,
+    /// Engine options, for the format operators.
+    pub options: &'a crate::primitives::VimOptions,
     /// Comment string for commentary operator (e.g., `"# %s"` for GDScript).
     pub commentstring: &'a str,
     /// Custom operator provider for `Operator::Custom(id)`.
@@ -552,6 +606,7 @@ pub fn dispatch_operator_line(input: &OperatorLineInput<'_>) -> CommandResult {
         cursor,
         shiftwidth,
         textwidth,
+        options,
         commentstring,
         ..
     } = *input;
@@ -624,6 +679,13 @@ pub fn dispatch_operator_line(input: &OperatorLineInput<'_>) -> CommandResult {
         let last_line = &text[last_line_start..last_line_end];
         let fnb = crate::commands::helpers::first_non_blank_in_line(last_line);
         Offset::new(last_line_start + fnb)
+    } else if matches!(operator, Operator::Format | Operator::FormatKeepCursor) {
+        // The start of the last line of the count, which can be the empty
+        // line after a final newline that the range does not hold.
+        let last_line = (crate::commands::helpers::line_of(text, cursor)
+            + (count as usize).saturating_sub(1))
+        .min(crate::commands::helpers::line_count(text).saturating_sub(1));
+        Offset::new(crate::commands::helpers::line_start(text, last_line).unwrap_or(cursor))
     } else {
         Offset::new(cursor)
     };
@@ -641,6 +703,7 @@ pub fn dispatch_operator_line(input: &OperatorLineInput<'_>) -> CommandResult {
     .with_tabstop(input.tabstop)
     .with_expandtab(input.expandtab)
     .with_textwidth(textwidth)
+    .with_format_options(options)
     .with_commentstring(commentstring)
     .with_sticky_column(input.sticky_column);
 
@@ -728,6 +791,8 @@ pub fn dispatch_operator_find(input: &OperatorFindInput<'_>) -> CommandResult {
                 Offset::new(cursor),
             )
             .with_motion_target(target)
+            .with_textwidth(options.textwidth())
+            .with_format_options(options)
             .with_commentstring(options.commentstring());
             if let Some(provider) = input.custom_operators {
                 op_ctx = op_ctx.with_custom_operators(provider);
@@ -755,6 +820,8 @@ pub struct OperatorMarkInput<'a> {
     pub mark_type: crate::grammar::types::MarkType,
     /// Target register, if specified.
     pub register: Option<crate::primitives::RegisterName>,
+    /// Engine options, for the format operators.
+    pub options: &'a crate::primitives::VimOptions,
     /// Custom operator provider for `Operator::Custom(id)`.
     pub custom_operators: Option<&'a dyn crate::document::CustomOperatorProvider>,
 }
@@ -775,6 +842,7 @@ pub fn dispatch_operator_mark(input: &OperatorMarkInput<'_>) -> CommandResult {
         mark_offset,
         mark_type,
         register,
+        options,
         ..
     } = *input;
 
@@ -815,6 +883,8 @@ pub fn dispatch_operator_mark(input: &OperatorMarkInput<'_>) -> CommandResult {
             Offset::new(mark_offset)
         }
     })
+    .with_textwidth(options.textwidth())
+    .with_format_options(options)
     .with_force_numbered();
     if let Some(provider) = input.custom_operators {
         op_ctx = op_ctx.with_custom_operators(provider);
@@ -847,7 +917,8 @@ pub struct OperatorTextObjectInput<'a> {
     pub tabstop: usize,
     /// Whether to expand tabs to spaces for indent operators.
     pub expandtab: bool,
-    /// Text width for format operators.
+    /// Textwidth from VimOptions. The format operators read `options`
+    /// instead, so this matters only to a context built without them.
     pub textwidth: usize,
     /// Comment string for commentary operator.
     pub commentstring: &'a str,
@@ -892,6 +963,14 @@ pub fn dispatch_operator_textobject(input: &OperatorTextObjectInput<'_>) -> Comm
         .with_providers(*providers)
         .with_options(options);
     let Some(text_obj_range) = dispatch_textobject_with_count(textobject, &text_ctx, count) else {
+        // Vim cancels the format operators on a counted paragraph object
+        // that runs out of paragraphs, and the cursor stays where it was.
+        if count > 1
+            && matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+            && textobject.kind == crate::grammar::types::TextObjectKind::Paragraph
+        {
+            return CommandResult::effects_only(crate::effects::Effects::new());
+        }
         if count > 1 {
             // Neovim: when a counted text object can't expand enough, the operation
             // is canceled (no text change) but cursor moves to end of current line.
@@ -942,10 +1021,19 @@ pub fn dispatch_operator_textobject(input: &OperatorTextObjectInput<'_>) -> Comm
     .with_tabstop(input.tabstop)
     .with_expandtab(input.expandtab)
     .with_textwidth(textwidth)
+    .with_format_options(options)
     .with_commentstring(commentstring)
     .with_textobject_flag();
     if let Some(provider) = input.custom_operators {
         op_ctx = op_ctx.with_custom_operators(provider);
+    }
+    if matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+        && !crate::commands::operators::format::formats_text_object(textobject.kind, text, cursor)
+    {
+        return crate::commands::operators::format::execute_as_before(
+            &op_ctx,
+            operator == Operator::FormatKeepCursor,
+        );
     }
     dispatch_operator(operator, &op_ctx)
 }
@@ -989,6 +1077,8 @@ pub fn dispatch_operator_selection(ctx: &SelectionOperatorContext<'_>) -> Comman
     .with_shiftwidth(ctx.shiftwidth)
     .with_tabstop(ctx.tabstop)
     .with_expandtab(ctx.expandtab)
+    .with_textwidth(ctx.options.textwidth())
+    .with_format_options(ctx.options)
     .with_commentstring(ctx.commentstring)
     .with_sticky_column(ctx.sticky_column)
     .with_from_visual();

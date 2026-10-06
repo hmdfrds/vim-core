@@ -1091,6 +1091,114 @@ fn three_motions_then_operator() {
     );
 }
 
+/// The per-cursor insert path follows the host cursor even when it is not
+/// the primary cursor.
+///
+/// After `a` with the primary cursor last, the host cursor ends on the other
+/// cursor. The per-cursor path used to overwrite the primary head with it,
+/// so both cursors typed at the same place. Formatting while typing makes
+/// plain characters take the per-cursor path, and only then does the path
+/// follow the host cursor.
+#[test]
+fn per_cursor_insert_when_host_cursor_is_not_primary() {
+    let mut session = session_with_cursors("aaaa bbbb cccc dddd", &[18, 3]);
+    let mut opts = session.options().clone();
+    opts.set_textwidth(79);
+    session.set_options(opts);
+    feed(&mut session, "axy");
+    assert_eq!(session.text(), "aaaaxy bbbb cccc ddddxy");
+    assert_eq!(session.cursor_count(), 2);
+}
+
+/// Each cursor keeps its own insert start when the host cursor ends on
+/// another cursor than the primary one.
+///
+/// `<BS>` at the start of the buffer leaves the primary cursor in place,
+/// so the host cursor follows the other cursor's backspace. The second line
+/// was longer than 'textwidth' when the insert started, so with `l` in
+/// 'formatoptions' it must not be broken, as when that cursor types alone.
+#[test]
+fn per_cursor_insert_start_follows_host_cursor() {
+    let mut session = session_with_cursors("\ndd eee fff ggg hhh iii", &[0, 22]);
+    let mut opts = session.options().clone();
+    opts.set_textwidth(20);
+    opts.set_formatoptions("tql");
+    session.set_options(opts);
+    feed(&mut session, "i<BS>a");
+    assert_eq!(session.text(), "a\ndd eee fff ggg hhh iai");
+}
+
+/// Typing through the per-cursor path after `a` keeps both cursors.
+///
+/// `a` moves each cursor right but used to leave the secondary's anchor
+/// behind, so the per-cursor insert update took it for a visual selection.
+/// The range grew with every character until it reached the primary and the
+/// two cursors merged, after which only one line received the typing.
+/// Formatting while typing makes plain characters take the per-cursor path,
+/// and only then are the cursors collapsed.
+#[test]
+fn per_cursor_insert_after_append_keeps_cursors_apart() {
+    let mut session = session_with_cursors("aaaa bbbb cccc dddd\nxxxx yyyy zzzz wwww", &[18, 38]);
+    let mut opts = session.options().clone();
+    opts.set_textwidth(79);
+    session.set_options(opts);
+    feed(&mut session, "a eeee ffff gggg hhhh iiii");
+    assert_eq!(
+        session.text(),
+        "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii\nxxxx yyyy zzzz wwww eeee ffff gggg hhhh iiii"
+    );
+    assert_eq!(session.cursor_count(), 2);
+}
+
+/// Without formatting, the per-cursor insert path works as it did before
+/// formatting while typing was added, whoever is right: the commands below
+/// take that path through their content, not through formatting.
+#[test]
+fn per_cursor_insert_without_formatting_is_unchanged() {
+    // <BS> with the secondary cursor before the primary.
+    let mut session = session_with_cursors(".\n", &[2, 0]);
+    feed(&mut session, "A<BS><Esc>");
+    assert_eq!(session.text(), ".\n");
+    assert_eq!(session.cursor_offset(), 0);
+
+    // <CR> at two cursors on one line.
+    let mut session = session_with_cursors("nt", &[1, 0]);
+    feed(&mut session, "A<CR><Esc>");
+    assert_eq!(session.text(), "n\n\nt");
+    assert_eq!(session.cursor_offset(), 2);
+
+    // An expanded <Tab>.
+    let mut session = session_with_cursors("n\n", &[2, 0]);
+    let mut opts = session.options().clone();
+    opts.set_expandtab(true);
+    opts.set_tabstop(8);
+    session.set_options(opts);
+    feed(&mut session, "A\t<Esc>");
+    assert_eq!(session.text(), "                n\n");
+    assert_eq!(session.cursor_offset(), 7);
+}
+
+/// Without formatting, insert entry and `<Esc>` move the other cursors as
+/// the primary cursor moves, as before formatting while typing was added,
+/// whoever is right.
+#[test]
+fn insert_entry_and_exit_without_formatting_are_unchanged() {
+    // `A` shifts the other cursor by the primary cursor's move.
+    let mut session = session_with_cursors("h\n//hat is long enough", &[0, 9]);
+    feed(&mut session, "Ax<Esc>");
+    assert_eq!(session.text(), "hx\n//hat isx long enough");
+
+    // `<Esc>` leaves the other cursor where it typed.
+    let mut session = session_with_cursors("t\n    line two ur", &[0, 14]);
+    feed(&mut session, "i x 日本 #<Esc> bar<Esc>");
+    assert_eq!(session.text(), " x 日本 #rt\n    line two x 日本 #r ur");
+
+    // A counted insert leaves the other cursor where it started.
+    let mut session = session_with_cursors("h\n", &[0, 2]);
+    feed(&mut session, "3Itic <Esc>I<BS><Esc>");
+    assert_eq!(session.text(), "tic tic tic h\ntic tic tic ");
+}
+
 // =============================================================================
 // COMPOSITE / INTEGRATION TESTS
 // =============================================================================

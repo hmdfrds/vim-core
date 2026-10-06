@@ -57,11 +57,19 @@ pub struct OperatorContext<'text> {
     /// Whether to expand tabs to spaces for indent operators.
     pub expandtab: bool,
 
-    /// Textwidth for format operators.
+    /// Textwidth for the format operators when `format_options` is `None`.
+    /// With `format_options` set they read its `textwidth` instead.
     pub textwidth: usize,
 
     /// Commentstring for commentary operator (e.g., `"// %s"`).
     pub commentstring: &'text str,
+
+    /// Options for the format operators (`gq`, `gw`): `textwidth`,
+    /// `formatoptions`, `comments`, `tabstop`, `expandtab` and
+    /// `autoindent`. Without them the format operators use the
+    /// [`VimOptions`](crate::primitives::VimOptions) defaults with this
+    /// context's `textwidth`, `tabstop` and `expandtab`.
+    pub format_options: Option<&'text crate::primitives::VimOptions>,
 
     /// Custom operator provider for `Operator::Custom(id)`.
     ///
@@ -156,6 +164,7 @@ impl<'text> OperatorContext<'text> {
             shiftwidth: 4,          // overridden by executor via .with_shiftwidth()
             textwidth: 80,          // overridden by executor via .with_textwidth()
             commentstring: "// %s", // overridden by executor via .with_commentstring()
+            format_options: None,
             custom_operators: None,
             viewport: None,
             origin: OperatorOrigin::Motion,
@@ -216,6 +225,7 @@ impl<'text> OperatorContext<'text> {
             shiftwidth: 4,          // overridden by executor via .with_shiftwidth()
             textwidth: 80,          // overridden by executor via .with_textwidth()
             commentstring: "// %s", // overridden by executor via .with_commentstring()
+            format_options: None,
             custom_operators: None,
             viewport: None,
             origin: OperatorOrigin::Motion,
@@ -294,11 +304,23 @@ impl<'text> OperatorContext<'text> {
         self
     }
 
-    /// Builder method: set textwidth for format operators.
+    /// Builder method: set the textwidth the format operators use when no
+    /// format options are set (see [`Self::with_format_options`]).
     #[inline]
     #[must_use]
     pub const fn with_textwidth(mut self, tw: usize) -> Self {
         self.textwidth = tw;
+        self
+    }
+
+    /// Builder method: set the options the format operators read.
+    #[inline]
+    #[must_use]
+    pub const fn with_format_options(
+        mut self,
+        options: &'text crate::primitives::VimOptions,
+    ) -> Self {
+        self.format_options = Some(options);
         self
     }
 
@@ -778,6 +800,8 @@ pub struct SelectionOperatorContext<'text> {
     pub tabstop: usize,
     /// Whether to use spaces instead of tabs for indentation.
     pub expandtab: bool,
+    /// Engine options, for the format operators.
+    pub options: &'text crate::primitives::VimOptions,
     /// Sticky column (curswant) for nosol cursor placement after linewise delete.
     pub sticky_column: Option<crate::primitives::VirtualColumn>,
 }
@@ -805,7 +829,8 @@ pub struct OperatorMotionInput<'text> {
     pub last_find: Option<crate::primitives::LastFind>,
     /// Shiftwidth for indent operators (from VimOptions).
     pub shiftwidth: usize,
-    /// Textwidth for format operators (from VimOptions).
+    /// Textwidth from VimOptions. The format operators read `options`
+    /// instead, so this matters only to a context built without them.
     pub textwidth: usize,
     /// Engine options (for motion dispatch).
     pub options: &'text crate::primitives::VimOptions,

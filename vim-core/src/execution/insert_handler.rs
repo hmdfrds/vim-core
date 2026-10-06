@@ -40,6 +40,7 @@ pub(crate) fn handle_insert_exit(
     state: &mut VimState,
     cursor: usize,
     text: &str,
+    format: Option<&crate::commands::insert::wrap::FormatPolicy<'_>>,
 ) -> (Response, InsertExitInfo) {
     use crate::primitives::InsertEntryType;
 
@@ -56,6 +57,7 @@ pub(crate) fn handle_insert_exit(
         min_change_start,
         arrow_used,
         newline_indent_lens,
+        insert_start,
     ) = if let Some(insert_state) = state.insert_state() {
         (
             insert_state.count().get(),
@@ -69,6 +71,7 @@ pub(crate) fn handle_insert_exit(
             insert_state.min_change_start(),
             insert_state.arrow_used(),
             insert_state.newline_indent_lens().to_vec(),
+            insert_state.insert_start(),
         )
     } else {
         (
@@ -83,6 +86,7 @@ pub(crate) fn handle_insert_exit(
             None,
             false,
             Vec::new(),
+            None,
         )
     };
 
@@ -96,6 +100,8 @@ pub(crate) fn handle_insert_exit(
         block_insert: block_insert.as_ref(),
         mark_dot_override_pos,
         entry_offset,
+        format,
+        insert_start,
     });
 
     state.store_last_inserted_text(&accumulated_text);

@@ -653,6 +653,11 @@ impl VimEngine {
 
     /// Replace all Vim options at once.
     ///
+    /// This writes the global layer only, like `:setglobal`: a local value
+    /// that `:set` or `:setlocal` gave the current buffer or window keeps
+    /// winning there. To change an option the way `:set` does, use
+    /// [`set_option`](Self::set_option).
+    ///
     /// Rebuilds the resolved-options cache immediately.
     #[inline]
     pub fn set_options(&mut self, options: VimOptions) {
@@ -664,7 +669,9 @@ impl VimEngine {
     /// Mutable reference to the engine's Vim options (global layer only).
     ///
     /// Allows updating individual options (e.g., `commentstring`) without
-    /// replacing the entire options struct.
+    /// replacing the entire options struct. Like `:setglobal`, a write here
+    /// does not change a local value that `:set` or `:setlocal` gave the
+    /// current buffer or window; see [`set_option`](Self::set_option).
     ///
     /// # Cache invalidation
     ///
@@ -678,6 +685,27 @@ impl VimEngine {
     pub const fn options_mut(&mut self) -> &mut VimOptions {
         self.options_dirty = true;
         &mut self.options
+    }
+
+    /// Set one option the way `:set` does: the global value, and the value
+    /// the current buffer or window sees. Any local value the option had
+    /// there, from an earlier `:set` or `:setlocal`, is dropped, so this
+    /// value takes effect at once and the last change wins.
+    ///
+    /// Use this for a value the host means to apply now, such as an editor
+    /// setting the user just changed. Local values saved for other buffers
+    /// (see [`on_buffer_leave`](Self::on_buffer_leave)) are not touched, as
+    /// with `:set`. For the setting to win in those buffers too, also call
+    /// [`BufferLocalState::clear_local_option`](crate::execution::BufferLocalState::clear_local_option)
+    /// on every saved state.
+    ///
+    /// Rebuilds the resolved-options cache immediately.
+    pub fn set_option(&mut self, id: OptionId, value: &OptionValue) {
+        self.options.set_option(id, value);
+        self.buffer_overrides.remove(id);
+        self.window_overrides.remove(id);
+        self.rebuild_resolved_cache();
+        self.rebuild_langmap_if_needed();
     }
 
     /// Force an immediate rebuild of the resolved-options cache.

@@ -318,9 +318,17 @@ fn consolidate_registers(
 ///
 /// This function sorts the deltas by ascending offset, walks them accumulating
 /// the cumulative delta, and produces adjusted offsets for each cursor.
+///
+/// With `keep_anchors`, a selection that is not zero-width keeps its anchor,
+/// as a visual selection does. Without it every cursor becomes a zero-width
+/// insert cursor: Insert mode has no selections, and an anchor left behind
+/// by the command that entered it would otherwise grow into a range that
+/// swallows the cursor before it. The cursors are then also taken in the
+/// order they had before the command.
 pub(super) fn update_selections_from_deltas(
     selections: &mut Selections,
     cursor_deltas: &[(usize, Offset, i64)],
+    keep_anchors: bool,
 ) {
     if cursor_deltas.is_empty() {
         return;
@@ -328,9 +336,20 @@ pub(super) fn update_selections_from_deltas(
 
     let original_primary = selections.primary_index();
 
-    // Sort ascending by raw offset for cumulative walk.
+    // Sort ascending by raw offset for cumulative walk. Insert cursors go
+    // by where they were before the command instead: a line broken by
+    // formatting can move a cursor past where the next one started.
     let mut sorted: Vec<(usize, Offset, i64)> = cursor_deltas.to_vec();
-    sorted.sort_by_key(|(_, offset, _)| offset.get());
+    if keep_anchors {
+        sorted.sort_by_key(|(_, offset, _)| offset.get());
+    } else {
+        sorted.sort_by_key(|&(sel_idx, offset, _)| {
+            selections
+                .ranges()
+                .get(sel_idx)
+                .map_or_else(|| offset.get(), |r| r.head().get())
+        });
+    }
 
     let mut cumulative_delta: i64 = 0;
     let mut new_ranges: Vec<SelectionRange> = Vec::with_capacity(sorted.len());
@@ -344,7 +363,7 @@ pub(super) fn update_selections_from_deltas(
         // only the head while preserving the anchor.
         let new_range = if let Some(orig) = selections.ranges().get(*sel_idx) {
             let anchor = orig.anchor();
-            if anchor == orig.head() {
+            if !keep_anchors || anchor == orig.head() {
                 // Non-visual (insert cursor): create zero-width at adjusted pos
                 SelectionRange::insert_cursor(adjusted_offset)
             } else {
@@ -453,7 +472,7 @@ pub(super) fn update_selections_after_rebase(
             let sel_idx = indices_desc.get(i).copied().unwrap_or(i);
             deltas.push((sel_idx, *head, primary_net_delta));
         }
-        update_selections_from_deltas(state.multi_cursor_mut().selections_mut(), &deltas);
+        update_selections_from_deltas(state.multi_cursor_mut().selections_mut(), &deltas, true);
     } else {
         // Pure motion (net_delta=0): update each selection's HEAD from the
         // extracted positions while PRESERVING the anchor. This is critical

@@ -1,0 +1,4826 @@
+{
+ "generator": "headless vim -Nu NONE -es: explicit setlocal options, :normal! with the typed keys taken one at a time (InsertCharPre autocommand), cursor read through <C-R>= before <Esc>",
+ "vim": "VIM - Vi IMproved 9.1 (2024 Jan 02, compiled Aug 24 2026 22:11:12) / Included patches: 1-948, 950-2141",
+ "cases": [
+  {
+   "name": "multiple wraps from empty line",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaa bbb ccc ddd eee fff ggg hhh iii jjj",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaa bbb ccc ddd eee",
+     "fff ggg hhh iii jjj"
+    ],
+    "cursor": [
+     1,
+     19
+    ]
+   }
+  },
+  {
+   "name": "exact width no wrap",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc ddddd",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddddd"
+    ],
+    "cursor": [
+     0,
+     20
+    ]
+   }
+  },
+  {
+   "name": "one past width wraps",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddddd",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc",
+     "dddddd"
+    ],
+    "cursor": [
+     1,
+     6
+    ]
+   }
+  },
+  {
+   "name": "blanks typed past width stay",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb          ",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb          "
+    ],
+    "cursor": [
+     0,
+     19
+    ]
+   }
+  },
+  {
+   "name": "blank then char past width",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbbbb     x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbbbb",
+     "x"
+    ],
+    "cursor": [
+     2,
+     1
+    ]
+   }
+  },
+  {
+   "name": "typed mid-line, cursor left of tw",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee ffff"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "cmd": "i",
+   "typed": "xy",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaxyaa bbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     4
+    ]
+   }
+  },
+  {
+   "name": "typed mid-line passes tw",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    17
+   ],
+   "cmd": "i",
+   "typed": "xyzxyz",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc",
+     "ddxyzxyzdd eeee"
+    ],
+    "cursor": [
+     1,
+     8
+    ]
+   }
+  },
+  {
+   "name": "break candidate after cursor ignored",
+   "lines": [
+    "aaaabbbbbbbbbbbbbbbbbb cccc"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "i",
+   "typed": "xxxxxxxxxxxxxxxxxxxx",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaxxxxxxxxxxxxxxxxxxxxbbbbbbbbbbbbbbbbbb cccc"
+    ],
+    "cursor": [
+     0,
+     24
+    ]
+   }
+  },
+  {
+   "name": "long word fallback",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "a verylongwordwithoutspaces b c",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "a",
+     "verylongwordwithoutspaces",
+     "b c"
+    ],
+    "cursor": [
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "name": "long word at start, no blank",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "verylongwordwithoutanyspaces",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "verylongwordwithoutanyspaces"
+    ],
+    "cursor": [
+     0,
+     28
+    ]
+   }
+  },
+  {
+   "name": "long word then text",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abc defghijklmnopqrstuvw xyz abc",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abc",
+     "defghijklmnopqrstuvw",
+     "xyz abc"
+    ],
+    "cursor": [
+     2,
+     7
+    ]
+   }
+  },
+  {
+   "name": "several breaks for one char",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    24
+   ],
+   "cmd": "A",
+   "typed": "x",
+   "opts": {
+    "tw": 5,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbb",
+     "cccc",
+     "dddd",
+     "eeeex"
+    ],
+    "cursor": [
+     4,
+     5
+    ]
+   }
+  },
+  {
+   "name": "tw=1",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "a b c",
+   "opts": {
+    "tw": 1,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "a",
+     "b",
+     "c"
+    ],
+    "cursor": [
+     2,
+     1
+    ]
+   }
+  },
+  {
+   "name": "tw=2",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "ab cd ef",
+   "opts": {
+    "tw": 2,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "ab",
+     "cd",
+     "ef"
+    ],
+    "cursor": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "name": "cursor at column 0",
+   "lines": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaa"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "x",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "xaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "cursor": [
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "name": "blank under cursor noai",
+   "lines": [
+    "aaaaaaaaaaaa   cc"
+   ],
+   "cursor": [
+    0,
+    13
+   ],
+   "cmd": "i",
+   "typed": "x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaa",
+     "x  cc"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "blank under cursor ai",
+   "lines": [
+    "aaaaaaaaaaaa   cc"
+   ],
+   "cursor": [
+    0,
+    13
+   ],
+   "cmd": "i",
+   "typed": "x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaa",
+     "xcc"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "blank under cursor ai, 1 blank before",
+   "lines": [
+    "aaaa bbbbbbbbbbb   cccc"
+   ],
+   "cursor": [
+    0,
+    17
+   ],
+   "cmd": "i",
+   "typed": "xy",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbbbbbbbbb",
+     "xycccc"
+    ],
+    "cursor": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "name": "blanks after cursor not at break noai",
+   "lines": [
+    "aaaa bbbbbbbb  cc"
+   ],
+   "cursor": [
+    0,
+    13
+   ],
+   "cmd": "i",
+   "typed": "xy",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbbbbbbxy  cc"
+    ],
+    "cursor": [
+     1,
+     10
+    ]
+   }
+  },
+  {
+   "name": "text after cursor moves along",
+   "lines": [
+    "aaaa bbbb ccccdddd eeee"
+   ],
+   "cursor": [
+    0,
+    14
+   ],
+   "cmd": "i",
+   "typed": "ffff",
+   "opts": {
+    "tw": 15,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb",
+     "ccccffffdddd eeee"
+    ],
+    "cursor": [
+     1,
+     8
+    ]
+   }
+  },
+  {
+   "name": "two blanks between words",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa  bbbb  cccc  dddd  eeee",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa  bbbb",
+     "cccc  dddd",
+     "eeee"
+    ],
+    "cursor": [
+     2,
+     4
+    ]
+   }
+  },
+  {
+   "name": "tab between words",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa\tbbbb\tcccc\tdddd",
+   "opts": {
+    "tw": 12,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa\tbbbb",
+     "cccc\tdddd"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "tab indent ts=4 ai",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux corge grault",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\tfoo bar baz qux",
+     "\tquux corge",
+     "\tgrault"
+    ],
+    "cursor": [
+     2,
+     7
+    ]
+   }
+  },
+  {
+   "name": "tab indent ts=8 ai",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux corge grault",
+   "opts": {
+    "tw": 24,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\tfoo bar baz qux",
+     "\tquux corge",
+     "\tgrault"
+    ],
+    "cursor": [
+     2,
+     7
+    ]
+   }
+  },
+  {
+   "name": "tab indent ts=4 noai",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux corge grault",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\tfoo bar baz qux",
+     "quux corge grault"
+    ],
+    "cursor": [
+     1,
+     17
+    ]
+   }
+  },
+  {
+   "name": "two tabs ts=4 ai",
+   "lines": [
+    "\t\t"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\t\tfoo bar baz",
+     "\t\tqux quux"
+    ],
+    "cursor": [
+     1,
+     10
+    ]
+   }
+  },
+  {
+   "name": "space indent ai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux corge grault",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    foo bar baz qux",
+     "    quux corge",
+     "    grault"
+    ],
+    "cursor": [
+     2,
+     10
+    ]
+   }
+  },
+  {
+   "name": "space indent noai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux corge grault",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    foo bar baz qux",
+     "quux corge grault"
+    ],
+    "cursor": [
+     1,
+     17
+    ]
+   }
+  },
+  {
+   "name": "8 spaces indent ai noet ts=8 becomes tab",
+   "lines": [
+    "        "
+   ],
+   "cursor": [
+    0,
+    8
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "        foo bar baz",
+     "\tqux quux"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "8 spaces indent ai et",
+   "lines": [
+    "        "
+   ],
+   "cursor": [
+    0,
+    8
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": true,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "        foo bar baz",
+     "        qux quux"
+    ],
+    "cursor": [
+     1,
+     16
+    ]
+   }
+  },
+  {
+   "name": "mixed indent ai ts=4",
+   "lines": [
+    "  \t "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "foo bar baz qux quux",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "  \t foo bar baz qux",
+     "\t quux"
+    ],
+    "cursor": [
+     1,
+     6
+    ]
+   }
+  },
+  {
+   "name": "indent-only line",
+   "lines": [
+    "            "
+   ],
+   "cursor": [
+    0,
+    12
+   ],
+   "cmd": "A",
+   "typed": "abc def ghi",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "            abc",
+     "def ghi"
+    ],
+    "cursor": [
+     1,
+     7
+    ]
+   }
+  },
+  {
+   "name": "indent-only line ai",
+   "lines": [
+    "            "
+   ],
+   "cursor": [
+    0,
+    12
+   ],
+   "cmd": "A",
+   "typed": "abc def ghi",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "            abc",
+     "\t    def",
+     "\t    ghi"
+    ],
+    "cursor": [
+     2,
+     8
+    ]
+   }
+  },
+  {
+   "name": "indent wider than tw",
+   "lines": [
+    "                      "
+   ],
+   "cursor": [
+    0,
+    22
+   ],
+   "cmd": "A",
+   "typed": "abc def",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "                      abc",
+     "\t\t      def"
+    ],
+    "cursor": [
+     1,
+     11
+    ]
+   }
+  },
+  {
+   "name": "tab indent cursor vcol counts tabs",
+   "lines": [
+    "\t\t"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "cmd": "A",
+   "typed": "aa bb cc dd",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\t\taa",
+     "bb cc dd"
+    ],
+    "cursor": [
+     1,
+     8
+    ]
+   }
+  },
+  {
+   "name": "tab inside text counts to tabstop",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "a\tb c d e f",
+   "opts": {
+    "tw": 12,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "a\tb c",
+     "d e f"
+    ],
+    "cursor": [
+     1,
+     5
+    ]
+   }
+  },
+  {
+   "name": "CJK words",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "日本語 日本語 日本語 日本語",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "日本語",
+     "日本語",
+     "日本語",
+     "日本語"
+    ],
+    "cursor": [
+     3,
+     9
+    ]
+   }
+  },
+  {
+   "name": "CJK char typed at margin",
+   "lines": [
+    "aaaa bbbbbbbb"
+   ],
+   "cursor": [
+    0,
+    13
+   ],
+   "cmd": "A",
+   "typed": "日",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbbbbbb日"
+    ],
+    "cursor": [
+     1,
+     11
+    ]
+   }
+  },
+  {
+   "name": "CJK char typed just fits",
+   "lines": [
+    "aaaa bbbbbbb"
+   ],
+   "cursor": [
+    0,
+    12
+   ],
+   "cmd": "A",
+   "typed": "日",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbbbbb日"
+    ],
+    "cursor": [
+     1,
+     10
+    ]
+   }
+  },
+  {
+   "name": "ascii after CJK",
+   "lines": [
+    "日本語日本語 "
+   ],
+   "cursor": [
+    0,
+    7
+   ],
+   "cmd": "A",
+   "typed": "abcd",
+   "opts": {
+    "tw": 14,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "日本語日本語",
+     "abcd"
+    ],
+    "cursor": [
+     1,
+     4
+    ]
+   }
+  },
+  {
+   "name": "emoji",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "ab 😀😀 cd 😀😀 ef",
+   "opts": {
+    "tw": 8,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "ab 😀😀",
+     "cd 😀😀",
+     "ef"
+    ],
+    "cursor": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "name": "l: long line not broken",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    24
+   ],
+   "cmd": "A",
+   "typed": " ffff gggg",
+   "opts": {
+    "tw": 20,
+    "fo": "tql",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eeee ffff gggg"
+    ],
+    "cursor": [
+     0,
+     34
+    ]
+   }
+  },
+  {
+   "name": "l: short line still broken",
+   "lines": [
+    "aaaa bbbb"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "cmd": "A",
+   "typed": " cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tql",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee ffff"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "l: new line in same insert wraps",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee ffff"
+   ],
+   "cursor": [
+    0,
+    29
+   ],
+   "cmd": "A",
+   "typed": "\rxx yy zz ww vv uu tt ss rr",
+   "opts": {
+    "tw": 20,
+    "fo": "tql",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eeee ffff",
+     "xx yy zz ww vv uu tt",
+     "ss rr"
+    ],
+    "cursor": [
+     2,
+     5
+    ]
+   }
+  },
+  {
+   "name": "l: long line, cursor mid-line",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee ffff"
+   ],
+   "cursor": [
+    0,
+    6
+   ],
+   "cmd": "i",
+   "typed": "xxxxxxxxxx",
+   "opts": {
+    "tw": 20,
+    "fo": "tql",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bxxxxxxxxxxbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     16
+    ]
+   }
+  },
+  {
+   "name": "no l: long line broken",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    24
+   ],
+   "cmd": "A",
+   "typed": " ffff gggg",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee ffff gggg"
+    ],
+    "cursor": [
+     1,
+     14
+    ]
+   }
+  },
+  {
+   "name": "v: break at typed blank",
+   "lines": [
+    "aaaa bbbb cccc dddd"
+   ],
+   "cursor": [
+    0,
+    19
+   ],
+   "cmd": "A",
+   "typed": " eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tqv",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee ffff"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "v: no typed blank no break",
+   "lines": [
+    "aaaa bbbb cccc dddd"
+   ],
+   "cursor": [
+    0,
+    19
+   ],
+   "cmd": "A",
+   "typed": "eeeeeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tqv",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddddeeeeeee"
+    ],
+    "cursor": [
+     0,
+     26
+    ]
+   }
+  },
+  {
+   "name": "v: old blanks not used",
+   "lines": [
+    "aaaa bbbb cccc dd"
+   ],
+   "cursor": [
+    0,
+    17
+   ],
+   "cmd": "A",
+   "typed": "ddddddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tqv",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddddddddd",
+     "eeee"
+    ],
+    "cursor": [
+     1,
+     4
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed before margin wraps",
+   "lines": [
+    "aaaa bbbb cccc ddd"
+   ],
+   "cursor": [
+    0,
+    18
+   ],
+   "cmd": "A",
+   "typed": " eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tqb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddd",
+     "eeee ffff"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed after margin no wrap",
+   "lines": [
+    "aaaa bbbb cccc dddd eee"
+   ],
+   "cursor": [
+    0,
+    23
+   ],
+   "cmd": "A",
+   "typed": " ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tqb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eee ffff"
+    ],
+    "cursor": [
+     0,
+     28
+    ]
+   }
+  },
+  {
+   "name": "b: no blank typed no wrap",
+   "lines": [
+    "aaaa bbbb cccc dddd"
+   ],
+   "cursor": [
+    0,
+    19
+   ],
+   "cmd": "A",
+   "typed": "eeeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tqb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddddeeeee"
+    ],
+    "cursor": [
+     0,
+     24
+    ]
+   }
+  },
+  {
+   "name": "w keeps trailing blank",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tqw",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd ",
+     "eeee ffff"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "w long word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "a verylongwordwithoutspaces b",
+   "opts": {
+    "tw": 10,
+    "fo": "tqw",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "a ",
+     "verylongwordwithoutspaces ",
+     "b"
+    ],
+    "cursor": [
+     2,
+     1
+    ]
+   }
+  },
+  {
+   "name": "1: no break after one-letter word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb ccccc a dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tq1",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb ccccc",
+     "a dddd eeee"
+    ],
+    "cursor": [
+     1,
+     11
+    ]
+   }
+  },
+  {
+   "name": "1 off",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb ccccc a dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb ccccc a",
+     "dddd eeee"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "p: no break after period and one space",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb Mr. Smith went home",
+   "opts": {
+    "tw": 20,
+    "fo": "tqp",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb Mr. Smith",
+     "went home"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "p: break after period and two spaces",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cc.  Smith went home",
+   "opts": {
+    "tw": 20,
+    "fo": "tqp",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cc.  Smith",
+     "went home"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "fo empty no wrap",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     29
+    ]
+   }
+  },
+  {
+   "name": "fo q only no wrap",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "q",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     29
+    ]
+   }
+  },
+  {
+   "name": "tw=0 no wrap",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddd eeee ffff gggg hhhh",
+   "opts": {
+    "tw": 0,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eeee ffff gggg hhhh"
+    ],
+    "cursor": [
+     0,
+     39
+    ]
+   }
+  },
+  {
+   "name": "c: # comment continues leader",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "# aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaa bbbb cccc",
+     "# dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     16
+    ]
+   }
+  },
+  {
+   "name": "c: plain text not wrapped",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     29
+    ]
+   }
+  },
+  {
+   "name": "tc: plain text wrapped without leader",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee ffff"
+    ],
+    "cursor": [
+     1,
+     9
+    ]
+   }
+  },
+  {
+   "name": "t only: comment wraps without leader",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "# aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaa bbbb cccc",
+     "dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     14
+    ]
+   }
+  },
+  {
+   "name": "c: indented # comment ai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "# aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    # aaaa bbbb cccc",
+     "    # dddd eeee"
+    ],
+    "cursor": [
+     1,
+     15
+    ]
+   }
+  },
+  {
+   "name": "c: indented # comment noai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "# aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    # aaaa bbbb cccc",
+     "    # dddd eeee"
+    ],
+    "cursor": [
+     1,
+     15
+    ]
+   }
+  },
+  {
+   "name": "c: tab indented # comment ai ts=4",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "# aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\t# aaaa bbbb cccc",
+     "\t# dddd eeee"
+    ],
+    "cursor": [
+     1,
+     12
+    ]
+   }
+  },
+  {
+   "name": "c: ## doc comment gd comments",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "## aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "## aaaa bbbb cccc",
+     "## dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     17
+    ]
+   }
+  },
+  {
+   "name": "c: ## with default comments",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "## aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "## aaaa bbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     32
+    ]
+   }
+  },
+  {
+   "name": "c: #region not a comment b:#",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "#region aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "#region aaaa bbbb cccc dddd eeee"
+    ],
+    "cursor": [
+     0,
+     32
+    ]
+   }
+  },
+  {
+   "name": "c: // comment",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "// aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "// aaaa bbbb cccc",
+     "// dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     17
+    ]
+   }
+  },
+  {
+   "name": "c: no break inside leader",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "#    aaaaaaaaaaaaaaaaaaaaa bb",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "#    aaaaaaaaaaaaaaaaaaaaa",
+     "#    bb"
+    ],
+    "cursor": [
+     1,
+     7
+    ]
+   }
+  },
+  {
+   "name": "c: leader then long word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "# aaaaaaaaaaaaaaaaaaaaaaaa bbbb",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaaaaaaaaaaaaaaaaaaaaaa",
+     "# bbbb"
+    ],
+    "cursor": [
+     1,
+     6
+    ]
+   }
+  },
+  {
+   "name": "c: three-part start",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "/* aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "/* aaaa bbbb cccc",
+     " * dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     17
+    ]
+   }
+  },
+  {
+   "name": "c: three-part middle",
+   "lines": [
+    " * "
+   ],
+   "cursor": [
+    0,
+    3
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     " * aaaa bbbb cccc",
+     " * dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     17
+    ]
+   }
+  },
+  {
+   "name": "c: three-part start ai indented",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "/* aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    /* aaaa bbbb",
+     "     * cccc dddd",
+     "     * eeee"
+    ],
+    "cursor": [
+     2,
+     11
+    ]
+   }
+  },
+  {
+   "name": "c: three-part closed on line",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "/* aaaa */ bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "/* aaaa */ bbbb cccc",
+     "dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     14
+    ]
+   }
+  },
+  {
+   "name": "c: fb:- list item",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "- aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "- aaaa bbbb cccc",
+     "  dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     16
+    ]
+   }
+  },
+  {
+   "name": "c: n:> nested quote",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "> > aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "> > aaaa bbbb cccc",
+     "> > dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     18
+    ]
+   }
+  },
+  {
+   "name": "c: trailing comment after code",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "x = 1  # aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "x = 1  # aaaa bbbb cccc dddd eeee"
+    ],
+    "cursor": [
+     0,
+     33
+    ]
+   }
+  },
+  {
+   "name": "c: comment with fo=cql long line",
+   "lines": [
+    "# aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    26
+   ],
+   "cmd": "A",
+   "typed": " ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cql",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaa bbbb cccc dddd eeee ffff"
+    ],
+    "cursor": [
+     0,
+     31
+    ]
+   }
+  },
+  {
+   "name": "c: comment leader only then text",
+   "lines": [
+    "#"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": " aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaa bbbb cccc",
+     "# dddd eeee"
+    ],
+    "cursor": [
+     1,
+     11
+    ]
+   }
+  },
+  {
+   "name": "tc: comment ai et",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "# aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 4,
+    "sw": 4,
+    "et": true,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\t# aaaa bbbb cccc",
+     "    # dddd eeee"
+    ],
+    "cursor": [
+     1,
+     15
+    ]
+   }
+  },
+  {
+   "name": "ai et tab indent rebuilt as spaces",
+   "lines": [
+    "\t\t"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 4,
+    "sw": 4,
+    "et": true,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\t\taaaa bbbb",
+     "        cccc dddd",
+     "        eeee"
+    ],
+    "cursor": [
+     2,
+     12
+    ]
+   }
+  },
+  {
+   "name": "ai noet 4-space indent ts=4 becomes tab",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa bbbb cccc",
+     "\tdddd eeee"
+    ],
+    "cursor": [
+     1,
+     10
+    ]
+   }
+  },
+  {
+   "name": "w with ai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tqw",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa bbbb cccc ",
+     "    dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     18
+    ]
+   }
+  },
+  {
+   "name": "fb:- item ai indented",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "- aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    - aaaa bbbb cccc",
+     "      dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     20
+    ]
+   }
+  },
+  {
+   "name": "// comment ai indented ts=4",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "// aaaa bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\t// aaaa bbbb",
+     "\t// cccc dddd",
+     "\t// eeee ffff"
+    ],
+    "cursor": [
+     2,
+     13
+    ]
+   }
+  },
+  {
+   "name": "// comment long run",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "// aa bb cc dd ee ff gg hh ii jj kk ll mm nn oo pp",
+   "opts": {
+    "tw": 12,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "// aa bb cc",
+     "// dd ee ff",
+     "// gg hh ii",
+     "// jj kk ll",
+     "// mm nn oo",
+     "// pp"
+    ],
+    "cursor": [
+     5,
+     5
+    ]
+   }
+  },
+  {
+   "name": "# comment long run ai",
+   "lines": [
+    "  "
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "cmd": "A",
+   "typed": "# aa bb cc dd ee ff gg hh ii jj kk ll mm nn oo pp",
+   "opts": {
+    "tw": 12,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "  # aa bb cc",
+     "  # dd ee ff",
+     "  # gg hh ii",
+     "  # jj kk ll",
+     "  # mm nn oo",
+     "  # pp"
+    ],
+    "cursor": [
+     5,
+     6
+    ]
+   }
+  },
+  {
+   "name": "typed tab between words",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaa\tbbbb cccc\tdddd eeee",
+   "opts": {
+    "tw": 16,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa\tbbbb",
+     "cccc\tdddd",
+     "eeee"
+    ],
+    "cursor": [
+     2,
+     4
+    ]
+   }
+  },
+  {
+   "name": "enter then wrap on new line ai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb\rcccc dddd eeee ffff gggg",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa bbbb",
+     "    cccc dddd eeee",
+     "    ffff gggg"
+    ],
+    "cursor": [
+     2,
+     13
+    ]
+   }
+  },
+  {
+   "name": "enter then wrap on new line noai",
+   "lines": [
+    "    "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb\rcccc dddd eeee ffff gggg",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa bbbb",
+     "cccc dddd eeee ffff",
+     "gggg"
+    ],
+    "cursor": [
+     2,
+     4
+    ]
+   }
+  },
+  {
+   "name": "comment then enter then text",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "# aaaa bbbb\rcccc dddd eeee ffff gggg hhhh",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaa bbbb",
+     "cccc dddd eeee ffff gggg hhhh"
+    ],
+    "cursor": [
+     1,
+     29
+    ]
+   }
+  },
+  {
+   "name": "mid-line comment insert",
+   "lines": [
+    "# aaaa bbbb cccc dddd"
+   ],
+   "cursor": [
+    0,
+    16
+   ],
+   "cmd": "i",
+   "typed": " xxxx yyyy",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "# aaaa bbbb cccc",
+     "# xxxx yyyy dddd"
+    ],
+    "cursor": [
+     1,
+     11
+    ]
+   }
+  },
+  {
+   "name": "three-part end on next line",
+   "lines": [
+    "/* aaaa bbbb"
+   ],
+   "cursor": [
+    0,
+    12
+   ],
+   "cmd": "A",
+   "typed": " cccc dddd eeee ffff */",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "/* aaaa bbbb cccc",
+     " * dddd eeee ffff */"
+    ],
+    "cursor": [
+     1,
+     20
+    ]
+   }
+  },
+  {
+   "name": "three-part end after the break",
+   "lines": [
+    "/* aaaa bbbb cccc*/"
+   ],
+   "cursor": [
+    0,
+    17
+   ],
+   "cmd": "i",
+   "typed": " dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "/* aaaa bbbb cccc",
+     " * dddd eeee*/"
+    ],
+    "cursor": [
+     1,
+     12
+    ]
+   }
+  },
+  {
+   "name": "leader without space after",
+   "lines": [
+    "#"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "A",
+   "typed": "aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": ":#"
+   },
+   "expected": {
+    "lines": [
+     "#aaaa bbbb cccc dddd",
+     "#eeee"
+    ],
+    "cursor": [
+     1,
+     5
+    ]
+   }
+  },
+  {
+   "name": "nested > > quote ai",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "> > aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "> > aaaa bbbb cccc",
+     "> > dddd eeee"
+    ],
+    "cursor": [
+     1,
+     13
+    ]
+   }
+  },
+  {
+   "name": "XCOMM leader",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "XCOMM aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "XCOMM aaaa bbbb cccc",
+     "XCOMM dddd eeee"
+    ],
+    "cursor": [
+     1,
+     15
+    ]
+   }
+  },
+  {
+   "name": "percent leader",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "% aaaa bbbb cccc dddd eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "cq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "% aaaa bbbb cccc",
+     "% dddd eeee"
+    ],
+    "cursor": [
+     1,
+     11
+    ]
+   }
+  },
+  {
+   "name": "wide char typed causes break",
+   "lines": [
+    "aaaa bbbbbbbbbbbbb"
+   ],
+   "cursor": [
+    0,
+    18
+   ],
+   "cmd": "A",
+   "typed": "日日",
+   "opts": {
+    "tw": 20,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbbbbbbbbbbb日日"
+    ],
+    "cursor": [
+     1,
+     19
+    ]
+   }
+  },
+  {
+   "name": "tw=79 long typing",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "The quick brown fox jumps over the lazy dog and keeps running through the forest until night falls on the hills",
+   "opts": {
+    "tw": 79,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "The quick brown fox jumps over the lazy dog and keeps running through the",
+     "forest until night falls on the hills"
+    ],
+    "cursor": [
+     1,
+     37
+    ]
+   }
+  },
+  {
+   "name": "R append past end with ai",
+   "lines": [
+    "    aaaa bbbb"
+   ],
+   "cursor": [
+    0,
+    11
+   ],
+   "cmd": "R",
+   "typed": "xx yyyy zzzz wwww",
+   "opts": {
+    "tw": 12,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa",
+     "    bbxx",
+     "    yyyy",
+     "    zzzz",
+     "    wwww"
+    ],
+    "cursor": [
+     4,
+     8
+    ]
+   }
+  },
+  {
+   "name": "v with ai mid typing",
+   "lines": [
+    "    aaaa bbbb cccc"
+   ],
+   "cursor": [
+    0,
+    18
+   ],
+   "cmd": "A",
+   "typed": " dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tqv",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa bbbb cccc",
+     "    dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     18
+    ]
+   }
+  },
+  {
+   "name": "l with ai on short line",
+   "lines": [
+    "    aaaa"
+   ],
+   "cursor": [
+    0,
+    8
+   ],
+   "cmd": "A",
+   "typed": " bbbb cccc dddd eeee ffff",
+   "opts": {
+    "tw": 20,
+    "fo": "tql",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "    aaaa bbbb cccc",
+     "    dddd eeee ffff"
+    ],
+    "cursor": [
+     1,
+     18
+    ]
+   }
+  },
+  {
+   "name": "R overwrite does not wrap",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "R",
+   "typed": "xxxx yyyy zzzz wwww vvvv uuuu",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "xxxx yyyy",
+     "zzzz wwww",
+     "vvvv uuuu"
+    ],
+    "cursor": [
+     2,
+     9
+    ]
+   }
+  },
+  {
+   "name": "R append past end wraps",
+   "lines": [
+    "aaaa bbbb"
+   ],
+   "cursor": [
+    0,
+    7
+   ],
+   "cmd": "R",
+   "typed": "xx yyyy zzzz wwww",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbxx",
+     "yyyy zzzz",
+     "wwww"
+    ],
+    "cursor": [
+     2,
+     4
+    ]
+   }
+  },
+  {
+   "name": "R overwrite then append",
+   "lines": [
+    "aaaa bbbb cccc"
+   ],
+   "cursor": [
+    0,
+    12
+   ],
+   "cmd": "R",
+   "typed": "xxxx yyyy zzzz",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb",
+     "ccxxxx",
+     "yyyy zzzz"
+    ],
+    "cursor": [
+     2,
+     9
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed before margin, break later",
+   "lines": [
+    "aaaa bbbb cccc ddd"
+   ],
+   "cursor": [
+    0,
+    18
+   ],
+   "cmd": "A",
+   "typed": " eeee ffff gggg",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc ddd",
+     "eeee ffff gggg"
+    ],
+    "cursor": [
+     1,
+     14
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed at margin",
+   "lines": [
+    "aaaa bbbb cccc dddd"
+   ],
+   "cursor": [
+    0,
+    19
+   ],
+   "cmd": "A",
+   "typed": " eeee",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee"
+    ],
+    "cursor": [
+     1,
+     4
+    ]
+   }
+  },
+  {
+   "name": "b: blank typed early, long run",
+   "lines": [
+    "aaaa"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "cmd": "A",
+   "typed": " bbbb cccc dddd eeee ffff gggg hhhh",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb cccc dddd",
+     "eeee ffff gggg hhhh"
+    ],
+    "cursor": [
+     1,
+     19
+    ]
+   }
+  },
+  {
+   "name": "b: typed mid-line before margin",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "cmd": "i",
+   "typed": " xx yy",
+   "opts": {
+    "tw": 20,
+    "fo": "tb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa bbbb xx yy cccc dddd eeee"
+    ],
+    "cursor": [
+     0,
+     15
+    ]
+   }
+  },
+  {
+   "name": "long word below 8 * textwidth breaks",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 4,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "x"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "long word at 8 * textwidth does not break",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 4,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+    ],
+    "cursor": [
+     0,
+     34
+    ]
+   }
+  },
+  {
+   "name": "long word at 8 * textwidth, tw=10",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x"
+    ],
+    "cursor": [
+     0,
+     82
+    ]
+   }
+  },
+  {
+   "name": "long word below 8 * textwidth, tw=10",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa x",
+   "opts": {
+    "tw": 10,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "x"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "tw=1 long word then a word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh add",
+   "opts": {
+    "tw": 1,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh add"
+    ],
+    "cursor": [
+     0,
+     12
+    ]
+   }
+  },
+  {
+   "name": "tw=1 seven letters then a word",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefg add",
+   "opts": {
+    "tw": 1,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefg",
+     "add"
+    ],
+    "cursor": [
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "name": "tw=1 one-letter flag in a comment",
+   "lines": [
+    "    # bb eeeee"
+   ],
+   "cursor": [
+    0,
+    14
+   ],
+   "cmd": "A",
+   "typed": "x",
+   "opts": {
+    "tw": 1,
+    "fo": "tq1",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "    # bb eeeeex"
+    ],
+    "cursor": [
+     0,
+     15
+    ]
+   }
+  },
+  {
+   "name": "blank past 8 * textwidth still breaks",
+   "lines": [
+    "aaaa bbbb cccc dddd eeee ffff gggg hhhh"
+   ],
+   "cursor": [
+    0,
+    39
+   ],
+   "cmd": "A",
+   "typed": "i",
+   "opts": {
+    "tw": 4,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aaaa",
+     "bbbb",
+     "cccc",
+     "dddd",
+     "eeee",
+     "ffff",
+     "gggg",
+     "hhhhi"
+    ],
+    "cursor": [
+     7,
+     5
+    ]
+   }
+  },
+  {
+   "name": "repro 1 long func signature [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "extends Node",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "cmd": "i",
+   "typed": "func spawn_enemy(enemy_scene: PackedScene, spawn_position: Vector2, health: int = 100) -> Node2D:",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "extends Node",
+     "",
+     "func spawn_enemy(enemy_scene: PackedScene, spawn_position: Vector2, health: int",
+     "= 100) -> Node2D:"
+    ],
+    "cursor": [
+     3,
+     17
+    ]
+   }
+  },
+  {
+   "name": "repro 1 long func signature [tw=80 fo=tcqj noai]",
+   "lines": [
+    "extends Node",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "cmd": "i",
+   "typed": "func spawn_enemy(enemy_scene: PackedScene, spawn_position: Vector2, health: int = 100) -> Node2D:",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "extends Node",
+     "",
+     "func spawn_enemy(enemy_scene: PackedScene, spawn_position: Vector2, health: int",
+     "= 100) -> Node2D:"
+    ],
+    "cursor": [
+     3,
+     17
+    ]
+   }
+  },
+  {
+   "name": "repro 1 long func signature [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "extends Node",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "cmd": "i",
+   "typed": "func spawn_enemy(enemy_scene: PackedScene, spawn_position: Vector2, health: int = 100) -> Node2D:",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "extends Node",
+     "",
+     "func spawn_enemy(enemy_scene: PackedScene, spawn_position: Vector2, health: int = 100) -> Node2D:"
+    ],
+    "cursor": [
+     2,
+     97
+    ]
+   }
+  },
+  {
+   "name": "repro 1b func signature overflow after paren [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "extends Node",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "cmd": "i",
+   "typed": "func calculate_damage_multiplier(attacker_level: int, defender_level: int) -> float:",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "extends Node",
+     "",
+     "func calculate_damage_multiplier(attacker_level: int, defender_level: int) ->",
+     "float:"
+    ],
+    "cursor": [
+     3,
+     6
+    ]
+   }
+  },
+  {
+   "name": "repro 1b func signature overflow after paren [tw=80 fo=tcqj noai]",
+   "lines": [
+    "extends Node",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "cmd": "i",
+   "typed": "func calculate_damage_multiplier(attacker_level: int, defender_level: int) -> float:",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "extends Node",
+     "",
+     "func calculate_damage_multiplier(attacker_level: int, defender_level: int) ->",
+     "float:"
+    ],
+    "cursor": [
+     3,
+     6
+    ]
+   }
+  },
+  {
+   "name": "repro 1b func signature overflow after paren [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "extends Node",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "cmd": "i",
+   "typed": "func calculate_damage_multiplier(attacker_level: int, defender_level: int) -> float:",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "extends Node",
+     "",
+     "func calculate_damage_multiplier(attacker_level: int, defender_level: int) -> float:"
+    ],
+    "cursor": [
+     2,
+     84
+    ]
+   }
+  },
+  {
+   "name": "repro 2 call with string literal [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "print(\"Player %s picked up the legendary item %s in the dungeon\" % [player, item])",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tprint(\"Player %s picked up the legendary item %s in the dungeon\" % [player,",
+     "\titem])"
+    ],
+    "cursor": [
+     2,
+     7
+    ]
+   }
+  },
+  {
+   "name": "repro 2 call with string literal [tw=80 fo=tcqj noai]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "print(\"Player %s picked up the legendary item %s in the dungeon\" % [player, item])",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tprint(\"Player %s picked up the legendary item %s in the dungeon\" % [player,",
+     "item])"
+    ],
+    "cursor": [
+     2,
+     6
+    ]
+   }
+  },
+  {
+   "name": "repro 2 call with string literal [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "print(\"Player %s picked up the legendary item %s in the dungeon\" % [player, item])",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tprint(\"Player %s picked up the legendary item %s in the dungeon\" % [player, item])"
+    ],
+    "cursor": [
+     1,
+     83
+    ]
+   }
+  },
+  {
+   "name": "repro 3 long # comment [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t",
+    "\tpass"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "# Initialize the player state machine before connecting any of the signals below",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\t# Initialize the player state machine before connecting any of the signals",
+     "\t# below",
+     "\tpass"
+    ],
+    "cursor": [
+     2,
+     8
+    ]
+   }
+  },
+  {
+   "name": "repro 3 long # comment [tw=80 fo=tcqj noai]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t",
+    "\tpass"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "# Initialize the player state machine before connecting any of the signals below",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\t# Initialize the player state machine before connecting any of the signals",
+     "\t# below",
+     "\tpass"
+    ],
+    "cursor": [
+     2,
+     8
+    ]
+   }
+  },
+  {
+   "name": "repro 3 long # comment [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t",
+    "\tpass"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "# Initialize the player state machine before connecting any of the signals below",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\t# Initialize the player state machine before connecting any of the signals",
+     "\t# below",
+     "\tpass"
+    ],
+    "cursor": [
+     2,
+     8
+    ]
+   }
+  },
+  {
+   "name": "repro 4 long ## doc comment [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "",
+    "var speed: float = 10.0"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "## The maximum movement speed of the character in pixels per second, before modifiers.",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "## The maximum movement speed of the character in pixels per second, before",
+     "modifiers.",
+     "var speed: float = 10.0"
+    ],
+    "cursor": [
+     1,
+     10
+    ]
+   }
+  },
+  {
+   "name": "repro 4 long ## doc comment [tw=80 fo=tcqj noai]",
+   "lines": [
+    "",
+    "var speed: float = 10.0"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "## The maximum movement speed of the character in pixels per second, before modifiers.",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "## The maximum movement speed of the character in pixels per second, before",
+     "modifiers.",
+     "var speed: float = 10.0"
+    ],
+    "cursor": [
+     1,
+     10
+    ]
+   }
+  },
+  {
+   "name": "repro 4 long ## doc comment [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "",
+    "var speed: float = 10.0"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "## The maximum movement speed of the character in pixels per second, before modifiers.",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "## The maximum movement speed of the character in pixels per second, before",
+     "## modifiers.",
+     "var speed: float = 10.0"
+    ],
+    "cursor": [
+     1,
+     13
+    ]
+   }
+  },
+  {
+   "name": "repro 5 dictionary literal [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "var item := {\"name\": \"Iron Sword of the North\", \"damage\": 12, \"description\": \"A rusty old blade\"}",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tvar item := {\"name\": \"Iron Sword of the North\", \"damage\": 12, \"description\":",
+     "\t\"A rusty old blade\"}"
+    ],
+    "cursor": [
+     2,
+     21
+    ]
+   }
+  },
+  {
+   "name": "repro 5 dictionary literal [tw=80 fo=tcqj noai]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "var item := {\"name\": \"Iron Sword of the North\", \"damage\": 12, \"description\": \"A rusty old blade\"}",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tvar item := {\"name\": \"Iron Sword of the North\", \"damage\": 12, \"description\":",
+     "\"A rusty old blade\"}"
+    ],
+    "cursor": [
+     2,
+     20
+    ]
+   }
+  },
+  {
+   "name": "repro 5 dictionary literal [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\t"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "cmd": "A",
+   "typed": "var item := {\"name\": \"Iron Sword of the North\", \"damage\": 12, \"description\": \"A rusty old blade\"}",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tvar item := {\"name\": \"Iron Sword of the North\", \"damage\": 12, \"description\": \"A rusty old blade\"}"
+    ],
+    "cursor": [
+     1,
+     98
+    ]
+   }
+  },
+  {
+   "name": "repro 6 expression outside brackets [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "func _process(delta: float) -> void:",
+    "\t\t"
+   ],
+   "cursor": [
+    1,
+    2
+   ],
+   "cmd": "A",
+   "typed": "var total_damage = base_damage * critical_multiplier + bonus_damage - armor_value * defense_scale",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _process(delta: float) -> void:",
+     "\t\tvar total_damage = base_damage * critical_multiplier + bonus_damage -",
+     "\t\tarmor_value * defense_scale"
+    ],
+    "cursor": [
+     2,
+     29
+    ]
+   }
+  },
+  {
+   "name": "repro 6 expression outside brackets [tw=80 fo=tcqj noai]",
+   "lines": [
+    "func _process(delta: float) -> void:",
+    "\t\t"
+   ],
+   "cursor": [
+    1,
+    2
+   ],
+   "cmd": "A",
+   "typed": "var total_damage = base_damage * critical_multiplier + bonus_damage - armor_value * defense_scale",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _process(delta: float) -> void:",
+     "\t\tvar total_damage = base_damage * critical_multiplier + bonus_damage -",
+     "armor_value * defense_scale"
+    ],
+    "cursor": [
+     2,
+     27
+    ]
+   }
+  },
+  {
+   "name": "repro 6 expression outside brackets [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "func _process(delta: float) -> void:",
+    "\t\t"
+   ],
+   "cursor": [
+    1,
+    2
+   ],
+   "cmd": "A",
+   "typed": "var total_damage = base_damage * critical_multiplier + bonus_damage - armor_value * defense_scale",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "func _process(delta: float) -> void:",
+     "\t\tvar total_damage = base_damage * critical_multiplier + bonus_damage - armor_value * defense_scale"
+    ],
+    "cursor": [
+     1,
+     99
+    ]
+   }
+  },
+  {
+   "name": "repro 7 typed mid-line [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\tvar message = player_name + \" joined the game\""
+   ],
+   "cursor": [
+    1,
+    15
+   ],
+   "cmd": "i",
+   "typed": "\"[\" + str(Time.get_ticks_msec()) + \"] server: welcome back, \" + ",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tvar message = \"[\" + str(Time.get_ticks_msec()) + \"] server: welcome back, \"",
+     "\t+ player_name + \" joined the game\""
+    ],
+    "cursor": [
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "name": "repro 7 typed mid-line [tw=80 fo=tcqj noai]",
+   "lines": [
+    "func _ready() -> void:",
+    "\tvar message = player_name + \" joined the game\""
+   ],
+   "cursor": [
+    1,
+    15
+   ],
+   "cmd": "i",
+   "typed": "\"[\" + str(Time.get_ticks_msec()) + \"] server: welcome back, \" + ",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tvar message = \"[\" + str(Time.get_ticks_msec()) + \"] server: welcome back, \"",
+     "+ player_name + \" joined the game\""
+    ],
+    "cursor": [
+     2,
+     2
+    ]
+   }
+  },
+  {
+   "name": "repro 7 typed mid-line [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "func _ready() -> void:",
+    "\tvar message = player_name + \" joined the game\""
+   ],
+   "cursor": [
+    1,
+    15
+   ],
+   "cmd": "i",
+   "typed": "\"[\" + str(Time.get_ticks_msec()) + \"] server: welcome back, \" + ",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "func _ready() -> void:",
+     "\tvar message = \"[\" + str(Time.get_ticks_msec()) + \"] server: welcome back, \" + player_name + \" joined the game\""
+    ],
+    "cursor": [
+     1,
+     79
+    ]
+   }
+  },
+  {
+   "name": "repro 8 mid-line break candidate after cursor [godot-vim 1.8.0 (tw=80 fo=tcqj ai)]",
+   "lines": [
+    "\tvar a = b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "cmd": "i",
+   "typed": "very_long_identifier_without_any_spaces_inside_it_at_all",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\tvar a = very_long_identifier_without_any_spaces_inside_it_at_allb + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r"
+    ],
+    "cursor": [
+     0,
+     65
+    ]
+   }
+  },
+  {
+   "name": "repro 8 mid-line break candidate after cursor [tw=80 fo=tcqj noai]",
+   "lines": [
+    "\tvar a = b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "cmd": "i",
+   "typed": "very_long_identifier_without_any_spaces_inside_it_at_all",
+   "opts": {
+    "tw": 80,
+    "fo": "tcqj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "\tvar a = very_long_identifier_without_any_spaces_inside_it_at_allb + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r"
+    ],
+    "cursor": [
+     0,
+     65
+    ]
+   }
+  },
+  {
+   "name": "repro 8 mid-line break candidate after cursor [gdscript-like (tw=80 fo=cqlj com=b:##,b:#)]",
+   "lines": [
+    "\tvar a = b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r"
+   ],
+   "cursor": [
+    0,
+    9
+   ],
+   "cmd": "i",
+   "typed": "very_long_identifier_without_any_spaces_inside_it_at_all",
+   "opts": {
+    "tw": 80,
+    "fo": "cqlj",
+    "ts": 4,
+    "sw": 4,
+    "et": false,
+    "ai": true,
+    "com": "b:##,b:#"
+   },
+   "expected": {
+    "lines": [
+     "\tvar a = very_long_identifier_without_any_spaces_inside_it_at_allb + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q + r"
+    ],
+    "cursor": [
+     0,
+     65
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed before tw with et",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh\ta",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 8,
+    "sw": 8,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh",
+     "a"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed before tw with et ts=4",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh\ta",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 4,
+    "sw": 4,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh",
+     "a"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed before tw with noet",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefgh\ta",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefgh",
+     "a"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "b flag: Tab typed past tw with et",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "i",
+   "typed": "abcdefghijk\ta b",
+   "opts": {
+    "tw": 10,
+    "fo": "tcqb",
+    "ts": 8,
+    "sw": 8,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abcdefghijk     a b"
+    ],
+    "cursor": [
+     0,
+     19
+    ]
+   }
+  }
+ ]
+}

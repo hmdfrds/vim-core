@@ -29,11 +29,13 @@ mod clipboard_mode;
 mod command_line_edit;
 mod command_line_prompt;
 mod command_properties;
+mod comments;
 mod completion_kind;
 mod cursor_style;
 pub mod digraph;
 mod direction;
 mod find_direction;
+mod format_flags;
 mod host_settings;
 mod insert_entry_type;
 mod join_style;
@@ -88,11 +90,16 @@ pub use clipboard_mode::UseSystemClipboard;
 pub use command_line_edit::CommandLineEdit;
 pub use command_line_prompt::CommandLinePrompt;
 pub use command_properties::{CommandProperties, RepeatBehavior};
+pub use comments::{
+    CommentContinuation, CommentFlags, CommentPart, CommentSpec, CommentsError, LeaderMatch,
+    DEFAULT_COMMENTS,
+};
 pub use completion_kind::CompletionKind;
 pub use cursor_style::{mode_to_override_index, CursorShape, CursorStyle, CURSOR_OVERRIDE_COUNT};
 pub use digraph::{lookup_digraph, DigraphRegistry};
 pub use direction::Direction;
 pub use find_direction::{FindDirection, LastFind};
+pub use format_flags::FormatFlags;
 pub use host_settings::HostSettings;
 pub use insert_entry_type::InsertEntryType;
 pub use join_style::JoinStyle;
@@ -110,7 +117,7 @@ pub use operator::ComposedPair;
 pub use operator::Operator;
 pub use operator::OperatorKind;
 pub use option_scope::{
-    is_sentinel, resolve_option, OptionId, OptionOverrides, OptionScope, OptionValue,
+    is_sentinel, resolve_option, OptionId, OptionKind, OptionOverrides, OptionScope, OptionValue,
 };
 pub use position::{Column, LineNumber, Offset, Position};
 pub use range::{LineRange, Range};

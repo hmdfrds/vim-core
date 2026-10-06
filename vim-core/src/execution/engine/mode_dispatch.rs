@@ -138,6 +138,19 @@ impl VimEngine {
             )
         {
             self.parser.reset();
+            // `gq` and `gw` reach this from the `g` prefix, which the
+            // parser leaves pending, so it has not recorded them for `.`.
+            if let PlannedAction::Execute(
+                command @ Command::OperatorSelection {
+                    operator:
+                        crate::grammar::types::Operator::Format
+                        | crate::grammar::types::Operator::FormatKeepCursor,
+                    ..
+                },
+            ) = &action
+            {
+                self.parser.record_for_repeat(command.clone());
+            }
         }
 
         // Dispatch the action
@@ -603,7 +616,56 @@ impl VimEngine {
             ctx
         };
 
-        let (text, cursor) = (ctx.doc().text(), ctx.cursor_offset().get());
+        let (text, mut cursor) = (ctx.doc().text(), ctx.cursor_offset().get());
+
+        // `a` and `A` can leave a cursor of several past the end of the last
+        // line. The text goes at the end, and formatting needs the cursor
+        // there to find the line it typed on.
+        if crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options)
+            .is_active()
+            && self.state.multi_cursor().is_active()
+        {
+            cursor = cursor.min(text.len());
+            let selections = self.state.multi_cursor().selections();
+            if selections.iter().any(|s| s.head().get() > text.len()) {
+                let ranges = selections
+                    .iter()
+                    .map(|s| {
+                        if s.head().get() > text.len() {
+                            crate::primitives::SelectionRange::insert_cursor(Offset::new(
+                                text.len(),
+                            ))
+                        } else {
+                            *s
+                        }
+                    })
+                    .collect();
+                let primary = selections.primary_index();
+                self.state
+                    .multi_cursor_mut()
+                    .set_selections(crate::primitives::Selections::from_vec(ranges, primary));
+            }
+        }
+
+        // Record where the insert started, for formatting (Vim's Insstart):
+        // at the first insert command, and again when the cursor is not where
+        // the previous insert command left it, as after an arrow key (Vim's
+        // stop_arrow()).
+        let tabstop = self.resolved_options.tabstop();
+        if let Some(is) = self.state.insert_state_mut() {
+            // With several cursors the host cursor can end on another cursor
+            // than the primary one; it then takes that cursor's start.
+            is.follow_host_cursor(Offset::new(cursor), |o| {
+                crate::commands::helpers::line_of(text, o.get())
+            });
+            if is.insert_start().is_none() || is.insert_start_cursor() != Some(Offset::new(cursor))
+            {
+                let blank_vcol = is.insert_start().and_then(|s| s.blank_vcol);
+                is.set_insert_start(crate::commands::insert::wrap::insert_start_at(
+                    text, cursor, tabstop, blank_vcol,
+                ));
+            }
+        }
 
         // 1. Pre-compute operation data ONCE (read-only state access)
         let precomputed = super::insert::precompute_insert(
@@ -703,40 +765,57 @@ impl VimEngine {
             }
         }
 
-        // 4c. Auto-format textwidth wrap: when textwidth > 0 and a non-whitespace
-        // character is inserted, check if the post-edit line exceeds textwidth.
-        // If so, break at the last whitespace before the limit.
-        if self.options.textwidth() > 0
-            && self.options.auto_format_text()
-            && matches!(insert_mode, crate::mode::InsertMode::Insert)
-        {
-            if let Command::Insert(InsertKind::Char { char }) = &command {
-                if !char.is_whitespace() {
-                    if let Some(wrap_action) =
-                        crate::commands::insert::wrap::compute_auto_format_wrap(
-                            text,
-                            cursor,
-                            *char,
-                            self.options.textwidth(),
-                        )
-                    {
-                        // Delete the whitespace at the break point and insert
-                        // newline + continuation indent.
-                        result.effects.push(crate::effects::Effect::Delete {
-                            range: crate::primitives::Range::new(
-                                crate::primitives::Offset::new(wrap_action.break_offset),
-                                crate::primitives::Offset::new(
-                                    wrap_action.break_offset + wrap_action.break_len,
-                                ),
-                            ),
-                        });
-                        let nl_text =
-                            compact_str::format_compact!("\n{}", wrap_action.continuation_indent);
-                        result.effects.push(crate::effects::Effect::Insert {
-                            offset: crate::primitives::Offset::new(wrap_action.break_offset),
-                            text: nl_text,
-                        });
-                    }
+        // 4c. Formatting while typing (Vim's internal_format()): a non-blank
+        // character typed past 'textwidth' breaks the line. The breaks are
+        // spliced in before the final SetCursor. An abbreviation that expands
+        // is formatted together with its expansion in step 5c instead.
+        let abbreviation = self.pending_abbreviation(&command, insert_mode, text, cursor);
+        let format_policy =
+            crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options);
+        // Every change the per-cursor path makes for formatting is gated on
+        // this, so that without formatting several cursors type as before.
+        let format_active = format_policy.is_active();
+        let formats_typed = format_active
+            && insert_mode != InsertMode::VirtualReplace
+            && !self.state.insert_state().is_some_and(InsertState::pasting)
+            && is_formatted_char(&command);
+        let primary_effects_for_abbreviation = abbreviation
+            .as_ref()
+            .filter(|_| formats_typed)
+            .map(|_| result.effects.clone());
+        if formats_typed && abbreviation.is_none() {
+            // The host cursor need not be the primary cursor yet: the
+            // per-cursor path below makes the cursor sitting at the host
+            // cursor the primary one, and only when no cursor sits there does
+            // the primary stand for the host cursor.
+            let mc = self.state.multi_cursor();
+            let selections = mc.selections();
+            let host_is_a_cursor = selections.iter().any(|sr| sr.head().get() == cursor);
+            let shares_line = mc.is_active()
+                && cursor_shares_line(
+                    text,
+                    cursor,
+                    selections
+                        .iter()
+                        .enumerate()
+                        .filter(|&(i, _)| host_is_a_cursor || i != selections.primary_index())
+                        .map(|(_, sr)| sr.head().get()),
+                );
+            if !shares_line {
+                let mut start = self
+                    .state
+                    .insert_state()
+                    .and_then(InsertState::insert_start);
+                crate::commands::insert::wrap::format_typed_char(
+                    &mut result.effects,
+                    text,
+                    cursor,
+                    insert_mode == InsertMode::Replace,
+                    &format_policy,
+                    start.as_mut(),
+                );
+                if let (Some(start), Some(is)) = (start, self.state.insert_state_mut()) {
+                    is.set_insert_start(start);
                 }
             }
         }
@@ -747,11 +826,13 @@ impl VimEngine {
         // re-execution (each cursor runs precompute_insert + dispatch_insert
         // independently against the T0 document text). Position-independent
         // insert commands use the existing algebraic rebase path.
+        // A character that may break the line depends on its own line, so
+        // every cursor formats its own text.
         let is_insert_cd = if let Command::Insert(ref kind) = command {
             kind.is_content_dependent(
                 self.options.expandtab(),
                 self.options.auto_pairs().is_some(),
-            )
+            ) || formats_typed
         } else {
             false
         };
@@ -772,11 +853,26 @@ impl VimEngine {
             // in descending offset order so higher-offset edits don't
             // invalidate lower-offset positions when the host applies them.
 
-            // Sync primary selection head with actual cursor.
-            let primary = self.state.multi_cursor_mut().selections_mut().primary_mut();
-            *primary = crate::primitives::SelectionRange::insert_cursor(
-                crate::primitives::Offset::new(cursor),
-            );
+            // Sync the primary selection with the actual cursor. The host
+            // cursor can be another cursor than the primary one (it follows
+            // the last SetCursor applied), so when a cursor sits there it
+            // becomes the primary, as in the algebraic path below.
+            // Overwriting the primary head instead would put two cursors on
+            // the same offset. Only formatting needs this, so without it
+            // the primary head is overwritten as before.
+            let cursor_off = crate::primitives::Offset::new(cursor);
+            let selections = self.state.multi_cursor_mut().selections_mut();
+            if let Some(idx) = selections
+                .ranges()
+                .iter()
+                .position(|s| s.head() == cursor_off)
+                .filter(|_| format_active)
+            {
+                selections.set_primary_index(idx);
+            } else {
+                *selections.primary_mut() =
+                    crate::primitives::SelectionRange::insert_cursor(cursor_off);
+            }
 
             let selections = self.state.multi_cursor().selections().clone();
             let primary_offset = selections.primary().head().get();
@@ -791,6 +887,8 @@ impl VimEngine {
 
             let mut all_effects: Vec<crate::effects::Effect> = Vec::new();
             let mut cursor_deltas: Vec<(usize, crate::primitives::Offset, i64)> = Vec::new();
+            let mut secondary_starts: Vec<(usize, usize, crate::state::InsertStart)> = Vec::new();
+            let mut primary_own: Option<usize> = None;
 
             // For CopyCharAbove/CopyCharBelow, maintain a working text
             // buffer that includes higher-offset cursors' edits. These commands
@@ -846,9 +944,72 @@ impl VimEngine {
                         insert_ctx_i = insert_ctx_i.with_entry_offset(offset);
                     }
 
-                    let r = crate::dispatch::dispatch_insert(&command, &insert_ctx_i);
+                    let mut r = crate::dispatch::dispatch_insert(&command, &insert_ctx_i);
+                    if format_active {
+                        // Every cursor has its own insert start for 'l', 'v' and
+                        // 'b', recorded again when an insert command did not
+                        // leave the cursor here, as for the primary cursor.
+                        let line_i = crate::commands::helpers::line_of(exec_text, cur);
+                        let mut start_i = self
+                            .state
+                            .insert_state()
+                            .and_then(|is| {
+                                is.cursor_start(crate::primitives::Offset::new(cur), line_i)
+                            })
+                            .unwrap_or_else(|| {
+                                crate::commands::insert::wrap::insert_start_at(
+                                    exec_text,
+                                    cur,
+                                    self.resolved_options.tabstop(),
+                                    None,
+                                )
+                            });
+                        // Two cursors on one line would break it under each
+                        // other, so such a line is left alone.
+                        let shares_line = cursor_shares_line(
+                            exec_text,
+                            cur,
+                            selections
+                                .iter()
+                                .enumerate()
+                                .filter(|&(i, _)| i != sel_idx)
+                                .map(|(_, sr)| sr.head().get()),
+                        );
+                        if formats_typed && !shares_line {
+                            crate::commands::insert::wrap::format_typed_char(
+                                &mut r.effects,
+                                exec_text,
+                                cur,
+                                insert_mode == InsertMode::Replace,
+                                &format_policy,
+                                Some(&mut start_i),
+                            );
+                        }
+                        let own_cursor = Self::last_cursor_in_effects(r.effects.as_slice())
+                            .map_or(cur, crate::primitives::Offset::get);
+                        if matches!(command, Command::Insert(InsertKind::Backspace)) {
+                            move_insert_start_on_backspace(
+                                &mut start_i,
+                                exec_text,
+                                cur,
+                                own_cursor,
+                            );
+                        }
+                        let lines_below =
+                            cursor_line_after(exec_text, r.effects.as_slice(), cur, own_cursor)
+                                .unwrap_or(line_i)
+                                .saturating_sub(start_i.line);
+                        secondary_starts.push((own_cursor, lines_below, start_i));
+                    }
                     r.effects
                 };
+
+                if format_active && cur == primary_offset {
+                    primary_own = Some(
+                        Self::last_cursor_in_effects(effects_i.as_slice())
+                            .map_or(cur, crate::primitives::Offset::get),
+                    );
+                }
 
                 // Track SetCursor and net delta for selection update.
                 let mut set_cursor_offset: Option<crate::primitives::Offset> = None;
@@ -911,6 +1072,31 @@ impl VimEngine {
                 }
             }
 
+            // The insert starts of the secondary cursors go with where the
+            // edits of every cursor leave them.
+            let shifted = |own: usize| {
+                let shift: i64 = cursor_deltas
+                    .iter()
+                    .filter(|(_, raw, _)| raw.get() < own)
+                    .map(|&(_, _, delta)| delta)
+                    .sum();
+                crate::primitives::Offset::new(byte_delta::shift(own, shift))
+            };
+            let new_starts = secondary_starts
+                .into_iter()
+                .map(
+                    |(own, lines_below, start)| crate::state::CursorInsertStart {
+                        head: shifted(own),
+                        lines_below,
+                        start,
+                    },
+                )
+                .collect();
+            let primary_head = primary_own.map(shifted);
+            if let Some(is) = self.state.insert_state_mut() {
+                is.set_cursor_starts(new_starts);
+                is.set_primary_head(primary_head);
+            }
             insert_cd_deltas = Some(cursor_deltas);
             all_effects.into_iter().collect()
         } else if self.state.multi_cursor().is_active() {
@@ -1037,7 +1223,6 @@ impl VimEngine {
             self.options.undo_auto_group_ms(),
             self.resolved_options.cursor_shape_overrides(),
         );
-
         // Track edit start for operations that modify text before entry_offset.
         // C-d/C-t modify text at line start. BS/C-u at beginning of line
         // delete the preceding newline (joining lines). All of these need
@@ -1095,6 +1280,7 @@ impl VimEngine {
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
+                !format_active,
             );
         }
 
@@ -1105,8 +1291,12 @@ impl VimEngine {
             // Determine the cursor after the insert (the last SetCursor in effects).
             let new_cursor = Self::last_cursor_in_effects(&response.effects)
                 .map_or(cursor, crate::primitives::Offset::get);
-            let (mut exit_response, _exit_info2) =
-                super::super::insert_handler::handle_insert_exit(&mut self.state, new_cursor, text);
+            let (mut exit_response, _exit_info2) = super::super::insert_handler::handle_insert_exit(
+                &mut self.state,
+                new_cursor,
+                text,
+                None,
+            );
             super::super::effect_processor::process_effects_with_text(
                 &mut self.state,
                 &mut self.parser,
@@ -1126,83 +1316,236 @@ impl VimEngine {
         // After a character is inserted, check if the text typed so far
         // ends with a registered abbreviation trigger. If so, replace the
         // trigger word with the expansion in both the document (via effects)
-        // and accumulated_text (state tracking).
-        //
-        // Only fires for plain character inserts (not newline/tab/replace)
-        // and only when the abbreviation table is non-empty.
-        if let Command::Insert(InsertKind::Char { char: trigger_char }) = command {
-            if !self.abbrev_table.is_empty()
-                && insert_mode == InsertMode::Insert
-                && !self.state.multi_cursor().is_active()
-                && !self.state.insert_state().is_some_and(InsertState::pasting)
-            {
-                if let Some(is) = self.state.insert_state() {
-                    let acc = is.accumulated_text();
-                    // accumulated_text already includes the trigger char at the end.
-                    // Compute text_before = everything before the trigger char.
-                    let trigger_byte_len = trigger_char.len_utf8();
-                    if acc.len() >= trigger_byte_len {
-                        let text_before = &acc[..acc.len() - trigger_byte_len];
-                        let wcs = self.options.word_char_set().clone();
-                        let is_keyword = |c: char| wcs.contains(c);
-                        if let Some((delete_count, replacement)) = self.abbrev_table.try_expand(
-                            trigger_char,
-                            text_before,
-                            crate::primitives::AbbrevMode::Insert,
-                            &is_keyword,
-                        ) {
-                            // Safety: verify the document text at the expected
-                            // position actually contains the trigger word. This
-                            // guards against cursor–accumulated_text desync after
-                            // arrow key navigation within insert mode.
-                            let word_start = cursor.saturating_sub(delete_count);
-                            let trigger_word = &text_before[text_before.len() - delete_count..];
-                            if cursor >= delete_count
-                                && text.get(word_start..cursor) == Some(trigger_word)
-                            {
-                                let range = crate::primitives::Range::new(
-                                    crate::primitives::Offset::new(word_start),
-                                    crate::primitives::Offset::new(cursor),
-                                );
-                                // cursor + (replacement.len() - delete_count) + trigger_byte_len
-                                let new_cursor =
-                                    cursor - delete_count + replacement.len() + trigger_byte_len;
-                                response.effects.push(crate::effects::Effect::Replace {
-                                    range,
-                                    text: replacement.clone(),
-                                });
-                                response.effects.push(crate::effects::Effect::SetCursor {
-                                    offset: crate::primitives::Offset::new(new_cursor),
-                                });
+        // and accumulated_text (state tracking). Vim types the expansion and
+        // then the trigger character, so both are formatted as typed text.
+        if let (
+            Some((delete_count, replacement)),
+            Command::Insert(InsertKind::Char { char: trigger_char }),
+        ) = (abbreviation, &command)
+        {
+            let trigger_char = *trigger_char;
+            let trigger_byte_len = trigger_char.len_utf8();
+            let word_start = cursor - delete_count;
+            let range = crate::primitives::Range::new(
+                crate::primitives::Offset::new(word_start),
+                crate::primitives::Offset::new(cursor),
+            );
+            // cursor + (replacement.len() - delete_count) + trigger_byte_len
+            let new_cursor = cursor - delete_count + replacement.len() + trigger_byte_len;
+            let mut expansion = Effects::new();
+            expansion.push(Effect::Replace {
+                range,
+                text: replacement.clone(),
+            });
+            expansion.push(Effect::SetCursor {
+                offset: crate::primitives::Offset::new(new_cursor),
+            });
+            if let Some(primary_effects) = primary_effects_for_abbreviation {
+                Self::format_abbreviation(
+                    &mut self.state,
+                    &mut expansion,
+                    &primary_effects,
+                    text,
+                    cursor,
+                    word_start..new_cursor,
+                    &format_policy,
+                );
+            }
+            response.effects.extend(expansion);
 
-                                // Fix accumulated_text: replace the trigger word
-                                // with the expansion. Currently it's
-                                // "...trigger_wordX" where X is the trigger char.
-                                // We want "...replacementX".
-                                if let Some(is_mut) = self.state.insert_state_mut() {
-                                    let acc_len = is_mut.accumulated_text().len();
-                                    // Remove trigger_char + trigger_word from end.
-                                    is_mut.truncate_tail_bytes(delete_count + trigger_byte_len);
-                                    // Re-append expansion + trigger char.
-                                    is_mut.push_str(&replacement);
-                                    is_mut.push_char(trigger_char);
-                                    // If mark_dot_override was set, recalculate
-                                    // for changed accumulated_text length.
-                                    let new_acc_len = is_mut.accumulated_text().len();
-                                    if new_acc_len != acc_len {
-                                        is_mut.clear_mark_dot_override();
-                                    }
-                                }
-                            }
-                        }
-                    }
+            // Fix accumulated_text: replace the trigger word
+            // with the expansion. Currently it's
+            // "...trigger_wordX" where X is the trigger char.
+            // We want "...replacementX".
+            if let Some(is_mut) = self.state.insert_state_mut() {
+                let acc_len = is_mut.accumulated_text().len();
+                // Remove trigger_char + trigger_word from end.
+                is_mut.truncate_tail_bytes(delete_count + trigger_byte_len);
+                // Re-append expansion + trigger char.
+                is_mut.push_str(&replacement);
+                is_mut.push_char(trigger_char);
+                // If mark_dot_override was set, recalculate
+                // for changed accumulated_text length.
+                let new_acc_len = is_mut.accumulated_text().len();
+                if new_acc_len != acc_len {
+                    is_mut.clear_mark_dot_override();
                 }
             }
+        }
+
+        // Remember where this command left the cursor, to tell at the next
+        // one whether the cursor moved in between. The host cursor follows
+        // the last SetCursor, also with several cursors.
+        let final_cursor =
+            Self::last_cursor_in_effects(&response.effects).unwrap_or_else(|| Offset::new(cursor));
+        if let Some(is) = self.state.insert_state_mut() {
+            // ins_bs(): a backspace at the start of the line the insert
+            // started on moves that start to the end of the line above. The
+            // line length that 'l' looks at stays.
+            if matches!(command, Command::Insert(InsertKind::Backspace)) {
+                if let Some(start) = is.insert_start_mut() {
+                    move_insert_start_on_backspace(start, text, cursor, final_cursor.get());
+                }
+            }
+            is.set_insert_start_cursor(final_cursor);
         }
 
         // 6. Tag provenance for insert commands.
         response.provenance = Some(EffectProvenance::new(command_name, keystroke_seq));
         response
+    }
+
+    /// The positional exit effects of every cursor, in descending order of
+    /// the cursor heads, when formatting is active and a counted insert
+    /// repeats its text at several cursors. Each cursor repeats the text and
+    /// formats it with its own insert start, as it would alone. `None` when
+    /// the repeat is replicated from the primary cursor. The entry for the
+    /// primary cursor, at the host cursor `cursor`, is empty: its effects
+    /// come from the regular exit.
+    fn per_cursor_exit_repeats(
+        &self,
+        text: &str,
+        cursor: usize,
+    ) -> Option<Vec<(usize, Vec<crate::effects::Effect>)>> {
+        let policy =
+            crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options);
+        let mc = self.state.multi_cursor();
+        let is = self.state.insert_state()?;
+        if !mc.is_active()
+            || !policy.is_active()
+            || is.count().get() <= 1
+            || is.block_insert().is_some()
+            || is.accumulated_text().is_empty()
+        {
+            return None;
+        }
+        // The primary cursor is the host cursor: the cursor there, or else
+        // the primary selection moved there, as the exit below does.
+        let primary = cursor;
+        let mut heads: Vec<usize> = mc.selections().iter().map(|s| s.head().get()).collect();
+        if !heads.contains(&cursor) {
+            if let Some(head) = heads.get_mut(mc.selections().primary_index()) {
+                *head = cursor;
+            }
+        }
+        heads.sort_unstable_by(|a, b| b.cmp(a));
+        heads.dedup();
+        let mut out = Vec::with_capacity(heads.len());
+        for head in heads {
+            if head == primary {
+                out.push((head, Vec::new()));
+                continue;
+            }
+            let line = crate::commands::helpers::line_of(text, head.min(text.len()));
+            let start = is.cursor_start(Offset::new(head), line);
+            let (effects, _) =
+                crate::dispatch::build_insert_exit_effects(&crate::dispatch::InsertExitParams {
+                    text,
+                    accumulated_text: is.accumulated_text(),
+                    cursor: Offset::new(head.min(text.len())),
+                    count: is.count().get(),
+                    entry_type: is.entry_type(),
+                    auto_indent_len: is.auto_indent_len(),
+                    block_insert: None,
+                    mark_dot_override_pos: is.mark_dot_override_pos(),
+                    entry_offset: None,
+                    format: Some(&policy),
+                    insert_start: start,
+                });
+            out.push((
+                head,
+                effects
+                    .into_inner()
+                    .into_iter()
+                    .filter(super::super::multi_cursor::is_positional_effect)
+                    .collect(),
+            ));
+        }
+        Some(out)
+    }
+
+    /// The abbreviation that typing `command` expands, as the number of
+    /// bytes of the trigger word before the cursor and its replacement.
+    ///
+    /// Only plain character inserts in Insert mode expand, and only when the
+    /// abbreviation table is non-empty, a single cursor is active and no
+    /// bracketed paste is in progress.
+    fn pending_abbreviation(
+        &self,
+        command: &Command,
+        insert_mode: InsertMode,
+        text: &str,
+        cursor: usize,
+    ) -> Option<(usize, compact_str::CompactString)> {
+        let Command::Insert(InsertKind::Char { char: trigger_char }) = command else {
+            return None;
+        };
+        if self.abbrev_table.is_empty()
+            || insert_mode != InsertMode::Insert
+            || self.state.multi_cursor().is_active()
+            || self.state.insert_state().is_some_and(InsertState::pasting)
+        {
+            return None;
+        }
+        let acc = self.state.insert_state()?.accumulated_text();
+        // accumulated_text already includes the trigger char at the end.
+        // Compute text_before = everything before the trigger char.
+        let text_before = acc.get(..acc.len().checked_sub(trigger_char.len_utf8())?)?;
+        let wcs = self.options.word_char_set().clone();
+        let is_keyword = |c: char| wcs.contains(c);
+        let (delete_count, replacement) = self.abbrev_table.try_expand(
+            *trigger_char,
+            text_before,
+            crate::primitives::AbbrevMode::Insert,
+            &is_keyword,
+        )?;
+        // Safety: verify the document text at the expected position actually
+        // contains the trigger word. This guards against cursor and
+        // accumulated_text desync after arrow key navigation within insert
+        // mode.
+        let word_start = cursor.checked_sub(delete_count)?;
+        let trigger_word = text_before.get(text_before.len().checked_sub(delete_count)?..)?;
+        (text.get(word_start..cursor) == Some(trigger_word)).then_some((delete_count, replacement))
+    }
+
+    /// Format an abbreviation expansion and its trigger character as typed
+    /// text, splicing the line breaks into `expansion`.
+    ///
+    /// `primary_effects` are the effects that inserted the trigger character
+    /// into `text` at `cursor`; `typed` is the range of the expansion and the
+    /// trigger character once both are in place.
+    fn format_abbreviation(
+        state: &mut crate::state::VimState,
+        expansion: &mut Effects,
+        primary_effects: &Effects,
+        text: &str,
+        cursor: usize,
+        typed: std::ops::Range<usize>,
+        policy: &crate::commands::insert::wrap::FormatPolicy<'_>,
+    ) {
+        use crate::commands::insert::wrap;
+        let mut all: Vec<Effect> = primary_effects.as_slice().to_vec();
+        all.extend(expansion.as_slice().iter().cloned());
+        let Some((window, base)) = wrap::line_after_effects(text, cursor, &all) else {
+            return;
+        };
+        let (Some(run_start), Some(run_end)) =
+            (typed.start.checked_sub(base), typed.end.checked_sub(base))
+        else {
+            return;
+        };
+        let run = wrap::TypedRun {
+            range: run_start..run_end,
+            line: crate::commands::helpers::line_of(text, cursor),
+            overwritten: 0,
+        };
+        let mut start = state.insert_state().and_then(InsertState::insert_start);
+        if let Some(plan) = wrap::plan_typed_format(&window, &run, policy, start.as_mut()) {
+            wrap::splice_format_plan(expansion, &plan.shifted(base));
+        }
+        if let (Some(start), Some(is)) = (start, state.insert_state_mut()) {
+            is.set_insert_start(start);
+        }
     }
 
     /// Handle InsertExit command (Escape/Ctrl-[/Ctrl-C).
@@ -1244,8 +1587,18 @@ impl VimEngine {
             is.block_insert()
                 .map(|bc| (bc.lines_below(), is.accumulated_text().len()))
         });
-        let (mut response, exit_info) =
-            super::super::insert_handler::handle_insert_exit(&mut self.state, cursor, text);
+        // With several cursors the counted repeat is replicated from the
+        // primary cursor. Formatting breaks each cursor's line on its own,
+        // so each cursor then repeats the text as it would alone.
+        let per_cursor_repeats = self.per_cursor_exit_repeats(text, cursor);
+        let (mut response, exit_info) = super::super::insert_handler::handle_insert_exit(
+            &mut self.state,
+            cursor,
+            text,
+            Some(&crate::commands::insert::wrap::FormatPolicy::from_options(
+                &self.resolved_options,
+            )),
+        );
 
         // ── Precompute undo/redo marks for block visual insert ──────────
         //
@@ -1299,6 +1652,12 @@ impl VimEngine {
                 }
             }
         }
+        // With formatting, where the other cursors end, by their head before
+        // the exit. Without it they stay where the insert left them.
+        let format_active =
+            crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options)
+                .is_active();
+        let mut secondary_heads: Option<Vec<(usize, usize)>> = None;
         // Multi-cursor: replicate positional exit effects to all cursors.
         // Global effects (EndUndoGroup, SetMode, SetStickyColumn, etc.) are
         // kept as single instances — only positional edits get replicated.
@@ -1320,7 +1679,68 @@ impl VimEngine {
                     global.push(effect.clone());
                 }
             }
-            if !positional.is_empty() {
+            if let (false, Some(repeats)) = (positional.is_empty(), per_cursor_repeats) {
+                let mut merged: smallvec::SmallVec<[Effect; 4]> = smallvec::SmallVec::new();
+                // Where each cursor ends: on its own last repeated character,
+                // shifted by the edits at the cursors below it.
+                let mut ends: Vec<(usize, usize, i64)> = Vec::with_capacity(repeats.len());
+                for (head, effects) in repeats {
+                    let own = if head == cursor {
+                        &positional[..]
+                    } else {
+                        &effects[..]
+                    };
+                    let end = Self::last_cursor_in_effects(own).map_or(head, Offset::get);
+                    let delta = crate::effects::algebra::compute_length_change(own);
+                    ends.push((head, end, delta));
+                    merged.extend(own.iter().cloned());
+                }
+                secondary_heads = Some(
+                    ends.iter()
+                        .filter(|&&(head, ..)| head != cursor)
+                        .map(|&(head, end, _)| {
+                            let shift: i64 = ends
+                                .iter()
+                                .filter(|&&(other, ..)| other < head)
+                                .map(|&(.., delta)| delta)
+                                .sum();
+                            (head, byte_delta::shift(end, shift))
+                        })
+                        .collect(),
+                );
+                merged.extend(global);
+                response.effects = merged;
+            } else if !positional.is_empty() {
+                // Without edits, the other cursors step back onto the
+                // character before them as the primary one does.
+                if format_active
+                    && !positional.iter().any(|e| {
+                        matches!(
+                            e,
+                            Effect::Insert { .. } | Effect::Delete { .. } | Effect::Replace { .. }
+                        )
+                    })
+                {
+                    let selections = self.state.multi_cursor().selections();
+                    secondary_heads = Some(
+                        selections
+                            .iter()
+                            .enumerate()
+                            .filter(|&(i, _)| i != selections.primary_index())
+                            .map(|(_, s)| {
+                                let head = s.head().get().min(text.len());
+                                let line_start =
+                                    crate::commands::helpers::line_start_for_offset(text, head);
+                                let back = if head > line_start {
+                                    crate::commands::helpers::prev_char_boundary(text, head)
+                                } else {
+                                    head
+                                };
+                                (s.head().get(), back)
+                            })
+                            .collect(),
+                    );
+                }
                 let positional_effects: crate::effects::Effects = positional.into_iter().collect();
                 let replicated = super::super::multi_cursor::replicate_effects_precise(
                     &positional_effects,
@@ -1345,6 +1765,9 @@ impl VimEngine {
             self.options.undo_auto_group_ms(),
             self.resolved_options.cursor_shape_overrides(),
         );
+        if let Some(heads) = secondary_heads {
+            move_other_cursors(&mut self.state, &heads);
+        }
         // Neovim's stop_insert() unconditionally sets b_op_end = *end_insert_pos.
         // For Replace mode and non-block Insert, override mark `]` with
         // end_insert_pos.  Block insert sets `]` correctly in
@@ -1759,6 +2182,29 @@ impl VimEngine {
         //
         let mc_active = self.state.multi_cursor().is_active();
         let is_global_only = command.is_global_only();
+        // With formatting, `A`, `I`, `a` and `gI` put every cursor where
+        // the command puts a cursor on that line alone, as the line breaks
+        // depend on where each insert starts. Without it every cursor moves
+        // as the primary one does, as before.
+        let own_entry = match &command {
+            Command::InsertEntry { entry_type, .. }
+                if mc_active
+                    && matches!(
+                        entry_type,
+                        crate::primitives::InsertEntryType::EndOfLine
+                            | crate::primitives::InsertEntryType::FirstNonBlank
+                            | crate::primitives::InsertEntryType::AfterCursor
+                            | crate::primitives::InsertEntryType::Column0
+                    )
+                    && crate::commands::insert::wrap::FormatPolicy::from_options(
+                        &self.resolved_options,
+                    )
+                    .is_active() =>
+            {
+                Some((*entry_type, self.state.multi_cursor().selections().clone()))
+            }
+            _ => None,
+        };
         let use_per_cursor = mc_active && command.is_content_dependent() && !is_global_only;
 
         // Track cursor deltas and register override from per-cursor execution.
@@ -1963,6 +2409,7 @@ impl VimEngine {
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
+                true,
             );
         }
         // Note: the algebraic rebase selection update is deferred to after
@@ -2001,6 +2448,9 @@ impl VimEngine {
             self.process_macro_plays(result.macro_plays, &mut response);
         }
 
+        // With formatting, where a dot-repeat leaves every cursor, by its
+        // head before the repeat.
+        let mut repeat_heads: Option<Vec<(usize, usize)>> = None;
         // Inject saved text for dot-repeat if intercepted.
         // With multi-cursor active, build the positional effects, replicate
         // them per cursor, then emit the global effects exactly once.
@@ -2014,11 +2464,78 @@ impl VimEngine {
                 indent_provider,
                 tabstop: self.options.tabstop(),
                 autoindent: self.options.autoindent(),
+                format: crate::commands::insert::wrap::FormatPolicy::from_options(
+                    &self.resolved_options,
+                ),
             };
             if self.state.multi_cursor().is_active() {
                 let primary_offset = self.state.multi_cursor().selections().primary().head();
                 repeat.last_cursor_offset = Some(primary_offset);
-                if let Some(positional) =
+                // Vim retypes the text at every cursor, so with formatting
+                // each cursor breaks its own line. That is done here when the
+                // repeated command made no edit of its own before the text.
+                let edited = response.effects.iter().any(|e| {
+                    matches!(
+                        e,
+                        crate::effects::Effect::Insert { .. }
+                            | crate::effects::Effect::Delete { .. }
+                            | crate::effects::Effect::Replace { .. }
+                    )
+                });
+                if let (true, false, Some(text)) = (repeat.format.is_active(), edited, doc_text) {
+                    let mut heads: Vec<Offset> = self
+                        .state
+                        .multi_cursor()
+                        .selections()
+                        .iter()
+                        .map(|s| s.head())
+                        .collect();
+                    heads.sort_unstable_by(|a, b| b.cmp(a));
+                    heads.dedup();
+                    let mut ends: Vec<(usize, usize, i64)> = Vec::with_capacity(heads.len());
+                    for head in heads {
+                        repeat.last_cursor_offset = Some(head);
+                        let Some(mut positional) =
+                            super::super::effect_processor::build_repeat_positional_effects(
+                                &self.state,
+                                &repeat,
+                            )
+                        else {
+                            continue;
+                        };
+                        format_repeated_text(&mut positional, text, &repeat.format);
+                        ends.push((
+                            head.get(),
+                            Self::last_cursor_in_effects(positional.as_slice())
+                                .map_or_else(|| head.get(), Offset::get),
+                            crate::effects::algebra::compute_length_change(positional.as_slice()),
+                        ));
+                        for mut effect in positional.into_inner() {
+                            super::super::effect_processor::sync_effect_mut(
+                                &mut self.state,
+                                &mut self.parser,
+                                &mut effect,
+                                doc_text,
+                                self.options.undolevels(),
+                            );
+                            response.effects.push(effect);
+                        }
+                    }
+                    // Every cursor ends on the last character it repeated,
+                    // shifted by the edits at the cursors below it.
+                    repeat_heads = Some(
+                        ends.iter()
+                            .map(|&(head, end, _)| {
+                                let shift: i64 = ends
+                                    .iter()
+                                    .filter(|&&(other, ..)| other < head)
+                                    .map(|&(.., delta)| delta)
+                                    .sum();
+                                (head, byte_delta::shift(end, shift))
+                            })
+                            .collect(),
+                    );
+                } else if let Some(positional) =
                     super::super::effect_processor::build_repeat_positional_effects(
                         &self.state,
                         &repeat,
@@ -2124,6 +2641,14 @@ impl VimEngine {
                 &response,
                 primary_delta,
             );
+        }
+        if let Some(heads) = repeat_heads {
+            move_other_cursors(&mut self.state, &heads);
+        }
+        if let (Some((entry_type, before)), Some(text), Some(0)) =
+            (own_entry, doc_text, rebase_primary_net_delta)
+        {
+            place_cursors_at_own_entry(&mut self.state, text, entry_type, &before);
         }
 
         // Emit the deferred expression re-evaluation host request (if any).
@@ -2346,6 +2871,172 @@ const fn return_to_for_insert_mode(mode: InsertMode) -> crate::primitives::Retur
         InsertMode::Replace => crate::primitives::ReturnTo::Replace,
         InsertMode::VirtualReplace => crate::primitives::ReturnTo::VirtualReplace,
     }
+}
+
+/// Whether `command` types a character that formatting looks at: a plain or
+/// literal character, but not a newline. CTRL-Y and CTRL-E are left out, as
+/// Vim's ins_ctrl_ey() turns 'textwidth' off while it inserts the copy.
+const fn is_formatted_char(command: &Command) -> bool {
+    matches!(command, Command::Insert(InsertKind::LiteralChar { .. }))
+        || matches!(command, Command::Insert(InsertKind::Char { char }) if *char != '\n')
+}
+
+/// Break the lines of the text a dot-repeat inserts with `effects` into
+/// `text`, as Vim retypes it. In Replace mode only the text past the end of
+/// the line formats.
+fn format_repeated_text(
+    effects: &mut crate::effects::Effects,
+    text: &str,
+    policy: &crate::commands::insert::wrap::FormatPolicy<'_>,
+) {
+    let Some((at, len)) = effects.as_slice().iter().find_map(|e| match e {
+        Effect::Insert { offset, text } => Some((offset.get(), text.len())),
+        _ => None,
+    }) else {
+        return;
+    };
+    let deleted_from = effects.as_slice().iter().find_map(|e| match e {
+        Effect::Delete { range } => Some(range.start().get()),
+        _ => None,
+    });
+    let overwritten = if deleted_from.is_some() {
+        crate::commands::insert::wrap::overwritten_chars(effects.as_slice(), text, at)
+    } else {
+        0
+    };
+    let _ = crate::commands::insert::wrap::format_inserted_text(
+        effects,
+        text,
+        &[],
+        at..at + len,
+        policy,
+        None,
+        overwritten,
+    );
+}
+
+/// Vim's ins_bs(): a backspace at the start of the line the insert started
+/// on moves that start to the end of the line above. The line length that
+/// 'l' looks at stays. `cursor` is where the backspace was typed in `text`,
+/// and `after` where it left the cursor.
+fn move_insert_start_on_backspace(
+    start: &mut crate::state::InsertStart,
+    text: &str,
+    cursor: usize,
+    after: usize,
+) {
+    let line = crate::commands::helpers::line_of(text, cursor);
+    let at_line_start = crate::commands::helpers::line_start_for_offset(text, cursor) == cursor;
+    if at_line_start && line > 0 && start.line == line && after < cursor {
+        let above = crate::commands::helpers::line_start(text, line - 1).unwrap_or(0);
+        start.line = line - 1;
+        start.col = cursor.saturating_sub(1) - above;
+    }
+}
+
+/// The line a cursor is on once the text edits in `effects` are applied to
+/// `text`, where they leave it at `cursor`. It was at `before` in `text`.
+/// Only an edit that may add or remove a line break needs the text rebuilt.
+fn cursor_line_after(
+    text: &str,
+    effects: &[Effect],
+    before: usize,
+    cursor: usize,
+) -> Option<usize> {
+    let changes_lines = effects.iter().any(|e| match e {
+        Effect::Insert { text: t, .. } => t.contains('\n'),
+        Effect::Delete { .. } | Effect::Replace { .. } => true,
+        _ => false,
+    });
+    if !changes_lines {
+        return Some(crate::commands::helpers::line_of(text, before));
+    }
+    let after = crate::commands::insert::wrap::apply_text_effects(text, effects)?;
+    Some(crate::commands::helpers::line_of(
+        &after,
+        cursor.min(after.len()),
+    ))
+}
+
+/// Move every cursor but the primary one from a head in `heads` to the
+/// offset paired with it, as an insert cursor.
+fn move_other_cursors(state: &mut crate::state::VimState, heads: &[(usize, usize)]) {
+    let selections = state.multi_cursor().selections();
+    let primary = selections.primary_index();
+    let ranges = selections
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let moved = heads.iter().find(|&&(head, _)| head == s.head().get());
+            match moved {
+                Some(&(_, to)) if i != primary => {
+                    crate::primitives::SelectionRange::insert_cursor(Offset::new(to))
+                }
+                _ => *s,
+            }
+        })
+        .collect();
+    *state.multi_cursor_mut().selections_mut() =
+        crate::primitives::Selections::from_vec(ranges, primary).normalize();
+}
+
+/// Put every cursor but the primary one where `entry_type` puts a cursor
+/// that was at its head in `before` on that line alone, when the cursors
+/// are on different lines and the command left them in Insert mode.
+fn place_cursors_at_own_entry(
+    state: &mut crate::state::VimState,
+    text: &str,
+    entry_type: crate::primitives::InsertEntryType,
+    before: &crate::primitives::Selections,
+) {
+    if !matches!(state.mode(), Mode::Insert) || !state.multi_cursor().is_active() {
+        return;
+    }
+    let after = state.multi_cursor().selections();
+    if after.len() != before.len() {
+        return;
+    }
+    let mut lines: Vec<usize> = before
+        .iter()
+        .map(|s| crate::commands::helpers::line_of(text, s.head().get().min(text.len())))
+        .collect();
+    lines.sort_unstable();
+    lines.dedup();
+    if lines.len() != before.len() {
+        return;
+    }
+    let primary = before.primary_index();
+    let ranges = before
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            if i == primary {
+                *after.primary()
+            } else {
+                crate::primitives::SelectionRange::insert_cursor(Offset::new(
+                    crate::commands::insert::entry::entry_offset(
+                        text,
+                        s.head().get().min(text.len()),
+                        entry_type,
+                    ),
+                ))
+            }
+        })
+        .collect();
+    *state.multi_cursor_mut().selections_mut() =
+        crate::primitives::Selections::from_vec(ranges, primary).normalize();
+}
+
+/// Whether one of the cursors at `others` is on the same line as `cursor`.
+fn cursor_shares_line(text: &str, cursor: usize, others: impl Iterator<Item = usize>) -> bool {
+    let start = crate::commands::helpers::line_start_for_offset(text, cursor);
+    let end = text
+        .get(cursor..)
+        .and_then(|rest| rest.find('\n'))
+        .map_or(text.len(), |n| cursor + n);
+    others
+        .filter(|&head| head != cursor)
+        .any(|head| (start..=end).contains(&head))
 }
 
 /// Correct the auto-emitted `SetStickyColumn` when text mutations made the

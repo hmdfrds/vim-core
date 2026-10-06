@@ -238,6 +238,7 @@ fn execute_raw<D: Document>(command: Command, ctx: &ExecutionContext<'_, D>) -> 
                     tabstop: ctx.options.tabstop(),
                     expandtab: ctx.options.expandtab(),
                     textwidth: ctx.options.textwidth(),
+                    options: ctx.options,
                     commentstring: ctx.options.commentstring(),
                     custom_operators: ctx.providers().custom_operators,
                     sticky_column: ctx.state.sticky_column(),
@@ -288,6 +289,7 @@ fn execute_raw<D: Document>(command: Command, ctx: &ExecutionContext<'_, D>) -> 
                     mark_offset,
                     mark_type,
                     register,
+                    options: ctx.options,
                     custom_operators: ctx.providers().custom_operators,
                 })
                 .effects,
@@ -371,6 +373,8 @@ fn execute_raw<D: Document>(command: Command, ctx: &ExecutionContext<'_, D>) -> 
                         Offset::new(cursor),
                     )
                     .with_motion_target(target)
+                    .with_textwidth(ctx.options.textwidth())
+                    .with_format_options(ctx.options)
                     .with_commentstring(ctx.options.commentstring());
                     if let Some(provider) = ctx.providers().custom_operators {
                         op_ctx = op_ctx.with_custom_operators(provider);
@@ -1454,6 +1458,7 @@ fn execute_operator_selection<D: Document>(
         shiftwidth: ctx.options.shiftwidth(),
         tabstop: ctx.options.tabstop(),
         expandtab: ctx.options.expandtab(),
+        options: ctx.options,
         viewport: ctx.viewport(),
         sticky_column: ctx.state.sticky_column(),
     };
@@ -1573,6 +1578,7 @@ fn execute_block_visual<D: Document>(
         .with_shiftwidth(ctx.options.shiftwidth())
         .with_tabstop(ctx.options.tabstop())
         .with_textwidth(ctx.options.textwidth())
+        .with_format_options(ctx.options)
         .with_commentstring(ctx.options.commentstring())
         .with_virtualedit_block(ve_block);
     if let Some(tree) = ctx.doc().vim_text_tree() {

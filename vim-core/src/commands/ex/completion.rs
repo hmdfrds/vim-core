@@ -325,9 +325,13 @@ const OPTION_NAMES: &[&str] = &[
     "bs",
     "cb",
     "clipboard",
+    "com",
+    "comments",
     "commentstring",
     "et",
     "expandtab",
+    "fo",
+    "formatoptions",
     "gd",
     "gdefault",
     "hls",
@@ -395,8 +399,10 @@ const OPTION_DESCRIPTIONS: &[(&str, &str)] = &[
     ("backspace", "What backspace can delete over"),
     ("belloff", "Suppress bell: \"\" or \"all\""),
     ("clipboard", "Clipboard integration mode"),
+    ("comments", "Comment leaders recognized when formatting"),
     ("commentstring", "Comment string format (e.g. \"// %s\")"),
     ("expandtab", "Expand tabs to spaces"),
+    ("formatoptions", "Automatic formatting flags (e.g. \"tcq\")"),
     ("gdefault", ":s substitutes globally by default"),
     ("hlsearch", "Highlight all search matches"),
     ("ignorecase", "Case-insensitive search"),
@@ -448,7 +454,9 @@ fn canonical_option_name(name: &str) -> &str {
         "bo" => "belloff",
         "bs" => "backspace",
         "cb" => "clipboard",
+        "com" => "comments",
         "et" => "expandtab",
+        "fo" => "formatoptions",
         "gd" => "gdefault",
         "hls" => "hlsearch",
         "ic" => "ignorecase",
@@ -612,7 +620,9 @@ fn get_string_value(canonical: &str, options: &VimOptions) -> String {
             }
         }
         "clipboard" => options.clipboard().to_owned(),
+        "comments" => options.comments().to_owned(),
         "commentstring" => options.commentstring().to_owned(),
+        "formatoptions" => options.formatoptions().to_owned(),
         "inccommand" => options.inccommand().to_owned(),
         "iskeyword" => options.iskeyword().to_owned(),
         "langmap" => options.langmap().to_owned(),
@@ -1373,6 +1383,21 @@ mod tests {
                 pair[1]
             );
         }
+    }
+
+    #[test]
+    fn commentstring_has_no_short_name() {
+        // `:set` knows 'commentstring' by its full name only, so completion
+        // offers no `cms`.
+        let names: Vec<_> = complete_setting_name("c", &VimOptions::default())
+            .into_iter()
+            .map(|c| c.text)
+            .collect();
+        assert!(!names.iter().any(|n| n.as_str() == "cms"), "{names:?}");
+        assert!(
+            names.iter().any(|n| n.as_str() == "commentstring"),
+            "{names:?}"
+        );
     }
 
     #[test]

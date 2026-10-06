@@ -806,7 +806,8 @@ impl<'a> OptionView<'a> {
     /// Look up any option by name, returning its value as a [`VimValue`].
     ///
     /// Supports: `shiftwidth`, `tabstop`, `expandtab`, `ignorecase`,
-    /// `smartcase`, `textwidth`, `commentstring`, `iskeyword`.
+    /// `smartcase`, `textwidth`, `commentstring`, `iskeyword`,
+    /// `formatoptions`, `comments`.
     /// Returns `None` for unrecognized option names.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<crate::primitives::VimValue> {
@@ -823,6 +824,12 @@ impl<'a> OptionView<'a> {
                 Some(VimValue::String(CompactString::from(self.commentstring())))
             }
             "iskeyword" | "isk" => Some(VimValue::String(CompactString::from(self.iskeyword()))),
+            "formatoptions" | "fo" => Some(VimValue::String(CompactString::from(
+                self.options.formatoptions(),
+            ))),
+            "comments" | "com" => Some(VimValue::String(CompactString::from(
+                self.options.comments(),
+            ))),
             _ => None,
         }
     }

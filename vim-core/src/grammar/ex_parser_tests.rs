@@ -4810,3 +4810,154 @@ fn smap_no_prefix_conflict_with_sort() {
     let cmd = parse_ex_command("sort").unwrap();
     assert!(matches!(cmd, ExCommand::Sort { .. }));
 }
+
+// ─── :set operators and escapes ─────────────────────────────────
+
+fn set_args(line: &str) -> Vec<SetAssignment> {
+    match parse_ex_command(line).unwrap() {
+        ExCommand::Set { assignments }
+        | ExCommand::SetLocal { assignments }
+        | ExCommand::SetGlobal { assignments } => assignments.into_vec(),
+        other => panic!("expected a :set command, got {other:?}"),
+    }
+}
+
+fn cs(s: &str) -> compact_str::CompactString {
+    compact_str::CompactString::from(s)
+}
+
+#[test]
+fn set_operators_parse_before_plain_assign() {
+    assert_eq!(
+        set_args("set fo-=t fo+=c com^=b:## tw+=4"),
+        vec![
+            SetAssignment::Remove(cs("fo"), cs("t")),
+            SetAssignment::Append(cs("fo"), cs("c")),
+            SetAssignment::Prepend(cs("com"), cs("b:##")),
+            SetAssignment::Append(cs("tw"), cs("4")),
+        ]
+    );
+}
+
+#[test]
+fn set_operator_values_may_contain_equals_and_colons() {
+    assert_eq!(
+        set_args("setlocal com-=fb:- com=s1:/*,mb:*,ex:*/"),
+        vec![
+            SetAssignment::Remove(cs("com"), cs("fb:-")),
+            SetAssignment::Assign(cs("com"), cs("s1:/*,mb:*,ex:*/")),
+        ]
+    );
+    assert_eq!(
+        set_args("set cms==%s"),
+        vec![SetAssignment::Assign(cs("cms"), cs("=%s"))]
+    );
+}
+
+#[test]
+fn set_empty_operator_value() {
+    assert_eq!(
+        set_args("set fo-= com+="),
+        vec![
+            SetAssignment::Remove(cs("fo"), cs("")),
+            SetAssignment::Append(cs("com"), cs("")),
+        ]
+    );
+}
+
+#[test]
+fn set_colon_assignment() {
+    assert_eq!(
+        set_args("set tw:7"),
+        vec![SetAssignment::Assign(cs("tw"), cs("7"))]
+    );
+}
+
+#[test]
+fn set_arguments_split_and_values_as_before_operators() {
+    // The operators did not change how other arguments split or how values
+    // read: white space separates arguments and a backslash is kept.
+    assert_eq!(
+        set_args(r"set sw=\2 cms=a\\ ts=4"),
+        vec![
+            SetAssignment::Assign(cs("sw"), cs(r"\2")),
+            SetAssignment::Assign(cs("cms"), cs(r"a\\")),
+            SetAssignment::Assign(cs("ts"), cs("4")),
+        ]
+    );
+    assert_eq!(
+        set_args("set sw =2"),
+        vec![
+            SetAssignment::SetBool(cs("sw")),
+            SetAssignment::Assign(cs(""), cs("2")),
+        ]
+    );
+}
+
+#[test]
+fn set_backslash_before_white_space_keeps_it_in_the_value() {
+    // `:help option-backslash`: Vim 9.1 gives "# %s" and "<!-- %s -->".
+    assert_eq!(
+        set_args(r"setlocal commentstring=#\ %s"),
+        vec![SetAssignment::Assign(cs("commentstring"), cs("# %s"))]
+    );
+    assert_eq!(
+        set_args(r"setlocal comments=fb:* commentstring=<!--\ %s\ -->"),
+        vec![
+            SetAssignment::Assign(cs("comments"), cs("fb:*")),
+            SetAssignment::Assign(cs("commentstring"), cs("<!-- %s -->")),
+        ]
+    );
+}
+
+#[test]
+fn set_backslash_space_splits_other_options_as_before() {
+    // Only commentstring, comments and formatoptions take a backslash
+    // before white space into the value. Any other argument ends at white
+    // space as before the operators, keeping a trailing backslash.
+    assert_eq!(
+        set_args(r"set sw=2\ ts=4"),
+        vec![
+            SetAssignment::Assign(cs("sw"), cs("2\\")),
+            SetAssignment::Assign(cs("ts"), cs("4")),
+        ]
+    );
+    assert_eq!(
+        set_args(r"set so=1\ commentstring=#\ %s"),
+        vec![
+            SetAssignment::Assign(cs("so"), cs("1\\")),
+            SetAssignment::Assign(cs("commentstring"), cs("# %s")),
+        ]
+    );
+    assert_eq!(
+        set_args(r"setlocal comments=sO:*\ -,mO:*\ \ ,exO:*/ fo+=a\ b"),
+        vec![
+            SetAssignment::Assign(cs("comments"), cs("sO:* -,mO:*  ,exO:*/")),
+            SetAssignment::Append(cs("fo"), cs("a b")),
+        ]
+    );
+}
+
+#[test]
+fn set_bool_forms_unchanged() {
+    assert_eq!(
+        set_args("set ic noai et! ts? all"),
+        vec![
+            SetAssignment::SetBool(cs("ic")),
+            SetAssignment::UnsetBool(cs("ai")),
+            SetAssignment::ToggleBool(cs("et")),
+            SetAssignment::Query(cs("ts")),
+            SetAssignment::ShowAll,
+        ]
+    );
+}
+
+#[test]
+fn set_colon_after_a_sign_is_a_plain_assignment() {
+    // `tw+:7` is not an operator; it reaches the executor as an assignment
+    // to an unknown option `tw+`, as before the operators.
+    assert_eq!(
+        set_args("set tw+:7"),
+        vec![SetAssignment::Assign(cs("tw+"), cs("7"))]
+    );
+}

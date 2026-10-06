@@ -7,10 +7,13 @@
 use compact_str::CompactString;
 use smallvec::SmallVec;
 use std::fmt;
+use std::sync::Arc;
 
 use super::byte_delta;
 use super::clipboard_mode::UseSystemClipboard;
+use super::comments::{CommentSpec, DEFAULT_COMMENTS};
 use super::cursor_style::CursorShape;
+use super::format_flags::FormatFlags;
 use super::option_scope::{is_sentinel, OptionId, OptionOverrides, OptionScope, OptionValue};
 use super::subword_config::SubwordConfig;
 use super::word_char_set::WordCharSet;
@@ -264,13 +267,18 @@ pub struct VimOptions {
     relativenumber: bool,
 
     // ── Formatting ───────────────────────────────────────────────────────
-    /// Maximum line width for formatting (gq). 0 means no limit.
+    /// Maximum line width. Typing past it breaks the line when
+    /// `formatoptions` has `t` or `c`, and `gq` formats to it. 0 turns
+    /// breaking while typing off; `gq` then formats to 79 columns.
     textwidth: usize,
     /// Format options string (e.g. "tcqj"). Controls auto-formatting behavior.
     /// - `t`: auto-wrap text using textwidth
     /// - `c`: auto-wrap comments using textwidth
-    /// Neovim default: "tcqj"
+    /// Neovim default: "tcqj" (Vim's is "tcq")
     formatoptions: CompactString,
+    /// Parsed flags from `formatoptions`. Rebuilt when formatoptions changes.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    format_flags: FormatFlags,
 
     // ── Mapping ──────────────────────────────────────────────────────────
     /// Timeout for ambiguous mapping prefixes in milliseconds.
@@ -296,6 +304,12 @@ pub struct VimOptions {
     /// Comment string format (e.g., `"// %s"`, `"# %s"`).
     /// `%s` is replaced with the line content.
     commentstring: CompactString,
+    /// Comment leaders for formatting (Vim `comments`), e.g. `"b:#,://"`.
+    comments: CompactString,
+    /// Parsed `comments`. Rebuilt when comments changes; shared so that
+    /// resolving options per buffer does not copy the parts.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    comment_spec: Arc<CommentSpec>,
 
     // ── Command-line preview ───────────────────────────────────────────────
     /// Live substitute preview mode.
@@ -563,11 +577,18 @@ impl VimOptions {
         &self.formatoptions
     }
 
+    /// Parsed `formatoptions` flags.
+    #[inline]
+    #[must_use]
+    pub const fn format_flags(&self) -> FormatFlags {
+        self.format_flags
+    }
+
     /// Whether auto-format text wrapping is enabled (`t` in formatoptions).
     #[inline]
     #[must_use]
-    pub fn auto_format_text(&self) -> bool {
-        self.formatoptions.contains('t')
+    pub const fn auto_format_text(&self) -> bool {
+        self.format_flags.contains(FormatFlags::WRAP_TEXT)
     }
 
     // ── Mapping getters ──────────────────────────────────────────────────
@@ -669,6 +690,20 @@ impl VimOptions {
     #[must_use]
     pub fn commentstring(&self) -> &str {
         &self.commentstring
+    }
+
+    /// Comment leaders for formatting (Vim `comments`).
+    #[inline]
+    #[must_use]
+    pub fn comments(&self) -> &str {
+        &self.comments
+    }
+
+    /// Parsed `comments`, for matching comment leaders.
+    #[inline]
+    #[must_use]
+    pub fn comment_spec(&self) -> &CommentSpec {
+        &self.comment_spec
     }
 
     // ── Quote escape getter ──────────────────────────────────────────────
@@ -829,10 +864,17 @@ impl VimOptions {
         self.textwidth = value;
     }
 
-    /// Set formatoptions.
+    /// Set formatoptions. Rebuilds the cached [`FormatFlags`].
+    ///
+    /// The value is stored as given. Characters that are not `formatoptions`
+    /// flags are kept in the string but have no effect; `:set` rejects them
+    /// with E539 before they get here. Some flags Vim knows are accepted but
+    /// not acted on yet (`r`, `o`, `/`, `a`, `n`, `m`, `]`); see
+    /// [`FormatFlags`].
     #[inline]
     pub fn set_formatoptions(&mut self, value: impl Into<CompactString>) {
         self.formatoptions = value.into();
+        self.format_flags = FormatFlags::parse_lossy(&self.formatoptions);
     }
 
     /// Set mapping timeout in milliseconds.
@@ -907,6 +949,17 @@ impl VimOptions {
     #[inline]
     pub fn set_commentstring(&mut self, value: impl Into<CompactString>) {
         self.commentstring = value.into();
+    }
+
+    /// Set comments. Rebuilds the cached [`CommentSpec`].
+    ///
+    /// The value is stored as given. Parts without a colon are skipped when
+    /// matching; `:set` rejects a malformed value with E524, E525 or E539
+    /// before it gets here.
+    #[inline]
+    pub fn set_comments(&mut self, value: impl Into<CompactString>) {
+        self.comments = value.into();
+        self.comment_spec = Arc::new(CommentSpec::parse_lossy(&self.comments));
     }
 
     /// Set iskeyword. Rebuilds the cached `WordCharSet` bitmap.
@@ -1387,6 +1440,8 @@ impl VimOptions {
             OptionId::Clipboard => OptionValue::Str(CompactString::from(self.clipboard())),
             OptionId::IsKeyword => OptionValue::Str(CompactString::from(self.iskeyword())),
             OptionId::CommentString => OptionValue::Str(CompactString::from(self.commentstring())),
+            OptionId::FormatOptions => OptionValue::Str(self.formatoptions.clone()),
+            OptionId::Comments => OptionValue::Str(self.comments.clone()),
             OptionId::IncCommand => OptionValue::Str(CompactString::from(self.inccommand())),
 
             // Special: undolevels is Option<usize>; -1 means unlimited
@@ -1543,6 +1598,16 @@ impl VimOptions {
                     self.set_commentstring(v.clone());
                 }
             }
+            OptionId::FormatOptions => {
+                if let OptionValue::Str(v) = value {
+                    self.set_formatoptions(v.clone());
+                }
+            }
+            OptionId::Comments => {
+                if let OptionValue::Str(v) = value {
+                    self.set_comments(v.clone());
+                }
+            }
             OptionId::IncCommand => {
                 if let OptionValue::Str(v) = value {
                     self.set_inccommand(v.as_str());
@@ -1587,7 +1652,7 @@ impl VimOptions {
     /// Produce a merged `VimOptions` by applying buffer-local and window-local
     /// overrides on top of `global`.
     ///
-    /// For each of the 26 known `OptionId` values:
+    /// For each known `OptionId` value:
     /// - If the option's scope is `LocalToBuffer` or `GlobalOrLocalBuffer`
     ///   (and the value is not a sentinel for `GlobalOrLocal*`), apply the
     ///   buffer override if present.
@@ -1627,6 +1692,8 @@ impl VimOptions {
             OptionId::UndoAutoGroupMs,
             OptionId::BellOff,
             OptionId::SoftTabStop,
+            OptionId::FormatOptions,
+            OptionId::Comments,
         ];
 
         let mut result = global.clone();
@@ -1732,6 +1799,10 @@ impl Default for VimOptions {
             relativenumber: false,
             textwidth: 0,
             formatoptions: CompactString::new_inline("tcqj"),
+            format_flags: FormatFlags::WRAP_TEXT
+                .union(FormatFlags::WRAP_COMMENTS)
+                .union(FormatFlags::FORMAT_COMMENTS)
+                .union(FormatFlags::REMOVE_COMMENT_LEADER),
             timeoutlen_ms: 500,
             whichwrap: CompactString::new_inline("b,s"),
             backspace: CompactString::new("indent,eol,start"),
@@ -1739,6 +1810,8 @@ impl Default for VimOptions {
             selection: SelectionMode::Inclusive,
             clipboard: CompactString::new_inline(""),
             commentstring: CompactString::new_inline("// %s"),
+            comments: CompactString::new(DEFAULT_COMMENTS),
+            comment_spec: Arc::new(CommentSpec::parse_lossy(DEFAULT_COMMENTS)),
             inccommand: IncCommandMode::NoSplit,
             iskeyword: CompactString::new("@,48-57,_,192-255"),
             word_char_set: WordCharSet::default_vim(),
@@ -1805,6 +1878,8 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             selection: SelectionMode,
             clipboard: CompactString,
             commentstring: CompactString,
+            #[serde(default = "default_comments")]
+            comments: CompactString,
             inccommand: IncCommandMode,
             iskeyword: CompactString,
             gdefault: bool,
@@ -1870,6 +1945,9 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
         fn default_formatoptions() -> CompactString {
             CompactString::new_inline("tcqj")
         }
+        fn default_comments() -> CompactString {
+            CompactString::new(DEFAULT_COMMENTS)
+        }
         fn default_quoteescape() -> CompactString {
             CompactString::new_inline("\\")
         }
@@ -1903,6 +1981,7 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             number: raw.number,
             relativenumber: raw.relativenumber,
             textwidth: raw.textwidth,
+            format_flags: FormatFlags::parse_lossy(&raw.formatoptions),
             formatoptions: raw.formatoptions,
             timeoutlen_ms: raw.timeoutlen_ms,
             whichwrap: raw.whichwrap,
@@ -1911,6 +1990,8 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             selection: raw.selection,
             clipboard: raw.clipboard,
             commentstring: raw.commentstring,
+            comment_spec: Arc::new(CommentSpec::parse_lossy(&raw.comments)),
+            comments: raw.comments,
             inccommand: raw.inccommand,
             word_char_set: WordCharSet::from_iskeyword(&raw.iskeyword),
             iskeyword: raw.iskeyword,
@@ -1996,6 +2077,54 @@ mod tests {
         let mut o = VimOptions::default();
         o.set_shiftwidth(0);
         assert_eq!(o.shiftwidth(), 1);
+    }
+
+    #[test]
+    fn default_format_flags_match_formatoptions_string() {
+        let opts = VimOptions::default();
+        assert_eq!(
+            opts.format_flags(),
+            FormatFlags::parse(opts.formatoptions()).unwrap()
+        );
+        assert!(opts.auto_format_text());
+    }
+
+    #[test]
+    fn set_formatoptions_rebuilds_flags() {
+        let mut opts = VimOptions::default();
+        opts.set_formatoptions("cq");
+        assert_eq!(opts.formatoptions(), "cq");
+        assert!(!opts.auto_format_text());
+        assert_eq!(
+            opts.format_flags(),
+            FormatFlags::WRAP_COMMENTS | FormatFlags::FORMAT_COMMENTS
+        );
+        // Unknown letters stay in the string but set no flag.
+        opts.set_formatoptions("tZ");
+        assert_eq!(opts.formatoptions(), "tZ");
+        assert_eq!(opts.format_flags(), FormatFlags::WRAP_TEXT);
+    }
+
+    #[test]
+    fn default_comments_is_vim_default() {
+        let opts = VimOptions::default();
+        assert_eq!(
+            opts.comments(),
+            "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+        );
+        assert_eq!(opts.comment_spec().parts().len(), 9);
+        assert!(opts.comment_spec().match_line("# note").is_some());
+    }
+
+    #[test]
+    fn set_comments_rebuilds_spec() {
+        let mut opts = VimOptions::default();
+        opts.set_comments("b:##,b:#");
+        assert_eq!(opts.comments(), "b:##,b:#");
+        assert_eq!(opts.comment_spec().parts().len(), 2);
+        assert!(opts.comment_spec().match_line("// x").is_none());
+        opts.set_comments("");
+        assert!(opts.comment_spec().is_empty());
     }
 
     #[test]
