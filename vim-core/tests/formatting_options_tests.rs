@@ -565,6 +565,20 @@ fn bool_syntax_leaves_formatoptions_and_comments_as_they_were() {
 }
 
 #[test]
+fn operator_after_bare_name_works_from_the_value_in_use() {
+    // ":setlocal sw" leaves 'shiftwidth' at 6 in use, as before the
+    // operators; `sw+=1` then gives 7, as in Vim 9.1.
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set sw=6");
+    let _ = run_ex(&mut engine, "setlocal sw");
+    set(&mut engine, "set sw+=1");
+    assert_eq!(
+        engine.effective_option(OptionId::ShiftWidth),
+        OptionValue::Unsigned(7)
+    );
+}
+
+#[test]
 fn whichwrap_operators_treat_items_as_flags() {
     // Vim 9.1: 'whichwrap' is a comma list whose items are flags, so += on
     // an item that is there moves it to the end.

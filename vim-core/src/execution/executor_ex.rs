@@ -1187,15 +1187,23 @@ pub(crate) fn apply_set_assignments(
                     // `:setglobal` works from the global value; `:set` and
                     // `:setlocal` from the effective one, and `:set` then
                     // writes the result to both layers, as in Vim.
-                    let base = if scope == SetScope::Global {
-                        global.get_option(id)
+                    let global_value = global.get_option(id);
+                    let local_value = crate::primitives::resolve_option(
+                        id,
+                        global,
+                        Some(buffer_overrides),
+                        Some(window_overrides),
+                    );
+                    // A bare name can leave a boolean in the local layer of
+                    // a number or string option. The value in use is then
+                    // the global one, as in the resolved options.
+                    let base = if scope == SetScope::Global
+                        || std::mem::discriminant(&local_value)
+                            != std::mem::discriminant(&global_value)
+                    {
+                        global_value
                     } else {
-                        crate::primitives::resolve_option(
-                            id,
-                            global,
-                            Some(buffer_overrides),
-                            Some(window_overrides),
-                        )
+                        local_value
                     };
                     let result =
                         apply_set_operator(id.kind(), id == OptionId::WhichWrap, &base, op, value)
