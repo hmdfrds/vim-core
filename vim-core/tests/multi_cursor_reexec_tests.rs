@@ -1110,6 +1110,24 @@ fn per_cursor_insert_when_host_cursor_is_not_primary() {
     assert_eq!(session.cursor_count(), 2);
 }
 
+/// Each cursor keeps its own insert start when the host cursor ends on
+/// another cursor than the primary one.
+///
+/// `<BS>` at the start of the buffer leaves the primary cursor in place,
+/// so the host cursor follows the other cursor's backspace. The second line
+/// was longer than 'textwidth' when the insert started, so with `l` in
+/// 'formatoptions' it must not be broken, as when that cursor types alone.
+#[test]
+fn per_cursor_insert_start_follows_host_cursor() {
+    let mut session = session_with_cursors("\ndd eee fff ggg hhh iii", &[0, 22]);
+    let mut opts = session.options().clone();
+    opts.set_textwidth(20);
+    opts.set_formatoptions("tql");
+    session.set_options(opts);
+    feed(&mut session, "i<BS>a");
+    assert_eq!(session.text(), "a\ndd eee fff ggg hhh iai");
+}
+
 /// Typing through the per-cursor path after `a` keeps both cursors.
 ///
 /// `a` moves each cursor right but used to leave the secondary's anchor

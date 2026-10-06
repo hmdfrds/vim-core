@@ -193,6 +193,9 @@ pub struct InsertState {
     insert_start_cursor: Option<Offset>,
     /// Insert starts of the cursors other than the primary one.
     cursor_starts: Vec<CursorInsertStart>,
+    /// Where the last insert command left the primary cursor itself, when
+    /// several cursors formatted. The host cursor can end on another cursor.
+    primary_head: Option<Offset>,
 }
 
 impl InsertState {
@@ -226,6 +229,7 @@ impl InsertState {
             insert_start: None,
             insert_start_cursor: None,
             cursor_starts: Vec::new(),
+            primary_head: None,
         }
     }
 
@@ -553,6 +557,45 @@ impl InsertState {
     #[inline]
     pub fn set_cursor_starts(&mut self, starts: Vec<CursorInsertStart>) {
         self.cursor_starts = starts;
+    }
+
+    /// Remember where the last insert command left the primary cursor.
+    #[inline]
+    pub const fn set_primary_head(&mut self, head: Option<Offset>) {
+        self.primary_head = head;
+    }
+
+    /// When the host cursor is now at `head`, another cursor than the one
+    /// the insert start was recorded for, swap that start with the start of
+    /// the cursor at `head`, so each start stays with its own cursor.
+    /// `line_of` gives the line of an offset. Returns whether the starts
+    /// were swapped.
+    pub fn follow_host_cursor(&mut self, head: Offset, line_of: impl Fn(Offset) -> usize) -> bool {
+        let Some(primary) = self.primary_head.take() else {
+            return false;
+        };
+        if primary == head {
+            return false;
+        }
+        let (Some(own), Some(slot)) = (
+            self.insert_start,
+            self.cursor_starts.iter_mut().find(|c| c.head == head),
+        ) else {
+            return false;
+        };
+        let theirs = std::mem::replace(
+            slot,
+            CursorInsertStart {
+                head: primary,
+                lines_below: line_of(primary).saturating_sub(own.line),
+                start: own,
+            },
+        );
+        self.insert_start = Some(InsertStart {
+            line: line_of(head).saturating_sub(theirs.lines_below),
+            ..theirs.start
+        });
+        true
     }
 
     /// Whether bracketed paste mode is active.

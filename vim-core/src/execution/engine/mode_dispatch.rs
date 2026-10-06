@@ -640,6 +640,11 @@ impl VimEngine {
         // stop_arrow()).
         let tabstop = self.resolved_options.tabstop();
         if let Some(is) = self.state.insert_state_mut() {
+            // With several cursors the host cursor can end on another cursor
+            // than the primary one; it then takes that cursor's start.
+            is.follow_host_cursor(Offset::new(cursor), |o| {
+                crate::commands::helpers::line_of(text, o.get())
+            });
             if is.insert_start().is_none() || is.insert_start_cursor() != Some(Offset::new(cursor))
             {
                 let blank_vcol = is.insert_start().and_then(|s| s.blank_vcol);
@@ -879,6 +884,7 @@ impl VimEngine {
             let mut all_effects: Vec<crate::effects::Effect> = Vec::new();
             let mut cursor_deltas: Vec<(usize, crate::primitives::Offset, i64)> = Vec::new();
             let mut secondary_starts: Vec<(usize, usize, crate::state::InsertStart)> = Vec::new();
+            let mut primary_own: Option<usize> = None;
 
             // For CopyCharAbove/CopyCharBelow, maintain a working text
             // buffer that includes higher-offset cursors' edits. These commands
@@ -998,6 +1004,13 @@ impl VimEngine {
                     r.effects
                 };
 
+                if format_active && cur == primary_offset {
+                    primary_own = Some(
+                        Self::last_cursor_in_effects(effects_i.as_slice())
+                            .map_or(cur, crate::primitives::Offset::get),
+                    );
+                }
+
                 // Track SetCursor and net delta for selection update.
                 let mut set_cursor_offset: Option<crate::primitives::Offset> = None;
                 let mut net_delta: i64 = 0;
@@ -1061,23 +1074,28 @@ impl VimEngine {
 
             // The insert starts of the secondary cursors go with where the
             // edits of every cursor leave them.
+            let shifted = |own: usize| {
+                let shift: i64 = cursor_deltas
+                    .iter()
+                    .filter(|(_, raw, _)| raw.get() < own)
+                    .map(|&(_, _, delta)| delta)
+                    .sum();
+                crate::primitives::Offset::new(byte_delta::shift(own, shift))
+            };
             let new_starts = secondary_starts
                 .into_iter()
-                .map(|(own, lines_below, start)| {
-                    let shift: i64 = cursor_deltas
-                        .iter()
-                        .filter(|(_, raw, _)| raw.get() < own)
-                        .map(|&(_, _, delta)| delta)
-                        .sum();
-                    crate::state::CursorInsertStart {
-                        head: crate::primitives::Offset::new(byte_delta::shift(own, shift)),
+                .map(
+                    |(own, lines_below, start)| crate::state::CursorInsertStart {
+                        head: shifted(own),
                         lines_below,
                         start,
-                    }
-                })
+                    },
+                )
                 .collect();
+            let primary_head = primary_own.map(shifted);
             if let Some(is) = self.state.insert_state_mut() {
                 is.set_cursor_starts(new_starts);
+                is.set_primary_head(primary_head);
             }
             insert_cd_deltas = Some(cursor_deltas);
             all_effects.into_iter().collect()
