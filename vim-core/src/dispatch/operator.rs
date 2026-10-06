@@ -956,6 +956,14 @@ pub fn dispatch_operator_textobject(input: &OperatorTextObjectInput<'_>) -> Comm
         .with_providers(*providers)
         .with_options(options);
     let Some(text_obj_range) = dispatch_textobject_with_count(textobject, &text_ctx, count) else {
+        // Vim cancels the format operators on a counted paragraph object
+        // that runs out of paragraphs, and the cursor stays where it was.
+        if count > 1
+            && matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+            && textobject.kind == crate::grammar::types::TextObjectKind::Paragraph
+        {
+            return CommandResult::effects_only(crate::effects::Effects::new());
+        }
         if count > 1 {
             // Neovim: when a counted text object can't expand enough, the operation
             // is canceled (no text change) but cursor moves to end of current line.

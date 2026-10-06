@@ -883,6 +883,142 @@
    }
   },
   {
+   "name": "a counted ap that fails leaves the cursor where it was",
+   "lines": [
+    "aa",
+    "",
+    "bb cc"
+   ],
+   "cursor": [
+    2,
+    1
+   ],
+   "keys": "3gqap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "",
+     "bb cc"
+    ],
+    "cursor": [
+     2,
+     1
+    ]
+   }
+  },
+  {
+   "name": "a counted ap that fails from a blank line leaves the cursor",
+   "lines": [
+    ".",
+    "",
+    "n"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "2gqapgqj",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "",
+     "n"
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted gw ap that fails from blank lines",
+   "lines": [
+    "aa",
+    "",
+    "",
+    "bb cc"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "3gwap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "",
+     "",
+     "bb cc"
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "a counted ip past the end leaves the cursor",
+   "lines": [
+    "aa",
+    "",
+    "bb",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "5gqip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "aa",
+     "",
+     "bb",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
    "name": "undo after gw from the empty last line",
    "lines": [
     "\td",
