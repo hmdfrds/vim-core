@@ -1330,9 +1330,10 @@ fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExComma
 /// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
 ///   `Prepend`
 ///
-/// Arguments are separated by white space. A backslash before white space
-/// makes it part of the value (`commentstring=#\ %s` gives `# %s`); every
-/// other backslash is kept as typed.
+/// Arguments are separated by white space. In a value of `commentstring`,
+/// `comments` or `formatoptions` a backslash before white space makes it
+/// part of the value (`commentstring=#\ %s` gives `# %s`); every other
+/// backslash is kept as typed.
 fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     let mut assignments = smallvec::SmallVec::new();
 
@@ -1403,36 +1404,62 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     assignments
 }
 
-/// Split `:set` arguments on white space. A backslash followed by white
-/// space gives that white space inside the argument. A backslash followed
-/// by anything else is kept with that character, so `\\ ` still ends an
-/// argument.
+/// Split `:set` arguments on white space.
+///
+/// An argument that sets `commentstring`, `comments` or `formatoptions`
+/// takes a backslash followed by white space as that white space inside
+/// the value (`commentstring=#\ %s` gives `# %s`); a backslash followed by
+/// anything else is kept with that character, so `\\ ` still ends the
+/// argument. Every other argument ends at the first white space, with its
+/// backslashes as typed.
 fn split_set_args(args: &str) -> smallvec::SmallVec<[String; 2]> {
     let mut tokens = smallvec::SmallVec::new();
-    let mut current = String::new();
-    let mut chars = args.chars();
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            match chars.next() {
-                Some(next) if next.is_whitespace() => current.push(next),
-                Some(next) => {
+    let mut rest = args.trim_start();
+    while !rest.is_empty() {
+        let mut current = String::new();
+        let mut chars = rest.char_indices();
+        let mut end = rest.len();
+        if takes_escaped_white_space(rest) {
+            while let Some((i, c)) = chars.next() {
+                if c == '\\' {
+                    match chars.next() {
+                        Some((_, next)) if next.is_whitespace() => current.push(next),
+                        Some((_, next)) => {
+                            current.push(c);
+                            current.push(next);
+                        }
+                        None => current.push(c),
+                    }
+                } else if c.is_whitespace() {
+                    end = i;
+                    break;
+                } else {
                     current.push(c);
-                    current.push(next);
                 }
-                None => current.push(c),
-            }
-        } else if c.is_whitespace() {
-            if !current.is_empty() {
-                tokens.push(std::mem::take(&mut current));
             }
         } else {
-            current.push(c);
+            end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+            current.push_str(&rest[..end]);
         }
-    }
-    if !current.is_empty() {
         tokens.push(current);
+        rest = rest[end..].trim_start();
     }
     tokens
+}
+
+/// Whether the argument at the start of `arg` sets `commentstring`,
+/// `comments` or `formatoptions` (with `=`, `:`, `+=`, `-=` or `^=`).
+fn takes_escaped_white_space(arg: &str) -> bool {
+    let name_len = arg
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(arg.len());
+    let (name, rest) = arg.split_at(name_len);
+    matches!(
+        name,
+        "commentstring" | "comments" | "com" | "formatoptions" | "fo"
+    ) && ["=", ":", "+=", "-=", "^="]
+        .iter()
+        .any(|op| rest.starts_with(op))
 }
 
 /// Parse `name+=value`, `name-=value` or `name^=value`, where `name` is a

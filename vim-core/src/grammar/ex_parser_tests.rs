@@ -4911,6 +4911,34 @@ fn set_backslash_before_white_space_keeps_it_in_the_value() {
 }
 
 #[test]
+fn set_backslash_space_splits_other_options_as_before() {
+    // Only commentstring, comments and formatoptions take a backslash
+    // before white space into the value. Any other argument ends at white
+    // space as before the operators, keeping a trailing backslash.
+    assert_eq!(
+        set_args(r"set sw=2\ ts=4"),
+        vec![
+            SetAssignment::Assign(cs("sw"), cs("2\\")),
+            SetAssignment::Assign(cs("ts"), cs("4")),
+        ]
+    );
+    assert_eq!(
+        set_args(r"set so=1\ commentstring=#\ %s"),
+        vec![
+            SetAssignment::Assign(cs("so"), cs("1\\")),
+            SetAssignment::Assign(cs("commentstring"), cs("# %s")),
+        ]
+    );
+    assert_eq!(
+        set_args(r"setlocal comments=sO:*\ -,mO:*\ \ ,exO:*/ fo+=a\ b"),
+        vec![
+            SetAssignment::Assign(cs("comments"), cs("sO:* -,mO:*  ,exO:*/")),
+            SetAssignment::Append(cs("fo"), cs("a b")),
+        ]
+    );
+}
+
+#[test]
 fn set_bool_forms_unchanged() {
     assert_eq!(
         set_args("set ic noai et! ts? all"),

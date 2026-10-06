@@ -491,6 +491,19 @@ fn set_arguments_split_as_before_operators() {
 }
 
 #[test]
+fn backslash_space_in_a_number_value_splits_as_before() {
+    // `sw=2\` is refused as before the operators, and `ts=6` after it is
+    // still set.
+    let mut engine = VimEngine::new();
+    assert_eq!(
+        error(&mut engine, r"set sw=2\ ts=6"),
+        "E492: Not an editor command: E521: Number required after =: sw=2\\"
+    );
+    assert_eq!(engine.options().tabstop(), 6);
+    assert_eq!(engine.options().shiftwidth(), 4);
+}
+
+#[test]
 fn whichwrap_operators_treat_items_as_flags() {
     // Vim 9.1: 'whichwrap' is a comma list whose items are flags, so += on
     // an item that is there moves it to the end.
