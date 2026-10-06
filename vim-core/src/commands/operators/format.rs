@@ -252,6 +252,18 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
     let mark_start = Offset::new(formatted.range_start);
     let mark_end = Offset::new(begin_line(&new_text, formatted.first_line));
 
+    // Undo cannot put the cursor back on the empty last line, where Vim's
+    // `u` returns it, so a selection that ends there and changes nothing
+    // makes no undo step, as before the operators followed Vim.
+    if !formatted.changed() && from_empty_last_line(ctx) {
+        return CommandResult::new(
+            Effects::new()
+                .set_mark(MarkName::CHANGE_START, mark_start, None)
+                .set_mark(MarkName::CHANGE_END, mark_end, None)
+                .set_cursor(cursor),
+            cursor,
+        );
+    }
     if !formatted.changed() {
         return CommandResult::new(
             undo_step_without_change(&formatted)

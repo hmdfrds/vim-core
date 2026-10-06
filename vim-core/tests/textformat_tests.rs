@@ -404,6 +404,22 @@ fn counted_format_of_lines_ends_on_the_empty_last_line() {
 }
 
 #[test]
+fn undo_after_a_visual_gw_from_the_empty_last_line_that_changed_nothing() {
+    // Vim 9.1 puts the cursor back on the empty line after a final newline
+    // where `gw` was given. Undo cannot put it there, so a `gw` there that
+    // changes nothing makes no undo step, and `u` leaves the cursor alone.
+    let mut s = session("e\n", 0, "tcq");
+    feed(&mut s, "VGgwu");
+    assert_eq!(s.text(), "e\n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 0]);
+
+    let mut s = session("e\n", 0, "tcq");
+    feed(&mut s, "Vjgwu");
+    assert_eq!(s.text(), "e\n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 0]);
+}
+
+#[test]
 fn literal_character_breaks_like_a_typed_one() {
     let mut s = session("aaaa bbbb cccc dddd", 20, "tq");
     feed(&mut s, "A <C-v>a<C-v>b");
