@@ -472,6 +472,13 @@ fn comments_operator_result_is_validated() {
 }
 
 #[test]
+fn escaped_space_in_commentstring() {
+    let mut engine = VimEngine::new();
+    set(&mut engine, r"setlocal commentstring=#\ %s");
+    assert_eq!(effective_str(&engine, OptionId::CommentString), "# %s");
+}
+
+#[test]
 fn set_arguments_split_as_before_operators() {
     // White space before `=` and a backslash in a value are handled as
     // they were before the operators: neither sets 'shiftwidth', so `>>`

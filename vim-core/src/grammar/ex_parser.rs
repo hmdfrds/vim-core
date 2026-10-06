@@ -1329,6 +1329,10 @@ fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExComma
 /// - `:set tabstop=8` → `Assign("tabstop", "8")`
 /// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
 ///   `Prepend`
+///
+/// Arguments are separated by white space. A backslash before white space
+/// makes it part of the value (`commentstring=#\ %s` gives `# %s`); every
+/// other backslash is kept as typed.
 fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     let mut assignments = smallvec::SmallVec::new();
 
@@ -1337,7 +1341,8 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
         return assignments;
     }
 
-    for token in args.split_whitespace() {
+    for token in split_set_args(args) {
+        let token = token.as_str();
         if token == "all" {
             assignments.push(SetAssignment::ShowAll);
             continue;
@@ -1396,6 +1401,38 @@ fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     }
 
     assignments
+}
+
+/// Split `:set` arguments on white space. A backslash followed by white
+/// space gives that white space inside the argument. A backslash followed
+/// by anything else is kept with that character, so `\\ ` still ends an
+/// argument.
+fn split_set_args(args: &str) -> smallvec::SmallVec<[String; 2]> {
+    let mut tokens = smallvec::SmallVec::new();
+    let mut current = String::new();
+    let mut chars = args.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some(next) if next.is_whitespace() => current.push(next),
+                Some(next) => {
+                    current.push(c);
+                    current.push(next);
+                }
+                None => current.push(c),
+            }
+        } else if c.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(c);
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
 }
 
 /// Parse `name+=value`, `name-=value` or `name^=value`, where `name` is a

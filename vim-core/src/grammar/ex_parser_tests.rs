@@ -4878,11 +4878,11 @@ fn set_arguments_split_and_values_as_before_operators() {
     // The operators did not change how other arguments split or how values
     // read: white space separates arguments and a backslash is kept.
     assert_eq!(
-        set_args(r"set sw=\2 cms=#\ %s"),
+        set_args(r"set sw=\2 cms=a\\ ts=4"),
         vec![
             SetAssignment::Assign(cs("sw"), cs(r"\2")),
-            SetAssignment::Assign(cs("cms"), cs("#\\")),
-            SetAssignment::SetBool(cs("%s")),
+            SetAssignment::Assign(cs("cms"), cs(r"a\\")),
+            SetAssignment::Assign(cs("ts"), cs("4")),
         ]
     );
     assert_eq!(
@@ -4890,6 +4890,22 @@ fn set_arguments_split_and_values_as_before_operators() {
         vec![
             SetAssignment::SetBool(cs("sw")),
             SetAssignment::Assign(cs(""), cs("2")),
+        ]
+    );
+}
+
+#[test]
+fn set_backslash_before_white_space_keeps_it_in_the_value() {
+    // `:help option-backslash`: Vim 9.1 gives "# %s" and "<!-- %s -->".
+    assert_eq!(
+        set_args(r"setlocal commentstring=#\ %s"),
+        vec![SetAssignment::Assign(cs("commentstring"), cs("# %s"))]
+    );
+    assert_eq!(
+        set_args(r"setlocal comments=fb:* commentstring=<!--\ %s\ -->"),
+        vec![
+            SetAssignment::Assign(cs("comments"), cs("fb:*")),
+            SetAssignment::Assign(cs("commentstring"), cs("<!-- %s -->")),
         ]
     );
 }
