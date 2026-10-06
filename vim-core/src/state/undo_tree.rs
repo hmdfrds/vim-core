@@ -1030,33 +1030,6 @@ impl UndoTree {
         }
     }
 
-    /// The first edit of the open group and the start of its line, as
-    /// `mark_edit_at_with_text` and `mark_edit_range_with_text` record them,
-    /// or `None` without an open group.
-    #[must_use]
-    pub const fn pending_first_edit(&self) -> Option<(Option<Offset>, Option<Offset>)> {
-        match &self.pending {
-            Some(p) => Some((p.first_edit_offset, p.first_edit_line_start)),
-            None => None,
-        }
-    }
-
-    /// Set the first edit of the open group and the start of its line.
-    ///
-    /// Formatting while typing breaks the line before where the insert
-    /// started, and Vim still puts the cursor back where it started on
-    /// undo, so the break must not move the first edit.
-    pub const fn set_pending_first_edit(
-        &mut self,
-        offset: Option<Offset>,
-        line_start: Option<Offset>,
-    ) {
-        if let Some(ref mut p) = self.pending {
-            p.first_edit_offset = offset;
-            p.first_edit_line_start = line_start;
-        }
-    }
-
     /// Whether a group is currently open.
     #[must_use]
     pub const fn has_pending_group(&self) -> bool {

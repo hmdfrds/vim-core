@@ -319,6 +319,28 @@ fn undo_removes_the_text_and_the_breaks_in_one_step() {
 }
 
 #[test]
+fn undo_after_a_break_puts_the_cursor_on_the_first_edit() {
+    // Undo puts the cursor on the first edit of the change, as it does for
+    // every change, and the break counts as one. Here that is the blank
+    // the break replaced, before where the insert started. Vim 9.1 puts the
+    // cursor back where the insert started ([0, 7] and [0, 5]); that is
+    // left for later, as it changes how undo records a change.
+    let mut s = session("Tabbed n", 5, "tcq");
+    s.set_cursor_offset(7);
+    feed(&mut s, "i#");
+    assert_eq!(s.text(), "Tabbed\n#n");
+    feed(&mut s, "<Esc>u");
+    assert_eq!(s.text(), "Tabbed n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [0, 6]);
+
+    let mut s = session("//e re", 5, "cq");
+    s.set_cursor_offset(5);
+    feed(&mut s, "is<Esc>u");
+    assert_eq!(s.text(), "//e re");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [0, 3]);
+}
+
+#[test]
 fn literal_character_breaks_like_a_typed_one() {
     let mut s = session("aaaa bbbb cccc dddd", 20, "tq");
     feed(&mut s, "A <C-v>a<C-v>b");

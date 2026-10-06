@@ -770,15 +770,6 @@ impl VimEngine {
             .as_ref()
             .filter(|_| formats_typed)
             .map(|_| result.effects.clone());
-        // Where the edits of the typed character start, before any line
-        // breaks, and whether a line broke: a break before where the insert
-        // started must not move where undo puts the cursor.
-        let mut typed_edit_start = if formats_typed && abbreviation.is_none() {
-            first_edit_offset(result.effects.as_slice())
-        } else {
-            None
-        };
-        let mut broke_line = false;
         if formats_typed && abbreviation.is_none() {
             // The host cursor need not be the primary cursor yet: the
             // per-cursor path below makes the cursor sitting at the host
@@ -802,7 +793,7 @@ impl VimEngine {
                     .state
                     .insert_state()
                     .and_then(InsertState::insert_start);
-                broke_line |= crate::commands::insert::wrap::format_typed_char(
+                crate::commands::insert::wrap::format_typed_char(
                     &mut result.effects,
                     text,
                     cursor,
@@ -941,10 +932,6 @@ impl VimEngine {
                     }
 
                     let mut r = crate::dispatch::dispatch_insert(&command, &insert_ctx_i);
-                    if formats_typed && abbreviation.is_none() {
-                        typed_edit_start =
-                            min_offset(typed_edit_start, first_edit_offset(r.effects.as_slice()));
-                    }
                     if format_active {
                         // Every cursor has its own insert start for 'l', 'v' and
                         // 'b', recorded again when an insert command did not
@@ -976,7 +963,7 @@ impl VimEngine {
                                 .map(|(_, sr)| sr.head().get()),
                         );
                         if formats_typed && !shares_line {
-                            broke_line |= crate::commands::insert::wrap::format_typed_char(
+                            crate::commands::insert::wrap::format_typed_char(
                                 &mut r.effects,
                                 exec_text,
                                 cur,
@@ -1211,11 +1198,6 @@ impl VimEngine {
         };
 
         // 5. Process effects (state sync, changelist tracking)
-        let first_edit_before = if broke_line {
-            self.state.undo_tree().pending_first_edit()
-        } else {
-            None
-        };
         let mut response = Response::with_effects(effects);
         let proc_result = super::super::effect_processor::process_effects_with_text(
             &mut self.state,
@@ -1228,25 +1210,6 @@ impl VimEngine {
             self.options.undo_auto_group_ms(),
             self.resolved_options.cursor_shape_overrides(),
         );
-        // Undo puts the cursor on the first edit, and a line break is not
-        // one: Vim puts it back where the insert started.
-        if let Some((offset, line_start)) = first_edit_before {
-            let typed_line_start = typed_edit_start.map(|o| {
-                crate::primitives::Offset::new(crate::commands::helpers::line_start_for_offset(
-                    text, o,
-                ))
-            });
-            self.state.undo_tree_mut().set_pending_first_edit(
-                min_offset(offset.map(crate::primitives::Offset::get), typed_edit_start)
-                    .map(crate::primitives::Offset::new),
-                min_offset(
-                    line_start.map(crate::primitives::Offset::get),
-                    typed_line_start.map(crate::primitives::Offset::get),
-                )
-                .map(crate::primitives::Offset::new),
-            );
-        }
-
         // Track edit start for operations that modify text before entry_offset.
         // C-d/C-t modify text at line start. BS/C-u at beginning of line
         // delete the preceding newline (joining lines). All of these need
@@ -2900,27 +2863,6 @@ const fn return_to_for_insert_mode(mode: InsertMode) -> crate::primitives::Retur
 /// Whether `command` types a character that formatting looks at: a plain or
 /// literal character, but not a newline. CTRL-Y and CTRL-E are left out, as
 /// Vim's ins_ctrl_ey() turns 'textwidth' off while it inserts the copy.
-/// Where the first text edit in `effects` starts.
-fn first_edit_offset(effects: &[crate::effects::Effect]) -> Option<usize> {
-    effects
-        .iter()
-        .filter_map(|e| match e {
-            crate::effects::Effect::Insert { offset, .. } => Some(offset.get()),
-            crate::effects::Effect::Delete { range }
-            | crate::effects::Effect::Replace { range, .. } => Some(range.start().get()),
-            _ => None,
-        })
-        .min()
-}
-
-/// The smaller of two offsets that may be missing.
-fn min_offset(a: Option<usize>, b: Option<usize>) -> Option<usize> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    }
-}
-
 const fn is_formatted_char(command: &Command) -> bool {
     matches!(command, Command::Insert(InsertKind::LiteralChar { .. }))
         || matches!(command, Command::Insert(InsertKind::Char { char }) if *char != '\n')
