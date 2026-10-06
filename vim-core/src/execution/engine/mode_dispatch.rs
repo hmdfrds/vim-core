@@ -138,6 +138,19 @@ impl VimEngine {
             )
         {
             self.parser.reset();
+            // `gq` and `gw` reach this from the `g` prefix, which the
+            // parser leaves pending, so it has not recorded them for `.`.
+            if let PlannedAction::Execute(
+                command @ Command::OperatorSelection {
+                    operator:
+                        crate::grammar::types::Operator::Format
+                        | crate::grammar::types::Operator::FormatKeepCursor,
+                    ..
+                },
+            ) = &action
+            {
+                self.parser.record_for_repeat(command.clone());
+            }
         }
 
         // Dispatch the action

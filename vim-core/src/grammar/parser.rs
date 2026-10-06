@@ -263,6 +263,13 @@ impl Parser {
         self.state = InputState::default();
     }
 
+    /// Record `command` as the one `.` repeats.
+    ///
+    /// For a command the engine builds itself instead of the parser.
+    pub(crate) fn record_for_repeat(&mut self, command: Command) {
+        self.last_command = Some(command);
+    }
+
     /// Force the parser into a specific [`InputState`].
     ///
     /// Used by the engine to re-enter sticky sub-modes (e.g. `Ctrl-W`).

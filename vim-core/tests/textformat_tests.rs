@@ -358,6 +358,26 @@ fn word_object_on_an_empty_line_formats_the_lines_it_covers() {
 }
 
 #[test]
+fn dot_repeats_a_visual_format() {
+    // Vim 9.1: `.` repeats `Vjgq` over as many lines from the cursor.
+    let mut s = session("a\nb\nc\nd\ne", 0, "tcq");
+    feed(&mut s, "Vjgqj.");
+    assert_eq!(s.text(), "a b\nc d\ne");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 0]);
+
+    let mut s = session("a\nb\nc\nd\ne", 0, "tcq");
+    feed(&mut s, "Vjgwj.");
+    assert_eq!(s.text(), "a b\nc d\ne");
+
+    // The repeat formats the empty line and the next one, and the cursor
+    // ends on the last.
+    let mut s = session("e\n\n.", 0, "tcq");
+    s.set_cursor_offset(2);
+    feed(&mut s, "Vkgq.");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [2, 0]);
+}
+
+#[test]
 fn literal_character_breaks_like_a_typed_one() {
     let mut s = session("aaaa bbbb cccc dddd", 20, "tq");
     feed(&mut s, "A <C-v>a<C-v>b");
