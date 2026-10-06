@@ -341,6 +341,23 @@ fn undo_after_a_break_puts_the_cursor_on_the_first_edit() {
 }
 
 #[test]
+fn word_object_on_an_empty_line_formats_the_lines_it_covers() {
+    // An empty line is a word in Vim 9.1: `gqaw` there formats the empty
+    // line and the next one, which leaves both, and the cursor goes to the
+    // second. It must not join the line above.
+    let mut s = session("t\n\nv w", 0, "tcq");
+    s.set_cursor_offset(2);
+    feed(&mut s, "gqaw");
+    assert_eq!(s.text(), "t\n\nv w");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [2, 0]);
+
+    let mut s = session("t\n\nv ", 10, "tcq");
+    feed(&mut s, "vWgqgqaw");
+    assert_eq!(s.text(), "t\n\nv ");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [2, 0]);
+}
+
+#[test]
 fn literal_character_breaks_like_a_typed_one() {
     let mut s = session("aaaa bbbb cccc dddd", 20, "tq");
     feed(&mut s, "A <C-v>a<C-v>b");

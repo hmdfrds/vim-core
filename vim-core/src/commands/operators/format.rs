@@ -123,9 +123,10 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
 /// `kind` at `cursor` touches, as Vim does.
 ///
 /// The word and sentence objects select differently than Vim from white
-/// space and blank lines, and the kinds left out are not Vim's, so Vim
-/// refuses them. On those the operators wrap the selected text as they did
-/// before (see [`execute_as_before`]).
+/// space and blank lines, apart from a word object on an empty line, and
+/// the kinds left out are not Vim's, so Vim refuses them. On those the
+/// operators wrap the selected text as they did before (see
+/// [`execute_as_before`]).
 #[must_use]
 pub fn formats_text_object(
     kind: crate::grammar::types::TextObjectKind,
@@ -143,12 +144,24 @@ pub fn formats_text_object(
         | K::SingleQuote
         | K::Backtick
         | K::Tag => true,
+        // An empty line is a word in Vim. Formatting the lines the engine's
+        // object covers from it gives Vim's text; the cursor can still end
+        // on another of those lines than in Vim.
+        K::Word | K::WORD if on_empty_line(text, cursor) => true,
         K::Word | K::WORD | K::Sentence => text
             .get(cursor..)
             .and_then(|rest| rest.chars().next())
             .is_some_and(|c| !c.is_whitespace()),
         _ => false,
     }
+}
+
+/// Whether `cursor` is on an empty line.
+fn on_empty_line(text: &str, cursor: usize) -> bool {
+    let bytes = text.as_bytes();
+    let at_start = cursor == 0 || bytes.get(cursor - 1) == Some(&b'\n');
+    let at_end = cursor >= bytes.len() || bytes.get(cursor) == Some(&b'\n');
+    at_start && at_end
 }
 
 /// The format operators as they were before they formatted whole lines.
