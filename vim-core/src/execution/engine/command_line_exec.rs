@@ -75,7 +75,7 @@ impl VimEngine {
         }
 
         let doc_text = ctx.doc().text();
-        let exec_ctx = ExecutionContext::new(ctx, &self.state, &self.resolved_options);
+        let exec_ctx = ExecutionContext::new(ctx, &self.state, &self.options);
         match executor_ex::execute_ex_line(
             execute_command.as_str(),
             &exec_ctx,
@@ -209,7 +209,7 @@ impl VimEngine {
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
         let doc_text = ctx.doc().text();
-        let exec_ctx = ExecutionContext::new(ctx, &self.state, &self.resolved_options);
+        let exec_ctx = ExecutionContext::new(ctx, &self.state, &self.options);
         match executor_ex::execute_ex_line(cmd, &exec_ctx, &mut self.host.sequencer) {
             Ok(mut output) => {
                 crate::execution::effect_processor::sync_effects(

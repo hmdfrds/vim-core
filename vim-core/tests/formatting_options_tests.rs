@@ -524,12 +524,26 @@ mod commands_read_resolved_options {
         assert_eq!(session.text().to_string(), LONG);
     }
 
+    // Only formatting reads the resolved layer. Ex commands other than the
+    // format operators read the global layer, so a `:setlocal` value does
+    // not reach them, as before formatting was added.
+
     #[test]
-    fn ex_commands_see_setlocal_textwidth() {
-        // `:center` without a width uses 'textwidth'. Vim 9.1 gives
-        // "    abc" for tw=11.
+    fn center_and_right_read_global_textwidth() {
+        // The global 'textwidth' is 0, so both use the default width of 80.
         let mut session = HostSession::new("abc");
-        feed(&mut session, ":setlocal tw=11<CR>:center<CR>");
+        feed(&mut session, ":setlocal tw=20<CR>:center<CR>");
+        assert_eq!(session.text().to_string(), format!("{}abc", " ".repeat(38)));
+
+        let mut session = HostSession::new("abc");
+        feed(&mut session, ":setlocal tw=20<CR>:right<CR>");
+        assert_eq!(session.text().to_string(), format!("{}abc", " ".repeat(77)));
+    }
+
+    #[test]
+    fn retab_reads_global_tabstop_and_expandtab() {
+        let mut session = HostSession::new("\tabc");
+        feed(&mut session, ":setlocal ts=2 et<CR>:retab<CR>");
         assert_eq!(session.text().to_string(), "    abc");
     }
 
@@ -633,15 +647,50 @@ mod commands_read_resolved_options {
         );
     }
 
+    // Typing reads only 'textwidth', 'formatoptions', 'comments' and the
+    // 'tabstop' formatting measures with from the resolved layer. Every
+    // other insert option comes from the global layer, as before formatting
+    // was added, so `:setlocal` does not reach them. The global values are
+    // the defaults: sw=4, ts=4, sts=0, noet.
+
     #[test]
-    fn setlocal_shiftwidth_reaches_every_cursor() {
-        // Ctrl-T is re-run per cursor; both the primary and the secondary
-        // must indent by the buffer-local shiftwidth, not the global 4.
+    fn insert_indent_reads_global_shiftwidth() {
+        let mut session = HostSession::new("abc");
+        feed(&mut session, ":setlocal sw=2<CR>i<C-t><Esc>");
+        assert_eq!(session.text().to_string(), "    abc");
+    }
+
+    #[test]
+    fn insert_tab_reads_global_tabstop_and_expandtab() {
+        let mut session = HostSession::new("abc");
+        feed(&mut session, ":setlocal ts=2 et<CR>i<Tab><Esc>");
+        assert_eq!(session.text().to_string(), "    abc");
+    }
+
+    #[test]
+    fn insert_tab_reads_global_softtabstop() {
+        let mut session = HostSession::new("abc");
+        feed(&mut session, ":setlocal sts=2 et<CR>i<Tab><Esc>");
+        assert_eq!(session.text().to_string(), "    abc");
+    }
+
+    #[test]
+    fn insert_newline_reads_global_autoindent() {
+        let mut session = HostSession::new("  abc");
+        session.set_cursor_offset(2);
+        feed(&mut session, ":setlocal noai<CR>A<CR>x<Esc>");
+        assert_eq!(session.text().to_string(), "  abc\n  x");
+    }
+
+    #[test]
+    fn every_cursor_reads_global_shiftwidth() {
+        // Ctrl-T is re-run per cursor; the primary and the secondary both
+        // indent by the global shiftwidth.
         let mut session = HostSession::new("a\nb");
         feed(&mut session, ":setlocal sw=2<CR>");
         session.set_cursor_offset(0);
         session.add_cursor(2).unwrap();
         feed(&mut session, "i<C-t><Esc>");
-        assert_eq!(session.text().to_string(), "  a\n  b");
+        assert_eq!(session.text().to_string(), "    a\n    b");
     }
 }
