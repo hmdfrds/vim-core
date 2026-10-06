@@ -544,6 +544,27 @@ fn tabstop_operator_result_out_of_range() {
 }
 
 #[test]
+fn bool_syntax_leaves_formatoptions_and_comments_as_they_were() {
+    // Vim 9.1 never changes 'formatoptions' or 'comments' for a bare name
+    // or `no`, `!` and `inv`, so a later operator still works on the value.
+    for (name, value, add, want) in [("fo", "cq", "j", "cqj"), ("com", "b:#", "://", "b:#,://")] {
+        let mut engine = VimEngine::new();
+        set(&mut engine, &format!("set {name}={value}"));
+        for form in ["set {}", "setlocal {}", "set no{}", "set {}!", "set inv{}"] {
+            let _ = run_ex(&mut engine, &form.replace("{}", name));
+        }
+        let id = if name == "fo" {
+            OptionId::FormatOptions
+        } else {
+            OptionId::Comments
+        };
+        assert_eq!(effective_str(&engine, id), value, "{name}");
+        set(&mut engine, &format!("setlocal {name}+={add}"));
+        assert_eq!(effective_str(&engine, id), want, "{name}");
+    }
+}
+
+#[test]
 fn whichwrap_operators_treat_items_as_flags() {
     // Vim 9.1: 'whichwrap' is a comma list whose items are flags, so += on
     // an item that is there moves it to the end.

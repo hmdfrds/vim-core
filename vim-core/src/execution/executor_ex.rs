@@ -1389,6 +1389,11 @@ fn apply_bool_with_scope(
     buffer_overrides: &mut OptionOverrides,
     window_overrides: &mut OptionOverrides,
 ) {
+    // A bare name, `no`, `!` or `inv` never changes 'formatoptions' or
+    // 'comments' in Vim; writing a boolean would hide their value.
+    if matches!(id, OptionId::FormatOptions | OptionId::Comments) {
+        return;
+    }
     let opt_value = OptionValue::Bool(value);
     apply_value_with_scope(
         scope,
