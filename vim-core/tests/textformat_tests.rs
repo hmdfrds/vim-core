@@ -22,7 +22,8 @@
 //! `format_gates_match_vim_oracle` replays cases recorded from interactive
 //! Vim 9.1 through `feedkeys()`, as undo puts the cursor back differently
 //! under `-es`: `u` after `gq` and `gw`, motions that fail and cancel them,
-//! where their range ends, text objects, and the empty last line.
+//! where their range ends, text objects, the empty last line, and the
+//! repeats of an insert.
 //!
 //! The other tests check the typing paths (repeats, undo, literal
 //! characters, abbreviations, multiple cursors) against Vim, and that typing

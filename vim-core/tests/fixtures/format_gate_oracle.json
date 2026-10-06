@@ -890,6 +890,73 @@
      0
     ]
    }
+  },
+  {
+   "name": "counted insert broken by formatting ends on its last character",
+   "lines": [
+    "//gh",
+    "i",
+    "t",
+    "r"
+   ],
+   "cursor": [
+    0,
+    3
+   ],
+   "keys": "2id <Esc>",
+   "opts": {
+    "tw": 5,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "//gd",
+     "//d h",
+     "i",
+     "t",
+     "r"
+    ],
+    "cursor": [
+     1,
+     3
+    ]
+   }
+  },
+  {
+   "name": "undo after a dot-repeat appended past textwidth",
+   "lines": [
+    "ab",
+    "cccc dddd"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "Aeeee<Esc>j$.u",
+   "opts": {
+    "tw": 8,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "abeeee",
+     "cccc dddd"
+    ],
+    "cursor": [
+     1,
+     8
+    ]
+   }
   }
  ]
 }

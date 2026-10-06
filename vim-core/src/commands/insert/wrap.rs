@@ -298,6 +298,22 @@ pub fn format_typed_char(
     true
 }
 
+/// Byte offset in `text` of the insert start `start`.
+fn start_offset(text: &str, start: &InsertStart) -> usize {
+    let ls = crate::commands::helpers::line_start(text, start.line).unwrap_or(text.len());
+    (ls + start.col).min(text.len())
+}
+
+/// Whether `plan` changes the text before `offset`.
+///
+/// Undo puts the cursor on the first change, where Vim puts it back where
+/// the insert started. A break before that would move it there, so the
+/// repeats of an insert, which did not format before, do not break before
+/// where the insert started.
+fn breaks_before(plan: &FormatPlan, offset: usize) -> bool {
+    plan.edits.iter().any(|e| e.range.start < offset)
+}
+
 /// Format text that a repeat inserts in one piece, a dot-repeat or the count
 /// of an insert, and splice the line breaks into `effects`. Vim replays the
 /// text as typed, so it breaks the same way.
@@ -325,12 +341,16 @@ pub fn format_inserted_text(
     let after = apply_text_effects(&before, effects.as_slice())?;
     let mut start =
         start.unwrap_or_else(|| insert_start_at(&before, typed.start, policy.tabstop, None));
+    let session_start = start_offset(&before, &start).min(typed.start);
     let run = TypedRun {
         line: line_of(&after, typed.start),
         range: typed,
         overwritten,
     };
     let plan = plan_typed_format(&after, &run, policy, Some(&mut start))?;
+    if breaks_before(&plan, session_start) {
+        return None;
+    }
     splice_format_plan(effects, &plan);
     Some(plan.cursor)
 }

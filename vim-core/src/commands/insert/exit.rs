@@ -140,6 +140,9 @@ pub fn build_insert_exit_effects(
 ) -> (crate::effects::Effects, usize) {
     let mut all_effects = crate::effects::Effects::new();
     let mut insert_offset = params.cursor.get();
+    // The buffer once the formatted repeats are in, when formatting broke
+    // their lines: the exit cursor is found in it.
+    let mut formatted_text: Option<String> = None;
 
     // 1. Repeat accumulated text count-1 more times
     if params.count > 1 {
@@ -175,6 +178,8 @@ pub fn build_insert_exit_effects(
                     overwritten,
                 ) {
                     new_offset = cursor;
+                    formatted_text =
+                        super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
                 }
             }
             all_effects.extend(repeat_fx);
@@ -270,7 +275,10 @@ pub fn build_insert_exit_effects(
     }
 
     // 4. Compute exit cursor position
-    let final_cursor = compute_exit_cursor(&exit_ctx);
+    let final_cursor = match formatted_text.as_deref() {
+        Some(text) => compute_exit_cursor(&InsertExitContext { text, ..exit_ctx }),
+        None => compute_exit_cursor(&exit_ctx),
+    };
 
     // 5. Finalize exit (delegated to commands)
     let is_replace = params.entry_type == crate::primitives::InsertEntryType::ReplaceMode;
