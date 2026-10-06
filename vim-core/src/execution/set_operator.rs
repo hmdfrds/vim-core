@@ -34,8 +34,9 @@ impl SetOperator {
 }
 
 /// Parse an operand of `+=`, `-=` and `^=` the way Vim does: decimal,
-/// `0x` hex, `0o` or leading-zero octal, with an optional minus sign. The
-/// whole string must be the number. A plain `=` does not use this.
+/// `0x` hex, `0b` binary, `0o` or leading-zero octal, with an optional
+/// minus sign. The whole string must be the number. A plain `=` does not
+/// use this.
 fn parse_vim_number(s: &str) -> Option<i64> {
     let (negative, digits) = match s.strip_prefix('-') {
         Some(rest) => (true, rest),
@@ -62,6 +63,14 @@ fn parse_vim_number(s: &str) -> Option<i64> {
             return None;
         }
         i64::from_str_radix(oct, 8).ok()?
+    } else if let Some(bin) = digits
+        .strip_prefix("0b")
+        .or_else(|| digits.strip_prefix("0B"))
+    {
+        if !bin.bytes().all(|b| b == b'0' || b == b'1') {
+            return None;
+        }
+        i64::from_str_radix(bin, 2).ok()?
     } else if digits.len() > 1
         && digits.starts_with('0')
         && digits.bytes().all(|b| (b'0'..=b'7').contains(&b))
@@ -288,6 +297,11 @@ mod tests {
         assert_eq!(parse_vim_number("0o-7"), None);
         assert_eq!(parse_vim_number("0x"), None);
         assert_eq!(parse_vim_number("-0x1f"), Some(-31));
+        assert_eq!(parse_vim_number("0b11"), Some(3));
+        assert_eq!(parse_vim_number("0B1"), Some(1));
+        assert_eq!(parse_vim_number("-0b1"), Some(-1));
+        assert_eq!(parse_vim_number("0b2"), None);
+        assert_eq!(parse_vim_number("0b"), None);
     }
 
     // Vim 9.1, tw=10: `tw+=4` 14, `tw-=4` 6, `tw^=4` 40, `tw^=0` 0,

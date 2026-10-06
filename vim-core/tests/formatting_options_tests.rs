@@ -504,6 +504,23 @@ fn backslash_space_in_a_number_value_splits_as_before() {
 }
 
 #[test]
+fn binary_operand() {
+    // Vim 9.1: ts=8 then `ts^=0b11` gives 24 and `ts+=0B1` 25; `0b2` is
+    // E521.
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set ts=8");
+    set(&mut engine, "set ts^=0b11");
+    assert_eq!(engine.options().tabstop(), 24);
+    set(&mut engine, "set ts+=0B1");
+    assert_eq!(engine.options().tabstop(), 25);
+    assert_eq!(
+        error(&mut engine, "set ts+=0b2"),
+        "E521: Number required after =: ts+=0b2"
+    );
+    assert_eq!(engine.options().tabstop(), 25);
+}
+
+#[test]
 fn whichwrap_operators_treat_items_as_flags() {
     // Vim 9.1: 'whichwrap' is a comma list whose items are flags, so += on
     // an item that is there moves it to the end.
