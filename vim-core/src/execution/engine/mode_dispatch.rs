@@ -725,7 +725,10 @@ impl VimEngine {
         let abbreviation = self.pending_abbreviation(&command, insert_mode, text, cursor);
         let format_policy =
             crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options);
-        let formats_typed = format_policy.is_active()
+        // Every change the per-cursor path makes for formatting is gated on
+        // this, so that without formatting several cursors type as before.
+        let format_active = format_policy.is_active();
+        let formats_typed = format_active
             && insert_mode != InsertMode::VirtualReplace
             && !self.state.insert_state().is_some_and(InsertState::pasting)
             && is_formatted_char(&command);
@@ -808,13 +811,15 @@ impl VimEngine {
             // the last SetCursor applied), so when a cursor sits there it
             // becomes the primary, as in the algebraic path below.
             // Overwriting the primary head instead would put two cursors on
-            // the same offset.
+            // the same offset. Only formatting needs this, so without it
+            // the primary head is overwritten as before.
             let cursor_off = crate::primitives::Offset::new(cursor);
             let selections = self.state.multi_cursor_mut().selections_mut();
             if let Some(idx) = selections
                 .ranges()
                 .iter()
                 .position(|s| s.head() == cursor_off)
+                .filter(|_| format_active)
             {
                 selections.set_primary_index(idx);
             } else {
@@ -892,53 +897,62 @@ impl VimEngine {
                     }
 
                     let mut r = crate::dispatch::dispatch_insert(&command, &insert_ctx_i);
-                    // Every cursor has its own insert start for 'l', 'v' and
-                    // 'b', recorded again when an insert command did not
-                    // leave the cursor here, as for the primary cursor.
-                    let line_i = crate::commands::helpers::line_of(exec_text, cur);
-                    let mut start_i = self
-                        .state
-                        .insert_state()
-                        .and_then(|is| is.cursor_start(crate::primitives::Offset::new(cur), line_i))
-                        .unwrap_or_else(|| {
-                            crate::commands::insert::wrap::insert_start_at(
-                                exec_text,
-                                cur,
-                                self.resolved_options.tabstop(),
-                                None,
-                            )
-                        });
-                    // Two cursors on one line would break it under each
-                    // other, so such a line is left alone.
-                    let shares_line = cursor_shares_line(
-                        exec_text,
-                        cur,
-                        selections
-                            .iter()
-                            .enumerate()
-                            .filter(|&(i, _)| i != sel_idx)
-                            .map(|(_, sr)| sr.head().get()),
-                    );
-                    if formats_typed && !shares_line {
-                        crate::commands::insert::wrap::format_typed_char(
-                            &mut r.effects,
+                    if format_active {
+                        // Every cursor has its own insert start for 'l', 'v' and
+                        // 'b', recorded again when an insert command did not
+                        // leave the cursor here, as for the primary cursor.
+                        let line_i = crate::commands::helpers::line_of(exec_text, cur);
+                        let mut start_i = self
+                            .state
+                            .insert_state()
+                            .and_then(|is| {
+                                is.cursor_start(crate::primitives::Offset::new(cur), line_i)
+                            })
+                            .unwrap_or_else(|| {
+                                crate::commands::insert::wrap::insert_start_at(
+                                    exec_text,
+                                    cur,
+                                    self.resolved_options.tabstop(),
+                                    None,
+                                )
+                            });
+                        // Two cursors on one line would break it under each
+                        // other, so such a line is left alone.
+                        let shares_line = cursor_shares_line(
                             exec_text,
                             cur,
-                            insert_mode == InsertMode::Replace,
-                            &format_policy,
-                            Some(&mut start_i),
+                            selections
+                                .iter()
+                                .enumerate()
+                                .filter(|&(i, _)| i != sel_idx)
+                                .map(|(_, sr)| sr.head().get()),
                         );
+                        if formats_typed && !shares_line {
+                            crate::commands::insert::wrap::format_typed_char(
+                                &mut r.effects,
+                                exec_text,
+                                cur,
+                                insert_mode == InsertMode::Replace,
+                                &format_policy,
+                                Some(&mut start_i),
+                            );
+                        }
+                        let own_cursor = Self::last_cursor_in_effects(r.effects.as_slice())
+                            .map_or(cur, crate::primitives::Offset::get);
+                        if matches!(command, Command::Insert(InsertKind::Backspace)) {
+                            move_insert_start_on_backspace(
+                                &mut start_i,
+                                exec_text,
+                                cur,
+                                own_cursor,
+                            );
+                        }
+                        let lines_below =
+                            cursor_line_after(exec_text, r.effects.as_slice(), cur, own_cursor)
+                                .unwrap_or(line_i)
+                                .saturating_sub(start_i.line);
+                        secondary_starts.push((own_cursor, lines_below, start_i));
                     }
-                    let own_cursor = Self::last_cursor_in_effects(r.effects.as_slice())
-                        .map_or(cur, crate::primitives::Offset::get);
-                    if matches!(command, Command::Insert(InsertKind::Backspace)) {
-                        move_insert_start_on_backspace(&mut start_i, exec_text, cur, own_cursor);
-                    }
-                    let lines_below =
-                        cursor_line_after(exec_text, r.effects.as_slice(), cur, own_cursor)
-                            .unwrap_or(line_i)
-                            .saturating_sub(start_i.line);
-                    secondary_starts.push((own_cursor, lines_below, start_i));
                     r.effects
                 };
 
@@ -1207,7 +1221,7 @@ impl VimEngine {
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
-                false,
+                !format_active,
             );
         }
 

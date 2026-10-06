@@ -1096,20 +1096,14 @@ fn three_motions_then_operator() {
 ///
 /// After `a` with the primary cursor last, the host cursor ends on the other
 /// cursor. The per-cursor path used to overwrite the primary head with it,
-/// so both cursors typed at the same place. Auto-pairs makes plain
-/// characters take the per-cursor path.
+/// so both cursors typed at the same place. Formatting while typing makes
+/// plain characters take the per-cursor path, and only then does the path
+/// follow the host cursor.
 #[test]
 fn per_cursor_insert_when_host_cursor_is_not_primary() {
     let mut session = session_with_cursors("aaaa bbbb cccc dddd", &[18, 3]);
     let mut opts = session.options().clone();
-    opts.set_auto_pairs(Some(vim_core::primitives::AutoPairs {
-        pairs: [vim_core::primitives::Pair {
-            open: '(',
-            close: ')',
-        }]
-        .into_iter()
-        .collect(),
-    }));
+    opts.set_textwidth(79);
     session.set_options(opts);
     feed(&mut session, "axy");
     assert_eq!(session.text(), "aaaaxy bbbb cccc ddddxy");
@@ -1122,19 +1116,13 @@ fn per_cursor_insert_when_host_cursor_is_not_primary() {
 /// behind, so the per-cursor insert update took it for a visual selection.
 /// The range grew with every character until it reached the primary and the
 /// two cursors merged, after which only one line received the typing.
-/// Auto-pairs makes plain characters take the per-cursor path.
+/// Formatting while typing makes plain characters take the per-cursor path,
+/// and only then are the cursors collapsed.
 #[test]
 fn per_cursor_insert_after_append_keeps_cursors_apart() {
     let mut session = session_with_cursors("aaaa bbbb cccc dddd\nxxxx yyyy zzzz wwww", &[18, 38]);
     let mut opts = session.options().clone();
-    opts.set_auto_pairs(Some(vim_core::primitives::AutoPairs {
-        pairs: [vim_core::primitives::Pair {
-            open: '(',
-            close: ')',
-        }]
-        .into_iter()
-        .collect(),
-    }));
+    opts.set_textwidth(79);
     session.set_options(opts);
     feed(&mut session, "a eeee ffff gggg hhhh iiii");
     assert_eq!(
@@ -1142,6 +1130,34 @@ fn per_cursor_insert_after_append_keeps_cursors_apart() {
         "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii\nxxxx yyyy zzzz wwww eeee ffff gggg hhhh iiii"
     );
     assert_eq!(session.cursor_count(), 2);
+}
+
+/// Without formatting, the per-cursor insert path works as it did before
+/// formatting while typing was added, whoever is right: the commands below
+/// take that path through their content, not through formatting.
+#[test]
+fn per_cursor_insert_without_formatting_is_unchanged() {
+    // <BS> with the secondary cursor before the primary.
+    let mut session = session_with_cursors(".\n", &[2, 0]);
+    feed(&mut session, "A<BS><Esc>");
+    assert_eq!(session.text(), ".\n");
+    assert_eq!(session.cursor_offset(), 0);
+
+    // <CR> at two cursors on one line.
+    let mut session = session_with_cursors("nt", &[1, 0]);
+    feed(&mut session, "A<CR><Esc>");
+    assert_eq!(session.text(), "n\n\nt");
+    assert_eq!(session.cursor_offset(), 2);
+
+    // An expanded <Tab>.
+    let mut session = session_with_cursors("n\n", &[2, 0]);
+    let mut opts = session.options().clone();
+    opts.set_expandtab(true);
+    opts.set_tabstop(8);
+    session.set_options(opts);
+    feed(&mut session, "A\t<Esc>");
+    assert_eq!(session.text(), "                n\n");
+    assert_eq!(session.cursor_offset(), 7);
 }
 
 // =============================================================================
