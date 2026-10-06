@@ -323,7 +323,8 @@ fn consolidate_registers(
 /// as a visual selection does. Without it every cursor becomes a zero-width
 /// insert cursor: Insert mode has no selections, and an anchor left behind
 /// by the command that entered it would otherwise grow into a range that
-/// swallows the cursor before it.
+/// swallows the cursor before it. The cursors are then also taken in the
+/// order they had before the command.
 pub(super) fn update_selections_from_deltas(
     selections: &mut Selections,
     cursor_deltas: &[(usize, Offset, i64)],
@@ -335,9 +336,20 @@ pub(super) fn update_selections_from_deltas(
 
     let original_primary = selections.primary_index();
 
-    // Sort ascending by raw offset for cumulative walk.
+    // Sort ascending by raw offset for cumulative walk. Insert cursors go
+    // by where they were before the command instead: a line broken by
+    // formatting can move a cursor past where the next one started.
     let mut sorted: Vec<(usize, Offset, i64)> = cursor_deltas.to_vec();
-    sorted.sort_by_key(|(_, offset, _)| offset.get());
+    if keep_anchors {
+        sorted.sort_by_key(|(_, offset, _)| offset.get());
+    } else {
+        sorted.sort_by_key(|&(sel_idx, offset, _)| {
+            selections
+                .ranges()
+                .get(sel_idx)
+                .map_or_else(|| offset.get(), |r| r.head().get())
+        });
+    }
 
     let mut cumulative_delta: i64 = 0;
     let mut new_ranges: Vec<SelectionRange> = Vec::with_capacity(sorted.len());

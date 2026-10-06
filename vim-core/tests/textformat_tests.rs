@@ -422,6 +422,43 @@ fn every_cursor_keeps_typing_after_the_break() {
 }
 
 #[test]
+fn every_cursor_formats_as_if_typing_alone() {
+    // `A` on the last line leaves that cursor past the end of the buffer.
+    // It still breaks its line.
+    let mut s = session("words\n//g enough", 10, "tcq");
+    s.set_cursor_offset(3);
+    s.add_cursor(15).unwrap();
+    feed(&mut s, "Ac<Esc>");
+    assert_eq!(s.text(), "wordsc\n//g\n//enoughc");
+
+    // A break that adds a comment leader moves the cursors below it on.
+    let mut s = session("// g h\nk\nr", 5, "tcq");
+    s.set_cursor_offset(5);
+    s.add_cursor(7).unwrap();
+    s.add_cursor(9).unwrap();
+    feed(&mut s, "if <Esc>");
+    assert_eq!(s.text(), "// g\n// f h\nf k\nf r");
+
+    // Each cursor repeats a counted insert and breaks its own line.
+    let mut s = session("t\n  three", 10, "tcq");
+    s.set_cursor_offset(0);
+    s.add_cursor(8).unwrap();
+    feed(&mut s, "2a w<Esc>");
+    assert_eq!(s.text(), "t w w\n  three w\nw");
+
+    // And a dot-repeat.
+    let mut s = session("t\ns\ns", 5, "tcq");
+    s.set_cursor_offset(0);
+    s.add_cursor(2).unwrap();
+    s.add_cursor(4).unwrap();
+    feed(&mut s, "ilor //<CR><Esc>.");
+    assert_eq!(
+        s.text(),
+        "lor\n//\nlor\n//\nt\nlor\n//\nlor\n//\ns\nlor\n//\nlor\n//\ns"
+    );
+}
+
+#[test]
 fn every_cursor_has_its_own_insert_start() {
     // Each cursor formats as the same keys typed at that cursor alone. With
     // 'l' a line that was already long when the insert started does not
