@@ -180,6 +180,13 @@ pub fn build_insert_exit_effects(
                     new_offset = cursor;
                     formatted_text =
                         super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
+                } else if policy.is_active() {
+                    // Another cursor can have broken a line below this one,
+                    // so the end of the repeats can be a line start in the
+                    // buffer before them: the exit cursor is found in the
+                    // buffer with the repeats in.
+                    formatted_text =
+                        super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
                 }
             }
             all_effects.extend(repeat_fx);

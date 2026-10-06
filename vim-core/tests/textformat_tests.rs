@@ -502,6 +502,28 @@ fn every_cursor_enters_and_leaves_insert_as_if_alone() {
 }
 
 #[test]
+fn a_counted_insert_ends_where_it_would_alone_when_another_cursor_breaks() {
+    // The cursor below breaks its comment line, and the line of the primary
+    // cursor does not break: the primary cursor ends where it does alone.
+    let text = "\tTabbed five six seven eight\n# a some t";
+    let keys = "2istic * it. if <Esc>";
+    let mut alone = session(text, 10, "cq");
+    alone.set_cursor_offset(24);
+    feed(&mut alone, keys);
+    let mut s = session(text, 10, "cq");
+    s.set_cursor_offset(24);
+    s.add_cursor(38).unwrap();
+    feed(&mut s, keys);
+    assert_eq!(
+        s.text(),
+        "\tTabbed five six seven estic * it. if stic * it. if ight\n\
+         # a some\n# stic *\n# it. if\n# stic *\n# it. if t"
+    );
+    assert_eq!(s.cursor_offset(), alone.cursor_offset());
+    assert_eq!(s.cursor_offset(), 51);
+}
+
+#[test]
 fn every_cursor_has_its_own_insert_start() {
     // Each cursor formats as the same keys typed at that cursor alone. With
     // 'l' a line that was already long when the insert started does not
