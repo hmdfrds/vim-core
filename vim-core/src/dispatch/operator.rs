@@ -679,6 +679,13 @@ pub fn dispatch_operator_line(input: &OperatorLineInput<'_>) -> CommandResult {
         let last_line = &text[last_line_start..last_line_end];
         let fnb = crate::commands::helpers::first_non_blank_in_line(last_line);
         Offset::new(last_line_start + fnb)
+    } else if matches!(operator, Operator::Format | Operator::FormatKeepCursor) {
+        // The start of the last line of the count, which can be the empty
+        // line after a final newline that the range does not hold.
+        let last_line = (crate::commands::helpers::line_of(text, cursor)
+            + (count as usize).saturating_sub(1))
+        .min(crate::commands::helpers::line_count(text).saturating_sub(1));
+        Offset::new(crate::commands::helpers::line_start(text, last_line).unwrap_or(cursor))
     } else {
         Offset::new(cursor)
     };

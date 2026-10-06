@@ -84,6 +84,15 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     if formatted.end_adjusted && cursor_line < line_count(&new_text) - 1 {
         cursor_line += 1;
     }
+    // A count that takes `gqq` onto the empty line after a final newline
+    // formats that line too, and Vim leaves the cursor on it.
+    if ctx.origin == OperatorOrigin::TextObject
+        && ctx.motion_target.get() == ctx.text.len()
+        && ctx.motion_target > ctx.cursor
+        && ctx.text.ends_with('\n')
+    {
+        cursor_line = line_count(&new_text) - 1;
+    }
     let new_cursor = Offset::new(begin_line(&new_text, cursor_line));
 
     // Neovim's gq sets `[` = start of range, `]` = cursor position after

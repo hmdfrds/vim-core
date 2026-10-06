@@ -378,6 +378,32 @@ fn dot_repeats_a_visual_format() {
 }
 
 #[test]
+fn counted_format_of_lines_ends_on_the_empty_last_line() {
+    // Vim 9.1: a count that takes `gqq` onto the empty line after a final
+    // newline formats that line too and leaves the cursor on it.
+    let mut s = session("e r n\n", 0, "tcq");
+    feed(&mut s, "2gqq");
+    assert_eq!(s.text(), "e r n\n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 0]);
+
+    let mut s = session("a\nb\n", 0, "tcq");
+    feed(&mut s, "3gqq");
+    assert_eq!(s.text(), "a b\n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 0]);
+
+    let mut s = session("a\nb\n", 0, "tcq");
+    feed(&mut s, "2gqq");
+    assert_eq!(s.text(), "a b\n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [0, 0]);
+
+    let mut s = session("e\n  r\nn\n", 0, "tcq");
+    s.set_cursor_offset(6);
+    feed(&mut s, "gwip2gqq");
+    assert_eq!(s.text(), "e r n\n");
+    assert_eq!(position_of(s.text(), s.cursor_offset()), [1, 0]);
+}
+
+#[test]
 fn literal_character_breaks_like_a_typed_one() {
     let mut s = session("aaaa bbbb cccc dddd", 20, "tq");
     feed(&mut s, "A <C-v>a<C-v>b");
