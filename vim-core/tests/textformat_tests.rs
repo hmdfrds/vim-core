@@ -19,6 +19,11 @@
 //! recorded the same way, with `nojoinspaces` and the cursor read after
 //! the keys.
 //!
+//! `format_gates_match_vim_oracle` replays cases recorded from interactive
+//! Vim 9.1 through `feedkeys()`, as undo puts the cursor back differently
+//! under `-es`: `u` after `gq` and `gw`, motions that fail and cancel them,
+//! where their range ends, text objects, and the empty last line.
+//!
 //! The other tests check the typing paths (repeats, undo, literal
 //! characters, abbreviations, multiple cursors) against Vim, and that typing
 //! never loses, adds or reorders a character.
@@ -190,8 +195,18 @@ fn matches_vim_oracle() {
 
 #[test]
 fn format_operator_matches_vim_oracle() {
-    let fixture: FormatFixture =
-        serde_json::from_str(include_str!("fixtures/format_operator_oracle.json")).unwrap();
+    check_format_fixture(include_str!("fixtures/format_operator_oracle.json"));
+}
+
+#[test]
+fn format_gates_match_vim_oracle() {
+    check_format_fixture(include_str!("fixtures/format_gate_oracle.json"));
+}
+
+/// Replay the `keys` of every case in a format fixture and compare the
+/// buffer and the cursor after them with Vim's.
+fn check_format_fixture(json: &str) {
+    let fixture: FormatFixture = serde_json::from_str(json).unwrap();
     assert!(!fixture.cases.is_empty());
     let mut failures = Vec::new();
     for case in &fixture.cases {

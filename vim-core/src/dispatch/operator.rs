@@ -290,6 +290,56 @@ pub fn dispatch_operator_with_motion(input: &OperatorMotionInput<'_>) -> Command
         return CommandResult::effects_only(crate::effects::Effects::new());
     };
 
+    // Vim cancels the format operators on a motion that fails, where the
+    // engine's motion stops at the edge of the buffer.
+    if let Some(cancelled) = matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+        .then(|| {
+            crate::commands::operators::format::cancel_for_failed_motion(
+                text,
+                cursor.get(),
+                motion,
+                count,
+                |n| {
+                    compute_motion_range_with_sticky(
+                        text,
+                        cursor.get(),
+                        motion,
+                        n,
+                        search,
+                        last_find,
+                        options,
+                        dispatch_motion,
+                        input.viewport,
+                        input.sticky_column,
+                    )
+                    .map(|r| r.motion_target)
+                },
+            )
+        })
+        .flatten()
+    {
+        return cancelled;
+    }
+
+    // With an operator, Vim's last `w` step stops at the end of a line
+    // instead of moving on to the next one (fwd_word() with `eol`), so the
+    // format operators do not take that line as the end of their range. A
+    // step from an empty line does move on.
+    if matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+        && matches!(motion, Motion::WordForward | Motion::WORDForward)
+    {
+        let target = range_result.motion_target;
+        let start = range_result.range.start().get();
+        if target > cursor.get()
+            && target > start + 1
+            && text.as_bytes().get(target - 1) == Some(&b'\n')
+            && text.as_bytes().get(target - 2).is_some_and(|&b| b != b'\n')
+        {
+            range_result.motion_target = target - 1;
+            range_result.range = range_result.range.with_end(Offset::new(target - 1));
+        }
+    }
+
     // Vim cw→ce special case: strip trailing whitespace for change + word-forward.
     // If was promoted to linewise and trimming removed the newline, revert to charwise.
     if operator == Operator::Change && matches!(motion, Motion::WordForward | Motion::WORDForward) {
@@ -961,6 +1011,14 @@ pub fn dispatch_operator_textobject(input: &OperatorTextObjectInput<'_>) -> Comm
     .with_textobject_flag();
     if let Some(provider) = input.custom_operators {
         op_ctx = op_ctx.with_custom_operators(provider);
+    }
+    if matches!(operator, Operator::Format | Operator::FormatKeepCursor)
+        && !crate::commands::operators::format::formats_text_object(textobject.kind, text, cursor)
+    {
+        return crate::commands::operators::format::execute_as_before(
+            &op_ctx,
+            operator == Operator::FormatKeepCursor,
+        );
     }
     dispatch_operator(operator, &op_ctx)
 }

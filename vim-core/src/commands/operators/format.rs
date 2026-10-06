@@ -57,6 +57,9 @@ const SECTION_MACROS: &str = "SHNHH HUnhsh";
 ///
 /// No traits, just functions + enum dispatch.
 pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
+    if from_empty_last_line(ctx) {
+        return super::format_legacy::execute(ctx);
+    }
     if ctx.is_empty() {
         // Neovim always sets `[` and `]` marks even on empty buffer gq.
         let effects = Effects::new()
@@ -84,10 +87,11 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     let mark_start = Offset::new(formatted.range_start);
     if !formatted.changed() {
         return CommandResult::new(
-            Effects::new()
+            undo_step_without_change(&formatted)
                 .set_mark(MarkName::CHANGE_START, mark_start, None)
                 .set_mark(MarkName::CHANGE_END, new_cursor, None)
-                .set_cursor(new_cursor),
+                .set_cursor(new_cursor)
+                .end_undo(),
             new_cursor,
         );
     }
@@ -98,7 +102,7 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     // explicitly here.
     let mark_dot = Offset::new(formatted.change_end());
     let effects = Effects::new()
-        .begin_undo()
+        .begin_undo_force_entry()
         .replace(
             formatted.replaced_range(),
             CompactString::new(&formatted.text),
@@ -111,11 +115,79 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     CommandResult::new(effects, new_cursor)
 }
 
+/// Whether the format operators format the lines that a text object of
+/// `kind` at `cursor` touches, as Vim does.
+///
+/// The word and sentence objects select differently than Vim from white
+/// space and blank lines, and the kinds left out are not Vim's, so Vim
+/// refuses them. On those the operators wrap the selected text as they did
+/// before (see [`execute_as_before`]).
+#[must_use]
+pub fn formats_text_object(
+    kind: crate::grammar::types::TextObjectKind,
+    text: &str,
+    cursor: usize,
+) -> bool {
+    use crate::grammar::types::TextObjectKind as K;
+    match kind {
+        K::Paragraph
+        | K::Paren
+        | K::Brace
+        | K::Bracket
+        | K::Angle
+        | K::DoubleQuote
+        | K::SingleQuote
+        | K::Backtick
+        | K::Tag => true,
+        K::Word | K::WORD | K::Sentence => text
+            .get(cursor..)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(|c| !c.is_whitespace()),
+        _ => false,
+    }
+}
+
+/// The format operators as they were before they formatted whole lines.
+///
+/// The text of the range is wrapped at `textwidth`, without comment leaders
+/// or `formatoptions`. `keep_cursor` is `gw`.
+pub fn execute_as_before(ctx: &OperatorContext<'_>, keep_cursor: bool) -> CommandResult {
+    if keep_cursor {
+        super::format_legacy::execute_keep_cursor(ctx)
+    } else {
+        super::format_legacy::execute(ctx)
+    }
+}
+
+/// The result of `gq` or `gw` when Vim cancels it because `motion` fails.
+///
+/// The engine's motion stops at the edge of the buffer where Vim's fails
+/// with `count` from `cursor`. `None` when the motion does not fail.
+/// `target(n)` is where the engine's motion goes with count `n`.
+pub fn cancel_for_failed_motion(
+    text: &str,
+    cursor: usize,
+    motion: crate::grammar::types::Motion,
+    count: u32,
+    target: impl Fn(u32) -> Option<usize>,
+) -> Option<CommandResult> {
+    use super::format_cancel::{motion_fails, Cancel};
+    Some(match motion_fails(text, cursor, motion, count, target)? {
+        Cancel::Stay => CommandResult::effects_only(Effects::new()),
+        Cancel::BufferStart => {
+            CommandResult::new(Effects::new().set_cursor(Offset::new(0)), Offset::new(0))
+        }
+    })
+}
+
 /// Execute format operator keeping cursor position (gw).
 ///
 /// Same as `execute` (gq) but the cursor stays on the text it was on
 /// instead of moving to the first non-blank after the formatted region.
 pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
+    if from_empty_last_line(ctx) {
+        return super::format_legacy::execute_keep_cursor(ctx);
+    }
     if ctx.is_empty() {
         return CommandResult::empty(ctx.cursor);
     }
@@ -123,7 +195,13 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
     let formatted = format_range(ctx, Some(ctx.cursor.get()));
     let new_text = formatted.new_text(ctx.text);
     let cursor = formatted.kept_cursor.unwrap_or_else(|| ctx.cursor.get());
-    let cursor = Offset::new(clamp_to_line(&new_text, cursor));
+    // A cursor on the end of a line, which a Visual selection can leave,
+    // stays there as it did before; Normal mode moves it back.
+    let cursor = if ctx.text.as_bytes().get(ctx.cursor.get()) == Some(&b'\n') {
+        Offset::new(cursor.min(new_text.len()))
+    } else {
+        Offset::new(clamp_to_line(&new_text, cursor))
+    };
 
     // Neovim's gw sets `[` = start, `]` = first non-blank of first line,
     // regardless of whether text changed (same as gq marks).
@@ -132,16 +210,17 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
 
     if !formatted.changed() {
         return CommandResult::new(
-            Effects::new()
+            undo_step_without_change(&formatted)
                 .set_mark(MarkName::CHANGE_START, mark_start, None)
                 .set_mark(MarkName::CHANGE_END, mark_end, None)
-                .set_cursor(cursor),
+                .set_cursor(cursor)
+                .end_undo(),
             cursor,
         );
     }
 
     let effects = Effects::new()
-        .begin_undo()
+        .begin_undo_force_entry()
         .replace(
             formatted.replaced_range(),
             CompactString::new(&formatted.text),
@@ -151,6 +230,27 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
         .set_cursor(cursor)
         .end_undo();
     CommandResult::new(effects, cursor)
+}
+
+/// Whether the command was given on the empty line after a final newline.
+/// Undo cannot put the cursor back on that line, where Vim's `u` returns
+/// it, so the operators work there as they did before they formatted whole
+/// lines (see [`execute_as_before`]).
+fn from_empty_last_line(ctx: &OperatorContext<'_>) -> bool {
+    ctx.cursor.get() >= ctx.text.len() && ctx.text.ends_with('\n')
+}
+
+/// Vim saves the formatted lines for undo before it formats them, so `u`
+/// after `gq` or `gw` puts the cursor back where the command was given,
+/// also when formatting changed nothing. The lines are written back as
+/// they are to make that undo step.
+fn undo_step_without_change(
+    formatted: &Formatted<'_>,
+) -> Effects<crate::effects::undo_state::UndoOpen> {
+    Effects::new().begin_undo_force_entry().replace(
+        formatted.replaced_range(),
+        CompactString::new(&formatted.text),
+    )
 }
 
 // ── Range ────────────────────────────────────────────────────────────────────
@@ -244,13 +344,21 @@ fn format_range<'t>(ctx: &OperatorContext<'t>, keep: Option<usize>) -> Formatted
 
     // An exclusive motion that ends in column 0 of a later line stops at
     // the end of the line before (Vim's `end_adjusted`). The range then
-    // ends where the motion did; a linewise range extended to whole lines
-    // ends past the motion target instead.
+    // ends where the motion did, or for a backward motion before it, when
+    // the end was moved back to the last character of the line before, as
+    // for `b` from an empty line. An inclusive motion and a linewise range
+    // extended to whole lines end past the motion end instead. A forward
+    // word motion that the engine stops at the end of the line stopped
+    // there in Vim too.
+    let motion_start = ctx.cursor.get().min(ctx.motion_target.get());
     let motion_end = ctx.cursor.get().max(ctx.motion_target.get());
+    let backward = ctx.motion_target.get() < ctx.cursor.get();
     let end_adjusted = ctx.origin == OperatorOrigin::Motion
         && range_end > range_start
-        && motion_end == range_end
-        && text.as_bytes().get(range_end - 1) == Some(&b'\n');
+        && (range_end == motion_end || (backward && range_end < motion_end))
+        && text.as_bytes().get(motion_end.wrapping_sub(1)) == Some(&b'\n')
+        && crate::commands::helpers::line_of(text, motion_end)
+            > crate::commands::helpers::line_of(text, motion_start);
 
     let defaults;
     let options = if let Some(options) = ctx.format_options {
@@ -269,6 +377,21 @@ fn format_range<'t>(ctx: &OperatorContext<'t>, keep: Option<usize>) -> Formatted
         .filter(|&k| (start..=end).contains(&k))
         .map(|k| line_col(original, k - start));
     let last_line = format_lines(&mut lines, prev, next, &policy, mark.as_mut());
+    // Vim leaves a line of only white space alone, as it ends a paragraph.
+    // The operators emptied a range of such lines before they followed Vim,
+    // as they wrapped the words of the range, and they still do: the engine
+    // leaves the indent of an empty line that Vim removes when Insert mode
+    // ends after autoindent, and Vim's buffer then has an empty line there.
+    let range_text = text
+        .get(ctx.range.start().get().min(text.len())..ctx.range.end().get().min(text.len()))
+        .unwrap_or_default();
+    let blank = |line: &String| line.bytes().all(|b| b == b' ' || b == b'\t');
+    if lines.iter().all(blank)
+        && (range_text.contains('\n')
+            || unicode_width::UnicodeWidthStr::width(range_text) > policy.textwidth)
+    {
+        lines.iter_mut().for_each(String::clear);
+    }
     let formatted = lines.join("\n");
 
     let delta = formatted.len().cast_signed() - original.len().cast_signed();
@@ -795,7 +918,7 @@ fn skip_string(line: &[u8], mut p: usize) -> usize {
 
 /// Vim's `startPS(lnum, NUL, false)`: an empty line, a form feed, or an
 /// nroff paragraph or section macro.
-fn starts_paragraph_or_section(line: &str) -> bool {
+pub(super) fn starts_paragraph_or_section(line: &str) -> bool {
     match line.as_bytes() {
         [] | [b'\x0c', ..] => true,
         [b'.', rest @ ..] => in_macro(SECTION_MACROS, rest) || in_macro(PARAGRAPH_MACROS, rest),
