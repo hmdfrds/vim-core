@@ -148,18 +148,19 @@ fn host_setting_reaches_buffers_left_after_set() {
     set(&mut engine, "set tw=20");
     let mut a = engine.on_buffer_leave(0);
     engine.on_buffer_enter(BufferLocalState::default());
+    let tw = |engine: &VimEngine| engine.effective_option(OptionId::TextWidth);
     engine.set_option(OptionId::TextWidth, &OptionValue::Unsigned(0));
-    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
+    assert_eq!(tw(&engine), OptionValue::Unsigned(0));
     let b = engine.on_buffer_leave(0);
     engine.on_buffer_enter(a.clone());
-    assert_eq!(query(&mut engine, "set tw?"), "textwidth=20");
+    assert_eq!(tw(&engine), OptionValue::Unsigned(20));
     let _ = engine.on_buffer_leave(0);
     a.clear_local_option(OptionId::TextWidth);
     engine.on_buffer_enter(a);
-    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
+    assert_eq!(tw(&engine), OptionValue::Unsigned(0));
     let _ = engine.on_buffer_leave(0);
     engine.on_buffer_enter(b);
-    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
+    assert_eq!(tw(&engine), OptionValue::Unsigned(0));
 }
 
 #[test]
@@ -190,40 +191,38 @@ fn formatoptions_empty_is_allowed() {
 }
 
 #[test]
-fn query_formatoptions_shows_effective_value() {
+fn query_formatoptions_shows_global_value() {
+    // A query shows the global value, as it does for every option.
     let mut engine = VimEngine::new();
     assert_eq!(query(&mut engine, "set fo?"), "formatoptions=tcqj");
     set(&mut engine, "setlocal fo=cq");
-    // Vim: `:set` and `:setlocal` show the local value, `:setglobal` the
-    // global one.
-    assert_eq!(query(&mut engine, "set fo?"), "formatoptions=cq");
-    assert_eq!(query(&mut engine, "setlocal fo?"), "formatoptions=cq");
-    assert_eq!(query(&mut engine, "setglobal fo?"), "formatoptions=tcqj");
+    assert_eq!(effective_str(&engine, OptionId::FormatOptions), "cq");
+    for command in ["set fo?", "setlocal fo?", "setglobal fo?"] {
+        assert_eq!(query(&mut engine, command), "formatoptions=tcqj");
+    }
+    set(&mut engine, "setlocal tw=5");
+    assert_eq!(query(&mut engine, "set tw?"), "textwidth=0");
 }
 
 #[test]
-fn bare_name_of_string_option_shows_value() {
+fn bare_name_of_value_option_is_silent() {
+    // `:set fo` and `:set tw` print nothing and change nothing.
     let mut engine = VimEngine::new();
-    // Vim: `:set fo` and `:set tw` show the value, like `:set fo?`.
-    assert_eq!(query(&mut engine, "set fo"), "formatoptions=tcqj");
-    assert_eq!(query(&mut engine, "set tw"), "textwidth=0");
+    set(&mut engine, "set fo");
+    set(&mut engine, "set tw");
+    assert_eq!(engine.options().formatoptions(), "tcqj");
+    assert_eq!(engine.options().textwidth(), 0);
 }
 
 #[test]
-fn bool_syntax_on_value_option_is_an_error() {
+fn bool_syntax_on_value_option_is_silent() {
+    // `no` and `!` on a number or string option print nothing and change
+    // nothing.
     let mut engine = VimEngine::new();
-    assert_eq!(
-        error(&mut engine, "set nofo"),
-        "E474: Invalid argument: nofo"
-    );
-    assert_eq!(
-        error(&mut engine, "set notw"),
-        "E474: Invalid argument: notw"
-    );
-    assert_eq!(
-        error(&mut engine, "set tw!"),
-        "E488: Trailing characters: tw!"
-    );
+    for command in ["set nofo", "set fo!", "set notw", "set tw!"] {
+        set(&mut engine, command);
+    }
+    assert_eq!(engine.options().formatoptions(), "tcqj");
     assert_eq!(engine.options().textwidth(), 0);
 }
 
@@ -288,11 +287,17 @@ fn comments_errors_match_vim() {
 // ── commentstring ────────────────────────────────────────────────────────────
 
 #[test]
-fn commentstring_short_name_and_query() {
+fn commentstring_has_no_short_name_or_query() {
     let mut engine = VimEngine::new();
-    set(&mut engine, "set cms=#%s");
-    assert_eq!(engine.options().commentstring(), "#%s");
-    assert_eq!(query(&mut engine, "set cms?"), "commentstring=#%s");
+    assert_eq!(
+        error(&mut engine, "set cms=#%s"),
+        "E492: Not an editor command: Unknown option: cms"
+    );
+    assert_eq!(engine.options().commentstring(), "// %s");
+    assert_eq!(
+        error(&mut engine, "set commentstring?"),
+        "E492: Not an editor command: Unknown option: commentstring"
+    );
 }
 
 // ── :set +=, -=, ^= ──────────────────────────────────────────────────────────
