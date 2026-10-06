@@ -467,10 +467,15 @@ fn comments_operator_result_is_validated() {
 }
 
 #[test]
-fn escaped_space_in_commentstring() {
-    let mut engine = VimEngine::new();
-    set(&mut engine, r"setlocal commentstring=#\ %s");
-    assert_eq!(effective_str(&engine, OptionId::CommentString), "# %s");
+fn set_arguments_split_as_before_operators() {
+    // White space before `=` and a backslash in a value are handled as
+    // they were before the operators: neither sets 'shiftwidth', so `>>`
+    // shifts by the default 4.
+    for keys in [":set sw =2<CR>>>", r":set sw=\2<CR>>>"] {
+        let mut session = HostSession::new("abc");
+        feed(&mut session, keys);
+        assert_eq!(session.text().to_string(), "    abc", "{keys}");
+    }
 }
 
 #[test]

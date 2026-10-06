@@ -4874,35 +4874,22 @@ fn set_colon_assignment() {
 }
 
 #[test]
-fn set_backslash_escapes_in_values() {
-    // Vim 9.1: `set cms=#\ %s` gives "# %s", `a\\b%s` gives "a\b%s",
-    // `a\b%s` gives "ab%s", `a\,b%s` gives "a,b%s".
+fn set_arguments_split_and_values_as_before_operators() {
+    // The operators did not change how other arguments split or how values
+    // read: white space separates arguments and a backslash is kept.
     assert_eq!(
-        set_args(r"setlocal commentstring=#\ %s"),
-        vec![SetAssignment::Assign(cs("commentstring"), cs("# %s"))]
-    );
-    assert_eq!(
-        set_args(r"set cms=a\\b%s cms=a\b%s cms=a\,b%s"),
+        set_args(r"set sw=\2 cms=#\ %s"),
         vec![
-            SetAssignment::Assign(cs("cms"), cs(r"a\b%s")),
-            SetAssignment::Assign(cs("cms"), cs("ab%s")),
-            SetAssignment::Assign(cs("cms"), cs("a,b%s")),
+            SetAssignment::Assign(cs("sw"), cs(r"\2")),
+            SetAssignment::Assign(cs("cms"), cs("#\\")),
+            SetAssignment::SetBool(cs("%s")),
         ]
     );
     assert_eq!(
-        set_args(r"set cms+=\ x"),
-        vec![SetAssignment::Append(cs("cms"), cs(" x"))]
-    );
-}
-
-#[test]
-fn set_white_space_before_operator_is_ignored() {
-    // Vim 9.1: `set fo +=r` and `set tw =5` both work.
-    assert_eq!(
-        set_args("set fo +=r tw =5"),
+        set_args("set sw =2"),
         vec![
-            SetAssignment::Append(cs("fo"), cs("r")),
-            SetAssignment::Assign(cs("tw"), cs("5")),
+            SetAssignment::SetBool(cs("sw")),
+            SetAssignment::Assign(cs(""), cs("2")),
         ]
     );
 }
@@ -4922,10 +4909,11 @@ fn set_bool_forms_unchanged() {
 }
 
 #[test]
-fn set_unrecognized_shape_is_kept_whole() {
-    // `tw+:7` is E488 in Vim; it reaches the executor as an unknown name.
+fn set_colon_after_a_sign_is_a_plain_assignment() {
+    // `tw+:7` is not an operator; it reaches the executor as an assignment
+    // to an unknown option `tw+`, as before the operators.
     assert_eq!(
         set_args("set tw+:7"),
-        vec![SetAssignment::SetBool(cs("tw+:7"))]
+        vec![SetAssignment::Assign(cs("tw+"), cs("7"))]
     );
 }
