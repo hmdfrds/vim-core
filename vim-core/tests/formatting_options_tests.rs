@@ -521,6 +521,29 @@ fn binary_operand() {
 }
 
 #[test]
+fn tabstop_operator_result_out_of_range() {
+    // Vim 9.1 refuses a 'tabstop' of 0 (E487) or above 9999 (E474).
+    let mut engine = VimEngine::new();
+    set(&mut engine, "set ts=8");
+    assert_eq!(
+        error(&mut engine, "set ts-=8"),
+        "E487: Argument must be positive: ts-=8"
+    );
+    assert_eq!(engine.options().tabstop(), 8);
+    assert_eq!(
+        error(&mut engine, "set ts^=0"),
+        "E487: Argument must be positive: ts^=0"
+    );
+    assert_eq!(
+        error(&mut engine, "set ts^=1250"),
+        "E474: Invalid argument: ts^=1250"
+    );
+    assert_eq!(engine.options().tabstop(), 8);
+    set(&mut engine, "set ts^=1249");
+    assert_eq!(engine.options().tabstop(), 9992);
+}
+
+#[test]
 fn whichwrap_operators_treat_items_as_flags() {
     // Vim 9.1: 'whichwrap' is a comma list whose items are flags, so += on
     // an item that is there moves it to the end.

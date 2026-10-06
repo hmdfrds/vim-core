@@ -1204,6 +1204,13 @@ pub(crate) fn apply_set_assignments(
                                 OptionValue::Str(s) => {
                                     validate_string_value(id, &s).map(OptionValue::Str)
                                 }
+                                // Vim keeps 'tabstop' within 1..=9999.
+                                OptionValue::Unsigned(0) if id == OptionId::TabStop => {
+                                    Err("E487: Argument must be positive".to_owned())
+                                }
+                                OptionValue::Unsigned(n) if id == OptionId::TabStop && n > 9999 => {
+                                    Err("E474: Invalid argument".to_owned())
+                                }
                                 other => Ok(other),
                             });
                     match result {
