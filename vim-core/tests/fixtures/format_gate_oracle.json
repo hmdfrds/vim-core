@@ -1019,6 +1019,174 @@
    }
   },
   {
+   "name": "Visual gw to the empty last line formats the lines",
+   "lines": [
+    ".",
+    "z ",
+    "n",
+    ""
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "V2jgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "z n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw to the empty last line after gq and I",
+   "lines": [
+    ".",
+    "",
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqjIz <Esc>V2jgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "z n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw from the empty last line up",
+   "lines": [
+    ".",
+    "z ",
+    "n",
+    ""
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "GVkgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "z ",
+     "n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw after v) that stops on the end of a line",
+   "lines": [
+    "r",
+    "\td",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "v)gw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "r d",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ]
+   }
+  },
+  {
+   "name": "Visual gw after v3iw that stops on the end of a line",
+   "lines": [
+    "",
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "om <Esc>v3iwgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ts": 8,
+    "sw": 4,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "",
+     "m n",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ]
+   }
+  },
+  {
    "name": "undo after gw from the empty last line",
    "lines": [
     "\td",

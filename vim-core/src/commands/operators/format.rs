@@ -47,6 +47,10 @@ use unicode_segmentation::UnicodeSegmentation;
 /// with a window of at least 80 columns).
 const DEFAULT_FORMAT_WIDTH: usize = 79;
 
+/// The `textwidth` the Visual format operators used before they read the
+/// option.
+const VISUAL_WIDTH_BEFORE: usize = 80;
+
 /// Vim's default `paragraphs`: nroff macros that start a paragraph.
 const PARAGRAPH_MACROS: &str = "IPLPPPQPP TPHPLIPpLpItpplpipbp";
 
@@ -185,8 +189,22 @@ pub fn cancel_for_failed_motion(
 /// Same as `execute` (gq) but the cursor stays on the text it was on
 /// instead of moving to the first non-blank after the formatted region.
 pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
-    if from_empty_last_line(ctx) {
+    // A linewise Visual selection that ends on the empty last line keeps
+    // the cursor there and formats its lines like the other selections.
+    if from_empty_last_line(ctx) && ctx.origin != OperatorOrigin::Visual {
         return super::format_legacy::execute_keep_cursor(ctx);
+    }
+    // A Visual cursor on the end of a line that `$` did not put there is
+    // where the engine's motion or text object stopped and Vim's moved on
+    // to the next line, so the cursor cannot be kept on the text Vim's
+    // was on. The operator works there as it did before it followed Vim,
+    // with the width the Visual operators had then.
+    if ctx.origin == OperatorOrigin::Visual
+        && ctx.text.as_bytes().get(ctx.cursor.get()) == Some(&b'\n')
+        && ctx.sticky_column != Some(crate::primitives::VirtualColumn::END_OF_LINE)
+    {
+        let before = ctx.clone().with_textwidth(VISUAL_WIDTH_BEFORE);
+        return super::format_legacy::execute_keep_cursor(&before);
     }
     if ctx.is_empty() {
         return CommandResult::empty(ctx.cursor);
@@ -197,7 +215,11 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
     let cursor = formatted.kept_cursor.unwrap_or_else(|| ctx.cursor.get());
     // A cursor on the end of a line, which a Visual selection can leave,
     // stays there as it did before; Normal mode moves it back.
-    let cursor = if ctx.text.as_bytes().get(ctx.cursor.get()) == Some(&b'\n') {
+    // A Visual selection that ends on the empty last line leaves the
+    // cursor on that line.
+    let cursor = if from_empty_last_line(ctx) {
+        Offset::new(new_text.len())
+    } else if ctx.text.as_bytes().get(ctx.cursor.get()) == Some(&b'\n') {
         Offset::new(cursor.min(new_text.len()))
     } else {
         Offset::new(clamp_to_line(&new_text, cursor))
