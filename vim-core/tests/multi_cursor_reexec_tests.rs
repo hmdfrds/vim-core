@@ -1160,6 +1160,27 @@ fn per_cursor_insert_without_formatting_is_unchanged() {
     assert_eq!(session.cursor_offset(), 7);
 }
 
+/// Without formatting, insert entry and `<Esc>` move the other cursors as
+/// the primary cursor moves, as before formatting while typing was added,
+/// whoever is right.
+#[test]
+fn insert_entry_and_exit_without_formatting_are_unchanged() {
+    // `A` shifts the other cursor by the primary cursor's move.
+    let mut session = session_with_cursors("h\n//hat is long enough", &[0, 9]);
+    feed(&mut session, "Ax<Esc>");
+    assert_eq!(session.text(), "hx\n//hat isx long enough");
+
+    // `<Esc>` leaves the other cursor where it typed.
+    let mut session = session_with_cursors("t\n    line two ur", &[0, 14]);
+    feed(&mut session, "i x 日本 #<Esc> bar<Esc>");
+    assert_eq!(session.text(), " x 日本 #rt\n    line two x 日本 #r ur");
+
+    // A counted insert leaves the other cursor where it started.
+    let mut session = session_with_cursors("h\n", &[0, 2]);
+    feed(&mut session, "3Itic <Esc>I<BS><Esc>");
+    assert_eq!(session.text(), "tic tic tic h\ntic tic tic ");
+}
+
 // =============================================================================
 // COMPOSITE / INTEGRATION TESTS
 // =============================================================================

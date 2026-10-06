@@ -459,6 +459,49 @@ fn every_cursor_formats_as_if_typing_alone() {
 }
 
 #[test]
+fn every_cursor_enters_and_leaves_insert_as_if_alone() {
+    // `A` puts every cursor at the end of its own line.
+    let mut s = session("h\n//hat is long enough", 20, "tcq");
+    s.set_cursor_offset(0);
+    s.add_cursor(9).unwrap();
+    feed(&mut s, "Ax<Esc>");
+    assert_eq!(s.text(), "hx\n//hat is long\n//enoughx");
+
+    // `<Esc>` leaves every cursor on the last character it typed, and `I`
+    // puts it on the first non-blank of its own line.
+    let mut s = session("line one two three four\n// that is long enough", 5, "tcq");
+    s.set_cursor_offset(22);
+    s.add_cursor(45).unwrap();
+    feed(&mut s, "i#<Esc>Ib<Esc>");
+    assert_eq!(
+        s.text(),
+        "line\none\ntwo\nthree\nbfou#r\n// that\n// is\n// long\nb// enoug#h"
+    );
+    let mut s = session("t\n    line two ur", 20, "tcq");
+    let mut opts = s.options().clone();
+    opts.set_autoindent(true);
+    s.set_options(opts);
+    s.set_cursor_offset(0);
+    s.add_cursor(14).unwrap();
+    feed(&mut s, "i x 日本 #<Esc> bar<Esc>");
+    assert_eq!(s.text(), " x 日本 #rt\n    line two x 日本\n    #rur");
+
+    // After a counted insert and a dot-repeat every cursor is on the last
+    // character it repeated.
+    let mut s = session("h\n", 10, "tcq");
+    s.set_cursor_offset(0);
+    s.add_cursor(2).unwrap();
+    feed(&mut s, "3Itic <Esc>I<BS><Esc>");
+    assert_eq!(s.text(), "tic tictic h\ntic tictic ");
+    let mut s = session("g\n\nt", 5, "tcq");
+    s.set_cursor_offset(0);
+    s.add_cursor(2).unwrap();
+    s.add_cursor(3).unwrap();
+    feed(&mut s, "ic 本<Esc>.I<BS><Esc>");
+    assert_eq!(s.text(), "c c本本g\nc c本本\nc c本本t");
+}
+
+#[test]
 fn every_cursor_has_its_own_insert_start() {
     // Each cursor formats as the same keys typed at that cursor alone. With
     // 'l' a line that was already long when the insert started does not

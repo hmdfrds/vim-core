@@ -312,6 +312,13 @@ fn structural_substitute_line(
     effects
 }
 
+/// Where `i`, `a`, `I`, `A`, `gI`, `R` or `s` from `cursor` puts the cursor
+/// to type, without the text changes the command makes first.
+#[must_use]
+pub(crate) fn entry_offset(text: &str, cursor: usize, entry_type: InsertEntryType) -> usize {
+    compute_entry_offset(text, cursor, entry_type, 8, false, None)
+}
+
 /// Compute the byte offset where the cursor will land when insert mode begins.
 ///
 /// Each entry type determines a final cursor position before typing starts.
