@@ -70,15 +70,19 @@ fn backspace_in_tab_indent_uses_engine_tabstop() {
     assert_eq!(session.text(), "");
 }
 
-fn tab_indent_session(text: &str) -> HostSession {
+fn indent_session(text: &str, expandtab: bool, tabstop: usize, shiftwidth: usize) -> HostSession {
     let mut session = HostSession::new(text);
     let mut opts = crate::primitives::VimOptions::default();
     opts.set_autoindent(false);
-    opts.set_expandtab(false);
-    opts.set_shiftwidth(4);
-    opts.set_tabstop(4);
+    opts.set_expandtab(expandtab);
+    opts.set_shiftwidth(shiftwidth);
+    opts.set_tabstop(tabstop);
     session.set_options(opts);
     session
+}
+
+fn tab_indent_session(text: &str) -> HostSession {
+    indent_session(text, false, 4, 4)
 }
 
 #[test]
@@ -123,6 +127,53 @@ fn ctrl_t_keeps_typing_on_the_same_character() {
     let mut session = tab_indent_session("    hello");
     process_keys(&mut session, "I<C-t>X<Esc>");
     assert_eq!(session.text(), "\t\tXhello");
+}
+
+// Expected text for the shift tests below is what Vim 9.1 gives.
+
+#[test]
+fn indent_keeps_tabs_when_shiftwidth_is_half_a_tab() {
+    // noexpandtab, ts=4, sw=2: `>>` gave "  \thello", spaces before a tab.
+    let mut session = indent_session("\thello", false, 4, 2);
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t  hello");
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t\thello");
+}
+
+#[test]
+fn indent_folds_spaces_before_a_tab_into_tabs() {
+    let mut session = tab_indent_session("  \thello");
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t\thello");
+}
+
+#[test]
+fn outdent_splits_a_tab_when_shiftwidth_is_half_a_tab() {
+    // noexpandtab, ts=4, sw=2: `<<` left a lone tab alone.
+    let mut session = indent_session("\t\thello\n\thello", false, 4, 2);
+    process_keys(&mut session, "<<j<<");
+    assert_eq!(session.text(), "\t  hello\n  hello");
+}
+
+#[test]
+fn indent_under_expandtab_measures_tabs_with_tabstop() {
+    // expandtab, ts=8, sw=4: a tab is 8 columns, so `>>` gives 12 spaces.
+    // The tab used to be expanded with shiftwidth, giving 8.
+    let mut session = indent_session("\thello", true, 8, 4);
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), format!("{}hello", " ".repeat(12)));
+}
+
+#[test]
+fn shift_under_expandtab_leaves_tabs_after_the_indent() {
+    // Only the indent is laid out again; a tab inside the line was turned
+    // into spaces by both `>>` and `<<`.
+    let mut session = indent_session("\thello\tworld", true, 4, 4);
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "        hello\tworld");
+    process_keys(&mut session, "<<<<<<");
+    assert_eq!(session.text(), "hello\tworld");
 }
 
 #[test]

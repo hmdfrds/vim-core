@@ -3,8 +3,9 @@
 //! Calls raw indent/outdent functions with primitive params.
 //! Zero type coupling — no `ActionContext` import needed.
 
-use crate::commands::actions::indent::{indent_lines_raw, outdent_lines_raw, reindent};
+use crate::commands::actions::indent::{indent_lines_raw, outdent_lines_raw, shift_indent};
 use crate::commands::helpers::{line_end_for_offset, line_start_for_offset};
+use crate::commands::operators::ShiftDirection;
 use crate::commands::CommandResult;
 use crate::effects::{Effect, Effects};
 use crate::primitives::{Offset, Range};
@@ -23,8 +24,12 @@ pub fn indent_at_cursor(
 ) -> CommandResult {
     let result = indent_lines_raw(text, cursor.get(), 1, shift_width, tabstop, expandtab);
     let ls = line_start_for_offset(text, cursor.get());
-    let lend = line_end_for_offset(text, ls);
-    let (old_ws, new_indent) = reindent(&text[ls..lend], shift_width, tabstop, expandtab);
+    let line = &text[ls..line_end_for_offset(text, ls)];
+    let Some((old_ws, new_indent)) =
+        shift_indent(line, ShiftDirection::Right, shift_width, tabstop, expandtab)
+    else {
+        return result;
+    };
     // Tabs can replace spaces, so the indent may get shorter in bytes.
     let new_cursor = Offset::new(
         (cursor.get() + new_indent.len())

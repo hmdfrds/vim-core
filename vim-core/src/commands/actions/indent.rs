@@ -8,29 +8,65 @@ use crate::commands::helpers::{
     byte_to_vcol, line_end_for_offset, line_of, line_start, line_start_for_offset,
 };
 use crate::commands::insert::smartindent::build_indent_string;
+use crate::commands::operators::ShiftDirection;
 use crate::commands::CommandResult;
-use crate::effects::Effects;
+use crate::effects::{Effect, Effects};
 use crate::primitives::{Offset, Range};
 
-/// The leading blanks of `line` after adding `shift_width` columns, laid out
-/// as tabs then spaces unless `expandtab`, so a tab indent stays tabs.
-/// Returns the byte length of the old blanks and the new blanks.
-pub(crate) fn reindent(
+/// One step of Vim's `shift_line()` on `line`: the byte length of its
+/// leading blanks and what they become one `shift_width` further left or
+/// right, laid out as `set_indent()` does (tabs then spaces unless
+/// `expandtab`). `None` when the blanks would stay as they are.
+pub(crate) fn shift_indent(
     line: &str,
+    direction: ShiftDirection,
     shift_width: usize,
     tabstop: usize,
     expandtab: bool,
-) -> (usize, String) {
+) -> Option<(usize, String)> {
+    if shift_width == 0 {
+        return None;
+    }
     let ts = tabstop.max(1);
-    let ws_bytes = line
+    let old_len = line
         .bytes()
         .take_while(|&b| b == b' ' || b == b'\t')
         .count();
-    let old_width = byte_to_vcol(&line[..ws_bytes], ws_bytes, ts);
-    (
-        ws_bytes,
-        build_indent_string(old_width + shift_width, !expandtab, ts),
-    )
+    let old_width = byte_to_vcol(&line[..old_len], old_len, ts);
+    let width = match direction {
+        ShiftDirection::Right => old_width + shift_width,
+        ShiftDirection::Left => old_width.saturating_sub(shift_width),
+    };
+    let indent = build_indent_string(width, !expandtab, ts);
+    (indent != line[..old_len]).then_some((old_len, indent))
+}
+
+/// The edit that turns the blanks `old` at offset `at` into `new`, keeping
+/// what both end with and then what both start with. A growing indent is
+/// therefore an insert at the line start and a shrinking one a delete from
+/// there, as before tabs were laid out again.
+pub(crate) fn indent_effect(at: usize, old: &str, new: &str) -> Effect {
+    let same_end = old
+        .bytes()
+        .rev()
+        .zip(new.bytes().rev())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let (old, new) = (&old[..old.len() - same_end], &new[..new.len() - same_end]);
+    let same_start = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let removed = Range::from_raw(at + same_start, at + old.len());
+    let inserted = &new[same_start..];
+    if removed.is_empty() {
+        Effect::insert(removed.start(), inserted)
+    } else if inserted.is_empty() {
+        Effect::delete(removed)
+    } else {
+        Effect::replace(removed, inserted)
+    }
 }
 
 /// Indent lines (`>>`).
@@ -71,16 +107,16 @@ pub fn indent_lines_raw(
 
     let mut open = Effects::new().begin_undo();
 
+    let shift =
+        |line: &str| shift_indent(line, ShiftDirection::Right, shift_width, tabstop, expandtab);
+
     // Process lines bottom-to-top to preserve byte offsets
     for i in (0..num_lines).rev() {
         let target_line = current_line + i;
         if let Some(ls) = line_start(text, target_line) {
-            let lend = line_end_for_offset(text, ls);
-            let (ws_bytes, new_indent) = reindent(&text[ls..lend], shift_width, tabstop, expandtab);
-            if ws_bytes == 0 {
-                open = open.insert(Offset::new(ls), new_indent.as_str());
-            } else {
-                open = open.replace(Range::from_raw(ls, ls + ws_bytes), new_indent.as_str());
+            let line = &text[ls..line_end_for_offset(text, ls)];
+            if let Some((old_len, indent)) = shift(line) {
+                open.push(indent_effect(ls, &line[..old_len], &indent));
             }
         }
     }
@@ -89,9 +125,12 @@ pub fn indent_lines_raw(
 
     // Cursor at first non-blank of the current line after indent.
     let ls_cur = line_start_for_offset(text, cursor);
-    let lend_cur = line_end_for_offset(text, ls_cur);
-    let (_, new_indent_cur) = reindent(&text[ls_cur..lend_cur], shift_width, tabstop, expandtab);
-    CommandResult::new(effects, Offset::new(ls_cur + new_indent_cur.len()))
+    let line_cur = &text[ls_cur..line_end_for_offset(text, ls_cur)];
+    let indent_len = shift(line_cur).map_or_else(
+        || line_cur.len() - line_cur.trim_start_matches([' ', '\t']).len(),
+        |(_, indent)| indent.len(),
+    );
+    CommandResult::new(effects, Offset::new(ls_cur + indent_len))
 }
 
 /// Outdent lines by removing spaces at the start (`<<`).
@@ -203,16 +242,10 @@ mod tests {
         panic!("No Delete effect found in result");
     }
 
-    /// Text of the first Insert or Replace effect.
-    fn emitted_text(result: &CommandResult) -> String {
-        for e in result.effects.iter() {
-            match e {
-                crate::effects::Effect::Insert { text, .. }
-                | crate::effects::Effect::Replace { text, .. } => return text.to_string(),
-                _ => {}
-            }
-        }
-        panic!("No Insert/Replace effect found in result");
+    /// `text` after the edits in `result`.
+    fn shifted(text: &str, result: &CommandResult) -> String {
+        let effects: Vec<_> = result.effects.iter().cloned().collect();
+        crate::commands::insert::wrap::apply_text_effects(text, &effects).unwrap()
     }
 
     #[test]
@@ -287,6 +320,55 @@ mod tests {
         assert_eq!(deleted_range(&result), (0, 4));
     }
 
+    // ── shared shift helpers ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_shift_indent_unchanged_is_none() {
+        assert_eq!(
+            shift_indent("hello", ShiftDirection::Left, 4, 4, false),
+            None
+        );
+        assert_eq!(
+            shift_indent("\thello", ShiftDirection::Right, 0, 4, false),
+            None
+        );
+    }
+
+    #[test]
+    fn test_shift_indent_lays_out_the_whole_indent() {
+        // Spaces worth a tab become a tab; expandtab turns tabs into spaces.
+        let right = ShiftDirection::Right;
+        assert_eq!(
+            shift_indent("  \thello", right, 4, 4, false),
+            Some((3, "\t\t".to_string()))
+        );
+        assert_eq!(
+            shift_indent("\thello", right, 4, 8, true),
+            Some((1, " ".repeat(12)))
+        );
+    }
+
+    #[test]
+    fn test_indent_effect_keeps_insert_and_delete_at_line_start() {
+        use crate::effects::Effect;
+        assert_eq!(
+            indent_effect(10, "\t", "\t\t"),
+            Effect::insert(Offset::new(10), "\t")
+        );
+        assert_eq!(
+            indent_effect(10, "\t\t", "\t"),
+            Effect::delete(Range::from_raw(10, 11))
+        );
+        assert_eq!(
+            indent_effect(10, "\t", "\t  "),
+            Effect::insert(Offset::new(11), "  ")
+        );
+        assert_eq!(
+            indent_effect(10, "    ", "\t\t"),
+            Effect::replace(Range::from_raw(10, 14), "\t\t")
+        );
+    }
+
     // ── tab-aware indent `>>` (sibling of hmdfrds/godot-vim#50) ───────────────
 
     #[test]
@@ -296,7 +378,7 @@ mod tests {
         let ctx = make_ctx("hello", 0, 1)
             .with_shift_width(4)
             .with_tab_options(4, false);
-        assert_eq!(emitted_text(&execute_indent_lines(&ctx)), "\t");
+        assert_eq!(shifted("hello", &execute_indent_lines(&ctx)), "\thello");
     }
 
     #[test]
@@ -305,7 +387,7 @@ mod tests {
         let ctx = make_ctx("\thello", 0, 1)
             .with_shift_width(4)
             .with_tab_options(4, false);
-        assert_eq!(emitted_text(&execute_indent_lines(&ctx)), "\t\t");
+        assert_eq!(shifted("\thello", &execute_indent_lines(&ctx)), "\t\thello");
     }
 
     #[test]
@@ -315,7 +397,7 @@ mod tests {
         let ctx = make_ctx("\thello", 0, 1)
             .with_shift_width(2)
             .with_tab_options(4, false);
-        assert_eq!(emitted_text(&execute_indent_lines(&ctx)), "\t  ");
+        assert_eq!(shifted("\thello", &execute_indent_lines(&ctx)), "\t  hello");
     }
 
     #[test]
@@ -324,6 +406,6 @@ mod tests {
         let ctx = make_ctx("hello", 0, 1)
             .with_shift_width(4)
             .with_tab_options(4, true);
-        assert_eq!(emitted_text(&execute_indent_lines(&ctx)), "    ");
+        assert_eq!(shifted("hello", &execute_indent_lines(&ctx)), "    hello");
     }
 }
