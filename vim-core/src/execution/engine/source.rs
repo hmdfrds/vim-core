@@ -1,154 +1,359 @@
-//! `:source` config file processing for [`VimEngine`].
+//! Config file processing for [`VimEngine`].
 //!
-//! Provides a convenience method to process config file content line by line,
-//! applying safe ex commands (`:set`, `:let mapleader`, `:map`/`:noremap`/`:unmap`,
-//! `:noh`) without requiring document context.
+//! Runs a config file's lines as the command line runs Ex commands, without
+//! a buffer.
 
 use super::Response;
 use crate::commands::ex::effects as ex_effects;
+use crate::document::Document;
 use crate::effects::Effects;
-use crate::execution::executor_ex;
-use crate::grammar::types::ExCommand;
-use crate::keymap::KeyEvent;
+use crate::errors::VimError;
+use crate::execution::executor_ex::{self, SetScope};
+use crate::execution::{ExecutionContext, InputContext};
+use crate::grammar::parse_ex_command_with_modifiers;
+use crate::primitives::{Offset, Position};
 use compact_str::CompactString;
 
 impl super::VimEngine {
-    /// Process a config file's content line by line as ex commands.
+    /// Run a config file's text as Ex commands, line by line.
     ///
     /// The engine calls it when a host answers `:source` with the file's
     /// text; a host can call it for a config it reads itself, such as at
-    /// startup. Processes only safe commands that do not require document
-    /// context:
+    /// startup.
     ///
-    /// - `:set` — applies option mutations to engine options
-    /// - `:let mapleader` — sets the leader key for subsequent mappings
-    /// - `:map`/`:noremap`/`:unmap` — installs or removes key mappings
-    /// - `:noh` — clears search highlights
+    /// Each line runs as it would from the command line, `|` and command
+    /// modifiers included, and what it changes is applied the same way.
+    /// A command the host runs comes back as a host request. An error
+    /// stops the rest of its line and is shown; `:silent!` hides it.
     ///
-    /// File operations and commands requiring document context are skipped.
-    /// Lines starting with `"` are treated as comments and ignored.
+    /// There is no buffer: a command that needs one (see
+    /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
+    /// gives E523, and `:setlocal` and `:setglobal` act like `:set`.
     ///
-    /// Returns a [`Response`] with any resulting effects.
+    /// As in Vim, a line whose first non-blank is `"` is a comment, a line
+    /// starting with `\` continues the line before it, and the lines of a
+    /// `:function` body are not run.
+    ///
+    /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
-        let mut all_effects = Effects::new();
-
-        for line in text.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with('"') {
+        let mut response = Response::with_effects(Effects::new());
+        let mut function_depth = 0usize;
+        for line in config_lines(text) {
+            let command = line.trim_start_matches(|c: char| c.is_whitespace() || c == ':');
+            if command.is_empty() || command.starts_with('"') {
                 continue;
             }
-
-            let Ok(cmd) = crate::grammar::parse_ex_command(trimmed) else {
-                continue; // Skip unparseable lines silently (like Vim)
-            };
-
-            match &cmd {
-                // During config sourcing there is no buffer/window context, so
-                // :setlocal and :setglobal are treated the same as :set
-                // (always SetScope::Effective on the global layer). This matches
-                // the spec's documented limitation for sourced config files.
-                ExCommand::Set { assignments }
-                | ExCommand::SetLocal { assignments }
-                | ExCommand::SetGlobal { assignments } => {
-                    let effects = executor_ex::apply_set_assignments(
-                        executor_ex::SetScope::Effective,
-                        &mut self.options,
-                        &mut self.buffer_overrides,
-                        &mut self.window_overrides,
-                        assignments,
-                    );
-                    self.rebuild_resolved_cache();
-                    self.rebuild_langmap_if_needed();
-                    all_effects.extend(effects);
+            match function_boundary(command) {
+                Some(FunctionBoundary::Start) if function_depth > 0 => function_depth += 1,
+                Some(FunctionBoundary::End) if function_depth > 0 => function_depth -= 1,
+                _ if function_depth > 0 => {}
+                Some(FunctionBoundary::Start) => {
+                    function_depth = 1;
+                    self.source_config_line(&line, &mut response);
                 }
-                ExCommand::Map {
-                    mode_prefix,
-                    lhs,
-                    rhs: Some(rhs),
-                    kind,
-                    flags,
-                } => {
-                    self.source_apply_map(*mode_prefix, lhs, rhs, *kind, *flags);
-                }
-                ExCommand::Unmap { mode_prefix, lhs } => {
-                    self.source_apply_unmap(*mode_prefix, lhs);
-                }
-                ExCommand::LetMapleader { leader } => {
-                    self.set_leader(KeyEvent::char(*leader));
-                }
-                ExCommand::SetHandler { key, assignments } => {
-                    // Call the dedicated sethandler executor (needs only the
-                    // parsed fields, not a document context).
-                    if let Ok(output) = executor_ex::execute_sethandler(key.as_deref(), assignments)
-                    {
-                        for change in &output.handler_changes {
-                            self.apply_handler_change(change);
-                        }
-                    }
-                }
-                ExCommand::NoHighlight => {
-                    all_effects.extend(Effects::new().clear_highlights());
-                }
-                _ => {} // Skip commands requiring document context
+                _ => self.source_config_line(&line, &mut response),
             }
         }
-
-        all_effects.extend(ex_effects::show_message(CompactString::from(
+        response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
         )));
-        Response::with_effects(all_effects)
+        self.register_pending_host_requests(response)
     }
 
-    /// Apply a `:map`/`:noremap` command from config, resolving `<Action>(name)`
-    /// and `<Plug>(name)` notation against the keymap's registries.
-    fn source_apply_map(
-        &mut self,
-        mode_prefix: crate::grammar::types::MapModePrefix,
-        lhs: &str,
-        rhs: &str,
-        kind: crate::keymap::MappingKind,
-        flags: crate::keymap::MappingFlags,
-    ) {
-        if lhs.is_empty() {
-            return;
-        }
-        let parse =
-            |s, km: &mut _| executor_ex::parse_key_notation_sequence_with_keymap(s, Some(km));
-        let lhs_seq = parse(lhs, &mut self.keymap);
-        if flags.expr {
-            let expr_text = Some(compact_str::CompactString::from(rhs));
-            for &mode in &executor_ex::modes_for_prefix(mode_prefix) {
-                self.map_with_expr(
-                    mode,
-                    lhs_seq.as_slice(),
-                    Vec::new(),
-                    kind,
-                    flags,
-                    expr_text.clone(),
-                );
-            }
-        } else {
-            let rhs_seq = parse(rhs, &mut self.keymap);
-            for &mode in &executor_ex::modes_for_prefix(mode_prefix) {
-                self.map(mode, lhs_seq.as_slice(), rhs_seq.clone(), kind, flags);
-            }
+    /// Run one config line: each of its `|` commands in turn, until one fails.
+    fn source_config_line(&mut self, line: &str, response: &mut Response) {
+        for command in executor_ex::split_ex_line(line) {
+            let (modifiers, parsed) = match parse_ex_command_with_modifiers(&command) {
+                Ok(parsed) => parsed,
+                Err(err) => {
+                    response.extend_effects(ex_effects::show_error(err));
+                    return;
+                }
+            };
+            let result = if parsed.needs_buffer() {
+                Err(VimError::NotAllowedHere(CompactString::from(
+                    command.trim(),
+                )))
+            } else {
+                let input = InputContext::new(&NoBuffer, 0).validate_clamped();
+                let ctx = ExecutionContext::new(input, &self.state, &self.options);
+                executor_ex::execute_ex_command(&parsed, &ctx, &mut self.host.sequencer)
+            };
+            let mut output = match result {
+                Ok(output) => output,
+                Err(err) => {
+                    let mut effects = ex_effects::show_error(err);
+                    crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
+                    response.extend_effects(effects);
+                    return;
+                }
+            };
+            crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
+            crate::execution::effect_processor::sync_effects(
+                &mut self.state,
+                &mut self.parser,
+                output.effects.as_mut_slice(),
+            );
+            // No buffer or window to hold a local value.
+            output.set_scope = SetScope::Effective;
+            let mut applied = self.apply_ex_output(&mut output, "");
+            crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
+            response.extend_effects(output.effects);
+            response.extend_effects(applied);
+            response.host_requests.extend(output.host_requests);
         }
     }
+}
 
-    /// Apply a `:unmap` command from config, resolving `<Action>(name)` and
-    /// `<Plug>(name)` notation against the keymap's registries.
-    fn source_apply_unmap(&mut self, mode_prefix: crate::grammar::types::MapModePrefix, lhs: &str) {
-        let lhs_seq =
-            executor_ex::parse_key_notation_sequence_with_keymap(lhs, Some(&mut self.keymap));
-        for &mode in &executor_ex::modes_for_prefix(mode_prefix) {
-            self.unmap(mode, lhs_seq.as_slice());
+/// The lines of a config file, with each line that starts with `\` joined
+/// to the one before it and `"\ ` comments inside such a run dropped, as
+/// Vim reads a sourced file.
+fn config_lines(text: &str) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for raw in text.lines() {
+        let trimmed = raw.trim_start();
+        if trimmed.starts_with("\"\\ ") {
+            continue;
         }
+        match (trimmed.strip_prefix('\\'), lines.last_mut()) {
+            (Some(rest), Some(last)) => last.push_str(rest),
+            _ => lines.push(raw.to_owned()),
+        }
+    }
+    lines
+}
+
+enum FunctionBoundary {
+    Start,
+    End,
+}
+
+/// Whether `command` starts a `:function` (or Vim9 `:def`) definition or
+/// ends one. `:function` with no `(` lists functions instead.
+fn function_boundary(command: &str) -> Option<FunctionBoundary> {
+    let name_len = command
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(command.len());
+    let (name, rest) = command.split_at(name_len);
+    let is = |min: &str, full: &str| name.len() >= min.len() && full.starts_with(name);
+    if (is("fu", "function") || name == "def") && rest.contains('(') {
+        Some(FunctionBoundary::Start)
+    } else if is("endf", "endfunction") || name == "enddef" {
+        Some(FunctionBoundary::End)
+    } else {
+        None
+    }
+}
+
+/// The buffer a config file runs against: there is none.
+struct NoBuffer;
+
+impl Document for NoBuffer {
+    fn text(&self) -> &'static str {
+        ""
+    }
+
+    fn line_count(&self) -> usize {
+        1
+    }
+
+    fn offset_to_pos(&self, offset: Offset) -> Option<Position> {
+        (offset == Offset::ZERO).then(|| Position::from_raw(0, 0))
+    }
+
+    fn pos_to_offset(&self, pos: Position) -> Option<Offset> {
+        (pos.line().get() == 0).then_some(Offset::ZERO)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::execution::VimEngine;
+    use crate::effects::Effect;
+    use crate::execution::host::HostRequestKind;
+    use crate::execution::{parse_keys_from_string, HostSession, Response, VimEngine};
+
+    /// The text of each error the response shows.
+    fn errors(response: &Response) -> Vec<String> {
+        response
+            .effects()
+            .iter()
+            .filter_map(|e| match e {
+                Effect::ShowError { error, .. } => Some(error.to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A session on `text` that has sourced `config`.
+    fn sourced(text: &str, config: &str) -> HostSession {
+        let mut session = HostSession::new(text);
+        let _ = session.source_config(config);
+        session
+    }
+
+    fn type_keys(session: &mut HostSession, keys: &str) {
+        for key in parse_keys_from_string(keys) {
+            let _ = session.process_key_host(key);
+        }
+    }
+
+    // ── lines run as on the command line ──────────────────────────
+
+    #[test]
+    fn source_config_defines_abbreviations() {
+        // :iabbrev was skipped without a word.
+        let mut session = sourced("x", "iabbrev teh the\n");
+        type_keys(&mut session, "A teh <Esc>");
+        assert_eq!(session.text(), "x the ");
+    }
+
+    #[test]
+    fn source_config_runs_lines_written_with_a_colon() {
+        let session = sourced("", ":set tw=33\n  : :set ic\n");
+        assert_eq!(session.options().textwidth(), 33);
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_runs_each_command_of_a_bar_line() {
+        let session = sourced("", "set tw=33 | set ic\n");
+        assert_eq!(session.options().textwidth(), 33);
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_keeps_an_escaped_bar_in_a_mapping() {
+        let mut session = sourced("ac", "nnoremap x :s/c/d/ \\| set ic<CR>\n");
+        assert!(!session.options().ignorecase());
+        type_keys(&mut session, "x");
+        assert_eq!(session.text(), "ad");
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_clears_mappings_with_mapclear() {
+        let mut engine = VimEngine::new();
+        engine.source_config_text("nnoremap x y\nnmapclear\n");
+        assert!(!engine.could_start_mapping(crate::keymap::KeyEvent::char('x')));
+    }
+
+    #[test]
+    fn source_config_treats_setlocal_as_set() {
+        // There is no buffer to hold a local value.
+        let mut engine = VimEngine::new();
+        engine.source_config_text("setlocal tw=33\nsetglobal ic\n");
+        assert_eq!(engine.options().textwidth(), 33);
+        assert!(engine.options().ignorecase());
+    }
+
+    // ── no buffer ─────────────────────────────────────────────────
+
+    #[test]
+    fn source_config_refuses_commands_that_need_a_buffer() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("set ic | %d | set tw=33\nnormal dd\n");
+
+        assert!(engine.options().ignorecase());
+        assert_eq!(
+            engine.options().textwidth(),
+            0,
+            "the line stops at the error"
+        );
+        assert_eq!(
+            errors(&response),
+            [
+                "E523: Not allowed here: %d",
+                "E523: Not allowed here: normal dd"
+            ]
+        );
+    }
+
+    #[test]
+    fn source_config_silent_bang_hides_errors() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("silent! normal dd\nsilent! set nosuchoption\n");
+        assert!(errors(&response).is_empty());
+    }
+
+    #[test]
+    fn source_config_reports_an_error_and_goes_on() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("set nosuchoption\nset tw=33\n");
+        assert_eq!(engine.options().textwidth(), 33);
+        assert_eq!(errors(&response).len(), 1);
+    }
+
+    #[test]
+    fn source_config_effects_are_messages_only() {
+        // Hosts apply config effects without a buffer.
+        let mut engine = VimEngine::new();
+        let config = "set tw=80 | set tw?\niabbrev teh the\niabbrev\nnoh\necho hi\n\
+                      registers\nmessages\nnormal x\nclearjumps\nnnoremap x y\nsethandler <C-a> n:vim\n";
+        let response = engine.source_config_text(config);
+        for effect in response.effects() {
+            assert!(
+                matches!(
+                    effect,
+                    Effect::ShowInfo { .. } | Effect::ShowError { .. } | Effect::ClearHighlights
+                ),
+                "unexpected effect {effect:?}"
+            );
+        }
+    }
+
+    // ── host commands ─────────────────────────────────────────────
+
+    #[test]
+    fn source_config_sends_host_commands_to_the_host() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("write\nfiletype plugin on\npanelmap x y\n");
+        let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
+        assert_eq!(
+            kinds,
+            [
+                HostRequestKind::WriteFile,
+                HostRequestKind::CustomExCommand,
+                HostRequestKind::CustomExCommand
+            ]
+        );
+        for request in response.host_requests() {
+            assert!(engine.has_pending_host_request(request.id()));
+        }
+        assert!(errors(&response).is_empty());
+    }
+
+    #[test]
+    fn source_config_host_requests_reach_a_session_host() {
+        let mut session = HostSession::new("");
+        let response = session.source_config("write\nfoo\n");
+        let kinds: Vec<_> = response.host_requests.iter().map(|r| r.kind()).collect();
+        assert_eq!(
+            kinds,
+            [HostRequestKind::WriteFile, HostRequestKind::CustomExCommand]
+        );
+        assert_eq!(session.pending_request_count(), 2);
+    }
+
+    // ── how Vim reads a sourced file ──────────────────────────────
+
+    #[test]
+    fn source_config_joins_continuation_lines() {
+        let config = "nnoremap x\n      \\ :set ic<CR>\n\"\\ a comment inside\n      \\\n";
+        let mut session = sourced("a", config);
+        type_keys(&mut session, "x");
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_does_not_run_a_function_body() {
+        let config = "function! Foo()\n  set ic\n  function! Bar()\n  endfunction\n  set tw=1\nendfunction\nset tw=33\n";
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text(config);
+        assert!(!engine.options().ignorecase());
+        assert_eq!(engine.options().textwidth(), 33);
+        // The host decides what the :function line means.
+        assert_eq!(response.host_requests().len(), 1);
+    }
 
     #[test]
     fn source_config_applies_set_options() {
@@ -383,14 +588,12 @@ mod tests {
     }
 
     #[test]
-    fn source_config_sethandler_invalid_handler_silently_skipped() {
+    fn source_config_sethandler_invalid_handler_is_reported() {
         let mut engine = VimEngine::new();
-        // Invalid handler name "banana" — source_config_text silently skips errors
-        let config = "sethandler <C-a> n:banana\n";
-        engine.source_config_text(config);
+        let response = engine.source_config_text("sethandler <C-a> n:banana\n");
 
-        // Handler map should be unchanged (still empty)
         assert!(engine.handler_map().is_empty());
+        assert_eq!(errors(&response).len(), 1);
     }
 
     #[test]
