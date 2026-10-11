@@ -1934,7 +1934,7 @@ pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
     let mut start = 0;
     'segments: loop {
         let rest = input[start..].trim_start();
-        if !rest.starts_with('|') && bar_is_argument(rest) {
+        if !rest.starts_with('|') && bar_is_argument(segment_head(rest)) {
             push_segment(&mut commands, input, start..input.len(), &[]);
             return commands;
         }
@@ -1966,10 +1966,17 @@ pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
     }
 }
 
-/// Whether the command at the start of `rest` takes the rest of the line,
-/// `|` included, as its argument.
-fn bar_is_argument(rest: &str) -> bool {
-    match parse_ex_command(rest) {
+/// The text before the first `|`, trimmed. A known command whose argument
+/// parser rejects `| ...` falls back to `Custom`, so only the head may
+/// decide what the command is.
+fn segment_head(rest: &str) -> &str {
+    rest.split('|').next().unwrap_or(rest).trim()
+}
+
+/// Whether the command `head` starts with takes the rest of the line, `|`
+/// included, as its argument.
+fn bar_is_argument(head: &str) -> bool {
+    match parse_ex_command(head) {
         Ok(
             ExCommand::Norm { .. }
             | ExCommand::WinDo { .. }

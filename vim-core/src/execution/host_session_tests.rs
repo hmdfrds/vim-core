@@ -2951,3 +2951,21 @@ fn backslash_bar_puts_a_bar_in_a_mapping() {
     assert_eq!(session.text(), "ad");
     assert!(session.options().ignorecase());
 }
+
+#[test]
+fn a_bar_after_a_copy_runs_the_next_command() {
+    let mut session = HostSession::new("a");
+    process_keys(&mut session, ":t. | set ic<CR>");
+    assert!(session.text().starts_with("a\na"));
+    assert!(session.options().ignorecase());
+}
+
+#[test]
+fn a_bar_after_a_line_number_runs_the_next_command() {
+    for (line, offset) in [(":2 | set ic<CR>", 2), (":$ | set ic<CR>", 4)] {
+        let mut session = HostSession::new("1\n2\n3");
+        process_keys(&mut session, line);
+        assert_eq!(session.cursor_offset(), offset, "{line}");
+        assert!(session.options().ignorecase(), "{line}");
+    }
+}

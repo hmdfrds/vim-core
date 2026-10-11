@@ -3541,6 +3541,34 @@ fn pipeline_bar_is_an_argument_after_these_commands() {
 }
 
 #[test]
+fn pipeline_splits_after_a_command_that_rejects_the_rest_of_the_line() {
+    // Only the head decides: the whole line `t. | d` is no valid `:t`
+    // address and would read as an unknown command.
+    for (line, head, tail) in [
+        ("t. | d", "t.", "d"),
+        ("m0 | d", "m0", "d"),
+        ("2 | d", "2", "d"),
+        ("$ | d", "$", "d"),
+        ("'a | d", "'a", "d"),
+        ("@a | w", "@a", "w"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![head, tail], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_keeps_a_bar_inside_a_pattern_before_another_command() {
+    for (line, head) in [
+        ("s/a|b/c/ | w", "s/a|b/c/"),
+        ("s#a|b#c# | w", "s#a|b#c#"),
+        ("g/a|b/d | w", "g/a|b/d"),
+        ("v/a|b/d | w", "v/a|b/d"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![head, "w"], "{line}");
+    }
+}
+
+#[test]
 fn pipeline_question_mark_regex_preserved() {
     let cmds = split_ex_pipeline("g?foo|bar?d|w");
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
