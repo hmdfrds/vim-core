@@ -20,8 +20,7 @@ use crate::state::VimState;
 impl VimEngine {
     /// Execute a multi-cursor command from an ex command output, if present.
     ///
-    /// Shared by `execute_ex_command_line` and `execute_cmd_mapping` to avoid
-    /// duplicating the MC dispatch logic.
+    /// Part of [`Self::apply_ex_output`].
     fn dispatch_mc_from_ex(
         &mut self,
         mc_cmd: Option<&crate::state::MultiCursorCommand>,
@@ -50,6 +49,75 @@ impl VimEngine {
             }
             Err(err) => ex_effects::show_error(err),
         }
+    }
+
+    /// Apply what an Ex command asks of the engine besides its own effects:
+    /// options, mappings, abbreviations, handlers, the leader, cleared
+    /// histories, undo navigation and multi-cursor commands. Returns the
+    /// effects that produces, in the order they follow the command's own.
+    pub(super) fn apply_ex_output(
+        &mut self,
+        output: &mut executor_ex::ExExecutionOutput,
+        doc_text: &str,
+    ) -> Effects {
+        let mut effects = if output.set_assignments.is_empty() {
+            Effects::new()
+        } else {
+            let effects = executor_ex::apply_set_assignments(
+                output.set_scope,
+                &mut self.options,
+                &mut self.buffer_overrides,
+                &mut self.window_overrides,
+                &output.set_assignments,
+            );
+            self.rebuild_resolved_cache();
+            self.rebuild_langmap_if_needed();
+            effects
+        };
+        for change in &output.mapping_changes {
+            self.apply_mapping_change(change);
+        }
+        for change in &output.abbrev_changes {
+            effects.extend(self.apply_abbrev_change(change));
+        }
+        for change in &output.handler_changes {
+            self.apply_handler_change(change);
+        }
+        if let Some(leader) = output.leader_change {
+            self.keymap
+                .set_leader(crate::keymap::KeyEvent::char(leader));
+        }
+        if output.clear_message_history {
+            self.state.message_history_mut().clear();
+        }
+        if output.clear_jumplist {
+            self.state.jump_list_mut().clear();
+        }
+        // :undojoin merges the next undo group into the previous one.
+        if output.undo_join_pending {
+            self.state.undo_tree_mut().begin_merge();
+        }
+        if output.last_ex_for_dot.is_some() {
+            self.state
+                .set_last_ex_for_dot(output.last_ex_for_dot.take());
+        }
+
+        let mut undo_effects = match &output.undo_navigation {
+            Some(nav) => self.apply_undo_navigation(nav),
+            None => Effects::new(),
+        };
+        // Sync undo effects so that the engine's undo tree state is
+        // updated (Undo/Redo effects navigate the tree in the effect
+        // processor). Without this, `:later` after `:earlier` would
+        // not find any redo target because the tree never moved.
+        crate::execution::effect_processor::sync_effects(
+            &mut self.state,
+            &mut self.parser,
+            undo_effects.as_mut_slice(),
+        );
+        effects.extend(undo_effects);
+        effects.extend(self.dispatch_mc_from_ex(output.multi_cursor_command.as_ref(), doc_text));
+        effects
     }
 
     pub(super) fn execute_ex_command_line<D: Document>(
@@ -95,88 +163,11 @@ impl VimEngine {
                     Some(doc_text),
                 );
                 self.state.set_mode(Mode::Normal);
-
-                // Apply :set option mutations
-                let set_effects = if output.set_assignments.is_empty() {
-                    Effects::new()
-                } else {
-                    let effects = executor_ex::apply_set_assignments(
-                        output.set_scope,
-                        &mut self.options,
-                        &mut self.buffer_overrides,
-                        &mut self.window_overrides,
-                        &output.set_assignments,
-                    );
-                    self.rebuild_resolved_cache();
-                    self.rebuild_langmap_if_needed();
-                    effects
-                };
-
-                // Apply :map/:noremap/:unmap mutations
-                for change in &output.mapping_changes {
-                    self.apply_mapping_change(change);
-                }
-
-                // Apply :abbreviate/:unabbreviate/:abclear mutations
-                let mut abbrev_effects = Effects::new();
-                for change in &output.abbrev_changes {
-                    abbrev_effects.extend(self.apply_abbrev_change(change));
-                }
-
-                // Apply :sethandler mutations
-                for change in &output.handler_changes {
-                    self.apply_handler_change(change);
-                }
-
-                // Apply :let mapleader mutation
-                if let Some(leader) = output.leader_change {
-                    self.keymap
-                        .set_leader(crate::keymap::KeyEvent::char(leader));
-                }
-
-                // Apply :messages clear
-                if output.clear_message_history {
-                    self.state.message_history_mut().clear();
-                }
-                // Apply :clearjumps
-                if output.clear_jumplist {
-                    self.state.jump_list_mut().clear();
-                }
-
-                // Apply :undojoin — merge the next undo group into the previous one
-                if output.undo_join_pending {
-                    self.state.undo_tree_mut().begin_merge();
-                }
-
-                // Store last ex command for dot-repeat
-                if output.last_ex_for_dot.is_some() {
-                    self.state.set_last_ex_for_dot(output.last_ex_for_dot);
-                }
-
-                // Apply undo tree navigation
-                let mut undo_effects = match &output.undo_navigation {
-                    Some(nav) => self.apply_undo_navigation(nav),
-                    None => Effects::new(),
-                };
-                // Sync undo effects so that the engine's undo tree state is
-                // updated (Undo/Redo effects navigate the tree in the effect
-                // processor). Without this, `:later` after `:earlier` would
-                // not find any redo target because the tree never moved.
-                crate::execution::effect_processor::sync_effects(
-                    &mut self.state,
-                    &mut self.parser,
-                    undo_effects.as_mut_slice(),
-                );
-
-                let mc_effects =
-                    self.dispatch_mc_from_ex(output.multi_cursor_command.as_ref(), doc_text);
+                let applied = self.apply_ex_output(&mut output, doc_text);
 
                 let mut effects = prefix_effects;
                 effects.extend(output.effects);
-                effects.extend(set_effects);
-                effects.extend(abbrev_effects);
-                effects.extend(undo_effects);
-                effects.extend(mc_effects);
+                effects.extend(applied);
                 effects.extend(action_effects::switch_mode(Mode::Normal));
                 let mut response = Response::with_effects(effects);
                 response.host_requests = output.host_requests.into_vec();
@@ -218,71 +209,9 @@ impl VimEngine {
                     output.effects.as_mut_slice(),
                 );
 
-                // Apply :set option mutations
-                let set_effects = if output.set_assignments.is_empty() {
-                    Effects::new()
-                } else {
-                    let effects = executor_ex::apply_set_assignments(
-                        output.set_scope,
-                        &mut self.options,
-                        &mut self.buffer_overrides,
-                        &mut self.window_overrides,
-                        &output.set_assignments,
-                    );
-                    self.rebuild_resolved_cache();
-                    self.rebuild_langmap_if_needed();
-                    effects
-                };
-
-                for change in &output.mapping_changes {
-                    self.apply_mapping_change(change);
-                }
-                let mut abbrev_effects = Effects::new();
-                for change in &output.abbrev_changes {
-                    abbrev_effects.extend(self.apply_abbrev_change(change));
-                }
-                for change in &output.handler_changes {
-                    self.apply_handler_change(change);
-                }
-                if let Some(leader) = output.leader_change {
-                    self.keymap
-                        .set_leader(crate::keymap::KeyEvent::char(leader));
-                }
-                if output.clear_message_history {
-                    self.state.message_history_mut().clear();
-                }
-                if output.clear_jumplist {
-                    self.state.jump_list_mut().clear();
-                }
-
-                // Apply :undojoin — merge the next undo group into the previous one
-                if output.undo_join_pending {
-                    self.state.undo_tree_mut().begin_merge();
-                }
-
-                // Store last ex command for dot-repeat
-                if output.last_ex_for_dot.is_some() {
-                    self.state.set_last_ex_for_dot(output.last_ex_for_dot);
-                }
-
-                let mut undo_effects = match &output.undo_navigation {
-                    Some(nav) => self.apply_undo_navigation(nav),
-                    None => Effects::new(),
-                };
-                crate::execution::effect_processor::sync_effects(
-                    &mut self.state,
-                    &mut self.parser,
-                    undo_effects.as_mut_slice(),
-                );
-
-                let mc_effects =
-                    self.dispatch_mc_from_ex(output.multi_cursor_command.as_ref(), doc_text);
-
+                let applied = self.apply_ex_output(&mut output, doc_text);
                 let mut effects = output.effects;
-                effects.extend(set_effects);
-                effects.extend(abbrev_effects);
-                effects.extend(undo_effects);
-                effects.extend(mc_effects);
+                effects.extend(applied);
                 let mut response = Response::with_effects(effects);
                 response.host_requests = output.host_requests.into_vec();
                 response
