@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Actions are pinned by SHA with the version in a comment, which is the
+  # form Dependabot refreshes.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # No version bumps: vim-text and vim-regex track upstream and godot-vim
+  # pins this repository by tag. A limit of 0 still lets security updates
+  # through when they are enabled in the repository settings.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 0
