@@ -34,6 +34,18 @@ fn shows_text(response: &Response, needle: &str) -> bool {
         .any(|e| matches!(e, Effect::ShowInfo { info: InfoMessage::Text(t) } if t.contains(needle)))
 }
 
+fn messages(response: &Response) -> Vec<String> {
+    response
+        .effects()
+        .iter()
+        .filter_map(|e| match e {
+            Effect::ShowInfo { info } => Some(info.to_string()),
+            Effect::ShowError { error, .. } => Some(error.to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
 fn deletes(response: &Response) -> bool {
     response
         .effects()
@@ -155,6 +167,28 @@ fn returned_text_is_sourced_not_echoed() {
     let doc = SimpleDocument::new("one\ntwo");
     let r = process_key(&mut engine, &doc, KeyEvent::char('Q'));
     assert!(deletes(&r), "Q should run the sourced mapping: {r:?}");
+}
+
+#[test]
+fn returned_text_shows_every_message() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let req = request(&run(&mut engine, &doc, "source x.vim"));
+    let done = engine.complete_host_request(&HostResult::Data {
+        id: req.id(),
+        data: "set tw=33\nset tw?\nset ic?\nnormal x\nset tw?".into(),
+        offset: None,
+    });
+    assert_eq!(
+        messages(&done),
+        [
+            "textwidth=33",
+            "noignorecase",
+            "E523: Not allowed here: normal x",
+            "textwidth=33",
+            "Config file sourced"
+        ]
+    );
 }
 
 #[test]

@@ -15,17 +15,21 @@ use crate::primitives::Offset;
 impl super::VimEngine {
     /// Track host requests from a response for later completion.
     pub(super) fn register_pending_host_requests(&mut self, mut response: Response) -> Response {
-        // Convert effect-based host commands to HostRequests before tracking.
-        self.route_effects_to_host_requests(&mut response);
-
-        for request in &response.host_requests {
-            self.host.pending.insert(request.id(), request.clone());
-        }
+        self.track_host_requests(&mut response);
         // Optimize effects before returning to the shell.
         crate::effects::Effects::<crate::effects::undo_state::Closed>::optimize_vec(
             &mut response.effects,
         );
         response
+    }
+
+    /// Turn effect-based host commands into host requests and track every
+    /// host request of the response as pending. The effects stay as they are.
+    pub(super) fn track_host_requests(&mut self, response: &mut Response) {
+        self.route_effects_to_host_requests(response);
+        for request in &response.host_requests {
+            self.host.pending.insert(request.id(), request.clone());
+        }
     }
 
     /// Convert effect variants that represent host commands into HostRequests.
@@ -272,8 +276,8 @@ impl super::VimEngine {
         if let (HostRequest::ReadConfigFile { .. }, HostResult::Data { data, .. }) =
             (&pending, result)
         {
-            let response = self.source_config_text(data);
-            return self.register_pending_host_requests(response);
+            // Already tracked; the optimizer would keep one message of many.
+            return self.source_config_text(data);
         }
 
         let mut response = completion_response(&pending, result);

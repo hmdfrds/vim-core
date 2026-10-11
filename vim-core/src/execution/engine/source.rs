@@ -57,7 +57,10 @@ impl super::VimEngine {
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
         )));
-        self.register_pending_host_requests(response)
+        // Not register_pending_host_requests: its effect optimizer keeps only
+        // the last of several messages, and a config can print many.
+        self.track_host_requests(&mut response);
+        response
     }
 
     /// Run one config line: each of its `|` commands in turn, until one fails.
@@ -306,6 +309,21 @@ mod tests {
                 "unexpected effect {effect:?}"
             );
         }
+    }
+
+    #[test]
+    fn source_config_returns_every_message() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("set tw=80 | set tw?\necho hi\n");
+        let infos: Vec<String> = response
+            .effects()
+            .iter()
+            .filter_map(|e| match e {
+                Effect::ShowInfo { info } => Some(info.to_string()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(infos, ["textwidth=80", "hi", "Config file sourced"]);
     }
 
     // ── host commands ─────────────────────────────────────────────
