@@ -1,9 +1,8 @@
 //! Range transformation system for operator dispatch.
 //!
 //! Formalizes range/inclusivity handling by providing a clean interface for
-//! normalizing, expanding, and contracting ranges. Inspired by Evil's range
-//! system design where motions produce raw ranges that are then transformed
-//! for operator application.
+//! normalizing, expanding, and contracting ranges. Motions produce raw
+//! ranges that are then transformed for operator application.
 //!
 //! # Concept
 //!

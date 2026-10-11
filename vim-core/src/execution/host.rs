@@ -434,8 +434,10 @@ pub enum HostRequest {
     ReadConfigFile {
         /// Correlation metadata.
         meta: HostRequestMeta,
-        /// Path to the config file.
-        path: CompactString,
+        /// The file as typed, unexpanded. `None` for a bare `:source`: the
+        /// host picks its default, usually its active config file, and a
+        /// host without one fails with E471.
+        path: Option<CompactString>,
     },
     /// Switch to buffer by number.
     SwitchBuffer {

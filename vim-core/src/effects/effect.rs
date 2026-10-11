@@ -1349,7 +1349,7 @@ pub enum Effect {
     },
 
     // === Host Action Bridge ===
-    /// Invoke a host-registered action by name (IdeaVim-style `<Action>()` bridge).
+    /// Invoke a host-registered action by name (the `<Action>()` bridge).
     ///
     /// When a key mapping expands to `<Action>(name)`, the engine resolves
     /// the name from the keymap's action registry and emits this effect.

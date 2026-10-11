@@ -1093,7 +1093,14 @@ impl VimSession<SessionHost> {
                 },
             },
 
-            HostRequest::ReadConfigFile { path, .. } => match callbacks.read_file(path.as_str()) {
+            // This host has no config of its own for a bare `:source`.
+            HostRequest::ReadConfigFile { path: None, .. } => HostResult::Failure {
+                id,
+                error: CS::from(crate::errors::VimError::ArgumentRequired.to_string()),
+            },
+            HostRequest::ReadConfigFile {
+                path: Some(path), ..
+            } => match callbacks.read_file(path.as_str()) {
                 Ok(content) => HostResult::Data {
                     id,
                     data: CS::from(content),

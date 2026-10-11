@@ -49,7 +49,8 @@ pub trait HostCallbacks {
 
     /// Read a file and return its contents.
     ///
-    /// Called on `:r path` and `:source path`.
+    /// Called on `:r path` and `:source path`. A bare `:source` fails with
+    /// E471 without calling it.
     ///
     /// # Errors
     ///

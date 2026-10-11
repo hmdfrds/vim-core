@@ -573,7 +573,9 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             },
         })
     } else if matches_abbrev(name, "so", "source") {
-        parse_required_path_command(tail, |path| ExCommand::Source { path })
+        Ok(ExCommand::Source {
+            path: (!tail.is_empty()).then(|| CompactString::from(tail)),
+        })
     } else if matches_abbrev(name, "ea", "earlier") {
         parse_time_amount(tail).map(|amount| ExCommand::Earlier { amount })
     } else if matches_abbrev(name, "lat", "later") {
@@ -1483,7 +1485,7 @@ fn parse_set_operator(token: &str) -> Option<SetAssignment> {
 
 /// Parse `:sethandler` arguments.
 ///
-/// IdeaVim-compatible syntax:
+/// Syntax:
 /// - `:sethandler <C-A> n:vim i:ide` — key + mode:handler assignments
 /// - `:sethandler n:vim i:ide` — no key, global default
 ///

@@ -278,7 +278,7 @@ pub struct Keymap {
     plug_names: super::NameRegistry,
     /// `<Action>` name registry — maps `u32` ids to host action names.
     ///
-    /// Used by `Key::Action(id)` for IdeaVim-style host action bridge.
+    /// Used by `Key::Action(id)` for the host action bridge.
     action_names: super::NameRegistry,
     /// FileType-specific mapping overlays.
     ///
