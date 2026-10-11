@@ -84,6 +84,10 @@ pub enum VimError {
     /// E492: Not an editor command.
     NotEditorCommand(CompactString),
 
+    /// E523: Not allowed here, such as a command that needs a buffer in a
+    /// config file. Carries the command.
+    NotAllowedHere(CompactString),
+
     /// E14: Invalid address.
     InvalidAddress(CompactString),
 
@@ -259,6 +263,7 @@ impl fmt::Display for VimError {
 
             // Ex commands
             Self::NotEditorCommand(cmd) => write!(f, "E492: Not an editor command: {cmd}"),
+            Self::NotAllowedHere(cmd) => write!(f, "E523: Not allowed here: {cmd}"),
             Self::InvalidAddress(addr) => write!(f, "E14: Invalid address: {addr}"),
             Self::InvalidRange => write!(f, "E16: Invalid range"),
             Self::ArgumentRequired => write!(f, "E471: Argument required"),
@@ -379,6 +384,7 @@ mod tests {
             VimError::AtEndOfChangelist,
             VimError::ChangelistEmpty,
             VimError::NotEditorCommand("foo".into()),
+            VimError::NotAllowedHere("normal dd".into()),
             VimError::InvalidAddress("999".into()),
             VimError::InvalidRange,
             VimError::ArgumentRequired,
@@ -442,6 +448,12 @@ mod tests {
     fn display_not_editor_command() {
         let e = VimError::NotEditorCommand("foo".into());
         assert_eq!(e.to_string(), "E492: Not an editor command: foo");
+    }
+
+    #[test]
+    fn display_not_allowed_here() {
+        let e = VimError::NotAllowedHere("normal dd".into());
+        assert_eq!(e.to_string(), "E523: Not allowed here: normal dd");
     }
 
     #[test]

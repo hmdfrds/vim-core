@@ -934,10 +934,164 @@ impl ExCommand {
     }
 }
 
+impl ExCommand {
+    /// Returns `true` if this command reads or changes the buffer, its
+    /// cursor, selections, marks, folds or undo history, so it cannot run
+    /// without one, as when a config file is sourced.
+    ///
+    /// Commands the host runs return `false`: the host decides what they
+    /// mean without a buffer.
+    #[must_use]
+    pub const fn needs_buffer(&self) -> bool {
+        match self {
+            Self::Substitute { .. }
+            | Self::Global { .. }
+            | Self::Delete { .. }
+            | Self::Yank { .. }
+            | Self::Move { .. }
+            | Self::Copy { .. }
+            | Self::Join { .. }
+            | Self::Sort { .. }
+            | Self::Marks { .. }
+            | Self::Jumps
+            | Self::Changes
+            | Self::Put { .. }
+            | Self::Retab { .. }
+            | Self::Left { .. }
+            | Self::Right { .. }
+            | Self::Center { .. }
+            | Self::Read { .. }
+            | Self::Filter { .. }
+            | Self::Earlier { .. }
+            | Self::Later { .. }
+            | Self::UndoList
+            | Self::UndoTree
+            | Self::UndoSequence { .. }
+            | Self::PrintLines { .. }
+            | Self::ZWindow { .. }
+            | Self::Norm { .. }
+            | Self::GotoLine { .. }
+            | Self::StructuralExtract { .. }
+            | Self::StructuralComplement { .. }
+            | Self::SelectMatches { .. }
+            | Self::SplitMatches { .. }
+            | Self::KeepMatches { .. }
+            | Self::RemoveMatches { .. }
+            | Self::TrimSelections
+            | Self::AlignSelections
+            | Self::RotateContents
+            | Self::RotateContentsDir { .. }
+            | Self::AddNext { .. }
+            | Self::AddPrev { .. }
+            | Self::SkipMatch
+            | Self::AddCursorDir { .. }
+            | Self::SelectAll
+            | Self::CursorCollapse
+            | Self::CursorRemove
+            | Self::CursorPrimary { .. }
+            | Self::CursorSplitBlock
+            | Self::CursorFlip
+            | Self::CursorForward
+            | Self::CursorMerge
+            | Self::RepeatSubstitute { .. }
+            | Self::SubTilde { .. }
+            | Self::DelMarks { .. }
+            | Self::Redo
+            | Self::Fold { .. }
+            | Self::FoldOpen { .. }
+            | Self::FoldClose { .. }
+            | Self::ExecuteRegister { .. }
+            | Self::UndoJoin => true,
+            Self::Registers { .. }
+            | Self::Messages { .. }
+            | Self::Map { .. }
+            | Self::Unmap { .. }
+            | Self::MapClear { .. }
+            | Self::NoHighlight
+            | Self::Write { .. }
+            | Self::Quit { .. }
+            | Self::WriteQuit { .. }
+            | Self::Edit { .. }
+            | Self::External { .. }
+            | Self::Split { .. }
+            | Self::VSplit { .. }
+            | Self::Close { .. }
+            | Self::Only { .. }
+            | Self::New
+            | Self::VNew
+            | Self::WriteAll
+            | Self::QuitAll { .. }
+            | Self::WriteQuitAll
+            | Self::BufferDelete { .. }
+            | Self::BufferWipeout { .. }
+            | Self::Abbreviate { .. }
+            | Self::Unabbreviate { .. }
+            | Self::AbClear { .. }
+            | Self::Custom { .. }
+            | Self::Action { .. }
+            | Self::ActionList { .. }
+            | Self::Source { .. }
+            | Self::CNext { .. }
+            | Self::CPrev { .. }
+            | Self::CList
+            | Self::CC { .. }
+            | Self::Buffer { .. }
+            | Self::BufferNext { .. }
+            | Self::BufferPrev { .. }
+            | Self::BufferFirst
+            | Self::BufferLast
+            | Self::BufferList
+            | Self::TabNew { .. }
+            | Self::TabNext { .. }
+            | Self::TabPrev { .. }
+            | Self::TabClose { .. }
+            | Self::Echo { .. }
+            | Self::LetMapleader { .. }
+            | Self::Set { .. }
+            | Self::SetLocal { .. }
+            | Self::SetGlobal { .. }
+            | Self::SetHandler { .. }
+            | Self::CQuit { .. }
+            | Self::Update { .. }
+            | Self::ClearJumps
+            | Self::WinDo { .. }
+            | Self::BufDo { .. }
+            | Self::TabDo { .. }
+            | Self::MkVimrc { .. } => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::primitives::CaseSensitivity;
+
+    #[test]
+    fn test_needs_buffer() {
+        use crate::grammar::parse_ex_command;
+        for line in [
+            "d",
+            "%s/a/b/",
+            "normal x",
+            "5",
+            "marks",
+            "undolist",
+            "selectall",
+        ] {
+            assert!(parse_ex_command(line).unwrap().needs_buffer(), "{line}");
+        }
+        for line in [
+            "set et",
+            "nnoremap x y",
+            "iabbrev a b",
+            "echo hi",
+            "w",
+            "foo",
+        ] {
+            assert!(!parse_ex_command(line).unwrap().needs_buffer(), "{line}");
+        }
+    }
 
     #[test]
     fn test_sub_flags_parse() {
