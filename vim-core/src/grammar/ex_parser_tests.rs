@@ -3557,6 +3557,13 @@ fn pipeline_splits_after_a_command_that_rejects_the_rest_of_the_line() {
 }
 
 #[test]
+fn pipeline_splits_after_a_short_modifier() {
+    assert_eq!(split_ex_pipeline("sil 1 | d"), vec!["sil 1", "d"]);
+    assert_eq!(split_ex_pipeline("conf w | q"), vec!["conf w", "q"]);
+    assert_eq!(split_ex_pipeline("sil! norm x|y"), vec!["sil! norm x|y"]);
+}
+
+#[test]
 fn pipeline_keeps_a_bar_inside_a_pattern_before_another_command() {
     for (line, head) in [
         ("s/a|b/c/ | w", "s/a|b/c/"),
@@ -4350,6 +4357,42 @@ fn modifier_does_not_eat_similar_command_names() {
     // It should fall through to Custom or error
     let (mods, _) = parse_ex_command_with_modifiers("silently").unwrap();
     assert!(mods.is_empty());
+}
+
+#[test]
+fn modifiers_accept_vims_short_forms() {
+    for (line, flags) in [
+        ("sil echo hi", ModifierFlags::SILENT),
+        ("silen echo hi", ModifierFlags::SILENT),
+        (
+            "sil! echo hi",
+            ModifierFlags::SILENT | ModifierFlags::SILENT_BANG,
+        ),
+        ("keepj d", ModifierFlags::KEEPJUMPS),
+        ("keepp s/a/b/", ModifierFlags::KEEPPATTERNS),
+        ("loc d", ModifierFlags::LOCKMARKS),
+        ("keepa e x", ModifierFlags::KEEPALT),
+        ("conf w", ModifierFlags::CONFIRM),
+        ("bro e x", ModifierFlags::BROWSE),
+        ("to sp", ModifierFlags::TOPLEFT),
+        ("bo sp", ModifierFlags::BOTRIGHT),
+        ("abo sp", ModifierFlags::ABOVELEFT),
+        ("bel sp", ModifierFlags::BELOWRIGHT),
+        ("hor sp", ModifierFlags::HORIZONTAL),
+        ("vert sp", ModifierFlags::VERTICAL),
+    ] {
+        let (mods, _) = parse_ex_command_with_modifiers(line).unwrap();
+        assert_eq!(mods, flags, "{line}");
+    }
+}
+
+#[test]
+fn modifier_short_forms_leave_commands_alone() {
+    // Too short for a modifier, or another command.
+    for line in ["si", "keep /x/", "ta", "tabnew", "keepjumpsx d"] {
+        let (mods, _) = parse_ex_command_with_modifiers(line).unwrap();
+        assert!(mods.is_empty(), "{line}");
+    }
 }
 
 #[test]

@@ -40,6 +40,25 @@ pub fn parse_ex_command_with_modifiers(
     Ok((modifiers, cmd))
 }
 
+/// Vim's command modifiers that the engine knows, as
+/// `(shortest form, full name, flag)`: `sil[ent]`, `keepj[umps]`, ...
+const COMMAND_MODIFIERS: &[(&str, &str, ModifierFlags)] = &[
+    ("abo", "aboveleft", ModifierFlags::ABOVELEFT),
+    ("bel", "belowright", ModifierFlags::BELOWRIGHT),
+    ("bo", "botright", ModifierFlags::BOTRIGHT),
+    ("bro", "browse", ModifierFlags::BROWSE),
+    ("conf", "confirm", ModifierFlags::CONFIRM),
+    ("hor", "horizontal", ModifierFlags::HORIZONTAL),
+    ("keepa", "keepalt", ModifierFlags::KEEPALT),
+    ("keepj", "keepjumps", ModifierFlags::KEEPJUMPS),
+    ("keepp", "keeppatterns", ModifierFlags::KEEPPATTERNS),
+    ("loc", "lockmarks", ModifierFlags::LOCKMARKS),
+    ("sil", "silent", ModifierFlags::SILENT),
+    ("tab", "tab", ModifierFlags::TAB),
+    ("to", "topleft", ModifierFlags::TOPLEFT),
+    ("vert", "vertical", ModifierFlags::VERTICAL),
+];
+
 /// Strip modifier keyword prefixes from the input, returning accumulated
 /// flags and the remaining unparsed input.
 fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
@@ -49,84 +68,25 @@ fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
     loop {
         // Vim skips colons before a command and before each modifier.
         let trimmed = rest.trim_start_matches(|c: char| c.is_whitespace() || c == ':');
-        // Try to match a modifier keyword at the start. Modifiers must be
-        // followed by whitespace or end-of-input to avoid misparsing
-        // commands that happen to start with the same prefix (e.g.,
-        // `:silently` is not `:silent` + `ly`).
-        if let Some(after) = strip_modifier_prefix(trimmed, "silent") {
-            // `:silent!` — check for bang immediately after "silent"
-            if let Some(after_bang) = after.strip_prefix('!') {
+        let word_len = trimmed
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(trimmed.len());
+        let (word, after) = trimmed.split_at(word_len);
+        let modifier = COMMAND_MODIFIERS
+            .iter()
+            .find(|(min, full, _)| word.len() >= min.len() && full.starts_with(word));
+        // A modifier is a whole word: `:silently` is not `:silent` + `ly`.
+        match (modifier, after.as_bytes().first()) {
+            (Some(&(_, "silent", _)), Some(b'!')) => {
                 flags |= ModifierFlags::SILENT | ModifierFlags::SILENT_BANG;
-                rest = after_bang;
-            } else {
-                flags |= ModifierFlags::SILENT;
+                rest = &after[1..];
+            }
+            (Some(&(_, _, flag)), None | Some(b' ' | b'\t')) => {
+                flags |= flag;
                 rest = after;
             }
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "keepjumps") {
-            flags |= ModifierFlags::KEEPJUMPS;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "keeppatterns") {
-            flags |= ModifierFlags::KEEPPATTERNS;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "lockmarks") {
-            flags |= ModifierFlags::LOCKMARKS;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "keepalt") {
-            flags |= ModifierFlags::KEEPALT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "tab") {
-            flags |= ModifierFlags::TAB;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "vertical") {
-            flags |= ModifierFlags::VERTICAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "vert") {
-            flags |= ModifierFlags::VERTICAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "horizontal") {
-            flags |= ModifierFlags::HORIZONTAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "hor") {
-            flags |= ModifierFlags::HORIZONTAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "topleft") {
-            flags |= ModifierFlags::TOPLEFT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "botright") {
-            flags |= ModifierFlags::BOTRIGHT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "aboveleft") {
-            flags |= ModifierFlags::ABOVELEFT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "belowright") {
-            flags |= ModifierFlags::BELOWRIGHT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "browse") {
-            flags |= ModifierFlags::BROWSE;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "confirm") {
-            flags |= ModifierFlags::CONFIRM;
-            rest = after;
-        } else {
-            return (flags, trimmed);
+            _ => return (flags, trimmed),
         }
-    }
-}
-
-/// Try to strip a modifier keyword from the start of input.
-///
-/// Returns `Some(remaining)` if `input` starts with `keyword` followed by
-/// whitespace (or end-of-input). The returned slice starts at the first
-/// non-keyword character (the whitespace or empty tail).
-fn strip_modifier_prefix<'a>(input: &'a str, keyword: &str) -> Option<&'a str> {
-    let stripped = input.strip_prefix(keyword)?;
-    // Must be followed by whitespace, '!', or end-of-input to be a real modifier.
-    // This prevents `:silently` from matching as `:silent` + `ly`.
-    match stripped.as_bytes().first() {
-        None => Some(stripped),               // modifier with no command after
-        Some(b' ' | b'\t') => Some(stripped), // normal separator
-        Some(b'!') if keyword == "silent" => Some(stripped), // `:silent!`
-        _ => None,                            // part of a longer word
     }
 }
 
