@@ -3406,6 +3406,24 @@ mod multi_cursor_ex {
     }
 }
 
+// ── Leading colons ───────────────────────────────────────────────────────
+
+#[test]
+fn colons_before_a_command_are_skipped() {
+    // A vimrc may write `:set et`; Vim skips the colons.
+    assert_eq!(
+        parse_ex_command(":set et").unwrap(),
+        parse_ex_command("set et").unwrap()
+    );
+    assert_eq!(
+        parse_ex_command(" : :set et").unwrap(),
+        parse_ex_command("set et").unwrap()
+    );
+    let (flags, cmd) = parse_ex_command_with_modifiers(":silent! :nnoremap x y").unwrap();
+    assert!(flags.contains(ModifierFlags::SILENT_BANG));
+    assert_eq!(cmd, parse_ex_command("nnoremap x y").unwrap());
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Pipeline splitting (split_ex_pipeline)
 // ═══════════════════════════════════════════════════════════════════════

@@ -46,7 +46,8 @@ fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
     let mut rest = input;
 
     loop {
-        let trimmed = rest.trim_start();
+        // Vim skips colons before a command and before each modifier.
+        let trimmed = rest.trim_start_matches(|c: char| c.is_whitespace() || c == ':');
         // Try to match a modifier keyword at the start. Modifiers must be
         // followed by whitespace or end-of-input to avoid misparsing
         // commands that happen to start with the same prefix (e.g.,
@@ -106,11 +107,9 @@ fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
             flags |= ModifierFlags::CONFIRM;
             rest = after;
         } else {
-            break;
+            return (flags, trimmed);
         }
     }
-
-    (flags, rest)
 }
 
 /// Try to strip a modifier keyword from the start of input.
