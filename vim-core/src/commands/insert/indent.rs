@@ -1,7 +1,7 @@
 //! Insert-mode indentation commands (Ctrl-T, Ctrl-D, ^^D, 0^D).
 //!
 //! Ctrl-T and Ctrl-D move the indent as Vim's `change_indent()` does, through
-//! the same [`shift_indent`] as `>>` and `<<`.
+//! the same `shift_indent` as `>>` and `<<`.
 
 use crate::commands::actions::indent::{indent_effect, shift_indent};
 use crate::commands::helpers::{byte_to_vcol, line_end_for_offset, line_start_for_offset};

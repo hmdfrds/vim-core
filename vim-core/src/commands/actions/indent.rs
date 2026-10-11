@@ -99,7 +99,7 @@ pub fn execute_indent_lines(ctx: &ActionContext<'_>) -> CommandResult {
 /// Adds one `shift_width` of indentation to each line and lays the leading
 /// blanks out again per `expandtab`/`tabstop`, so a tab indent gains a tab.
 /// Normal-mode `>>` runs through `commands::operators::indent` and insert
-/// Ctrl-T through `commands::insert::indent`; all share [`shift_indent`].
+/// Ctrl-T through `commands::insert::indent`; all share `shift_indent`.
 pub fn indent_lines_raw(
     text: &str,
     cursor: usize,
