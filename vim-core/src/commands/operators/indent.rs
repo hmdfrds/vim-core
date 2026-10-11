@@ -81,7 +81,14 @@ fn execute_shift(ctx: &OperatorContext<'_>, direction: ShiftDirection) -> Comman
         if line.is_empty() {
             None
         } else {
-            shift_indent(line, direction, ctx.shiftwidth, ctx.tabstop, ctx.expandtab)
+            shift_indent(
+                line,
+                direction,
+                false,
+                ctx.shiftwidth,
+                ctx.tabstop,
+                ctx.expandtab,
+            )
         }
     };
 

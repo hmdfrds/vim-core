@@ -177,6 +177,43 @@ fn shift_under_expandtab_leaves_tabs_after_the_indent() {
 }
 
 #[test]
+fn ctrl_t_and_ctrl_d_round_to_a_multiple_of_shiftwidth() {
+    // Ctrl-T added a whole shiftwidth to "  hello", giving "\t  hello".
+    let mut session = tab_indent_session("  hello");
+    process_keys(&mut session, "A<C-t><Esc>");
+    assert_eq!(session.text(), "\thello");
+
+    let mut session = indent_session("      hello", true, 4, 4);
+    process_keys(&mut session, "A<C-d><Esc>");
+    assert_eq!(session.text(), "    hello");
+}
+
+#[test]
+fn ctrl_d_lays_out_the_indent_like_shift() {
+    // Ctrl-D only deleted whole tabs: under expandtab the tab stayed, and a
+    // tab wider than shiftwidth was not touched at all.
+    let mut session = indent_session("\t\thello", true, 4, 4);
+    process_keys(&mut session, "A<C-d><Esc>");
+    assert_eq!(session.text(), "    hello");
+
+    let mut session = indent_session("\thello", false, 4, 2);
+    process_keys(&mut session, "A<C-d><Esc>");
+    assert_eq!(session.text(), "  hello");
+}
+
+#[test]
+fn ctrl_t_inside_the_indent_keeps_the_cursor_column() {
+    let mut session = tab_indent_session("\thello");
+    process_keys(&mut session, "0i<C-t>X<Esc>");
+    assert_eq!(session.text(), "\tX\thello");
+
+    // The column falls inside the new first tab, so Vim pads with spaces.
+    let mut session = tab_indent_session("    hello");
+    process_keys(&mut session, "0lli<C-t>X<Esc>");
+    assert_eq!(session.text(), "\t  X\thello");
+}
+
+#[test]
 fn text_returns_current_content() {
     let session = HostSession::new("line1\nline2\nline3");
     assert_eq!(session.line_count(), 3);

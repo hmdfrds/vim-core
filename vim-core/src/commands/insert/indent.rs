@@ -1,19 +1,16 @@
 //! Insert-mode indentation commands (Ctrl-T, Ctrl-D, ^^D, 0^D).
 //!
-//! Calls raw indent/outdent functions with primitive params.
-//! Zero type coupling — no `ActionContext` import needed.
+//! Ctrl-T and Ctrl-D move the indent as Vim's `change_indent()` does, through
+//! the same [`shift_indent`] as `>>` and `<<`.
 
-use crate::commands::actions::indent::{indent_lines_raw, outdent_lines_raw, shift_indent};
-use crate::commands::helpers::{line_end_for_offset, line_start_for_offset};
+use crate::commands::actions::indent::{indent_effect, shift_indent};
+use crate::commands::helpers::{byte_to_vcol, line_end_for_offset, line_start_for_offset};
 use crate::commands::operators::ShiftDirection;
 use crate::commands::CommandResult;
 use crate::effects::{Effect, Effects};
 use crate::primitives::{Offset, Range};
 
 /// Indent current line during insert mode (Ctrl-T).
-///
-/// Calls the shared raw indent function, then moves the cursor by the change
-/// in indent bytes so typing continues on the same character.
 #[inline]
 pub fn indent_at_cursor(
     text: &str,
@@ -22,55 +19,91 @@ pub fn indent_at_cursor(
     tabstop: usize,
     expandtab: bool,
 ) -> CommandResult {
-    let result = indent_lines_raw(text, cursor.get(), 1, shift_width, tabstop, expandtab);
-    let ls = line_start_for_offset(text, cursor.get());
-    let line = &text[ls..line_end_for_offset(text, ls)];
-    let Some((old_ws, new_indent)) =
-        shift_indent(line, ShiftDirection::Right, shift_width, tabstop, expandtab)
-    else {
-        return result;
-    };
-    // Tabs can replace spaces, so the indent may get shorter in bytes.
-    let new_cursor = Offset::new(
-        (cursor.get() + new_indent.len())
-            .saturating_sub(old_ws)
-            .max(ls),
-    );
-    let mut effects = result.effects;
-    effects.push(Effect::set_cursor(new_cursor));
-    CommandResult::effects_only(effects)
+    change_indent(
+        text,
+        cursor,
+        ShiftDirection::Right,
+        shift_width,
+        tabstop,
+        expandtab,
+    )
 }
 
 /// Outdent current line during insert mode (Ctrl-D).
-///
-/// Calls the shared raw outdent function, then adjusts cursor position
-/// by the removed whitespace amount.
 #[inline]
 pub fn outdent_at_cursor(
     text: &str,
     cursor: Offset,
     shift_width: usize,
     tabstop: usize,
+    expandtab: bool,
 ) -> CommandResult {
-    let result = outdent_lines_raw(text, cursor.get(), 1, shift_width, tabstop);
-    if result.effects.is_empty() {
-        // No whitespace to remove — pass through empty result
-        return result;
-    }
-    // Move the cursor left by the bytes actually removed. Deriving this from
-    // the delete range (rather than assuming the whole indent was removed)
-    // keeps the cursor correct for partial outdents and tab indents.
-    let removed = result
-        .effects
-        .iter()
-        .find_map(|e| match e {
-            Effect::Delete { range } => Some(range.end().get() - range.start().get()),
-            _ => None,
-        })
-        .unwrap_or(0);
-    let new_cursor = cursor.saturating_sub_raw(removed);
-    let mut effects = result.effects;
-    effects.push(Effect::set_cursor(new_cursor));
+    change_indent(
+        text,
+        cursor,
+        ShiftDirection::Left,
+        shift_width,
+        tabstop,
+        expandtab,
+    )
+}
+
+/// Move the cursor line's indent to the next multiple of `shift_width`, as
+/// Vim's `change_indent()` does for Ctrl-T and Ctrl-D.
+///
+/// A cursor at or after the first non-blank stays on its character. One
+/// inside the indent keeps its distance in columns from the first non-blank;
+/// when that column falls inside a tab, Vim pads with spaces to reach it.
+fn change_indent(
+    text: &str,
+    cursor: Offset,
+    direction: ShiftDirection,
+    shift_width: usize,
+    tabstop: usize,
+    expandtab: bool,
+) -> CommandResult {
+    let cur = cursor.get();
+    let ls = line_start_for_offset(text, cur);
+    let line = &text[ls..line_end_for_offset(text, ls)];
+    let Some((old_len, indent)) =
+        shift_indent(line, direction, true, shift_width, tabstop, expandtab)
+    else {
+        return CommandResult::empty(cursor);
+    };
+
+    let mut open = Effects::new().begin_undo();
+    open.push(indent_effect(ls, &line[..old_len], &indent));
+    let new_cursor = if cur >= ls + old_len {
+        cur - old_len + indent.len()
+    } else {
+        let ts = tabstop.max(1);
+        let old_width = byte_to_vcol(&line[..old_len], old_len, ts);
+        let left_of_text = old_width - byte_to_vcol(line, cur - ls, ts);
+        let target = byte_to_vcol(&indent, indent.len(), ts).saturating_sub(left_of_text);
+        let (mut vcol, mut bytes) = (0, 0);
+        for b in indent.bytes() {
+            let next = if b == b'\t' {
+                (vcol / ts + 1) * ts
+            } else {
+                vcol + 1
+            };
+            if next > target {
+                break;
+            }
+            vcol = next;
+            bytes += 1;
+        }
+        if vcol < target {
+            open.push(Effect::insert(
+                Offset::new(ls + bytes),
+                " ".repeat(target - vcol),
+            ));
+            bytes += target - vcol;
+        }
+        ls + bytes
+    };
+    let mut effects = open.end_undo();
+    effects.push(Effect::set_cursor(Offset::new(new_cursor)));
     CommandResult::effects_only(effects)
 }
 
@@ -165,14 +198,14 @@ mod tests {
 
     #[test]
     fn test_outdent_at_cursor_no_indent() {
-        let result = outdent_at_cursor("hello", Offset::new(0), 4, 4);
+        let result = outdent_at_cursor("hello", Offset::new(0), 4, 4, true);
         // No leading whitespace to remove — result has cursor but no edit effects
         assert!(result.effects.is_empty());
     }
 
     #[test]
     fn test_outdent_at_cursor_with_indent() {
-        let result = outdent_at_cursor("    hello", Offset::new(4), 4, 4);
+        let result = outdent_at_cursor("    hello", Offset::new(4), 4, 4, true);
         assert!(!result.is_empty());
     }
 
@@ -180,7 +213,7 @@ mod tests {
     fn test_outdent_at_cursor_tab_indent() {
         // Ctrl-D on a tab-indented line removes one tab and moves the cursor
         // left by exactly one byte (the removed tab), not to line start.
-        let result = outdent_at_cursor("\t\thello", Offset::new(2), 4, 4);
+        let result = outdent_at_cursor("\t\thello", Offset::new(2), 4, 4, false);
         assert!(!result.is_empty());
         let last = result.effects.iter().last().unwrap();
         assert!(

@@ -260,9 +260,13 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
             ctx.tabstop,
             ctx.expandtab,
         ),
-        Command::Insert(InsertKind::Outdent) => {
-            insert_indent::outdent_at_cursor(ctx.text, ctx.cursor, ctx.shift_width, ctx.tabstop)
-        }
+        Command::Insert(InsertKind::Outdent) => insert_indent::outdent_at_cursor(
+            ctx.text,
+            ctx.cursor,
+            ctx.shift_width,
+            ctx.tabstop,
+            ctx.expandtab,
+        ),
         Command::Insert(InsertKind::OutdentTemporary) => {
             // ^^D: indent saving is handled in the engine layer (mode_dispatch)
             // before dispatch. This arm removes all indent.

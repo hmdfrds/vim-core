@@ -16,10 +16,13 @@ use crate::primitives::{Offset, Range};
 /// One step of Vim's `shift_line()` on `line`: the byte length of its
 /// leading blanks and what they become one `shift_width` further left or
 /// right, laid out as `set_indent()` does (tabs then spaces unless
-/// `expandtab`). `None` when the blanks would stay as they are.
+/// `expandtab`). `round` moves to the next multiple of `shift_width`
+/// instead, as insert-mode Ctrl-T and Ctrl-D do. `None` when the blanks
+/// would stay as they are.
 pub(crate) fn shift_indent(
     line: &str,
     direction: ShiftDirection,
+    round: bool,
     shift_width: usize,
     tabstop: usize,
     expandtab: bool,
@@ -33,9 +36,13 @@ pub(crate) fn shift_indent(
         .take_while(|&b| b == b' ' || b == b'\t')
         .count();
     let old_width = byte_to_vcol(&line[..old_len], old_len, ts);
-    let width = match direction {
-        ShiftDirection::Right => old_width + shift_width,
-        ShiftDirection::Left => old_width.saturating_sub(shift_width),
+    let width = match (direction, round) {
+        (ShiftDirection::Right, false) => old_width + shift_width,
+        (ShiftDirection::Left, false) => old_width.saturating_sub(shift_width),
+        (ShiftDirection::Right, true) => (old_width / shift_width + 1) * shift_width,
+        (ShiftDirection::Left, true) => {
+            (old_width.div_ceil(shift_width).saturating_sub(1)) * shift_width
+        }
     };
     let indent = build_indent_string(width, !expandtab, ts);
     (indent != line[..old_len]).then_some((old_len, indent))
@@ -44,7 +51,7 @@ pub(crate) fn shift_indent(
 /// The edit that turns the blanks `old` at offset `at` into `new`, keeping
 /// what both end with and then what both start with. A growing indent is
 /// therefore an insert at the line start and a shrinking one a delete from
-/// there, as before tabs were laid out again.
+/// there, the edits these commands always made.
 pub(crate) fn indent_effect(at: usize, old: &str, new: &str) -> Effect {
     let same_end = old
         .bytes()
@@ -89,11 +96,10 @@ pub fn execute_indent_lines(ctx: &ActionContext<'_>) -> CommandResult {
 
 /// Raw indent — takes primitive parameters, no ActionContext coupling.
 ///
-/// Insert-mode Ctrl-T calls this. Normal-mode `>>` runs through
-/// `commands::operators::indent` instead.
-///
 /// Adds one `shift_width` of indentation to each line and lays the leading
 /// blanks out again per `expandtab`/`tabstop`, so a tab indent gains a tab.
+/// Normal-mode `>>` runs through `commands::operators::indent` and insert
+/// Ctrl-T through `commands::insert::indent`; all share [`shift_indent`].
 pub fn indent_lines_raw(
     text: &str,
     cursor: usize,
@@ -107,8 +113,16 @@ pub fn indent_lines_raw(
 
     let mut open = Effects::new().begin_undo();
 
-    let shift =
-        |line: &str| shift_indent(line, ShiftDirection::Right, shift_width, tabstop, expandtab);
+    let shift = |line: &str| {
+        shift_indent(
+            line,
+            ShiftDirection::Right,
+            false,
+            shift_width,
+            tabstop,
+            expandtab,
+        )
+    };
 
     // Process lines bottom-to-top to preserve byte offsets
     for i in (0..num_lines).rev() {
@@ -133,7 +147,7 @@ pub fn indent_lines_raw(
     CommandResult::new(effects, Offset::new(ls_cur + indent_len))
 }
 
-/// Outdent lines by removing spaces at the start (`<<`).
+/// Outdent lines (`<<`).
 ///
 /// # Arguments
 /// * `ctx` - Indent context with text, cursor, count, shift width
@@ -147,64 +161,41 @@ pub fn execute_outdent_lines(ctx: &ActionContext<'_>) -> CommandResult {
         ctx.count_usize(),
         ctx.shift_width,
         ctx.tabstop,
+        ctx.expandtab,
     )
 }
 
 /// Raw outdent — takes primitive parameters, no ActionContext coupling.
 ///
-/// Both `commands::actions` (via `<<`) and `commands::insert` (via Ctrl-D)
-/// call this function. Single source of truth for outdent logic.
-///
-/// Removes up to `shift_width` **display columns** of leading whitespace,
-/// counting a tab as the number of columns to the next `tabstop`. A tab is
-/// only removed when it fits wholly within the remaining budget, matching
-/// Neovim (it never splits a tab into spaces here). This handles tab-indented
-/// lines, where the old space-only scan removed nothing.
+/// Removes one `shift_width` of indentation from each line, measured in
+/// display columns, and lays the rest out again per `expandtab`/`tabstop`.
 pub fn outdent_lines_raw(
     text: &str,
     cursor: usize,
     count: usize,
     shift_width: usize,
     tabstop: usize,
+    expandtab: bool,
 ) -> CommandResult {
     let current_line = line_of(text, cursor);
-    let num_lines = count;
-    let tabstop = tabstop.max(1);
 
     let mut open = Effects::new().begin_undo();
     let mut any_removed = false;
 
     // Process lines bottom-to-top to preserve byte offsets
-    for i in (0..num_lines).rev() {
-        let target_line = current_line + i;
-        if let Some(ls) = line_start(text, target_line) {
-            let lend = line_end_for_offset(text, ls);
-            let line = &text[ls..lend];
-            let mut vcols_removed = 0usize;
-            let mut bytes_to_remove = 0usize;
-            for ch in line.chars() {
-                if vcols_removed >= shift_width {
-                    break;
-                }
-                match ch {
-                    ' ' => {
-                        vcols_removed += 1;
-                        bytes_to_remove += 1;
-                    }
-                    '\t' => {
-                        let tab_cols = tabstop - (vcols_removed % tabstop);
-                        if vcols_removed + tab_cols <= shift_width {
-                            vcols_removed += tab_cols;
-                            bytes_to_remove += 1;
-                        } else {
-                            break;
-                        }
-                    }
-                    _ => break,
-                }
-            }
-            if bytes_to_remove > 0 {
-                open = open.delete(Range::from_raw(ls, ls + bytes_to_remove));
+    for i in (0..count).rev() {
+        if let Some(ls) = line_start(text, current_line + i) {
+            let line = &text[ls..line_end_for_offset(text, ls)];
+            let shifted = shift_indent(
+                line,
+                ShiftDirection::Left,
+                false,
+                shift_width,
+                tabstop,
+                expandtab,
+            );
+            if let Some((old_len, indent)) = shifted {
+                open.push(indent_effect(ls, &line[..old_len], &indent));
                 any_removed = true;
             }
         }
@@ -288,7 +279,7 @@ mod tests {
     fn test_outdent_single_tab() {
         // "\thello" with tabstop=4, shiftwidth=4: `<<` removes one tab.
         // The space-only implementation removed nothing.
-        let ctx = make_ctx("\thello", 0, 1);
+        let ctx = make_ctx("\thello", 0, 1).with_tab_options(4, false);
         let result = execute_outdent_lines(&ctx);
         assert_eq!(deleted_range(&result), (0, 1));
     }
@@ -296,20 +287,26 @@ mod tests {
     #[test]
     fn test_outdent_two_tabs_removes_one_level() {
         // "\t\thello", tabstop=4, shiftwidth=4: remove one tab (one level).
-        let ctx = make_ctx("\t\thello", 0, 1);
+        let ctx = make_ctx("\t\thello", 0, 1).with_tab_options(4, false);
         let result = execute_outdent_lines(&ctx);
         assert_eq!(deleted_range(&result), (0, 1));
     }
 
     #[test]
     fn test_outdent_tab_wider_than_shiftwidth() {
-        // tabstop=8, shiftwidth=4: a single tab spans 8 display columns,
-        // which is more than one shiftwidth, so it is NOT removed (removing
-        // it would over-outdent). Neovim leaves the tab in place.
+        // tabstop=8, shiftwidth=4: the tab is 8 columns, so 4 are left, laid
+        // out as spaces. Vim splits the tab the same way.
         let mut ctx = make_ctx("\thello", 0, 1);
         ctx = ctx.with_shift_width(4).with_tab_options(8, false);
         let result = execute_outdent_lines(&ctx);
-        assert!(result.effects.is_empty());
+        assert_eq!(shifted("\thello", &result), "    hello");
+    }
+
+    #[test]
+    fn test_outdent_under_expandtab_lays_out_spaces() {
+        let ctx = make_ctx("\t\thello", 0, 1).with_tab_options(4, true);
+        let result = execute_outdent_lines(&ctx);
+        assert_eq!(shifted("\t\thello", &result), "    hello");
     }
 
     #[test]
@@ -325,11 +322,11 @@ mod tests {
     #[test]
     fn test_shift_indent_unchanged_is_none() {
         assert_eq!(
-            shift_indent("hello", ShiftDirection::Left, 4, 4, false),
+            shift_indent("hello", ShiftDirection::Left, false, 4, 4, false),
             None
         );
         assert_eq!(
-            shift_indent("\thello", ShiftDirection::Right, 0, 4, false),
+            shift_indent("\thello", ShiftDirection::Right, false, 0, 4, false),
             None
         );
     }
@@ -339,11 +336,11 @@ mod tests {
         // Spaces worth a tab become a tab; expandtab turns tabs into spaces.
         let right = ShiftDirection::Right;
         assert_eq!(
-            shift_indent("  \thello", right, 4, 4, false),
+            shift_indent("  \thello", right, false, 4, 4, false),
             Some((3, "\t\t".to_string()))
         );
         assert_eq!(
-            shift_indent("\thello", right, 4, 8, true),
+            shift_indent("\thello", right, false, 4, 8, true),
             Some((1, " ".repeat(12)))
         );
     }

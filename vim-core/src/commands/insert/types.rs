@@ -174,8 +174,8 @@ pub struct InsertContext<'text> {
     /// indent.
     pub tabstop: usize,
 
-    /// `expandtab` from `VimOptions`, so Ctrl-T lays out tabs under
-    /// `noexpandtab`.
+    /// `expandtab` from `VimOptions`, so Ctrl-T and Ctrl-D lay out the
+    /// indent with tabs under `noexpandtab`.
     pub expandtab: bool,
 
     /// Auto-pair configuration. `None` means auto-pairing is disabled.
@@ -243,7 +243,7 @@ impl<'text> InsertContext<'text> {
         self
     }
 
-    /// Set `expandtab` (for the Ctrl-T indent).
+    /// Set `expandtab` (for the Ctrl-T and Ctrl-D indent).
     #[inline]
     #[must_use]
     pub const fn with_expandtab(mut self, expandtab: bool) -> Self {
