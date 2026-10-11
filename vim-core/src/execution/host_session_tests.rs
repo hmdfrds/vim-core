@@ -101,6 +101,31 @@ fn ctrl_d_outdents_tab_in_insert_mode() {
 }
 
 #[test]
+fn indent_adds_a_tab_on_tab_file() {
+    // `>>` under noexpandtab adds a tab (one indent level), not spaces.
+    let mut session = tab_indent_session("\thello");
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t\thello");
+}
+
+#[test]
+fn ctrl_t_indents_with_tab_in_insert_mode() {
+    // Insert-mode Ctrl-T adds a tab under noexpandtab.
+    let mut session = tab_indent_session("hello");
+    process_keys(&mut session, "i<C-t>");
+    assert_eq!(session.text(), "\thello");
+}
+
+#[test]
+fn ctrl_t_keeps_typing_on_the_same_character() {
+    // Four spaces become two tabs under noexpandtab; typing continues before
+    // 'h', not two bytes further on.
+    let mut session = tab_indent_session("    hello");
+    process_keys(&mut session, "I<C-t>X<Esc>");
+    assert_eq!(session.text(), "\t\tXhello");
+}
+
+#[test]
 fn text_returns_current_content() {
     let session = HostSession::new("line1\nline2\nline3");
     assert_eq!(session.line_count(), 3);

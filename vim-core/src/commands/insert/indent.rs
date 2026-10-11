@@ -3,20 +3,34 @@
 //! Calls raw indent/outdent functions with primitive params.
 //! Zero type coupling — no `ActionContext` import needed.
 
-use crate::commands::actions::indent::{indent_lines_raw, outdent_lines_raw};
-use crate::commands::helpers::line_start_for_offset;
+use crate::commands::actions::indent::{indent_lines_raw, outdent_lines_raw, reindent};
+use crate::commands::helpers::{line_end_for_offset, line_start_for_offset};
 use crate::commands::CommandResult;
 use crate::effects::{Effect, Effects};
 use crate::primitives::{Offset, Range};
 
 /// Indent current line during insert mode (Ctrl-T).
 ///
-/// Calls the shared raw indent function, then adjusts cursor position
-/// by the shift width so typing continues at the new indent.
+/// Calls the shared raw indent function, then moves the cursor by the change
+/// in indent bytes so typing continues on the same character.
 #[inline]
-pub fn indent_at_cursor(text: &str, cursor: Offset, shift_width: usize) -> CommandResult {
-    let result = indent_lines_raw(text, cursor.get(), 1, shift_width);
-    let new_cursor = cursor.saturating_add_raw(shift_width);
+pub fn indent_at_cursor(
+    text: &str,
+    cursor: Offset,
+    shift_width: usize,
+    tabstop: usize,
+    expandtab: bool,
+) -> CommandResult {
+    let result = indent_lines_raw(text, cursor.get(), 1, shift_width, tabstop, expandtab);
+    let ls = line_start_for_offset(text, cursor.get());
+    let lend = line_end_for_offset(text, ls);
+    let (old_ws, new_indent) = reindent(&text[ls..lend], shift_width, tabstop, expandtab);
+    // Tabs can replace spaces, so the indent may get shorter in bytes.
+    let new_cursor = Offset::new(
+        (cursor.get() + new_indent.len())
+            .saturating_sub(old_ws)
+            .max(ls),
+    );
     let mut effects = result.effects;
     effects.push(Effect::set_cursor(new_cursor));
     CommandResult::effects_only(effects)
@@ -116,8 +130,32 @@ mod tests {
 
     #[test]
     fn test_indent_at_cursor() {
-        let result = indent_at_cursor("hello", Offset::new(0), 4);
+        let result = indent_at_cursor("hello", Offset::new(0), 4, 4, true);
         assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_indent_at_cursor_tab_under_noexpandtab() {
+        // Ctrl-T on a tab-indented line adds a tab and moves the cursor right
+        // by one byte (the inserted tab), not by shift_width bytes.
+        let result = indent_at_cursor("\thello", Offset::new(1), 4, 4, false);
+        let last = result.effects.iter().last().unwrap();
+        assert!(
+            matches!(last, Effect::SetCursor { offset } if offset.get() == 2),
+            "cursor should advance by one tab byte, got {last:?}"
+        );
+    }
+
+    #[test]
+    fn test_indent_at_cursor_keeps_cursor_when_spaces_become_tabs() {
+        // "    hello" under noexpandtab, ts=4, sw=4 becomes "\t\thello"; the
+        // cursor on 'h' moves left with it.
+        let result = indent_at_cursor("    hello", Offset::new(4), 4, 4, false);
+        let last = result.effects.iter().last().unwrap();
+        assert!(
+            matches!(last, Effect::SetCursor { offset } if offset.get() == 2),
+            "cursor should stay on 'h', got {last:?}"
+        );
     }
 
     #[test]
