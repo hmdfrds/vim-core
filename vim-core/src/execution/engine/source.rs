@@ -34,6 +34,11 @@ impl super::VimEngine {
     /// starting with `\` continues the line before it, and the lines of a
     /// `:function` body are not run.
     ///
+    /// A line can therefore hold several commands, so a host that filters
+    /// an untrusted config must judge every `|` command of a line, and a
+    /// continuation line together with the line it continues, not only the
+    /// first command.
+    ///
     /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
         let mut response = Response::with_effects(Effects::new());
