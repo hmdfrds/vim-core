@@ -19,19 +19,19 @@
 //! - **Per-line Insert**: cursor/marks shift naturally as spaces are
 //!   inserted at each line start
 //!
-//! We emit per-line Insert (indent-right) or Delete/Replace (indent-left)
-//! effects, processed top-to-bottom with cumulative offset tracking so that
-//! the effect processor's automatic mark computation gives correct `[` and
-//! `]` marks.
+//! Each line's indent is laid out again as Vim's `set_indent()` does, and
+//! the line gets the smallest edit to it (see `indent_effect`): an Insert at
+//! the line start when the indent only grows, a Delete there when it only
+//! shrinks, otherwise a Replace of the indent. Effects are processed
+//! top-to-bottom with cumulative offset tracking so that the effect
+//! processor's automatic mark computation gives correct `[` and `]` marks.
 
 use super::types::{OperatorContext, ShiftDirection};
-use crate::commands::helpers::{
-    curswant_of, expand_tabs_into, line_start_for_offset, vcol_to_byte,
-};
+use crate::commands::actions::indent::{indent_effect, shift_indent};
+use crate::commands::helpers::{curswant_of, line_start_for_offset, vcol_to_byte};
 use crate::commands::CommandResult;
-use crate::effects::{Effect, Effects};
+use crate::effects::Effects;
 use crate::primitives::{MarkName, Offset};
-use compact_str::CompactString;
 
 /// Apply a signed delta to a usize offset, clamping to 0 instead of wrapping
 /// to a huge value when the result would be negative.
@@ -74,12 +74,23 @@ fn execute_shift(ctx: &OperatorContext<'_>, direction: ShiftDirection) -> Comman
     let text = ctx.text;
     let range = ctx.range;
 
-    let shiftwidth = ctx.shiftwidth;
-    let expandtab = ctx.expandtab;
-    let tabstop = ctx.tabstop;
     // Count is used for line range selection, NOT indent multiplier.
     // `2>>` indents 2 lines by shiftwidth, not 1 line by 2*shiftwidth.
-    let total_shift = shiftwidth;
+    // Vim leaves empty lines alone.
+    let shift = |line: &str| {
+        if line.is_empty() {
+            None
+        } else {
+            shift_indent(
+                line,
+                direction,
+                false,
+                ctx.shiftwidth,
+                ctx.tabstop,
+                ctx.expandtab,
+            )
+        }
+    };
 
     // Find line boundaries within range
     let clamped = range.clamp_end(Offset::new(text.len()));
@@ -106,20 +117,8 @@ fn execute_shift(ctx: &OperatorContext<'_>, direction: ShiftDirection) -> Comman
 
     // Collect per-line effects, processing top-to-bottom.
     // `delta` tracks the cumulative byte offset shift from prior effects.
-    //
-    // Build the indent string based on expandtab: spaces or minimal tabs+spaces.
-    let indent_str = if expandtab {
-        " ".repeat(total_shift)
-    } else {
-        let tabs = total_shift / tabstop;
-        let spaces = total_shift % tabstop;
-        let mut s = "\t".repeat(tabs);
-        s.push_str(&" ".repeat(spaces));
-        s
-    };
     let mut effects = Effects::new().begin_undo();
     let mut delta: isize = 0;
-    let mut expanded_buf = String::new();
     let mut current_offset = first_line_start;
 
     // Track the first line's new content length for cursor placement
@@ -133,164 +132,19 @@ fn execute_shift(ctx: &OperatorContext<'_>, direction: ShiftDirection) -> Comman
             break;
         }
         let line_start = current_offset;
-        let line_end = line_start + line.len(); // exclusive, before '\n'
-
-        match direction {
-            ShiftDirection::Right => {
-                // Vim doesn't indent empty lines
-                if line.is_empty() {
-                    // Empty line: no effect, but track first line length
-                    if first_line_new_len.is_none() {
-                        first_line_new_len = Some(0);
-                    }
-                    last_line_adjusted_start = offset_by_delta(line_start, delta);
-                    last_line_new_len = 0;
-                } else {
-                    let has_tabs = line.contains('\t');
-                    if has_tabs && expandtab {
-                        // Line has tabs AND expandtab is on: Replace entire
-                        // line content with expanded (tabs -> spaces) + indent.
-                        expanded_buf.clear();
-                        expand_tabs_into(line, shiftwidth, &mut expanded_buf);
-                        let new_content = format!("{indent_str}{expanded_buf}");
-                        let new_len = new_content.len();
-                        let adjusted_start = offset_by_delta(line_start, delta);
-                        let adjusted_end = offset_by_delta(line_end, delta);
-                        let replace_range =
-                            crate::primitives::Range::from_raw(adjusted_start, adjusted_end);
-                        effects.push(Effect::replace(
-                            replace_range,
-                            CompactString::new(&new_content),
-                        ));
-                        if first_line_new_len.is_none() {
-                            first_line_new_len = Some(new_len);
-                        }
-                        last_line_adjusted_start = adjusted_start;
-                        last_line_new_len = new_len;
-                        delta += new_len.cast_signed() - line.len().cast_signed();
-                    } else {
-                        // No tab expansion needed: insert indent at line start.
-                        let adjusted_start = offset_by_delta(line_start, delta);
-                        let indent_len = indent_str.len();
-                        effects.push(Effect::insert(
-                            Offset::new(adjusted_start),
-                            CompactString::new(&indent_str),
-                        ));
-                        let new_len = line.len() + indent_len;
-                        if first_line_new_len.is_none() {
-                            first_line_new_len = Some(new_len);
-                        }
-                        last_line_adjusted_start = adjusted_start;
-                        last_line_new_len = new_len;
-                        delta += indent_len.cast_signed();
-                    }
-                }
+        let adjusted_start = offset_by_delta(line_start, delta);
+        let new_len = match shift(line) {
+            Some((old_len, indent)) => {
+                effects.push(indent_effect(adjusted_start, &line[..old_len], &indent));
+                delta += indent.len().cast_signed() - old_len.cast_signed();
+                line.len() - old_len + indent.len()
             }
-            ShiftDirection::Left => {
-                // Compute how many leading bytes to remove. Expand tabs to
-                // virtual columns to figure out how many characters cover
-                // `total_shift` columns of leading whitespace.
-                expanded_buf.clear();
-                expand_tabs_into(line, tabstop, &mut expanded_buf);
-                let spaces_to_remove = expanded_buf
-                    .bytes()
-                    .take(total_shift)
-                    .take_while(|&b| b == b' ')
-                    .count();
-
-                let has_tabs = line.contains('\t');
-                if has_tabs && expandtab {
-                    // Line has tabs AND expandtab: Replace entire line with expanded + outdented
-                    let new_content = &expanded_buf[spaces_to_remove..];
-                    let new_len = new_content.len();
-                    let adjusted_start = offset_by_delta(line_start, delta);
-                    let adjusted_end = offset_by_delta(line_end, delta);
-                    let replace_range =
-                        crate::primitives::Range::from_raw(adjusted_start, adjusted_end);
-                    effects.push(Effect::replace(
-                        replace_range,
-                        CompactString::new(new_content),
-                    ));
-                    if first_line_new_len.is_none() {
-                        first_line_new_len = Some(new_len);
-                    }
-                    last_line_adjusted_start = adjusted_start;
-                    last_line_new_len = new_len;
-                    delta += new_len.cast_signed() - line.len().cast_signed();
-                } else if has_tabs {
-                    // Line has tabs, noexpandtab: remove leading whitespace
-                    // bytes covering `total_shift` virtual columns, preserving
-                    // remaining tab characters.
-                    let mut vcol: usize = 0;
-                    let mut bytes_to_remove: usize = 0;
-                    for ch in line.chars() {
-                        if vcol >= total_shift {
-                            break;
-                        }
-                        match ch {
-                            '\t' => {
-                                let next = (vcol / tabstop + 1) * tabstop;
-                                if next <= total_shift {
-                                    vcol = next;
-                                    bytes_to_remove += 1;
-                                } else {
-                                    break;
-                                }
-                            }
-                            ' ' => {
-                                vcol += 1;
-                                bytes_to_remove += 1;
-                            }
-                            _ => break,
-                        }
-                    }
-                    if bytes_to_remove > 0 {
-                        let adjusted_start = offset_by_delta(line_start, delta);
-                        let delete_range = crate::primitives::Range::from_raw(
-                            adjusted_start,
-                            adjusted_start + bytes_to_remove,
-                        );
-                        effects.push(Effect::delete(delete_range));
-                        let new_len = line.len().saturating_sub(bytes_to_remove);
-                        if first_line_new_len.is_none() {
-                            first_line_new_len = Some(new_len);
-                        }
-                        last_line_adjusted_start = adjusted_start;
-                        last_line_new_len = new_len;
-                        delta -= bytes_to_remove.cast_signed();
-                    } else {
-                        if first_line_new_len.is_none() {
-                            first_line_new_len = Some(line.len());
-                        }
-                        last_line_adjusted_start = offset_by_delta(line_start, delta);
-                        last_line_new_len = line.len();
-                    }
-                } else if spaces_to_remove > 0 {
-                    // No tabs, just spaces to remove: Delete leading spaces
-                    let adjusted_start = offset_by_delta(line_start, delta);
-                    let delete_range = crate::primitives::Range::from_raw(
-                        adjusted_start,
-                        adjusted_start + spaces_to_remove,
-                    );
-                    effects.push(Effect::delete(delete_range));
-                    let new_len = line.len().saturating_sub(spaces_to_remove);
-                    if first_line_new_len.is_none() {
-                        first_line_new_len = Some(new_len);
-                    }
-                    last_line_adjusted_start = adjusted_start;
-                    last_line_new_len = new_len;
-                    delta -= spaces_to_remove.cast_signed();
-                } else {
-                    // Nothing to remove
-                    if first_line_new_len.is_none() {
-                        first_line_new_len = Some(expanded_buf.len());
-                    }
-                    last_line_adjusted_start = offset_by_delta(line_start, delta);
-                    last_line_new_len = expanded_buf.len();
-                }
-            }
-        }
-        current_offset = line_end + 1; // +1 for newline
+            None => line.len(),
+        };
+        first_line_new_len.get_or_insert(new_len);
+        last_line_adjusted_start = adjusted_start;
+        last_line_new_len = new_len;
+        current_offset = line_start + line.len() + 1; // +1 for newline
     }
 
     // Neovim's op_shift places cursor on the FIRST line of the operated
@@ -307,72 +161,9 @@ fn execute_shift(ctx: &OperatorContext<'_>, direction: ShiftDirection) -> Comman
         .get(first_line_start..)
         .and_then(|s| s.split('\n').next())
         .unwrap_or("");
-    let new_first_line = match direction {
-        ShiftDirection::Right => {
-            if orig_line.is_empty() {
-                String::new()
-            } else if orig_line.contains('\t') && ctx.expandtab {
-                // Tab expansion + indent: full replace was done
-                let mut buf = String::new();
-                expand_tabs_into(orig_line, ctx.shiftwidth, &mut buf);
-                format!("{indent_str}{buf}")
-            } else {
-                format!("{indent_str}{orig_line}")
-            }
-        }
-        ShiftDirection::Left => {
-            if orig_line.contains('\t') && ctx.expandtab {
-                // Full expansion was done; the expanded+outdented content
-                let mut buf = String::new();
-                expand_tabs_into(orig_line, ctx.tabstop, &mut buf);
-                let spaces_to_remove = buf
-                    .bytes()
-                    .take(total_shift)
-                    .take_while(|&b| b == b' ')
-                    .count();
-                buf[spaces_to_remove..].to_string()
-            } else if orig_line.contains('\t') {
-                // noexpandtab: remove leading whitespace bytes
-                let mut vcol: usize = 0;
-                let mut bytes_to_remove: usize = 0;
-                for ch in orig_line.chars() {
-                    if vcol >= total_shift {
-                        break;
-                    }
-                    match ch {
-                        '\t' => {
-                            let next = (vcol / ctx.tabstop + 1) * ctx.tabstop;
-                            if next <= total_shift {
-                                vcol = next;
-                                bytes_to_remove += 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        ' ' => {
-                            vcol += 1;
-                            bytes_to_remove += 1;
-                        }
-                        _ => break,
-                    }
-                }
-                orig_line[bytes_to_remove..].to_string()
-            } else {
-                // Spaces only
-                let mut buf = String::new();
-                expand_tabs_into(orig_line, ctx.tabstop, &mut buf);
-                let spaces_to_remove = buf
-                    .bytes()
-                    .take(total_shift)
-                    .take_while(|&b| b == b' ')
-                    .count();
-                if spaces_to_remove <= orig_line.len() {
-                    orig_line[spaces_to_remove..].to_string()
-                } else {
-                    orig_line.to_owned()
-                }
-            }
-        }
+    let new_first_line = match shift(orig_line) {
+        Some((old_len, indent)) => indent + &orig_line[old_len..],
+        None => orig_line.to_owned(),
     };
     // coladvance(curswant) in the new line: find byte offset for the vcol.
     // BL_FIX means don't land on NUL (i.e., clamp to last char of line).

@@ -739,6 +739,7 @@ impl VimEngine {
             .with_precomputed(precomputed)
             .with_shift_width(self.options.shiftwidth())
             .with_tabstop(self.options.tabstop())
+            .with_expandtab(self.options.expandtab())
             .with_auto_pairs(self.options.auto_pairs());
         if let Some(offset) = entry_offset {
             insert_ctx = insert_ctx.with_entry_offset(offset);
@@ -939,6 +940,7 @@ impl VimEngine {
                             .with_precomputed(precomputed_i)
                             .with_shift_width(self.options.shiftwidth())
                             .with_tabstop(self.options.tabstop())
+                            .with_expandtab(self.options.expandtab())
                             .with_auto_pairs(self.options.auto_pairs());
                     if let Some(offset) = entry_offset_i {
                         insert_ctx_i = insert_ctx_i.with_entry_offset(offset);

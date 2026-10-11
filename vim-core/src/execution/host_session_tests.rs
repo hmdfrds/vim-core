@@ -70,15 +70,19 @@ fn backspace_in_tab_indent_uses_engine_tabstop() {
     assert_eq!(session.text(), "");
 }
 
-fn tab_indent_session(text: &str) -> HostSession {
+fn indent_session(text: &str, expandtab: bool, tabstop: usize, shiftwidth: usize) -> HostSession {
     let mut session = HostSession::new(text);
     let mut opts = crate::primitives::VimOptions::default();
     opts.set_autoindent(false);
-    opts.set_expandtab(false);
-    opts.set_shiftwidth(4);
-    opts.set_tabstop(4);
+    opts.set_expandtab(expandtab);
+    opts.set_shiftwidth(shiftwidth);
+    opts.set_tabstop(tabstop);
     session.set_options(opts);
     session
+}
+
+fn tab_indent_session(text: &str) -> HostSession {
+    indent_session(text, false, 4, 4)
 }
 
 #[test]
@@ -98,6 +102,115 @@ fn ctrl_d_outdents_tab_in_insert_mode() {
     let mut session = tab_indent_session("\t\thello");
     process_keys(&mut session, "i<C-d>");
     assert_eq!(session.text(), "\thello");
+}
+
+#[test]
+fn indent_adds_a_tab_on_tab_file() {
+    // `>>` under noexpandtab adds a tab (one indent level), not spaces.
+    let mut session = tab_indent_session("\thello");
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t\thello");
+}
+
+#[test]
+fn ctrl_t_indents_with_tab_in_insert_mode() {
+    // Insert-mode Ctrl-T adds a tab under noexpandtab.
+    let mut session = tab_indent_session("hello");
+    process_keys(&mut session, "i<C-t>");
+    assert_eq!(session.text(), "\thello");
+}
+
+#[test]
+fn ctrl_t_keeps_typing_on_the_same_character() {
+    // Four spaces become two tabs under noexpandtab; typing continues before
+    // 'h', not two bytes further on.
+    let mut session = tab_indent_session("    hello");
+    process_keys(&mut session, "I<C-t>X<Esc>");
+    assert_eq!(session.text(), "\t\tXhello");
+}
+
+// Expected text for the shift tests below is what Vim 9.1 gives.
+
+#[test]
+fn indent_keeps_tabs_when_shiftwidth_is_half_a_tab() {
+    // noexpandtab, ts=4, sw=2: `>>` gave "  \thello", spaces before a tab.
+    let mut session = indent_session("\thello", false, 4, 2);
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t  hello");
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t\thello");
+}
+
+#[test]
+fn indent_folds_spaces_before_a_tab_into_tabs() {
+    let mut session = tab_indent_session("  \thello");
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "\t\thello");
+}
+
+#[test]
+fn outdent_splits_a_tab_when_shiftwidth_is_half_a_tab() {
+    // noexpandtab, ts=4, sw=2: `<<` left a lone tab alone.
+    let mut session = indent_session("\t\thello\n\thello", false, 4, 2);
+    process_keys(&mut session, "<<j<<");
+    assert_eq!(session.text(), "\t  hello\n  hello");
+}
+
+#[test]
+fn indent_under_expandtab_measures_tabs_with_tabstop() {
+    // expandtab, ts=8, sw=4: a tab is 8 columns, so `>>` gives 12 spaces.
+    // The tab used to be expanded with shiftwidth, giving 8.
+    let mut session = indent_session("\thello", true, 8, 4);
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), format!("{}hello", " ".repeat(12)));
+}
+
+#[test]
+fn shift_under_expandtab_leaves_tabs_after_the_indent() {
+    // Only the indent is laid out again; a tab inside the line was turned
+    // into spaces by both `>>` and `<<`.
+    let mut session = indent_session("\thello\tworld", true, 4, 4);
+    process_keys(&mut session, ">>");
+    assert_eq!(session.text(), "        hello\tworld");
+    process_keys(&mut session, "<<<<<<");
+    assert_eq!(session.text(), "hello\tworld");
+}
+
+#[test]
+fn ctrl_t_and_ctrl_d_round_to_a_multiple_of_shiftwidth() {
+    // Ctrl-T added a whole shiftwidth to "  hello", giving "\t  hello".
+    let mut session = tab_indent_session("  hello");
+    process_keys(&mut session, "A<C-t><Esc>");
+    assert_eq!(session.text(), "\thello");
+
+    let mut session = indent_session("      hello", true, 4, 4);
+    process_keys(&mut session, "A<C-d><Esc>");
+    assert_eq!(session.text(), "    hello");
+}
+
+#[test]
+fn ctrl_d_lays_out_the_indent_like_shift() {
+    // Ctrl-D only deleted whole tabs: under expandtab the tab stayed, and a
+    // tab wider than shiftwidth was not touched at all.
+    let mut session = indent_session("\t\thello", true, 4, 4);
+    process_keys(&mut session, "A<C-d><Esc>");
+    assert_eq!(session.text(), "    hello");
+
+    let mut session = indent_session("\thello", false, 4, 2);
+    process_keys(&mut session, "A<C-d><Esc>");
+    assert_eq!(session.text(), "  hello");
+}
+
+#[test]
+fn ctrl_t_inside_the_indent_keeps_the_cursor_column() {
+    let mut session = tab_indent_session("\thello");
+    process_keys(&mut session, "0i<C-t>X<Esc>");
+    assert_eq!(session.text(), "\tX\thello");
+
+    // The column falls inside the new first tab, so Vim pads with spaces.
+    let mut session = tab_indent_session("    hello");
+    process_keys(&mut session, "0lli<C-t>X<Esc>");
+    assert_eq!(session.text(), "\t  X\thello");
 }
 
 #[test]
