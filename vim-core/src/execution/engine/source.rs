@@ -222,6 +222,13 @@ mod tests {
     }
 
     #[test]
+    fn source_config_does_not_run_a_bar_inside_a_comment() {
+        let session = sourced("", "set tw=33  \" wrap | set ic\n");
+        assert_eq!(session.options().textwidth(), 33);
+        assert!(!session.options().ignorecase());
+    }
+
+    #[test]
     fn source_config_keeps_an_escaped_bar_in_a_mapping() {
         let mut session = sourced("ac", "nnoremap x :s/c/d/ \\| set ic<CR>\n");
         assert!(!session.options().ignorecase());

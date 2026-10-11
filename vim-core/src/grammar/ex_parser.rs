@@ -1894,7 +1894,8 @@ pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
     let mut start = 0;
     'segments: loop {
         let rest = input[start..].trim_start();
-        if !rest.starts_with('|') && bar_is_argument(segment_head(rest)) {
+        let head = segment_head(rest);
+        if !rest.starts_with('|') && (bar_is_argument(head) || ends_in_comment(head)) {
             push_segment(&mut commands, input, start..input.len(), &[]);
             return commands;
         }
@@ -1952,6 +1953,19 @@ fn bar_is_argument(head: &str) -> bool {
         }) => path.starts_with('!'),
         _ => false,
     }
+}
+
+/// Whether `head` ends in a `"` comment, which runs to the end of the line,
+/// `|` included, after a command that allows one (Vim's `separate_nextcmd`).
+fn ends_in_comment(head: &str) -> bool {
+    let (_, command) = parse_modifier_prefixes(head);
+    let Ok((_, command)) = parse_optional_range(command) else {
+        return false;
+    };
+    let (name, args) = split_head(command);
+    command_meta::meta_for_command(name.trim_end_matches('!'))
+        .is_some_and(|meta| meta.allows_trailing_comment())
+        && command_meta::strip_trailing_comment(args).len() < args.len()
 }
 
 /// Push `input[range]` trimmed, without the backslashes at `escapes`, unless

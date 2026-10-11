@@ -3589,6 +3589,16 @@ fn pipeline_finds_the_pattern_after_modifiers_and_colons() {
 }
 
 #[test]
+fn pipeline_keeps_a_bar_inside_a_trailing_comment() {
+    for line in ["set tw=80  \" wrap | set ic", "sil noh \" a | b", "w \"| q"] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    // `"` is part of a mapping, so the bar still ends it.
+    let cmds = split_ex_pipeline("nnoremap x y \" z | set ic");
+    assert_eq!(cmds, vec!["nnoremap x y \" z", "set ic"]);
+}
+
+#[test]
 fn pipeline_question_mark_regex_preserved() {
     let cmds = split_ex_pipeline("g?foo|bar?d|w");
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
