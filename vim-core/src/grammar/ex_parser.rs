@@ -1954,7 +1954,7 @@ pub fn split_ex_pipeline(input: &str) -> Vec<&str> {
                 // delimited arguments (s, g, v followed by a non-alnum).
                 // If so, skip past all its delimiters to avoid splitting
                 // on `|` embedded inside patterns/replacements.
-                let cmd_start = find_command_start(input, start, i);
+                let cmd_start = find_command_start(bytes, start, i);
                 if let Some(new_i) = skip_delimited_command(bytes, cmd_start, i) {
                     i = new_i;
                 }
@@ -1976,15 +1976,9 @@ pub fn split_ex_pipeline(input: &str) -> Vec<&str> {
 ///
 /// Skips past optional range prefixes (digits, `.`, `$`, `%`, marks,
 /// `+`, `-`, `,`, `;`, whitespace) to locate the first command character.
-fn find_command_start(input: &str, segment_start: usize, current: usize) -> usize {
-    let segment = &input[segment_start..=current];
-    let trimmed = segment.trim_start();
-    let offset = segment.len() - trimmed.len();
-    let base = segment_start + offset;
-
-    // Skip range characters to find the actual command letter.
-    let mut j = base;
-    let bytes = input.as_bytes();
+const fn find_command_start(bytes: &[u8], segment_start: usize, current: usize) -> usize {
+    // Bytes, not str slices: `current` can be inside a multi-byte character.
+    let mut j = segment_start;
     while j <= current {
         match bytes[j] {
             b'0'..=b'9' | b'.' | b'$' | b'%' | b',' | b';' | b'+' | b'-' | b' ' | b'\t' => {

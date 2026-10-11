@@ -3442,6 +3442,13 @@ fn pipeline_whitespace_only() {
 }
 
 #[test]
+fn pipeline_splits_a_line_with_non_ascii_text() {
+    // Scanning a multi-byte character used to slice inside it and panic.
+    let cmds = split_ex_pipeline("set langmap=йц;jk | echo é");
+    assert_eq!(cmds, vec!["set langmap=йц;jk", "echo é"]);
+}
+
+#[test]
 fn pipeline_trims_segments() {
     let cmds = split_ex_pipeline("w | q");
     assert_eq!(cmds, vec!["w", "q"]);

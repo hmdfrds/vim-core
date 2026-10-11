@@ -2893,3 +2893,11 @@ fn force_committed_insert_undo() {
         "third undo should revert the force-committed INSERT group (XY)"
     );
 }
+
+#[test]
+fn a_non_ascii_command_line_runs() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":iabbrev café coffee<CR>");
+    process_keys(&mut session, "A café <Esc>");
+    assert_eq!(session.text(), "x coffee ");
+}
