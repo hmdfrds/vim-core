@@ -3576,6 +3576,19 @@ fn pipeline_keeps_a_bar_inside_a_pattern_before_another_command() {
 }
 
 #[test]
+fn pipeline_finds_the_pattern_after_modifiers_and_colons() {
+    for line in [
+        "silent! s/a|b/c/",
+        "keepp s/a|b/c/",
+        ":2s/a|b/c/",
+        "sil g/a|b/d",
+    ] {
+        let with_tail = format!("{line} | w");
+        assert_eq!(split_ex_pipeline(&with_tail), vec![line, "w"], "{line}");
+    }
+}
+
+#[test]
 fn pipeline_question_mark_regex_preserved() {
     let cmds = split_ex_pipeline("g?foo|bar?d|w");
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);

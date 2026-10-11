@@ -1898,6 +1898,7 @@ pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
             push_segment(&mut commands, input, start..input.len(), &[]);
             return commands;
         }
+        let cmd_start = command_start(input, start);
         let mut escapes = Vec::new();
         let mut i = start;
         while let Some(&byte) = bytes.get(i) {
@@ -1913,7 +1914,6 @@ pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
                     // delimited arguments (s, g, v followed by a non-alnum).
                     // If so, skip past all its delimiters to avoid splitting
                     // on `|` embedded inside patterns/replacements.
-                    let cmd_start = find_command_start(bytes, start, i);
                     if let Some(new_i) = skip_delimited_command(bytes, cmd_start, i) {
                         i = new_i;
                     }
@@ -1982,21 +1982,19 @@ fn push_segment<'a>(
     commands.push(Cow::Owned(owned));
 }
 
-/// Find the position of the command name relative to the current segment.
-///
-/// Skips past optional range prefixes (digits, `.`, `$`, `%`, marks,
-/// `+`, `-`, `,`, `;`, whitespace) to locate the first command character.
-const fn find_command_start(bytes: &[u8], segment_start: usize, current: usize) -> usize {
-    // Bytes, not str slices: `current` can be inside a multi-byte character.
-    let mut j = segment_start;
-    while j <= current {
-        match bytes[j] {
-            b'0'..=b'9' | b'.' | b'$' | b'%' | b',' | b';' | b'+' | b'-' | b' ' | b'\t' => {
-                j += 1;
-            }
-            b'\'' if j + 1 < bytes.len() => {
-                j += 2; // mark 'x
-            }
+/// Where the command name of the segment at `start` begins: after colons,
+/// command modifiers and range prefixes (digits, `.`, `$`, `%`, marks, `+`,
+/// `-`, `,`, `;`, whitespace).
+fn command_start(input: &str, start: usize) -> usize {
+    let (_, command) = parse_modifier_prefixes(&input[start..]);
+    let bytes = input.as_bytes();
+    // Bytes, not str slices: a mark can be a multi-byte character.
+    let mut j = input.len() - command.len();
+    while let Some(&byte) = bytes.get(j) {
+        match byte {
+            b'0'..=b'9' | b'.' | b'$' | b'%' | b',' | b';' | b'+' | b'-' => j += 1,
+            b if b.is_ascii_whitespace() => j += 1,
+            b'\'' if j + 1 < bytes.len() => j += 2, // mark 'x
             // The rest of a mark that is a multi-byte character.
             0x80..=0xBF => j += 1,
             _ => break,
