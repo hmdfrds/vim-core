@@ -10,6 +10,7 @@ use crate::grammar::types::{
 };
 use crate::primitives::{AbbrevMode, MarkName, SubFlags};
 use compact_str::CompactString;
+use std::borrow::Cow;
 
 use super::command_meta;
 
@@ -1913,62 +1914,105 @@ fn parse_unabbreviate_command(args: &str, mode: AbbrevMode) -> Result<ExCommand,
     })
 }
 
-/// Split an ex command line into individual commands separated by unescaped `|`.
+/// Split an ex command line into individual commands separated by `|`, as
+/// Vim's `:bar` rules do.
 ///
-/// The `|` character does NOT split inside:
-/// - Regex patterns delimited by `/` or `?`
-/// - `:!` shell commands (everything after `!` is one command)
+/// The `|` character does NOT split:
+/// - inside regex patterns delimited by `/` or `?`;
+/// - when a backslash comes before it: `\|` is a literal `|` and the
+///   backslash is dropped;
+/// - in the rest of the line after a command that takes `|` as part of
+///   its argument: `:normal`, `:windo`, `:bufdo`, `:tabdo`, `:!`, `:r !`,
+///   `:w !`, and commands the engine does not know, which Vim user commands
+///   and `:autocmd`, `:command` and `:function` are.
 ///
 /// Returns a `Vec` of individual command strings (trimmed).
 #[must_use]
-pub fn split_ex_pipeline(input: &str) -> Vec<&str> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return Vec::new();
-    }
-
-    // If the (non-range) command part starts with `!`, don't split at all --
-    // the entire line is a shell command where `|` is meaningful.
-    if is_bang_command(trimmed) {
-        return vec![trimmed];
-    }
-
+pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
     let mut commands = Vec::new();
-    let mut start = 0;
     let bytes = input.as_bytes();
-    let mut i = 0;
-
-    while i < bytes.len() {
-        let c = bytes[i] as char;
-        match c {
-            '|' => {
-                let segment = input[start..i].trim();
-                if !segment.is_empty() {
-                    commands.push(segment);
-                }
-                start = i + 1;
-            }
-            _ => {
-                // Check if we're at the start of a command that uses
-                // delimited arguments (s, g, v followed by a non-alnum).
-                // If so, skip past all its delimiters to avoid splitting
-                // on `|` embedded inside patterns/replacements.
-                let cmd_start = find_command_start(bytes, start, i);
-                if let Some(new_i) = skip_delimited_command(bytes, cmd_start, i) {
-                    i = new_i;
-                }
-            }
+    let mut start = 0;
+    'segments: loop {
+        let rest = input[start..].trim_start();
+        if !rest.starts_with('|') && bar_is_argument(rest) {
+            push_segment(&mut commands, input, start..input.len(), &[]);
+            return commands;
         }
-        i += 1;
+        let mut escapes = Vec::new();
+        let mut i = start;
+        while let Some(&byte) = bytes.get(i) {
+            match byte {
+                b'|' if i > start && bytes.get(i - 1) == Some(&b'\\') => escapes.push(i - 1),
+                b'|' => {
+                    push_segment(&mut commands, input, start..i, &escapes);
+                    start = i + 1;
+                    continue 'segments;
+                }
+                _ => {
+                    // Check if we're at the start of a command that uses
+                    // delimited arguments (s, g, v followed by a non-alnum).
+                    // If so, skip past all its delimiters to avoid splitting
+                    // on `|` embedded inside patterns/replacements.
+                    let cmd_start = find_command_start(bytes, start, i);
+                    if let Some(new_i) = skip_delimited_command(bytes, cmd_start, i) {
+                        i = new_i;
+                    }
+                }
+            }
+            i += 1;
+        }
+        push_segment(&mut commands, input, start..input.len(), &escapes);
+        return commands;
     }
+}
 
-    // Last command
-    let last = input[start..].trim();
-    if !last.is_empty() {
-        commands.push(last);
+/// Whether the command at the start of `rest` takes the rest of the line,
+/// `|` included, as its argument.
+fn bar_is_argument(rest: &str) -> bool {
+    match parse_ex_command(rest) {
+        Ok(
+            ExCommand::Norm { .. }
+            | ExCommand::WinDo { .. }
+            | ExCommand::BufDo { .. }
+            | ExCommand::TabDo { .. }
+            | ExCommand::External { .. }
+            | ExCommand::Filter { .. }
+            | ExCommand::Custom { .. },
+        ) => true,
+        Ok(ExCommand::Read { path, .. }) => path.starts_with('!'),
+        Ok(ExCommand::Write {
+            path: Some(path), ..
+        }) => path.starts_with('!'),
+        _ => false,
     }
+}
 
-    commands
+/// Push `input[range]` trimmed, without the backslashes at `escapes`, unless
+/// it is empty.
+fn push_segment<'a>(
+    commands: &mut Vec<Cow<'a, str>>,
+    input: &'a str,
+    range: std::ops::Range<usize>,
+    escapes: &[usize],
+) {
+    let raw = &input[range.clone()];
+    let start = range.start + (raw.len() - raw.trim_start().len());
+    let end = range.end - (raw.len() - raw.trim_end().len());
+    if start >= end {
+        return;
+    }
+    if escapes.is_empty() {
+        commands.push(Cow::Borrowed(&input[start..end]));
+        return;
+    }
+    let mut owned = String::with_capacity(end - start);
+    let mut from = start;
+    for &at in escapes {
+        owned.push_str(&input[from..at]);
+        from = at + 1;
+    }
+    owned.push_str(&input[from..end]);
+    commands.push(Cow::Owned(owned));
 }
 
 /// Find the position of the command name relative to the current segment.
@@ -2037,50 +2081,6 @@ fn skip_delimited_command(bytes: &[u8], cmd_start: usize, i: usize) -> Option<us
         // Fewer delimiters than expected -- consume to where we got.
         Some(pos.saturating_sub(1))
     }
-}
-
-/// Check whether the command portion (after optional range) starts with `!`.
-fn is_bang_command(input: &str) -> bool {
-    let trimmed = input.trim_start();
-    // Skip past an optional range prefix to find the actual command.
-    // Ranges start with digits, `.`, `$`, `%`, `'`, `+`, `-`, `/`, `?`.
-    let mut rest = trimmed;
-    loop {
-        let ch = match rest.bytes().next() {
-            Some(c) => c,
-            None => return false,
-        };
-        match ch {
-            b'0'..=b'9' => {
-                rest = rest.trim_start_matches(|c: char| c.is_ascii_digit());
-            }
-            b'.' | b'$' | b'%' => {
-                rest = &rest[1..];
-            }
-            b'+' | b'-' => {
-                rest = &rest[1..];
-                rest = rest.trim_start_matches(|c: char| c.is_ascii_digit());
-            }
-            b'\'' => {
-                // Mark: skip 'x, where x can be a multi-byte character.
-                let mut chars = rest[1..].chars();
-                if chars.next().is_none() {
-                    return false;
-                }
-                rest = chars.as_str();
-            }
-            b',' | b';' => {
-                // Range separator -- continue to parse the second address.
-                rest = &rest[1..];
-                rest = rest.trim_start();
-            }
-            b' ' | b'\t' => {
-                rest = rest.trim_start();
-            }
-            _ => break,
-        }
-    }
-    rest.starts_with('!')
 }
 
 #[cfg(test)]

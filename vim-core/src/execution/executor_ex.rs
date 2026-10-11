@@ -181,10 +181,11 @@ pub(crate) fn execute_ex_line<D: Document>(
     ctx: &ExecutionContext<'_, D>,
     sequencer: &mut HostRequestSequencer,
 ) -> Result<ExExecutionOutput, VimError> {
-    let commands = split_ex_pipeline(line);
+    let commands = split_ex_line(line);
     if commands.len() <= 1 {
         // Fast path: single command (or empty) -- no allocation overhead.
-        let (modifiers, command) = parse_ex_command_with_modifiers(line)?;
+        let single = commands.first().map_or(line, AsRef::as_ref);
+        let (modifiers, command) = parse_ex_command_with_modifiers(single)?;
         let mut output = execute_ex_command(&command, ctx, sequencer)?;
         super::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
         // Populate last_ex_for_dot for text-mutating commands (dot-repeat).
@@ -196,7 +197,7 @@ pub(crate) fn execute_ex_line<D: Document>(
 
     let mut combined = ExExecutionOutput::default();
     let mut any_mutates_text = false;
-    for cmd_str in commands {
+    for cmd_str in &commands {
         let (modifiers, parsed) = match parse_ex_command_with_modifiers(cmd_str) {
             Ok(result) => result,
             Err(err) => {
@@ -227,6 +228,17 @@ pub(crate) fn execute_ex_line<D: Document>(
         combined.last_ex_for_dot = Some(CompactString::from(line));
     }
     Ok(combined)
+}
+
+/// The commands of an Ex line, split at `|` as Vim does. A line holding a
+/// single command keeps the blanks it ends with, which `:normal` and the
+/// `:s` replacement need.
+pub(crate) fn split_ex_line(line: &str) -> Vec<std::borrow::Cow<'_, str>> {
+    let mut commands = split_ex_pipeline(line);
+    if let [command @ std::borrow::Cow::Borrowed(_)] = commands.as_mut_slice() {
+        *command = std::borrow::Cow::Borrowed(line);
+    }
+    commands
 }
 
 /// Merge a pipeline step's output into the accumulated result.

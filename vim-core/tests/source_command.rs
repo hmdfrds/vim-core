@@ -93,6 +93,18 @@ fn source_passes_the_path_unexpanded() {
 }
 
 #[test]
+fn source_ends_at_a_bar() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let req = request(&run(&mut engine, &doc, "source x | set ic"));
+    assert!(
+        matches!(req, HostRequest::ReadConfigFile { path: Some(ref p), .. } if p.as_str() == "x"),
+        "{req:?}"
+    );
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
 fn host_session_has_no_default_config() {
     let mut session = HostSession::new("alpha");
     let mut host = OneFile("set tw=33");

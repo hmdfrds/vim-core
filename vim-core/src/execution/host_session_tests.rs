@@ -2930,3 +2930,24 @@ fn a_deeply_nested_pattern_is_an_error_on_a_small_stack() {
         .join()
         .unwrap();
 }
+
+// ── `|` in Ex command lines ──────────────────────────────────────────────
+
+#[test]
+fn normal_takes_a_bar_as_part_of_its_keys() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":normal ihello|world<CR>");
+    assert_eq!(session.text(), "hello|worldx");
+}
+
+#[test]
+fn backslash_bar_puts_a_bar_in_a_mapping() {
+    // The whole `:s/c/d/ | set ic` is the right-hand side; nothing runs
+    // until `x` is pressed.
+    let mut session = HostSession::new("ac");
+    process_keys(&mut session, ":nnoremap x :s/c/d/ \\| set ic<lt>CR><CR>");
+    assert!(!session.options().ignorecase());
+    process_keys(&mut session, "x");
+    assert_eq!(session.text(), "ad");
+    assert!(session.options().ignorecase());
+}

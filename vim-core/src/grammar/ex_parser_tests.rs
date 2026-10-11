@@ -3513,6 +3513,34 @@ fn pipeline_skips_empty_segments() {
 }
 
 #[test]
+fn pipeline_backslash_bar_is_a_literal_bar() {
+    let cmds = split_ex_pipeline("nnoremap x :echo 1 \\| echo 2<CR>");
+    assert_eq!(cmds, vec!["nnoremap x :echo 1 | echo 2<CR>"]);
+    let cmds = split_ex_pipeline("nnoremap x a\\|b | set et");
+    assert_eq!(cmds, vec!["nnoremap x a|b", "set et"]);
+}
+
+#[test]
+fn pipeline_keeps_backslash_bar_inside_a_pattern() {
+    let cmds = split_ex_pipeline("s/a\\|b/c/ | w");
+    assert_eq!(cmds, vec!["s/a\\|b/c/", "w"]);
+}
+
+#[test]
+fn pipeline_bar_is_an_argument_after_these_commands() {
+    for line in [
+        "normal ihello|world",
+        "windo set et | set sw=2",
+        "autocmd FileType gd setlocal et | setlocal sw=4",
+        "r !ls | sort",
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    let cmds = split_ex_pipeline("w | !ls | grep foo");
+    assert_eq!(cmds, vec!["w", "!ls | grep foo"]);
+}
+
+#[test]
 fn pipeline_question_mark_regex_preserved() {
     let cmds = split_ex_pipeline("g?foo|bar?d|w");
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
