@@ -136,6 +136,15 @@ pub enum VimError {
     /// E476: Invalid command (e.g. empty pattern in `:s` with no previous).
     InvalidCommand,
 
+    /// E481: No range allowed.
+    NoRangeAllowed,
+
+    /// E319: a form of a Vim command this engine does not implement.
+    ///
+    /// Carries the form, such as `source!`, where Vim shows the typed
+    /// command line.
+    NotAvailable(CompactString),
+
     // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
@@ -275,6 +284,11 @@ impl fmt::Display for VimError {
                 write!(f, "E682: Invalid search pattern or delimiter")
             }
             Self::InvalidCommand => write!(f, "E476: Invalid command"),
+            Self::NoRangeAllowed => write!(f, "E481: No range allowed"),
+            Self::NotAvailable(form) => write!(
+                f,
+                "E319: Sorry, the command is not available in this version: {form}"
+            ),
 
             // Macros
             Self::RecursiveMacro { register, depth } => {
@@ -379,6 +393,8 @@ mod tests {
             VimError::InvalidRegexDelimiter,
             VimError::InvalidSearchPattern,
             VimError::InvalidCommand,
+            VimError::NoRangeAllowed,
+            VimError::NotAvailable("source!".into()),
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -483,6 +499,22 @@ mod tests {
         assert_eq!(
             VimError::ArgumentRequired.to_string(),
             "E471: Argument required"
+        );
+    }
+
+    #[test]
+    fn display_no_range_allowed() {
+        assert_eq!(
+            VimError::NoRangeAllowed.to_string(),
+            "E481: No range allowed"
+        );
+    }
+
+    #[test]
+    fn display_not_available() {
+        assert_eq!(
+            VimError::NotAvailable("source!".into()).to_string(),
+            "E319: Sorry, the command is not available in this version: source!"
         );
     }
 

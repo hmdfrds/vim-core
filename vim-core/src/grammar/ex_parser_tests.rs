@@ -155,6 +155,40 @@ fn source_trims_the_path_and_keeps_it_unexpanded() {
     );
 }
 
+#[test]
+fn unimplemented_source_forms_say_so() {
+    for (input, form) in [
+        ("source! x", "source!"),
+        ("so! x", "source!"),
+        ("1,2source", "[range]source"),
+        ("%so", "[range]source"),
+    ] {
+        assert_eq!(
+            parse_ex_command(input),
+            Err(VimError::NotAvailable(form.into())),
+            "{input:?}"
+        );
+    }
+}
+
+#[test]
+fn malformed_source_forms_give_vims_errors() {
+    for input in ["source!", "so!", "1,2so!"] {
+        assert_eq!(
+            parse_ex_command(input),
+            Err(VimError::ArgumentRequired),
+            "{input:?}"
+        );
+    }
+    for input in ["1,2source x.vim", "%so! x.vim"] {
+        assert_eq!(
+            parse_ex_command(input),
+            Err(VimError::NoRangeAllowed),
+            "{input:?}"
+        );
+    }
+}
+
 // ─── :earlier / :later / :undolist ───────────────────────────────
 
 #[test]

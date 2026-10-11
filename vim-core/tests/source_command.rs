@@ -1,5 +1,6 @@
 //! `:source` across the host boundary.
 
+use vim_core::effects::Effect;
 use vim_core::execution::{
     HostCallbacks, HostRequest, HostSession, InputContext, Response, VimEngine,
 };
@@ -82,4 +83,29 @@ fn host_session_has_no_default_config() {
     run_in_session(&mut session, &mut host, "source");
     assert_eq!(session.errmsg().as_deref(), Some("E471: Argument required"));
     assert_eq!(session.options().textwidth(), 0);
+}
+
+#[test]
+fn source_forms_vim_has_and_the_engine_lacks_report_e319() {
+    let doc = SimpleDocument::new("alpha\nbeta");
+    for (command, message) in [
+        (
+            "source! x",
+            "E319: Sorry, the command is not available in this version: source!",
+        ),
+        (
+            "1,2source",
+            "E319: Sorry, the command is not available in this version: [range]source",
+        ),
+    ] {
+        let mut engine = VimEngine::new();
+        let response = run(&mut engine, &doc, command);
+        assert!(response.host_requests().is_empty(), "{command}");
+        assert!(
+            response.effects().iter().any(
+                |e| matches!(e, Effect::ShowError { error, .. } if error.to_string() == message)
+            ),
+            "{command}: {response:?}"
+        );
+    }
 }

@@ -284,6 +284,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         tail
     };
 
+    let has_range = range.is_some();
     // Pre-compute read's after_line before consuming range (borrows only).
     let read_after_line = read_after_line(range.as_ref());
     let retab_range = range.clone().unwrap_or_else(ExRange::entire_file);
@@ -573,9 +574,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             },
         })
     } else if matches_abbrev(name, "so", "source") {
-        Ok(ExCommand::Source {
-            path: (!tail.is_empty()).then(|| CompactString::from(tail)),
-        })
+        parse_source(tail, force, has_range)
     } else if matches_abbrev(name, "ea", "earlier") {
         parse_time_amount(tail).map(|amount| ExCommand::Earlier { amount })
     } else if matches_abbrev(name, "lat", "later") {
@@ -836,6 +835,30 @@ fn read_after_line(range: Option<&ExRange>) -> Option<u32> {
         LineSpec::Absolute(line) => Some(*line),
         _ => None,
     }
+}
+
+/// `:so[urce] [file]`, refused in the order of Vim's `cmd_source()`.
+/// `:source! {file}` (Normal-mode commands) and `:[range]source` (lines of
+/// the current buffer) are not implemented.
+fn parse_source(tail: &str, bang: bool, has_range: bool) -> Result<ExCommand, VimError> {
+    if tail.is_empty() {
+        if bang {
+            return Err(VimError::ArgumentRequired);
+        }
+        if has_range {
+            return Err(VimError::NotAvailable(CompactString::from("[range]source")));
+        }
+        return Ok(ExCommand::Source { path: None });
+    }
+    if has_range {
+        return Err(VimError::NoRangeAllowed);
+    }
+    if bang {
+        return Err(VimError::NotAvailable(CompactString::from("source!")));
+    }
+    Ok(ExCommand::Source {
+        path: Some(CompactString::from(tail)),
+    })
 }
 
 fn parse_required_path_command<F>(tail: &str, builder: F) -> Result<ExCommand, VimError>
