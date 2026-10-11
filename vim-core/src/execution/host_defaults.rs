@@ -63,11 +63,15 @@ pub enum ExpectedResultKind {
 /// - `EvaluateExpression` + `Success` → `<C-R>=` inserts nothing
 /// - `EvaluateMapping` + `Success` → `<expr>` mapping produces no keys
 /// - `FilterDocumentRange` + `Success` → engine silently no-ops (range unchanged)
+///
+/// `ReadConfigFile` is the exception: `Success` there means the host sourced
+/// the file itself, and `Data` hands the text to the engine to source.
 #[must_use]
 pub const fn expected_result_kind(kind: HostRequestKind) -> ExpectedResultKind {
     match kind {
         // Data-bearing: engine acts on the returned content.
         HostRequestKind::ReadFile
+        // Sourced by the engine, never shown.
         | HostRequestKind::ReadConfigFile
         | HostRequestKind::EvaluateExpression
         | HostRequestKind::EvaluateMapping
@@ -488,6 +492,11 @@ mod tests {
         );
         assert_eq!(
             expected_result_kind(HostRequestKind::EvaluateMapping),
+            ExpectedResultKind::Data
+        );
+        // Data is sourced by the engine; Success means the host sourced it.
+        assert_eq!(
+            expected_result_kind(HostRequestKind::ReadConfigFile),
             ExpectedResultKind::Data
         );
     }

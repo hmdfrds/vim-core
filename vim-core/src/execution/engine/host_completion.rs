@@ -266,6 +266,16 @@ impl super::VimEngine {
             return self.complete_cmdline_completion(&pending, result);
         }
 
+        // ── :source with the file's text ────────────────────────────
+        // The engine sources it; a host that sourced the file itself
+        // answers Success instead and takes the generic path below.
+        if let (HostRequest::ReadConfigFile { .. }, HostResult::Data { data, .. }) =
+            (&pending, result)
+        {
+            let response = self.source_config_text(data);
+            return self.register_pending_host_requests(response);
+        }
+
         let mut response = completion_response(&pending, result);
 
         let meta = pending.meta();
