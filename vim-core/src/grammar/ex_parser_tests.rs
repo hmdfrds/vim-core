@@ -118,23 +118,75 @@ fn parses_source_command() {
     let cmd = parse_ex_command("source ~/.vimrc").unwrap();
     assert!(matches!(
         cmd,
-        ExCommand::Source { path } if path.as_str() == "~/.vimrc"
+        ExCommand::Source { path: Some(path) } if path.as_str() == "~/.vimrc"
     ));
 
     let cmd2 = parse_ex_command("so /etc/vim/config").unwrap();
     assert!(matches!(
         cmd2,
-        ExCommand::Source { path } if path.as_str() == "/etc/vim/config"
+        ExCommand::Source { path: Some(path) } if path.as_str() == "/etc/vim/config"
     ));
 }
 
 #[test]
-fn source_requires_path() {
-    let result = parse_ex_command("source");
-    assert!(result.is_err());
+fn bare_source_leaves_the_file_to_the_host() {
+    for input in ["source", "so", "so  ", "source \" comment"] {
+        assert_eq!(
+            parse_ex_command(input).unwrap(),
+            ExCommand::Source { path: None },
+            "{input:?}"
+        );
+    }
+}
 
-    let result2 = parse_ex_command("so");
-    assert!(result2.is_err());
+#[test]
+fn source_trims_the_path_and_keeps_it_unexpanded() {
+    assert_eq!(
+        parse_ex_command("so   $MYVIMRC  ").unwrap(),
+        ExCommand::Source {
+            path: Some("$MYVIMRC".into())
+        }
+    );
+    assert_eq!(
+        parse_ex_command("source ~/x.vim \" comment").unwrap(),
+        ExCommand::Source {
+            path: Some("~/x.vim".into())
+        }
+    );
+}
+
+#[test]
+fn unimplemented_source_forms_say_so() {
+    for (input, form) in [
+        ("source! x", "source!"),
+        ("so! x", "source!"),
+        ("1,2source", "[range]source"),
+        ("%so", "[range]source"),
+    ] {
+        assert_eq!(
+            parse_ex_command(input),
+            Err(VimError::NotAvailable(form.into())),
+            "{input:?}"
+        );
+    }
+}
+
+#[test]
+fn malformed_source_forms_give_vims_errors() {
+    for input in ["source!", "so!", "1,2so!"] {
+        assert_eq!(
+            parse_ex_command(input),
+            Err(VimError::ArgumentRequired),
+            "{input:?}"
+        );
+    }
+    for input in ["1,2source x.vim", "%so! x.vim"] {
+        assert_eq!(
+            parse_ex_command(input),
+            Err(VimError::NoRangeAllowed),
+            "{input:?}"
+        );
+    }
 }
 
 // ─── :earlier / :later / :undolist ───────────────────────────────

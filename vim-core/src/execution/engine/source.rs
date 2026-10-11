@@ -15,8 +15,10 @@ use compact_str::CompactString;
 impl super::VimEngine {
     /// Process a config file's content line by line as ex commands.
     ///
-    /// Called by the host after reading a config file (from `:source`).
-    /// Processes only safe commands that do not require document context:
+    /// The engine calls it when a host answers `:source` with the file's
+    /// text; a host can call it for a config it reads itself, such as at
+    /// startup. Processes only safe commands that do not require document
+    /// context:
     ///
     /// - `:set` — applies option mutations to engine options
     /// - `:let mapleader` — sets the leader key for subsequent mappings

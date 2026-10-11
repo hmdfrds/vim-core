@@ -329,7 +329,7 @@ impl EffectEmitter<'_> {
 
     /// Emit an [`Effect::HostAction`] with the given `name`.
     ///
-    /// Instructs the host to dispatch a named editor action (IdeaVim-style
+    /// Instructs the host to dispatch a named editor action (the
     /// `<Action>()` bridge).
     ///
     /// Requires [`CapabilityTier::Mutating`].

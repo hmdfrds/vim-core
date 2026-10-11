@@ -434,10 +434,13 @@ pub enum ExCommand {
         /// Optional name filter substring.
         filter: Option<CompactString>,
     },
-    /// Source a config file: `:source {path}` or `:so {path}`
+    /// Source a config file: `:so[urce] [file]`.
     Source {
-        /// Path to the config file to load.
-        path: CompactString,
+        /// The file as typed, unexpanded. `None` for a bare `:source`, whose
+        /// target the host chooses (see [`HostRequest::ReadConfigFile`]).
+        ///
+        /// [`HostRequest::ReadConfigFile`]: crate::execution::HostRequest::ReadConfigFile
+        path: Option<CompactString>,
     },
     /// Navigate earlier in undo history: `:earlier {amount}`
     ///
@@ -713,7 +716,7 @@ pub enum ExCommand {
     },
     /// Configure per-key, per-mode shortcut conflict resolution: `:sethandler`.
     ///
-    /// IdeaVim-compatible syntax:
+    /// Syntax:
     /// - `:sethandler <C-A> n:vim i:ide` — Ctrl-A: Vim in Normal, IDE in Insert
     /// - `:sethandler <C-C> n-v:ide i:vim` — dash-separated modes
     /// - `:sethandler n:vim i:ide` — no key → applies to ALL keys (global default)

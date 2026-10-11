@@ -1,8 +1,8 @@
 //! Per-key, per-mode handler delegation (`:sethandler`).
 //!
-//! Implements IdeaVim's `sethandler` concept: each key can be delegated
-//! to either `Vim` or `Host` on a per-mode basis. When a key's handler
-//! is `Host`, the engine returns `Ignored` and the host handles it natively.
+//! Each key can be delegated to either `Vim` or `Host` on a per-mode basis.
+//! When a key's handler is `Host`, the engine returns `Ignored` and the host
+//! handles it natively.
 //!
 //! # Example
 //!

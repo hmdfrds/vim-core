@@ -2185,7 +2185,7 @@ fn parse_sethandler_modes(mode_chars: &str) -> Result<SmallVec<[MappingMode; 4]>
                     }
                 }
                 'v' => {
-                    // 'v' maps to Visual (which covers Visual + Select in IdeaVim)
+                    // 'v' maps to Visual, which covers Visual and Select
                     if !modes.contains(&MappingMode::Visual) {
                         modes.push(MappingMode::Visual);
                     }
@@ -2243,7 +2243,6 @@ pub(crate) fn completion_effects_for_data(
         | HostRequest::FilterDocumentRange { .. }
         | HostRequest::ReindentRange { .. }
         | HostRequest::ListActions { .. }
-        | HostRequest::ReadConfigFile { .. }
         | HostRequest::EvaluateExpression { .. } => ex_effects::show_message(data.clone()),
         other => {
             debug_assert!(false, "host returned data for non-data request: {other:?}");

@@ -814,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn entry_clamping_kakoune_style() {
+    fn entry_index_past_end_clamps_to_last() {
         use smallvec::smallvec;
         let entries: SmallVec<[CompactString; 1]> =
             smallvec![CompactString::from("first"), CompactString::from("second"),];

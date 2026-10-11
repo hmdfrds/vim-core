@@ -4,9 +4,8 @@
 //! alphanumerics, underscore, dot, colon, dollar, at, hash, and dash
 //! (as used in `->` and similar constructs).
 //!
-//! This is similar to Evil mode's symbol text object.  Useful for selecting
-//! qualified identifiers like `foo.bar.baz` or `std::collections::HashMap`
-//! as one unit.
+//! Useful for selecting qualified identifiers like `foo.bar.baz` or
+//! `std::collections::HashMap` as one unit.
 //!
 //! - `im` selects only the symbol characters (inner).
 //! - `am` includes one side of surrounding whitespace (trailing preferred, with

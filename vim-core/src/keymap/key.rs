@@ -68,7 +68,7 @@ pub enum Key {
     /// to allocate ids.
     Plug(u32),
 
-    /// `<Action>` pseudo-key for host action invocations (IdeaVim-style).
+    /// `<Action>` pseudo-key for host action invocations.
     ///
     /// When the engine encounters this key during dispatch, it resolves
     /// the name from the registry and emits `Effect::HostAction`.

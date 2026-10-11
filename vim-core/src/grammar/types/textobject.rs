@@ -167,7 +167,6 @@ pub enum TextObjectKind {
     ///
     /// Selects a contiguous run of symbol characters, useful for selecting
     /// qualified names like `foo.bar.baz` or `std::collections::HashMap` as one unit.
-    /// Similar to Evil mode's symbol text object.
     ///
     /// - `im` selects only the symbol characters.
     /// - `am` includes one side of surrounding whitespace (trailing preferred).

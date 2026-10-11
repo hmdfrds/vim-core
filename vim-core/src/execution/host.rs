@@ -426,16 +426,27 @@ pub enum HostRequest {
         /// Optional name filter substring.
         filter: Option<CompactString>,
     },
-    /// Read a config file for `:source` command.
+    /// Read a config file for `:source`.
     ///
-    /// Host reads the file and returns content via `HostResult::Data`.
-    /// The host can then call `VimEngine::source_config_text()` to
-    /// process each line as an ex command.
+    /// The host owns file access and trust: it expands the path, checks it
+    /// against its access policy and filters untrusted text. It answers in
+    /// one of two ways:
+    ///
+    /// - `HostResult::Data` with the text: the engine sources it with
+    ///   [`VimEngine::source_config_text`], adding to the current state as
+    ///   Vim's `:source` does. The host must not source it again.
+    /// - `HostResult::Success`: the host sourced the file itself (for example
+    ///   a full reload of its active config) and the engine only shows the
+    ///   message, if any.
+    ///
+    /// [`VimEngine::source_config_text`]: crate::execution::VimEngine::source_config_text
     ReadConfigFile {
         /// Correlation metadata.
         meta: HostRequestMeta,
-        /// Path to the config file.
-        path: CompactString,
+        /// The file as typed, unexpanded. `None` for a bare `:source`: the
+        /// host picks its default, usually its active config file, and a
+        /// host without one fails with E471.
+        path: Option<CompactString>,
     },
     /// Switch to buffer by number.
     SwitchBuffer {
