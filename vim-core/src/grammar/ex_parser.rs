@@ -791,6 +791,17 @@ fn parse_script_command(rest: &str) -> Option<ExCommand> {
     })
 }
 
+/// The modifiers of `piece`, the name of the Vim command after them and the
+/// text after that name, for a command without a range.
+pub(crate) fn vim_command_parts(piece: &str) -> Option<(ModifierFlags, &'static str, &str)> {
+    let (modifiers, rest) = parse_modifier_prefixes(piece);
+    let rest = rest.trim_start_matches(BLANKS);
+    let (command_meta::FoundCommand::Vim(row), len) = command_meta::find_command(rest)? else {
+        return None;
+    };
+    Some((modifiers, row.name, rest.get(len..)?))
+}
+
 /// The first command of `text`, the argument of `:windo`, `:bufdo` or
 /// `:tabdo`, which the host runs as a whole command line.
 fn parse_first_command(text: &str) -> Result<ExCommand, VimError> {

@@ -66,6 +66,7 @@ pub use api_views::{
 pub use expr_engine::{ExprContext, ExprEngine, RuntimeError, SimpleExprEval};
 mod context;
 mod dirty_tracker;
+mod script_expr;
 pub use dirty_tracker::{DirtyFlags, DirtyInfo, DirtyRange, DirtyTracker};
 mod effect_processor;
 mod federation_extractor;

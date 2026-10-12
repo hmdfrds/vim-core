@@ -1492,56 +1492,68 @@ fn apply_value_with_scope(
 }
 
 fn query_option(options: &crate::primitives::VimOptions, name: &str) -> Option<String> {
+    let (name, value) = option_value(options, name)?;
+    Some(match value {
+        OptionValue::Bool(on) => format_bool(name, on),
+        OptionValue::Unsigned(n) => format!("{name}={n}"),
+        OptionValue::Signed(n) => format!("{name}={n}"),
+        OptionValue::Str(s) => format!("{name}={s}"),
+    })
+}
+
+/// The long name and the value of an option that `:set` can show, by its
+/// long or short name.
+pub(crate) fn option_value(
+    options: &crate::primitives::VimOptions,
+    name: &str,
+) -> Option<(&'static str, OptionValue)> {
+    use OptionValue::{Bool, Signed, Str, Unsigned};
+    let text = |s: &str| Str(CompactString::from(s));
     Some(match name {
-        "tabstop" | "ts" => format!("tabstop={}", options.tabstop()),
-        "shiftwidth" | "sw" => format!("shiftwidth={}", options.shiftwidth()),
-        "expandtab" | "et" => format_bool("expandtab", options.expandtab()),
-        "autoindent" | "ai" => format_bool("autoindent", options.autoindent()),
-        "smartindent" | "si" => format_bool("smartindent", options.smartindent()),
-        "ignorecase" | "ic" => format_bool("ignorecase", options.ignorecase()),
-        "smartcase" | "scs" => format_bool("smartcase", options.smartcase()),
-        "hlsearch" | "hls" => format_bool("hlsearch", options.hlsearch()),
-        "incsearch" | "is" => format_bool("incsearch", options.incsearch()),
-        "wrapscan" | "ws" => format_bool("wrapscan", options.wrapscan()),
-        "scrolloff" | "so" => format!("scrolloff={}", options.scrolloff()),
-        "sidescrolloff" | "siso" => format!("sidescrolloff={}", options.sidescrolloff()),
-        "number" | "nu" => format_bool("number", options.number()),
-        "relativenumber" | "rnu" => format_bool("relativenumber", options.relativenumber()),
-        "textwidth" | "tw" => format!("textwidth={}", options.textwidth()),
-        "formatoptions" | "fo" => format!("formatoptions={}", options.formatoptions()),
-        "comments" | "com" => format!("comments={}", options.comments()),
-        "timeoutlen" | "tm" => format!("timeoutlen={}", options.timeoutlen_ms()),
-        "undolevels" | "ul" => match options.undolevels() {
-            Some(n) => format!("undolevels={n}"),
-            None => "undolevels=-1".to_owned(),
-        },
-        "whichwrap" | "ww" => format!("whichwrap={}", options.whichwrap()),
-        "backspace" | "bs" => format!("backspace={}", options.backspace()),
-        "virtualedit" | "ve" => format!("virtualedit={}", options.virtualedit()),
-        "selection" | "sel" => format!("selection={}", options.selection()),
-        "clipboard" | "cb" => format!("clipboard={}", options.clipboard()),
-        "iskeyword" | "isk" => format!("iskeyword={}", options.iskeyword()),
-        "inccommand" | "icm" => format!("inccommand={}", options.inccommand()),
-        "gdefault" | "gd" => format_bool("gdefault", options.gdefault()),
-        "visualstar" => format_bool("visualstar", options.visualstar()),
-        "langmap" | "lmap" => format!("langmap={}", options.langmap()),
-        "langremap" | "lrm" => format_bool("langremap", options.langremap()),
-        "undoautogroupms" | "uagm" => match options.undo_auto_group_ms() {
-            Some(ms) => format!("undoautogroupms={ms}"),
-            None => "undoautogroupms=-1".to_owned(),
-        },
-        "multilinefind" | "mlf" => format_bool("multilinefind", options.multiline_find()),
-        "multilinefindrange" | "mlfr" => {
-            format!("multilinefindrange={}", options.multiline_find_range())
-        }
-        "belloff" | "bo" => {
-            if options.belloff() {
-                "belloff=all".to_owned()
-            } else {
-                "belloff=".to_owned()
-            }
-        }
-        "softtabstop" | "sts" => format!("softtabstop={}", options.softtabstop()),
+        "tabstop" | "ts" => ("tabstop", Unsigned(options.tabstop())),
+        "shiftwidth" | "sw" => ("shiftwidth", Unsigned(options.shiftwidth())),
+        "expandtab" | "et" => ("expandtab", Bool(options.expandtab())),
+        "autoindent" | "ai" => ("autoindent", Bool(options.autoindent())),
+        "smartindent" | "si" => ("smartindent", Bool(options.smartindent())),
+        "ignorecase" | "ic" => ("ignorecase", Bool(options.ignorecase())),
+        "smartcase" | "scs" => ("smartcase", Bool(options.smartcase())),
+        "hlsearch" | "hls" => ("hlsearch", Bool(options.hlsearch())),
+        "incsearch" | "is" => ("incsearch", Bool(options.incsearch())),
+        "wrapscan" | "ws" => ("wrapscan", Bool(options.wrapscan())),
+        "scrolloff" | "so" => ("scrolloff", Unsigned(options.scrolloff())),
+        "sidescrolloff" | "siso" => ("sidescrolloff", Unsigned(options.sidescrolloff())),
+        "number" | "nu" => ("number", Bool(options.number())),
+        "relativenumber" | "rnu" => ("relativenumber", Bool(options.relativenumber())),
+        "textwidth" | "tw" => ("textwidth", Unsigned(options.textwidth())),
+        "formatoptions" | "fo" => ("formatoptions", text(options.formatoptions())),
+        "comments" | "com" => ("comments", text(options.comments())),
+        "timeoutlen" | "tm" => ("timeoutlen", Signed(i64::from(options.timeoutlen_ms()))),
+        "undolevels" | "ul" => (
+            "undolevels",
+            Signed(options.undolevels().map_or(-1, byte_delta::to_i64)),
+        ),
+        "whichwrap" | "ww" => ("whichwrap", text(options.whichwrap())),
+        "backspace" | "bs" => ("backspace", text(options.backspace())),
+        "virtualedit" | "ve" => ("virtualedit", text(options.virtualedit())),
+        "selection" | "sel" => ("selection", text(options.selection())),
+        "clipboard" | "cb" => ("clipboard", text(options.clipboard())),
+        "iskeyword" | "isk" => ("iskeyword", text(options.iskeyword())),
+        "inccommand" | "icm" => ("inccommand", text(options.inccommand())),
+        "gdefault" | "gd" => ("gdefault", Bool(options.gdefault())),
+        "visualstar" => ("visualstar", Bool(options.visualstar())),
+        "langmap" | "lmap" => ("langmap", text(options.langmap())),
+        "langremap" | "lrm" => ("langremap", Bool(options.langremap())),
+        "undoautogroupms" | "uagm" => (
+            "undoautogroupms",
+            Signed(options.undo_auto_group_ms().map_or(-1, i64::from)),
+        ),
+        "multilinefind" | "mlf" => ("multilinefind", Bool(options.multiline_find())),
+        "multilinefindrange" | "mlfr" => (
+            "multilinefindrange",
+            Unsigned(options.multiline_find_range()),
+        ),
+        "belloff" | "bo" => ("belloff", text(if options.belloff() { "all" } else { "" })),
+        "softtabstop" | "sts" => ("softtabstop", Signed(i64::from(options.softtabstop()))),
         _ => return None,
     })
 }

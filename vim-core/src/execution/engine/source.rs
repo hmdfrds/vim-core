@@ -9,8 +9,11 @@ use crate::document::Document;
 use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::execution::executor_ex::{self, SetScope};
+use crate::execution::script_expr::{self, Echoed};
 use crate::execution::{ExecutionContext, InputContext};
+use crate::grammar::ex_parser::vim_command_parts;
 use crate::grammar::script::{Line, Script};
+use crate::grammar::types::ModifierFlags;
 use crate::grammar::{parse_ex_command_with_modifiers, split_ex_pipeline};
 use crate::primitives::{Offset, Position};
 use compact_str::CompactString;
@@ -51,8 +54,15 @@ impl super::VimEngine {
     /// after a `|` on the line that ends a function run as the rest of
     /// that line.
     ///
+    /// `:echo` evaluates its expressions, as in Vim; a typed `:echo` still
+    /// shows its argument as written.
+    ///
     /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
+        if self.options_dirty {
+            self.rebuild_resolved_cache();
+            self.rebuild_langmap_if_needed();
+        }
         let mut response = Response::with_effects(Effects::new());
         let mut script = Script::new(text);
         while let Some(line) = script.next_line() {
@@ -88,14 +98,13 @@ impl super::VimEngine {
         for command in split_ex_pipeline(&line.text) {
             let body = script.read_body(&command, line, *skipping);
             show_warnings(script, response);
-            let parsed = parse_ex_command_with_modifiers(&command);
             if let Some(body) = body {
                 let mut effects = Effects::new();
                 for (_, error) in body.errors {
                     effects.extend(ex_effects::show_error(error));
                 }
-                if let Ok((modifiers, _)) = &parsed {
-                    crate::execution::modifier_filter::apply_modifiers(&mut effects, *modifiers);
+                if let Ok((modifiers, _)) = parse_ex_command_with_modifiers(&command) {
+                    crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
                 }
                 response.extend_effects(effects);
                 *skipping |= body.fails;
@@ -104,48 +113,88 @@ impl super::VimEngine {
             if *skipping {
                 continue;
             }
-            let (modifiers, parsed) = match parsed {
-                Ok(parsed) => parsed,
-                Err(err) => {
-                    response.extend_effects(ex_effects::show_error(err));
-                    *skipping = true;
-                    continue;
+            let ran = match vim_command_parts(&command) {
+                Some((modifiers, "echo", argument)) => {
+                    self.source_config_echo(modifiers, argument, response)
                 }
+                _ => self.source_config_command(&command, response),
             };
-            let result = if parsed.needs_buffer() {
-                Err(VimError::NotAllowedHere(CompactString::from(
-                    command.trim(),
-                )))
-            } else {
-                let input = InputContext::new(&NoBuffer, 0).validate_clamped();
-                let ctx = ExecutionContext::new(input, &self.state, &self.options);
-                executor_ex::execute_ex_command(&parsed, &ctx, &mut self.host.sequencer)
-            };
-            let mut output = match result {
-                Ok(output) => output,
-                Err(err) => {
-                    let mut effects = ex_effects::show_error(err);
-                    crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
-                    response.extend_effects(effects);
-                    *skipping = true;
-                    continue;
-                }
-            };
-            crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
-            crate::execution::effect_processor::sync_effects(
-                &mut self.state,
-                &mut self.parser,
-                output.effects.as_mut_slice(),
-            );
-            // No buffer or window to hold a local value.
-            output.set_scope = SetScope::Effective;
-            let mut applied = self.apply_ex_output(&mut output, "");
-            crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
-            response.extend_effects(output.effects);
-            response.extend_effects(applied);
-            response.host_requests.extend(output.host_requests);
+            *skipping = !ran;
         }
         rest
+    }
+
+    /// Run one command of a config line as the command line runs it.
+    /// Returns whether it ran without an error.
+    fn source_config_command(&mut self, command: &str, response: &mut Response) -> bool {
+        let (modifiers, parsed) = match parse_ex_command_with_modifiers(command) {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                response.extend_effects(ex_effects::show_error(err));
+                return false;
+            }
+        };
+        let result = if parsed.needs_buffer() {
+            Err(VimError::NotAllowedHere(CompactString::from(
+                command.trim(),
+            )))
+        } else {
+            let input = InputContext::new(&NoBuffer, 0).validate_clamped();
+            let ctx = ExecutionContext::new(input, &self.state, &self.options);
+            executor_ex::execute_ex_command(&parsed, &ctx, &mut self.host.sequencer)
+        };
+        let mut output = match result {
+            Ok(output) => output,
+            Err(err) => {
+                let mut effects = ex_effects::show_error(err);
+                crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
+                response.extend_effects(effects);
+                return false;
+            }
+        };
+        crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
+        crate::execution::effect_processor::sync_effects(
+            &mut self.state,
+            &mut self.parser,
+            output.effects.as_mut_slice(),
+        );
+        // No buffer or window to hold a local value.
+        output.set_scope = SetScope::Effective;
+        let mut applied = self.apply_ex_output(&mut output, "");
+        crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
+        response.extend_effects(output.effects);
+        response.extend_effects(applied);
+        response.host_requests.extend(output.host_requests);
+        true
+    }
+
+    /// `:echo` in a config: its expressions are evaluated, as Vim's
+    /// `ex_echo()` does. A typed `:echo` shows its argument as written.
+    fn source_config_echo(
+        &self,
+        modifiers: ModifierFlags,
+        argument: &str,
+        response: &mut Response,
+    ) -> bool {
+        let env = script_expr::Env {
+            variables: self.state.variable_store(),
+            options: &self.resolved_options,
+            global_options: &self.options,
+        };
+        let mut effects = Effects::new();
+        let mut ran = true;
+        for shown in script_expr::echo(argument, &env) {
+            match shown {
+                Echoed::Text(text) => effects.extend(ex_effects::show_message(text.into())),
+                Echoed::Error(err) => {
+                    ran = false;
+                    effects.extend(ex_effects::show_error(err));
+                }
+            }
+        }
+        crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
+        response.extend_effects(effects);
+        ran
     }
 }
 
@@ -190,6 +239,18 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 Effect::ShowError { error, .. } => Some(error.to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The text of each message the response shows.
+    fn infos(response: &Response) -> Vec<String> {
+        response
+            .effects()
+            .iter()
+            .filter_map(|e| match e {
+                Effect::ShowInfo { info } => Some(info.to_string()),
                 _ => None,
             })
             .collect()
@@ -336,16 +397,32 @@ mod tests {
     #[test]
     fn source_config_returns_every_message() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set tw=80 | set tw?\necho hi\n");
-        let infos: Vec<String> = response
-            .effects()
-            .iter()
-            .filter_map(|e| match e {
-                Effect::ShowInfo { info } => Some(info.to_string()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(infos, ["textwidth=80", "hi", "Config file sourced"]);
+        let response = engine.source_config_text("set tw=80 | set tw?\necho \"hi\"\n");
+        assert_eq!(
+            infos(&response),
+            ["textwidth=80", "hi", "Config file sourced"]
+        );
+    }
+
+    #[test]
+    fn source_config_echo_evaluates_its_expressions() {
+        // ex_echo(): the values joined by a space.
+        let mut engine = VimEngine::new();
+        let response =
+            engine.source_config_text("set tw=33\necho \"tw\" &tw has('eval') 1.0 . 'x'\n");
+        assert_eq!(infos(&response), ["tw 33 1 1.0x", "Config file sourced"]);
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    }
+
+    #[test]
+    fn source_config_echo_error_ends_its_line() {
+        let mut engine = VimEngine::new();
+        let response = engine
+            .source_config_text("echo \"a\" nosuch | set ic\nsilent! echo nosuch | set tw=33\n");
+        assert!(!engine.options().ignorecase());
+        assert_eq!(engine.options().textwidth(), 0);
+        assert_eq!(infos(&response), ["a", "Config file sourced"]);
+        assert_eq!(errors(&response), ["E121: Undefined variable: nosuch"]);
     }
 
     #[test]

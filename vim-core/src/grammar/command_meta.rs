@@ -377,6 +377,45 @@ pub(crate) fn find_command(text: &str) -> Option<(FoundCommand, usize)> {
     Some((FoundCommand::Vim(row), len))
 }
 
+/// What `exists(':name')` gives for `name`, as Vim's `cmd_exists()`
+/// decides it: 2 for the full name of a modifier or a command, 1 for a
+/// shorter form, 0 for no command or text after the name.
+///
+/// A command is found as [`find_command`] finds it, so its name is read
+/// in lowercase.
+pub(crate) fn cmd_exists(name: &str) -> i64 {
+    if let Some(&(full, _, _)) = super::vim_commands::MODIFIERS
+        .iter()
+        .find(|(full, min, _)| name.len() >= *min && full.starts_with(name))
+    {
+        return if full.len() == name.len() { 2 } else { 1 };
+    }
+    // `:2match` and `:3match`.
+    let digit = name.starts_with(|c: char| c.is_ascii_digit());
+    let text = name.strip_prefix(['2', '3']).unwrap_or(name);
+    let Some((found, len)) = find_command(text) else {
+        return 0;
+    };
+    let full = match found {
+        FoundCommand::Vim(row) => {
+            if digit && row.name != "match" {
+                return 0;
+            }
+            row.name.len() == len
+        }
+        FoundCommand::Own(own) if !digit => own.full.len() == len,
+        FoundCommand::Own(_) | FoundCommand::Structural => return 0,
+    };
+    if !text[len..].trim_start_matches([' ', '\t']).is_empty() {
+        return 0;
+    }
+    if full {
+        2
+    } else {
+        1
+    }
+}
+
 /// The own command `text` starts with, whose name is `alpha`. `:action` is
 /// only that whole word, and `:sp[lit]` only with a pattern after it.
 fn own_command(text: &str, alpha: &str) -> Option<&'static OwnCommand> {

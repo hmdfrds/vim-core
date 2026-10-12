@@ -196,6 +196,69 @@ pub enum VimError {
     MissingEndBlock,
 
     // ═══════════════════════════════════════════════════════════════════
+    // Expression errors
+    // ═══════════════════════════════════════════════════════════════════
+    /// E15: Invalid expression. Carries the expression.
+    InvalidExpression(Box<str>),
+
+    /// E109: Missing ':' after '?'.
+    MissingColon,
+
+    /// E110: Missing ')'.
+    MissingParen,
+
+    /// E112: Option name missing. Carries the text from the `&`.
+    OptionNameMissing(Box<str>),
+
+    /// E113: Unknown option. Carries the option name.
+    UnknownOption(Box<str>),
+
+    /// E114: Missing double quote. Carries the text from the quote.
+    MissingDoubleQuote(Box<str>),
+
+    /// E115: Missing single quote. Carries the text from the quote.
+    MissingSingleQuote(Box<str>),
+
+    /// E116: Invalid arguments for function. Carries the function name.
+    InvalidArguments(Box<str>),
+
+    /// E117: Unknown function. Carries the function name.
+    UnknownFunction(Box<str>),
+
+    /// E118: Too many arguments for function. Carries the function name.
+    TooManyArguments(Box<str>),
+
+    /// E119: Not enough arguments for function. Carries the function name.
+    NotEnoughArguments(Box<str>),
+
+    /// E121: Undefined variable. Carries the variable name.
+    UndefinedVariable(Box<str>),
+
+    /// E362: Using a boolean value as a Float.
+    BoolAsFloat,
+
+    /// E740: a function call with more than 20 arguments. Carries the
+    /// function name.
+    ArgumentLimit(Box<str>),
+
+    /// E804: Cannot use '%' with Float.
+    PercentWithFloat,
+
+    /// E805: Using a Float as a Number.
+    FloatAsNumber,
+
+    /// E892: Using a String as a Float.
+    StringAsFloat,
+
+    /// E1169: Expression too recursive. Carries the rest of the
+    /// expression.
+    ExpressionTooRecursive(Box<str>),
+
+    /// A pattern that does not compile. Carries the message, which holds
+    /// its Vim error number.
+    InvalidPattern(Box<str>),
+
+    // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
     /// E223: Recursive mapping.
@@ -363,6 +426,35 @@ impl fmt::Display for VimError {
             }
             Self::MissingEndBlock => write!(f, "E1171: Missing }} after inline function"),
 
+            // Expressions
+            Self::InvalidExpression(expr) => write!(f, "E15: Invalid expression: \"{expr}\""),
+            Self::MissingColon => write!(f, "E109: Missing ':' after '?'"),
+            Self::MissingParen => write!(f, "E110: Missing ')'"),
+            Self::OptionNameMissing(text) => write!(f, "E112: Option name missing: {text}"),
+            Self::UnknownOption(name) => write!(f, "E113: Unknown option: {name}"),
+            Self::MissingDoubleQuote(text) => write!(f, "E114: Missing double quote: {text}"),
+            Self::MissingSingleQuote(text) => write!(f, "E115: Missing single quote: {text}"),
+            Self::InvalidArguments(name) => {
+                write!(f, "E116: Invalid arguments for function {name}")
+            }
+            Self::UnknownFunction(name) => write!(f, "E117: Unknown function: {name}"),
+            Self::TooManyArguments(name) => {
+                write!(f, "E118: Too many arguments for function: {name}")
+            }
+            Self::NotEnoughArguments(name) => {
+                write!(f, "E119: Not enough arguments for function: {name}")
+            }
+            Self::UndefinedVariable(name) => write!(f, "E121: Undefined variable: {name}"),
+            Self::BoolAsFloat => write!(f, "E362: Using a boolean value as a Float"),
+            Self::ArgumentLimit(name) => write!(f, "E740: Too many arguments for function {name}"),
+            Self::PercentWithFloat => write!(f, "E804: Cannot use '%' with Float"),
+            Self::FloatAsNumber => write!(f, "E805: Using a Float as a Number"),
+            Self::StringAsFloat => write!(f, "E892: Using a String as a Float"),
+            Self::ExpressionTooRecursive(rest) => {
+                write!(f, "E1169: Expression too recursive: {rest}")
+            }
+            Self::InvalidPattern(message) => write!(f, "{message}"),
+
             // Macros
             Self::RecursiveMacro { register, depth } => {
                 write!(f, "E223: recursive mapping for @{register} (depth {depth})")
@@ -481,6 +573,25 @@ mod tests {
             VimError::FunctionNestingTooDeep,
             VimError::MissingHeredocEndMarker("END".into()),
             VimError::MissingEndBlock,
+            VimError::InvalidExpression("x".into()),
+            VimError::MissingColon,
+            VimError::MissingParen,
+            VimError::OptionNameMissing("&".into()),
+            VimError::UnknownOption("x".into()),
+            VimError::MissingDoubleQuote("\"x".into()),
+            VimError::MissingSingleQuote("'x".into()),
+            VimError::InvalidArguments("has".into()),
+            VimError::UnknownFunction("Foo".into()),
+            VimError::TooManyArguments("has".into()),
+            VimError::NotEnoughArguments("has".into()),
+            VimError::UndefinedVariable("x".into()),
+            VimError::BoolAsFloat,
+            VimError::ArgumentLimit("Foo".into()),
+            VimError::PercentWithFloat,
+            VimError::FloatAsNumber,
+            VimError::StringAsFloat,
+            VimError::ExpressionTooRecursive("1)".into()),
+            VimError::InvalidPattern("E54: Unmatched \\(".into()),
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -652,6 +763,78 @@ mod tests {
             (
                 VimError::MissingEndBlock,
                 "E1171: Missing } after inline function",
+            ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_expression_errors() {
+        for (error, text) in [
+            (
+                VimError::InvalidExpression("1 +".into()),
+                "E15: Invalid expression: \"1 +\"",
+            ),
+            (VimError::MissingColon, "E109: Missing ':' after '?'"),
+            (VimError::MissingParen, "E110: Missing ')'"),
+            (
+                VimError::OptionNameMissing("&".into()),
+                "E112: Option name missing: &",
+            ),
+            (
+                VimError::UnknownOption("nosuch".into()),
+                "E113: Unknown option: nosuch",
+            ),
+            (
+                VimError::MissingDoubleQuote("\"abc".into()),
+                "E114: Missing double quote: \"abc",
+            ),
+            (
+                VimError::MissingSingleQuote("'abc".into()),
+                "E115: Missing single quote: 'abc",
+            ),
+            (
+                VimError::InvalidArguments("has".into()),
+                "E116: Invalid arguments for function has",
+            ),
+            (
+                VimError::UnknownFunction("Foo".into()),
+                "E117: Unknown function: Foo",
+            ),
+            (
+                VimError::TooManyArguments("has".into()),
+                "E118: Too many arguments for function: has",
+            ),
+            (
+                VimError::NotEnoughArguments("has".into()),
+                "E119: Not enough arguments for function: has",
+            ),
+            (
+                VimError::UndefinedVariable("g:x".into()),
+                "E121: Undefined variable: g:x",
+            ),
+            (
+                VimError::BoolAsFloat,
+                "E362: Using a boolean value as a Float",
+            ),
+            (
+                VimError::ArgumentLimit("Foo".into()),
+                "E740: Too many arguments for function Foo",
+            ),
+            (
+                VimError::PercentWithFloat,
+                "E804: Cannot use '%' with Float",
+            ),
+            (VimError::FloatAsNumber, "E805: Using a Float as a Number"),
+            (VimError::StringAsFloat, "E892: Using a String as a Float"),
+            (
+                VimError::ExpressionTooRecursive("1)".into()),
+                "E1169: Expression too recursive: 1)",
+            ),
+            (
+                VimError::InvalidPattern("E54: Unmatched \\(".into()),
+                "E54: Unmatched \\(",
             ),
         ] {
             assert_eq!(error.to_string(), text);
