@@ -157,3 +157,24 @@ fn skips_only_spaces_and_tabs_before_a_backslash() {
 fn a_first_line_with_a_backslash_is_not_joined() {
     assert_eq!(lines("\\ set ic\n"), [line(1, "\\ set ic")]);
 }
+
+// ── heredocs ──────────────────────────────────────────────────────────
+
+#[test]
+fn finds_a_heredoc_after_the_variables_as_ex_let_does() {
+    for (arg, start) in [
+        ("x =<< END", 5),
+        ("x=<<END", 4),
+        ("[a, b] =<< END", 10),
+        ("@a =<< END", 6),
+        ("&l:tw =<< END", 9),
+        ("$HOME =<< END", 9),
+        ("g:d.key =<< END", 11),
+        ("x[0] =<< END", 8),
+    ] {
+        assert_eq!(heredoc_start(arg), Some(start), "{arg}");
+    }
+    for arg in ["x = 1", "x .=<< END", "x = <<END", "x", ""] {
+        assert_eq!(heredoc_start(arg), None, "{arg}");
+    }
+}

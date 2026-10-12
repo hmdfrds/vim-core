@@ -3686,6 +3686,24 @@ fn pipeline_ends_an_expression_after_it_as_eval0_retarg_does() {
 }
 
 #[test]
+fn pipeline_gives_a_let_heredoc_the_rest_of_the_line_as_ex_let_does() {
+    for line in [
+        "let x =<< END | set ic",
+        "const x =<< trim END | set ic",
+        "let [a, b] =<< END | set ic",
+        "let g:x=<<END|set ic",
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    for (line, first) in [
+        ("let x .= 1 | set ic", "let x .= 1"),
+        ("let x = y << 1 | set ic", "let x = y << 1"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+}
+
+#[test]
 fn pipeline_keeps_a_ctrl_v_bar_as_separate_nextcmd_does() {
     // Kept with the bar for a mapping (`EX_CTRLV`), dropped for `:set`.
     assert_eq!(

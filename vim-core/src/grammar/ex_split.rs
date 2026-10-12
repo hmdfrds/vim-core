@@ -11,6 +11,7 @@ use std::borrow::Cow;
 
 use super::command_meta::{find_command, is_pattern_delimiter, FoundCommand, OwnKind};
 use super::ex_parser::parse_modifier_prefixes;
+use super::script::heredoc_start;
 use super::vim_commands::{ex, VimCommand, MODIFIERS};
 
 /// The commands of `line`, each with its text as Vim's rules leave it.
@@ -406,6 +407,10 @@ fn vim_command_piece(line: &str, start: usize, name: usize, len: usize, row: &Vi
     }
     if filter || matches!(row.name, "!" | "terminal" | "global" | "vglobal") {
         return shell_piece(line, start, arg);
+    }
+    // `ex_let()` gives a heredoc the rest of the line.
+    if matches!(row.name, "let" | "const") && heredoc_start(&line[arg..]).is_some() {
+        return Piece::rest_of_line(line, start);
     }
     if row.flags & ex::EXPR_ARG != 0
         || matches!(

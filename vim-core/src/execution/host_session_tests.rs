@@ -2995,6 +2995,22 @@ fn a_bar_after_a_host_command_runs_the_next_command() {
 }
 
 #[test]
+fn a_let_heredoc_takes_the_rest_of_the_line() {
+    // `ex_let()` hands `heredoc_get()` the rest of the line.
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":let x =<< END | set ic<CR>");
+    assert!(
+        matches!(
+            response.host_requests.as_slice(),
+            [HostRequest::CustomExCommand { command, .. }] if command.as_str() == "let x =<< END | set ic"
+        ),
+        "{:?}",
+        response.host_requests
+    );
+    assert!(!session.options().ignorecase());
+}
+
+#[test]
 fn a_bar_inside_an_echo_string_is_text() {
     let mut session = HostSession::new("x");
     process_keys(&mut session, ":echo \"a|b\"<CR>");

@@ -168,6 +168,52 @@ impl<'a> Script<'a> {
     }
 }
 
+/// Where the text after `=<<` starts when the `:let` argument `arg`
+/// assigns a heredoc, as `ex_let()` looks for `=<<` after the variables
+/// that `skip_var_list()` skips.
+pub(super) fn heredoc_start(arg: &str) -> Option<usize> {
+    let bytes = arg.as_bytes();
+    let end = match bytes.first() {
+        Some(b'[') => bytes
+            .iter()
+            .position(|&b| b == b']')
+            .map_or(bytes.len(), |at| at + 1),
+        Some(b'@') => arg.char_indices().nth(2).map_or(bytes.len(), |(at, _)| at),
+        Some(b'$' | b'&') => name_end(bytes, 1),
+        _ => name_end(bytes, 0),
+    };
+    let at = skip_blanks(bytes, end);
+    (bytes.get(at..at + 3) == Some(b"=<<")).then_some(at + 3)
+}
+
+fn skip_blanks(bytes: &[u8], mut at: usize) -> usize {
+    while matches!(bytes.get(at), Some(b' ' | b'\t')) {
+        at += 1;
+    }
+    at
+}
+
+/// Past a variable name at `from`, as `find_name_end()` skips it: letters,
+/// digits, `_`, `#`, `:`, a `.` before a key, and `[...]` and `{...}`.
+fn name_end(bytes: &[u8], from: usize) -> usize {
+    let mut p = from;
+    let mut depth = 0usize;
+    while let Some(&b) = bytes.get(p) {
+        match b {
+            b'[' | b'{' => depth += 1,
+            b']' | b'}' if depth > 0 => depth -= 1,
+            _ if depth > 0 => {}
+            b'.' if bytes
+                .get(p + 1)
+                .is_some_and(|&n| n.is_ascii_alphanumeric() || n == b'_') => {}
+            _ if b.is_ascii_alphanumeric() || matches!(b, b'_' | b'#' | b':') || b >= 0x80 => {}
+            _ => break,
+        }
+        p += 1;
+    }
+    p
+}
+
 #[cfg(test)]
 #[path = "script_tests.rs"]
 mod tests;
