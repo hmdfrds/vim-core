@@ -167,6 +167,27 @@ fn skip_blanks(bytes: &[u8], mut at: usize) -> usize {
     at
 }
 
+/// The row of Vim's table for the command of `piece`, found past its
+/// colons, modifiers and range as `do_one_cmd()` finds it, with the bytes
+/// where its name starts and ends. `None` for no command, a name Vim does
+/// not know and the engine's own commands.
+pub(super) fn vim_command_at(piece: &str) -> Option<(&'static VimCommand, usize, usize)> {
+    let bytes = piece.as_bytes();
+    let mut at = skip_blanks(bytes, 0);
+    loop {
+        let (_, rest) = parse_modifier_prefixes(piece.get(at..)?);
+        let cmd = piece.len() - rest.len();
+        let name = skip_range(bytes, cmd);
+        let (FoundCommand::Vim(row), len) = find_command(piece.get(name..)?)? else {
+            return None;
+        };
+        match modifier_end(piece, cmd, name, len, row) {
+            Some(after) => at = after,
+            None => return Some((row, name, name + len)),
+        }
+    }
+}
+
 /// The command that starts at `at`, the first byte after a `|`.
 fn piece_at(line: &str, at: usize) -> Piece {
     let bytes = line.as_bytes();
@@ -286,7 +307,7 @@ const fn ends_excmd2(byte: Option<&u8>) -> bool {
 
 /// Vim's `skip_range()`: the range at `at` and the colons, blanks and
 /// Visual `*` after it.
-fn skip_range(bytes: &[u8], at: usize) -> usize {
+pub(super) fn skip_range(bytes: &[u8], at: usize) -> usize {
     let mut p = at;
     while let Some(&byte) = bytes.get(p) {
         if !b" \t0123456789.$%'/?-+,;\\".contains(&byte) {

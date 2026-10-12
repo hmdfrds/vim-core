@@ -163,6 +163,38 @@ pub enum VimError {
     /// alone. Vim gives this warning as an error.
     WrongLineSeparator,
 
+    /// E126: a `:function` body has no `:endfunction` before the end of
+    /// the file.
+    MissingEndfunction,
+
+    /// E172: a `:let` heredoc has no marker.
+    MissingMarker,
+
+    /// E221: the marker of a `:let` heredoc starts with a lowercase
+    /// letter.
+    LowercaseMarker,
+
+    /// E990: a heredoc has no end marker before the end of the file.
+    /// Carries the marker.
+    MissingEndMarker(Box<str>),
+
+    /// E1026: a `{` block of `:command` or `:autocmd` has no `}` before
+    /// the end of the file.
+    MissingBrace,
+
+    /// E1057: a `:def` body has no `:enddef` before the end of the file.
+    MissingEnddef,
+
+    /// E1058: functions nest deeper than 50.
+    FunctionNestingTooDeep,
+
+    /// E1145: the file ends inside a heredoc or `:append` text of a
+    /// function body. Carries the marker.
+    MissingHeredocEndMarker(Box<str>),
+
+    /// E1171: the file ends inside a `{` block of a function body.
+    MissingEndBlock,
+
     // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
@@ -317,6 +349,19 @@ impl fmt::Display for VimError {
             Self::WrongLineSeparator => {
                 write!(f, "W15: Warning: Wrong line separator, ^M may be missing")
             }
+            Self::MissingEndfunction => write!(f, "E126: Missing :endfunction"),
+            Self::MissingMarker => write!(f, "E172: Missing marker"),
+            Self::LowercaseMarker => {
+                write!(f, "E221: Marker cannot start with lower case letter")
+            }
+            Self::MissingEndMarker(marker) => write!(f, "E990: Missing end marker '{marker}'"),
+            Self::MissingBrace => write!(f, "E1026: Missing }}"),
+            Self::MissingEnddef => write!(f, "E1057: Missing :enddef"),
+            Self::FunctionNestingTooDeep => write!(f, "E1058: Function nesting too deep"),
+            Self::MissingHeredocEndMarker(marker) => {
+                write!(f, "E1145: Missing heredoc end marker: {marker}")
+            }
+            Self::MissingEndBlock => write!(f, "E1171: Missing }} after inline function"),
 
             // Macros
             Self::RecursiveMacro { register, depth } => {
@@ -427,6 +472,15 @@ mod tests {
             VimError::FinishOutsideSource,
             VimError::TrailingCharacters("x".into()),
             VimError::WrongLineSeparator,
+            VimError::MissingEndfunction,
+            VimError::MissingMarker,
+            VimError::LowercaseMarker,
+            VimError::MissingEndMarker("END".into()),
+            VimError::MissingBrace,
+            VimError::MissingEnddef,
+            VimError::FunctionNestingTooDeep,
+            VimError::MissingHeredocEndMarker("END".into()),
+            VimError::MissingEndBlock,
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -570,6 +624,38 @@ mod tests {
             VimError::WrongLineSeparator.to_string(),
             "W15: Warning: Wrong line separator, ^M may be missing"
         );
+    }
+
+    #[test]
+    fn display_sourced_file_errors() {
+        for (error, text) in [
+            (VimError::MissingEndfunction, "E126: Missing :endfunction"),
+            (VimError::MissingMarker, "E172: Missing marker"),
+            (
+                VimError::LowercaseMarker,
+                "E221: Marker cannot start with lower case letter",
+            ),
+            (
+                VimError::MissingEndMarker("END".into()),
+                "E990: Missing end marker 'END'",
+            ),
+            (VimError::MissingBrace, "E1026: Missing }"),
+            (VimError::MissingEnddef, "E1057: Missing :enddef"),
+            (
+                VimError::FunctionNestingTooDeep,
+                "E1058: Function nesting too deep",
+            ),
+            (
+                VimError::MissingHeredocEndMarker(".".into()),
+                "E1145: Missing heredoc end marker: .",
+            ),
+            (
+                VimError::MissingEndBlock,
+                "E1171: Missing } after inline function",
+            ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
     }
 
     #[test]

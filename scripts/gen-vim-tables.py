@@ -4,9 +4,9 @@
     python3 scripts/gen-vim-tables.py <vim-source-dir>
 
 The Vim tree must be a git checkout at a release tag. The script reads
-src/ex_cmds.h (the Ex command table, its EX_* flags and address types) and
-the cmdmods[] table of src/ex_docmd.c, and writes the Rust table next to the
-grammar module. The output is checked in; regenerating it is a deliberate
+src/ex_cmds.h (the Ex command table, its EX_* flags and address types), the
+cmdmods[] table of src/ex_docmd.c and the event_names[] table of
+src/autocmd.c, and writes the Rust tables next to the grammar module. The output is checked in; regenerating it is a deliberate
 change.
 """
 
@@ -17,6 +17,7 @@ import sys
 
 EXPECTED_COMMANDS = 594
 EXPECTED_MODIFIERS = 26
+EXPECTED_EVENTS = 117
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "vim-core/src/grammar/vim_commands.rs"
 
@@ -86,11 +87,23 @@ def parse_cmdmods(path):
     return [(name, int(minlen), has_count == "TRUE") for name, minlen, has_count in mods]
 
 
-def render(tag, flags, composite, addr_types, rows, mods):
+def parse_events(path):
+    text = strip_comments(path.read_text(encoding="latin-1"))
+    table = re.search(r"event_names\[\]\s*=\s*\{(.*?)\};", text, flags=re.S)
+    if table is None:
+        sys.exit("event_names[] not found in autocmd.c")
+    events = re.findall(r'\{\s*"(\w+)"\s*,\s*EVENT_\w+\s*\}', table.group(1))
+    if len(events) != EXPECTED_EVENTS:
+        sys.exit(f"found {len(events)} events, expected {EXPECTED_EVENTS}")
+    return events
+
+
+def render(tag, flags, composite, addr_types, rows, mods, events):
     out = []
     w = out.append
-    w(f"//! Vim's Ex command table and command modifiers at tag {tag}, from")
-    w("//! `src/ex_cmds.h` and `cmdmods[]` in `src/ex_docmd.c`.")
+    w("//! Vim's Ex command table, command modifiers and autocommand events at")
+    w(f"//! tag {tag}, from `src/ex_cmds.h`, `cmdmods[]` in `src/ex_docmd.c` and")
+    w("//! `event_names[]` in `src/autocmd.c`.")
     w("//!")
     w("//! Generated; do not edit. Regenerate with")
     w("//! `python3 scripts/gen-vim-tables.py <vim-source-dir>`.")
@@ -146,6 +159,14 @@ def render(tag, flags, composite, addr_types, rows, mods):
     for name, minlen, has_count in mods:
         w(f'    ("{name}", {minlen}, {"true" if has_count else "false"}),')
     w("];")
+    w("")
+    w("/// The autocommand event names, aliases included; Vim matches them in any")
+    w("/// case.")
+    w("#[rustfmt::skip]")
+    w(f"pub(crate) static EVENTS: [&str; {len(events)}] = [")
+    for name in events:
+        w(f'    "{name}",')
+    w("];")
     return "\n".join(out) + "\n"
 
 
@@ -156,8 +177,9 @@ def main():
     tag = vim_tag(src)
     flags, composite, addr_types, rows = parse_ex_cmds(src / "src/ex_cmds.h")
     mods = parse_cmdmods(src / "src/ex_docmd.c")
-    OUT.write_text(render(tag, flags, composite, addr_types, rows, mods), encoding="utf-8")
-    print(f"wrote {OUT}: {len(rows)} commands, {len(mods)} modifiers ({tag})")
+    events = parse_events(src / "src/autocmd.c")
+    OUT.write_text(render(tag, flags, composite, addr_types, rows, mods, events), encoding="utf-8")
+    print(f"wrote {OUT}: {len(rows)} commands, {len(mods)} modifiers, {len(events)} events ({tag})")
 
 
 if __name__ == "__main__":

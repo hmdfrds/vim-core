@@ -34,36 +34,33 @@ impl super::VimEngine {
     /// The text is read as Vim reads a sourced file: a byte order mark is
     /// dropped, the CR of each CR LF goes when the first line ends in CR
     /// LF, a line whose first non-blank is `\` continues the line before
-    /// it, and a line whose first non-blank is `"` is a comment. The lines
-    /// of a `:function` body are not run.
+    /// it, and a line whose first non-blank is `"` is a comment.
     ///
     /// A line can therefore hold several commands, so a host that filters
     /// an untrusted config must judge every `|` command of a line, and a
     /// continuation line together with the line it continues, not only the
     /// first command.
     ///
+    /// The lines a command takes as text never run: those of a `:let` or
+    /// script heredoc (`:lua << EOF`), a `:function` or `:def` body,
+    /// `:append`, `:insert` and `:change` text, a `{` block of `:command`
+    /// or `:autocmd`, and the rest of the file after `:loadkeymap`. The
+    /// host gets only the command's own line, and the lines are skipped
+    /// even when the command fails. After an error earlier on the line,
+    /// as in Vim, only a heredoc or function body is skipped. Commands
+    /// after a `|` on the line that ends a function run as the rest of
+    /// that line.
+    ///
     /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
         let mut response = Response::with_effects(Effects::new());
-        let mut function_depth = 0usize;
         let mut script = Script::new(text);
-        while let Some(Line { text: line, .. }) = script.next_line() {
-            for (_, warning) in script.take_warnings() {
-                response.extend_effects(ex_effects::show_error(warning));
-            }
-            let command = line.trim_start_matches([' ', '\t', ':']);
-            if command.is_empty() || command.starts_with('"') {
-                continue;
-            }
-            match function_boundary(command) {
-                Some(FunctionBoundary::Start) if function_depth > 0 => function_depth += 1,
-                Some(FunctionBoundary::End) if function_depth > 0 => function_depth -= 1,
-                _ if function_depth > 0 => {}
-                Some(FunctionBoundary::Start) => {
-                    function_depth = 1;
-                    self.source_config_line(&line, &mut response);
-                }
-                _ => self.source_config_line(&line, &mut response),
+        while let Some(line) = script.next_line() {
+            show_warnings(&mut script, &mut response);
+            let mut skipping = false;
+            let mut next = Some(line);
+            while let Some(line) = next {
+                next = self.source_config_line(&mut script, &line, &mut skipping, &mut response);
             }
         }
         response.extend_effects(ex_effects::show_message(CompactString::from(
@@ -75,14 +72,44 @@ impl super::VimEngine {
         response
     }
 
-    /// Run one config line: each of its `|` commands in turn, until one fails.
-    fn source_config_line(&mut self, line: &str, response: &mut Response) {
-        for command in split_ex_pipeline(line) {
-            let (modifiers, parsed) = match parse_ex_command_with_modifiers(&command) {
+    /// Run one config line: each of its `|` commands in turn, reading the
+    /// lines a command takes after the line from `script`. After an error
+    /// (`skipping`) the commands of the line do not run, as in Vim, but
+    /// those that read lines still read them. Returns the rest of the line
+    /// that ends a function, which runs next.
+    fn source_config_line(
+        &mut self,
+        script: &mut Script<'_>,
+        line: &Line,
+        skipping: &mut bool,
+        response: &mut Response,
+    ) -> Option<Line> {
+        let mut rest = None;
+        for command in split_ex_pipeline(&line.text) {
+            let body = script.read_body(&command, line, *skipping);
+            show_warnings(script, response);
+            let parsed = parse_ex_command_with_modifiers(&command);
+            if let Some(body) = body {
+                let mut effects = Effects::new();
+                for (_, error) in body.errors {
+                    effects.extend(ex_effects::show_error(error));
+                }
+                if let Ok((modifiers, _)) = &parsed {
+                    crate::execution::modifier_filter::apply_modifiers(&mut effects, *modifiers);
+                }
+                response.extend_effects(effects);
+                *skipping |= body.fails;
+                rest = body.tail;
+            }
+            if *skipping {
+                continue;
+            }
+            let (modifiers, parsed) = match parsed {
                 Ok(parsed) => parsed,
                 Err(err) => {
                     response.extend_effects(ex_effects::show_error(err));
-                    return;
+                    *skipping = true;
+                    continue;
                 }
             };
             let result = if parsed.needs_buffer() {
@@ -100,7 +127,8 @@ impl super::VimEngine {
                     let mut effects = ex_effects::show_error(err);
                     crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
                     response.extend_effects(effects);
-                    return;
+                    *skipping = true;
+                    continue;
                 }
             };
             crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
@@ -117,28 +145,14 @@ impl super::VimEngine {
             response.extend_effects(applied);
             response.host_requests.extend(output.host_requests);
         }
+        rest
     }
 }
 
-enum FunctionBoundary {
-    Start,
-    End,
-}
-
-/// Whether `command` starts a `:function` (or Vim9 `:def`) definition or
-/// ends one. `:function` with no `(` lists functions instead.
-fn function_boundary(command: &str) -> Option<FunctionBoundary> {
-    let name_len = command
-        .find(|c: char| !c.is_ascii_alphabetic())
-        .unwrap_or(command.len());
-    let (name, rest) = command.split_at(name_len);
-    let is = |min: &str, full: &str| name.len() >= min.len() && full.starts_with(name);
-    if (is("fu", "function") || name == "def") && rest.contains('(') {
-        Some(FunctionBoundary::Start)
-    } else if is("endf", "endfunction") || name == "enddef" {
-        Some(FunctionBoundary::End)
-    } else {
-        None
+/// Show the warnings of the lines `script` read since the last call.
+fn show_warnings(script: &mut Script<'_>, response: &mut Response) {
+    for (_, warning) in script.take_warnings() {
+        response.extend_effects(ex_effects::show_error(warning));
     }
 }
 
