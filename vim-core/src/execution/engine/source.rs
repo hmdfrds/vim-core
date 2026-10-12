@@ -44,7 +44,7 @@ impl super::VimEngine {
         let mut response = Response::with_effects(Effects::new());
         let mut function_depth = 0usize;
         for line in config_lines(text) {
-            let command = line.trim_start_matches(|c: char| c.is_whitespace() || c == ':');
+            let command = line.trim_start_matches([' ', '\t', ':']);
             if command.is_empty() || command.starts_with('"') {
                 continue;
             }
@@ -119,7 +119,7 @@ impl super::VimEngine {
 fn config_lines(text: &str) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for raw in text.lines() {
-        let trimmed = raw.trim_start();
+        let trimmed = raw.trim_start_matches([' ', '\t']);
         if trimmed.starts_with("\"\\ ") {
             continue;
         }
@@ -399,6 +399,16 @@ finish
     }
 
     // ── how Vim reads a sourced file ──────────────────────────────
+
+    #[test]
+    fn source_config_skips_only_spaces_and_tabs_before_a_comment() {
+        // `skipwhite()` skips no other white space, so after a no-break
+        // space `"` starts no comment and the line is a command.
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("\u{a0}\" x\n \t\" y\n");
+        let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
+        assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
+    }
 
     #[test]
     fn source_config_joins_continuation_lines() {

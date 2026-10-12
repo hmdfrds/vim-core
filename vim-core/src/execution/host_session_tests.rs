@@ -3157,6 +3157,13 @@ fn a_typed_comment_runs_nothing() {
     assert_eq!(session.errmsg(), None);
 }
 
+#[test]
+fn a_no_break_space_starts_no_command() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":\u{a0}set ic<CR>");
+    assert!(!session.options().ignorecase());
+}
+
 // ── Script blocks on the command line ────────────────────────────────────
 
 #[test]

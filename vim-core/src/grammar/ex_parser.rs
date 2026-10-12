@@ -40,6 +40,10 @@ pub fn parse_ex_command_with_modifiers(
     Ok((modifiers, cmd))
 }
 
+/// The blanks Vim skips around a command name and a range: space and tab
+/// (`skipwhite()`), not other white space such as a no-break space.
+const BLANKS: [char; 2] = [' ', '\t'];
+
 /// Vim's command modifiers that the engine knows. Their shortest forms
 /// (`sil[ent]`, `keepj[umps]`, ...) are those of Vim's `cmdmods[]`.
 const COMMAND_MODIFIERS: &[(&str, ModifierFlags)] = &[
@@ -75,7 +79,7 @@ pub(super) fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
 
     loop {
         // Vim skips colons before a command and before each modifier.
-        let trimmed = rest.trim_start_matches(|c: char| c.is_whitespace() || c == ':');
+        let trimmed = rest.trim_start_matches([' ', '\t', ':']);
         let word_len = trimmed
             .find(|c: char| !c.is_ascii_alphabetic())
             .unwrap_or(trimmed.len());
@@ -99,7 +103,7 @@ pub(super) fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
 }
 
 fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
-    let trimmed = input.trim_start();
+    let trimmed = input.trim_start_matches(BLANKS);
     if trimmed.is_empty() {
         // Empty or whitespace-only command is a no-op in Vim (no error).
         // Return GotoLine with current line range so the executor treats it
@@ -110,7 +114,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     }
 
     let (range, rest) = parse_optional_range(trimmed)?;
-    let rest = rest.trim_start();
+    let rest = rest.trim_start_matches(BLANKS);
     if rest.is_empty() {
         // Bare line address (`:3`, `:$`, etc.) — go to that line
         if let Some(range) = range {
@@ -136,7 +140,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     // Must be checked before the named-command path since `&` is not alphabetic.
     if let Some(after) = rest.strip_prefix('&') {
         // `:&&` keeps the flags of the last substitute, `:&` drops them.
-        let after = after.trim_start_matches([' ', '\t']);
+        let after = after.trim_start_matches(BLANKS);
         substitute_flags(after)?;
         return Ok(ExCommand::RepeatSubstitute {
             range,
@@ -148,7 +152,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     if let Some(flags_str) = rest.strip_prefix('~') {
         return Ok(ExCommand::SubTilde {
             range: range.unwrap_or_else(ExRange::current_line),
-            flags: substitute_flags(flags_str.trim_start_matches([' ', '\t']))?,
+            flags: substitute_flags(flags_str.trim_start_matches(BLANKS))?,
         });
     }
 
@@ -946,11 +950,11 @@ fn parse_let_command(tail: &str) -> Result<ExCommand, VimError> {
 }
 
 fn split_head(input: &str) -> (&str, &str) {
-    let trimmed = input.trim_start();
-    // First try splitting on whitespace
-    if let Some((idx, _)) = trimmed.char_indices().find(|(_, c)| c.is_whitespace()) {
+    let trimmed = input.trim_start_matches(BLANKS);
+    // First try splitting on a blank
+    if let Some(idx) = trimmed.find(BLANKS) {
         let (head, tail) = trimmed.split_at(idx);
-        (head, tail.trim())
+        (head, tail.trim_matches(BLANKS))
     } else {
         // No whitespace found — try splitting at alpha/non-alpha boundary
         // This handles Vim's compact syntax like "co3" → ("co", "3"), "m$" → ("m", "$")
@@ -959,7 +963,7 @@ fn split_head(input: &str) -> (&str, &str) {
             .find(|(i, c)| *i > 0 && !c.is_alphabetic() && (*c != '!'))
         {
             let (head, tail) = trimmed.split_at(idx);
-            (head, tail.trim())
+            (head, tail.trim_matches(BLANKS))
         } else {
             (trimmed, "")
         }
@@ -971,10 +975,10 @@ fn split_head(input: &str) -> (&str, &str) {
 /// Used by commands where the tail is raw content and trailing spaces are
 /// significant (e.g., `:norm` keystroke arguments).
 fn split_head_raw(input: &str) -> (&str, &str) {
-    let trimmed = input.trim_start();
-    if let Some((idx, _)) = trimmed.char_indices().find(|(_, c)| c.is_whitespace()) {
+    let trimmed = input.trim_start_matches(BLANKS);
+    if let Some(idx) = trimmed.find(BLANKS) {
         let (head, tail) = trimmed.split_at(idx);
-        (head, tail.trim_start()) // only trim leading whitespace, preserve trailing
+        (head, tail.trim_start_matches(BLANKS)) // only trim leading blanks, preserve trailing
     } else {
         (trimmed, "")
     }
@@ -1017,9 +1021,9 @@ fn substitute_flags(text: &str) -> Result<SubFlags, VimError> {
         .find(|c: char| !"gcneriI#lp".contains(c))
         .map_or(text.len(), |at| first + at);
     let rest = text[flags_end..]
-        .trim_start_matches([' ', '\t'])
+        .trim_start_matches(BLANKS)
         .trim_start_matches(|c: char| c.is_ascii_digit())
-        .trim_start_matches([' ', '\t']);
+        .trim_start_matches(BLANKS);
     if !rest.is_empty() && !rest.starts_with(['"', '|', '\n']) {
         return Err(VimError::TrailingCharacters(rest.into()));
     }
@@ -1099,7 +1103,7 @@ fn take_delimited(input: &str, delim: char) -> Result<(&str, &str), VimError> {
 }
 
 fn parse_optional_range(input: &str) -> Result<(Option<ExRange>, &str), VimError> {
-    let trimmed = input.trim_start();
+    let trimmed = input.trim_start_matches(BLANKS);
 
     if let Some(rest) = trimmed.strip_prefix('%') {
         return Ok((Some(ExRange::entire_file()), rest));
@@ -1114,7 +1118,7 @@ fn parse_optional_range(input: &str) -> Result<(Option<ExRange>, &str), VimError
     };
 
     let rest = &trimmed[consumed..];
-    let rest = rest.trim_start();
+    let rest = rest.trim_start_matches(BLANKS);
     let (separator, after_sep) = if let Some(rest) = rest.strip_prefix(';') {
         (RangeSeparator::Semicolon, rest)
     } else if let Some(rest) = rest.strip_prefix(',') {
@@ -1129,7 +1133,7 @@ fn parse_optional_range(input: &str) -> Result<(Option<ExRange>, &str), VimError
             rest,
         ));
     };
-    let after_sep = after_sep.trim_start();
+    let after_sep = after_sep.trim_start_matches(BLANKS);
     let (end, end_len) = parse_line_spec_prefix(after_sep)?.ok_or(VimError::InvalidRange)?;
     let rest = &after_sep[end_len..];
     Ok((

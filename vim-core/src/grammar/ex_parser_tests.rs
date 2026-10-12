@@ -3991,6 +3991,30 @@ fn pipeline_question_mark_regex_preserved() {
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
 }
 
+// ── Blanks before a command ────────────────────────────────────────────
+
+#[test]
+fn only_spaces_and_tabs_come_before_a_command() {
+    // `parse_command_modifiers()` and `skipwhite()` skip ` ` and `\t`.
+    assert_eq!(
+        parse_ex_command(" \t: set ic").unwrap(),
+        parse_ex_command("set ic").unwrap()
+    );
+    assert_eq!(
+        parse_ex_command("sil\t2 ,\t3d").unwrap(),
+        parse_ex_command("2,3d").unwrap()
+    );
+    // A no-break space starts no command, as Vim's E492 for "<a0>set" says.
+    assert!(matches!(
+        parse_ex_command("\u{a0}set ic").unwrap(),
+        ExCommand::Custom { .. }
+    ));
+    assert_eq!(
+        split_ex_pipeline("\u{a0}set ic | set et"),
+        vec!["\u{a0}set ic | set et"]
+    );
+}
+
 // ── Script blocks ──────────────────────────────────────────────────────
 
 #[test]
