@@ -3614,6 +3614,61 @@ fn pipeline_question_mark_regex_preserved() {
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
 }
 
+// ── Script blocks ──────────────────────────────────────────────────────
+
+#[test]
+fn parses_block_commands_by_vim_s_table() {
+    use crate::grammar::types::BlockKind;
+    for (line, kind, argument) in [
+        ("if a || b", BlockKind::If, "a || b"),
+        ("elsei x", BlockKind::ElseIf, "x"),
+        ("el", BlockKind::Else, ""),
+        ("en", BlockKind::EndIf, ""),
+        ("wh 1", BlockKind::While, "1"),
+        ("endw", BlockKind::EndWhile, ""),
+        ("for x in [1, 2]", BlockKind::For, "x in [1, 2]"),
+        ("endfo", BlockKind::EndFor, ""),
+        ("try", BlockKind::Try, ""),
+        ("cat /E1/", BlockKind::Catch, "/E1/"),
+        ("fina", BlockKind::Finally, ""),
+        ("endt", BlockKind::EndTry, ""),
+        (":sil! if 1", BlockKind::If, "1"),
+    ] {
+        assert_eq!(
+            parse_ex_command(line).unwrap(),
+            ExCommand::Block {
+                kind,
+                argument: argument.into()
+            },
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn parses_break_and_continue_as_host_commands() {
+    // No loop runs on the command line, and a host may define `:cont`.
+    for line in ["brea", "break", "con", "cont", "continue"] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Custom { .. }),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn parses_finish_but_not_find() {
+    assert_eq!(parse_ex_command("fini").unwrap(), ExCommand::Finish);
+    assert_eq!(parse_ex_command("finish").unwrap(), ExCommand::Finish);
+    // `:fin` is `:find` and `:final` a Vim9 declaration, as in Vim's table.
+    for line in ["fin x", "final x = 1"] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Custom { .. }),
+            "{line}"
+        );
+    }
+}
+
 // ── Diagnostic navigation (:cn, :cp, :cl, :cc) ─────────────────────────
 
 #[test]

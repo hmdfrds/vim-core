@@ -5,8 +5,8 @@
 
 use crate::errors::VimError;
 use crate::grammar::types::{
-    ExCommand, ExRange, LineSpec, MapModePrefix, ModifierFlags, RangeSeparator, SetAssignment,
-    SortOptions, TimeAmount,
+    BlockKind, ExCommand, ExRange, LineSpec, MapModePrefix, ModifierFlags, RangeSeparator,
+    SetAssignment, SortOptions, TimeAmount,
 };
 use crate::primitives::{AbbrevMode, MarkName, SubFlags};
 use compact_str::CompactString;
@@ -236,6 +236,9 @@ fn matches_abbrev(name: &str, min: &str, full: &str) -> bool {
 }
 
 fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, VimError> {
+    if let Some(cmd) = parse_script_command(rest) {
+        return Ok(cmd);
+    }
     let (head, tail) = split_head(rest);
     let force = head.ends_with('!');
     let name = head.trim_end_matches('!');
@@ -790,6 +793,24 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             command: CompactString::from(rest),
         })
     }
+}
+
+/// `:if`, `:endif`, `:finish` and the other commands of a sourced script,
+/// found in Vim's command table.
+fn parse_script_command(rest: &str) -> Option<ExCommand> {
+    let (command_meta::FoundCommand::Vim(row), len) = command_meta::find_command(rest)? else {
+        return None;
+    };
+    if row.name == "finish" {
+        return Some(ExCommand::Finish);
+    }
+    let kind = BlockKind::from_name(row.name)?;
+    let after = rest.get(len..)?;
+    let argument = after.strip_prefix('!').unwrap_or(after);
+    Some(ExCommand::Block {
+        kind,
+        argument: argument.trim_matches([' ', '\t']).into(),
+    })
 }
 
 fn read_after_line(range: Option<&ExRange>) -> Option<u32> {

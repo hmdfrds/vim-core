@@ -331,6 +331,26 @@ mod tests {
         assert_eq!(infos, ["textwidth=80", "hi", "Config file sourced"]);
     }
 
+    #[test]
+    fn source_config_refuses_script_blocks_for_now() {
+        // `if` ends the line with E319, so nothing after it runs.
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text(
+            "if 0 | set ic | endif
+finish
+",
+        );
+        assert!(!engine.options().ignorecase());
+        assert_eq!(
+            errors(&response),
+            [
+                "E319: Sorry, the command is not available in this version: if 0",
+                "E168: :finish used outside of a sourced file"
+            ]
+        );
+        assert!(response.host_requests().is_empty());
+    }
+
     // ── host commands ─────────────────────────────────────────────
 
     #[test]

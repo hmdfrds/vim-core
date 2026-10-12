@@ -149,6 +149,9 @@ pub enum VimError {
     /// command line.
     NotAvailable(CompactString),
 
+    /// E168: `:finish` used outside of a sourced file.
+    FinishOutsideSource,
+
     // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
@@ -294,6 +297,9 @@ impl fmt::Display for VimError {
                 f,
                 "E319: Sorry, the command is not available in this version: {form}"
             ),
+            Self::FinishOutsideSource => {
+                write!(f, "E168: :finish used outside of a sourced file")
+            }
 
             // Macros
             Self::RecursiveMacro { register, depth } => {
@@ -401,6 +407,7 @@ mod tests {
             VimError::InvalidCommand,
             VimError::NoRangeAllowed,
             VimError::NotAvailable("source!".into()),
+            VimError::FinishOutsideSource,
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -527,6 +534,14 @@ mod tests {
         assert_eq!(
             VimError::NotAvailable("source!".into()).to_string(),
             "E319: Sorry, the command is not available in this version: source!"
+        );
+    }
+
+    #[test]
+    fn display_finish_outside_source() {
+        assert_eq!(
+            VimError::FinishOutsideSource.to_string(),
+            "E168: :finish used outside of a sourced file"
         );
     }
 

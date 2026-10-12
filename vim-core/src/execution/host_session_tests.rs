@@ -2969,3 +2969,56 @@ fn a_bar_after_a_line_number_runs_the_next_command() {
         assert!(session.options().ignorecase(), "{line}");
     }
 }
+
+// ── Script blocks on the command line ────────────────────────────────────
+
+#[test]
+fn a_typed_if_gives_e319_and_ends_the_line() {
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":if 0 | set ic | endif<CR>");
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E319: Sorry, the command is not available in this version: if 0")
+    );
+    assert!(!session.options().ignorecase());
+    assert!(response.host_requests.is_empty());
+}
+
+#[test]
+fn a_block_command_after_a_bar_gives_e319() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":set ic | en<CR>");
+    assert!(session.options().ignorecase());
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E319: Sorry, the command is not available in this version: endif")
+    );
+}
+
+#[test]
+fn a_typed_finish_gives_e168_as_ex_finish_does() {
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":finish<CR>");
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E168: :finish used outside of a sourced file")
+    );
+    assert!(response.host_requests.is_empty());
+}
+
+#[test]
+fn a_typed_break_or_continue_goes_to_the_host() {
+    for (line, command) in [(":brea<CR>", "brea"), (":cont<CR>", "cont")] {
+        let mut session = HostSession::new("x");
+        let response = process_keys(&mut session, line);
+        assert!(
+            matches!(
+                response.host_requests.as_slice(),
+                [HostRequest::CustomExCommand { command: c, .. }] if c.as_str() == command
+            ),
+            "{line}: {:?}",
+            response.host_requests
+        );
+        assert_eq!(session.errmsg(), None, "{line}");
+    }
+}

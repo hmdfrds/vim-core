@@ -906,6 +906,16 @@ pub(crate) fn execute_ex_command<D: Document>(
             meta: sequencer.next_meta(),
             force: *force,
         }),
+        // Only a sourced file runs script blocks.
+        ExCommand::Block { kind, argument } => {
+            let mut form = CompactString::from(kind.name());
+            if !argument.is_empty() {
+                form.push(' ');
+                form.push_str(argument);
+            }
+            Err(VimError::NotAvailable(form))
+        }
+        ExCommand::Finish => Err(VimError::FinishOutsideSource),
         // Abbreviation commands
         ExCommand::Abbreviate {
             trigger,

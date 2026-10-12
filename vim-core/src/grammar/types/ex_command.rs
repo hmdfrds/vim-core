@@ -121,6 +121,78 @@ impl SortOptions {
     }
 }
 
+/// A command of Vim's script blocks: `:if`, `:while`, `:for`, `:try` and
+/// the commands that continue or end them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum BlockKind {
+    /// `:if {expr}`
+    If,
+    /// `:elsei[f] {expr}`
+    ElseIf,
+    /// `:el[se]`
+    Else,
+    /// `:en[dif]`
+    EndIf,
+    /// `:wh[ile] {expr}`
+    While,
+    /// `:endw[hile]`
+    EndWhile,
+    /// `:for {var} in {object}`
+    For,
+    /// `:endfo[r]`
+    EndFor,
+    /// `:try`
+    Try,
+    /// `:cat[ch] [/{pattern}/]`
+    Catch,
+    /// `:fina[lly]`
+    Finally,
+    /// `:endt[ry]`
+    EndTry,
+}
+
+impl BlockKind {
+    /// The kind of the Vim command `name`, given in full.
+    #[must_use]
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "if" => Self::If,
+            "elseif" => Self::ElseIf,
+            "else" => Self::Else,
+            "endif" => Self::EndIf,
+            "while" => Self::While,
+            "endwhile" => Self::EndWhile,
+            "for" => Self::For,
+            "endfor" => Self::EndFor,
+            "try" => Self::Try,
+            "catch" => Self::Catch,
+            "finally" => Self::Finally,
+            "endtry" => Self::EndTry,
+            _ => return None,
+        })
+    }
+
+    /// The command's full name, such as `endif`.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::If => "if",
+            Self::ElseIf => "elseif",
+            Self::Else => "else",
+            Self::EndIf => "endif",
+            Self::While => "while",
+            Self::EndWhile => "endwhile",
+            Self::For => "for",
+            Self::EndFor => "endfor",
+            Self::Try => "try",
+            Self::Catch => "catch",
+            Self::Finally => "finally",
+            Self::EndTry => "endtry",
+        }
+    }
+}
+
 /// Display style for the `:z` window command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -818,6 +890,21 @@ pub enum ExCommand {
         /// Force overwrite if file already exists.
         force: bool,
     },
+
+    /// A command of Vim's script blocks, such as `:if` or `:endif`.
+    ///
+    /// Only a sourced file can hold a block, so on the command line it
+    /// gives E319.
+    Block {
+        /// Which block command.
+        kind: BlockKind,
+        /// The text after the command name, such as the condition of `:if`.
+        argument: Box<str>,
+    },
+
+    /// `:fini[sh]`: stop sourcing a file. On the command line it gives
+    /// E168.
+    Finish,
 }
 
 /// Amount for `:earlier` / `:later` navigation.
@@ -1057,7 +1144,9 @@ impl ExCommand {
             | Self::WinDo { .. }
             | Self::BufDo { .. }
             | Self::TabDo { .. }
-            | Self::MkVimrc { .. } => false,
+            | Self::MkVimrc { .. }
+            | Self::Block { .. }
+            | Self::Finish => false,
         }
     }
 }
