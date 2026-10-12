@@ -9,13 +9,13 @@ use crate::document::Document;
 use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::execution::executor_ex::{self, SetScope};
-use crate::execution::script_expr::{self, Echoed};
+use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, InputContext};
 use crate::grammar::ex_parser::vim_command_parts;
 use crate::grammar::script::{Line, Script};
-use crate::grammar::types::ModifierFlags;
+use crate::grammar::types::{ExCommand, ModifierFlags, SetAssignment};
 use crate::grammar::{parse_ex_command_with_modifiers, split_ex_pipeline};
-use crate::primitives::{Offset, Position};
+use crate::primitives::{Offset, OptionValue, Position, VarScope};
 use compact_str::CompactString;
 
 impl super::VimEngine {
@@ -54,8 +54,11 @@ impl super::VimEngine {
     /// after a `|` on the line that ends a function run as the rest of
     /// that line.
     ///
-    /// `:echo` evaluates its expressions, as in Vim; a typed `:echo` still
-    /// shows its argument as written.
+    /// As in Vim, `:echo` evaluates its expressions, and `:let` and
+    /// `:unlet` assign and remove `g:`, `b:` and plain variables and set
+    /// options; `g:mapleader` and `g:maplocalleader` give the leaders.
+    /// Typed, `:echo` still shows its argument as written, and `:unlet` and
+    /// a `:let` of anything but the leaders still go to the host.
     ///
     /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
@@ -117,6 +120,12 @@ impl super::VimEngine {
                 Some((modifiers, "echo", argument)) => {
                     self.source_config_echo(modifiers, argument, response)
                 }
+                Some((modifiers, "let", argument)) => {
+                    self.source_config_let(modifiers, argument, response)
+                }
+                Some((modifiers, "unlet", argument)) => {
+                    self.source_config_unlet(modifiers, argument, response)
+                }
                 _ => self.source_config_command(&command, response),
             };
             *skipping = !ran;
@@ -127,13 +136,25 @@ impl super::VimEngine {
     /// Run one command of a config line as the command line runs it.
     /// Returns whether it ran without an error.
     fn source_config_command(&mut self, command: &str, response: &mut Response) -> bool {
-        let (modifiers, parsed) = match parse_ex_command_with_modifiers(command) {
-            Ok(parsed) => parsed,
+        match parse_ex_command_with_modifiers(command) {
+            Ok((modifiers, parsed)) => {
+                self.run_config_command(modifiers, &parsed, command, response)
+            }
             Err(err) => {
                 response.extend_effects(ex_effects::show_error(err));
-                return false;
+                false
             }
-        };
+        }
+    }
+
+    /// Run a parsed config command, written as `command`.
+    fn run_config_command(
+        &mut self,
+        modifiers: ModifierFlags,
+        parsed: &ExCommand,
+        command: &str,
+        response: &mut Response,
+    ) -> bool {
         let result = if parsed.needs_buffer() {
             Err(VimError::NotAllowedHere(CompactString::from(
                 command.trim(),
@@ -141,16 +162,11 @@ impl super::VimEngine {
         } else {
             let input = InputContext::new(&NoBuffer, 0).validate_clamped();
             let ctx = ExecutionContext::new(input, &self.state, &self.options);
-            executor_ex::execute_ex_command(&parsed, &ctx, &mut self.host.sequencer)
+            executor_ex::execute_ex_command(parsed, &ctx, &mut self.host.sequencer)
         };
         let mut output = match result {
             Ok(output) => output,
-            Err(err) => {
-                let mut effects = ex_effects::show_error(err);
-                crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
-                response.extend_effects(effects);
-                return false;
-            }
+            Err(err) => return show_config_errors(modifiers, [err], response),
         };
         crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
         crate::execution::effect_processor::sync_effects(
@@ -168,6 +184,200 @@ impl super::VimEngine {
         true
     }
 
+    /// What an expression in a config reads.
+    const fn script_env(&self) -> script_expr::Env<'_> {
+        script_expr::Env {
+            variables: self.state.variable_store(),
+            options: &self.resolved_options,
+            global_options: &self.options,
+        }
+    }
+
+    /// `:let` in a config, as Vim's `ex_let()` runs it: a `g:`, `b:` or
+    /// plain variable takes the value of the expression, or adds to it
+    /// with `+=`, `-=`, `*=`, `/=`, `%=`, `.=` or `..=`, and an option is
+    /// set as `:set` sets it. Any other form gives E319. A typed `:let`
+    /// still goes to the host.
+    fn source_config_let(
+        &mut self,
+        modifiers: ModifierFlags,
+        argument: &str,
+        response: &mut Response,
+    ) -> bool {
+        let argument = argument.trim_start_matches([' ', '\t']);
+        let Some(assignment) = script_expr::parse_let(argument) else {
+            let form = CompactString::from(format!("let {argument}"));
+            return show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
+        };
+        let evaluated = script_expr::evaluate(assignment.expr, &self.script_env());
+        let mut errors = evaluated.errors;
+        let Some(value) = evaluated.value else {
+            return show_config_errors(modifiers, errors, response);
+        };
+        let assigned = match assignment.target {
+            Target::Variable(variable) => self.let_variable(variable, assignment.op, value),
+            Target::Option(layer, name) => {
+                match self.let_option(layer, name, assignment.op, &value) {
+                    Ok(command) => {
+                        let shown = show_config_errors(modifiers, errors, response);
+                        let text = format!("let {argument}");
+                        return self.run_config_command(modifiers, &command, &text, response)
+                            && shown;
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+        };
+        errors.extend(assigned.err());
+        show_config_errors(modifiers, errors, response)
+    }
+
+    /// Assign to a variable, and take the leader from `g:mapleader` or
+    /// `g:maplocalleader`.
+    fn let_variable(
+        &mut self,
+        variable: script_expr::Variable<'_>,
+        op: Option<char>,
+        value: Value,
+    ) -> Result<(), VimError> {
+        let value = match op {
+            None => value,
+            Some(op) => {
+                let current = self
+                    .state
+                    .variable_store()
+                    .get(variable.scope, variable.name)
+                    .ok_or_else(|| VimError::UndefinedVariable(variable.written.into()))?;
+                // A List or a Dictionary.
+                let current =
+                    Value::from_variable(current).ok_or(VimError::WrongVariableType(op))?;
+                script_expr::assign_op(op, &current, &value)?
+            }
+        };
+        self.state
+            .variable_store_mut()
+            .set(variable.scope, variable.name, value.into_variable());
+        self.sync_leader_variable(variable);
+        Ok(())
+    }
+
+    /// The `:set` that `:let &name = value` amounts to, as Vim's
+    /// `ex_let_option()` makes it: a Number for a boolean or number option
+    /// (E805 for a Float), a String for a string option, and `.=` only for
+    /// a string option.
+    fn let_option(
+        &self,
+        layer: OptionLayer,
+        name: &str,
+        op: Option<char>,
+        value: &Value,
+    ) -> Result<ExCommand, VimError> {
+        let options = if layer == OptionLayer::Global {
+            &self.options
+        } else {
+            &self.resolved_options
+        };
+        let Some((name, current)) = executor_ex::option_value(options, name) else {
+            return Err(VimError::UnknownOptionToSet(name.into()));
+        };
+        let name = CompactString::from(name);
+        let assignment = match current {
+            OptionValue::Str(old) => {
+                if let Some(op) = op.filter(|&op| op != '.') {
+                    return Err(VimError::WrongVariableType(op));
+                }
+                if matches!(value, Value::Bool(_)) {
+                    return Err(VimError::StringRequired);
+                }
+                let mut text = if op.is_some() {
+                    old
+                } else {
+                    CompactString::default()
+                };
+                text.push_str(&value.text());
+                SetAssignment::Assign(name, text)
+            }
+            number => {
+                if op == Some('.') {
+                    return Err(VimError::WrongVariableType('.'));
+                }
+                let old = match number {
+                    OptionValue::Bool(on) => i64::from(on),
+                    OptionValue::Unsigned(n) => i64::try_from(n).unwrap_or(i64::MAX),
+                    OptionValue::Signed(n) => n,
+                    OptionValue::Str(_) => 0,
+                };
+                let n = value.number()?;
+                let n = op.map_or(n, |op| script_expr::number_op(op, old, n));
+                match number {
+                    OptionValue::Bool(_) if n != 0 => SetAssignment::SetBool(name),
+                    OptionValue::Bool(_) => SetAssignment::UnsetBool(name),
+                    _ => SetAssignment::Assign(name, CompactString::from(n.to_string())),
+                }
+            }
+        };
+        let mut assignments = smallvec::SmallVec::new();
+        assignments.push(assignment);
+        Ok(match layer {
+            OptionLayer::Both => ExCommand::Set { assignments },
+            OptionLayer::Local => ExCommand::SetLocal { assignments },
+            OptionLayer::Global => ExCommand::SetGlobal { assignments },
+        })
+    }
+
+    /// `:unlet[!] {name} ...` in a config, as Vim's `ex_unlet()` runs it:
+    /// each `g:`, `b:` or plain variable goes; one that does not exist is
+    /// E108 unless with `!`. Any other name gives E319.
+    fn source_config_unlet(
+        &mut self,
+        modifiers: ModifierFlags,
+        argument: &str,
+        response: &mut Response,
+    ) -> bool {
+        let (bang, names) = match argument.strip_prefix('!') {
+            Some(names) => (true, names),
+            None => (false, argument),
+        };
+        let mut rest = names.trim_matches([' ', '\t']);
+        if rest.is_empty() {
+            return show_config_errors(modifiers, [VimError::ArgumentRequired], response);
+        }
+        while !rest.is_empty() {
+            let Some((variable, end)) = script_expr::variable_name(rest) else {
+                let form = CompactString::from(format!("unlet{argument}"));
+                return show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
+            };
+            let after = rest.get(end..).unwrap_or_default();
+            if !after.is_empty() && !after.starts_with([' ', '\t']) {
+                let error = VimError::TrailingCharacters(after.into());
+                return show_config_errors(modifiers, [error], response);
+            }
+            let deleted = self
+                .state
+                .variable_store_mut()
+                .delete(variable.scope, variable.name);
+            if !deleted && !bang {
+                let error = VimError::NoSuchVariable(variable.written.into());
+                return show_config_errors(modifiers, [error], response);
+            }
+            self.sync_leader_variable(variable);
+            rest = after.trim_start_matches([' ', '\t']);
+        }
+        true
+    }
+
+    /// Take the leader again when `variable` is `g:mapleader` or
+    /// `g:maplocalleader`.
+    fn sync_leader_variable(&mut self, variable: script_expr::Variable<'_>) {
+        if variable.scope == VarScope::Global {
+            match variable.name {
+                "mapleader" => self.sync_leader(false),
+                "maplocalleader" => self.sync_leader(true),
+                _ => {}
+            }
+        }
+    }
+
     /// `:echo` in a config: its expressions are evaluated, as Vim's
     /// `ex_echo()` does. A typed `:echo` shows its argument as written.
     fn source_config_echo(
@@ -176,14 +386,9 @@ impl super::VimEngine {
         argument: &str,
         response: &mut Response,
     ) -> bool {
-        let env = script_expr::Env {
-            variables: self.state.variable_store(),
-            options: &self.resolved_options,
-            global_options: &self.options,
-        };
         let mut effects = Effects::new();
         let mut ran = true;
-        for shown in script_expr::echo(argument, &env) {
+        for shown in script_expr::echo(argument, &self.script_env()) {
             match shown {
                 Echoed::Text(text) => effects.extend(ex_effects::show_message(text.into())),
                 Echoed::Error(err) => {
@@ -196,6 +401,23 @@ impl super::VimEngine {
         response.extend_effects(effects);
         ran
     }
+}
+
+/// Show `errors` as the command's modifiers let them. Returns whether
+/// there were none.
+fn show_config_errors(
+    modifiers: ModifierFlags,
+    errors: impl IntoIterator<Item = VimError>,
+    response: &mut Response,
+) -> bool {
+    let mut effects = Effects::new();
+    for error in errors {
+        effects.extend(ex_effects::show_error(error));
+    }
+    let none = effects.is_empty();
+    crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
+    response.extend_effects(effects);
+    none
 }
 
 /// Show the warnings of the lines `script` read since the last call.
@@ -669,6 +891,130 @@ finish
         );
         type_keys(&mut session, ":let maplocalleader = ',' . ','<CR>");
         assert_eq!(session.engine().local_leader_keys().len(), 2);
+    }
+
+    // ── :let and :unlet ───────────────────────────────────────────
+
+    #[test]
+    fn source_config_let_assigns_variables() {
+        // ex_let(): a plain name is global at the script level.
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text(
+            "let g:x = 1 | let y = 'a' | let b:z = 2.5\necho g:x y b:z x exists('g:y')\n",
+        );
+        assert_eq!(infos(&response)[0], "1 a 2.5 1 1");
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    }
+
+    #[test]
+    fn source_config_let_operators_change_the_value() {
+        let mut engine = VimEngine::new();
+        let config = "let x = 1 | let x += 2 | let x *= 3 | let x -= 1 | let x /= 2 | let x %= 3\n\
+                      let s = 'a' | let s .= 'b' | let s ..= 1\nlet n = 5 | let n .= 1\necho x s n\n";
+        let response = engine.source_config_text(config);
+        assert_eq!(infos(&response)[0], "1 ab1 51");
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    }
+
+    #[test]
+    fn source_config_let_errors_end_their_line() {
+        let mut engine = VimEngine::new();
+        let config = "let nosuch += 1 | set ic\nlet x = 1 | let x .= 1.5 | set ic\n\
+                      let x = nosuch | set ic\nlet s:x = 1\nlet [a, b] = [1, 2]\nlet x\nlet $X = 1\n";
+        let response = engine.source_config_text(config);
+        assert!(!engine.options().ignorecase());
+        assert_eq!(
+            errors(&response),
+            [
+                "E121: Undefined variable: nosuch",
+                "E734: Wrong variable type for .=",
+                "E121: Undefined variable: nosuch",
+                "E319: Sorry, the command is not available in this version: let s:x = 1",
+                "E319: Sorry, the command is not available in this version: let [a, b] = [1, 2]",
+                "E319: Sorry, the command is not available in this version: let x",
+                "E319: Sorry, the command is not available in this version: let $X = 1",
+            ]
+        );
+        assert!(response.host_requests().is_empty());
+    }
+
+    #[test]
+    fn source_config_let_sets_options() {
+        // ex_let_option()
+        let mut engine = VimEngine::new();
+        let config =
+            "let &tw = 33 | let &tw += 2\nlet &ic = 1\nlet &ww = 'b,s' | let &ww .= ',h'\n\
+                      let &l:sw = 3 | let &g:ts = 6\n";
+        let response = engine.source_config_text(config);
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+        assert_eq!(engine.options().textwidth(), 35);
+        assert!(engine.options().ignorecase());
+        assert_eq!(engine.options().whichwrap(), "b,s,h");
+        assert_eq!(engine.options().shiftwidth(), 3);
+        assert_eq!(engine.options().tabstop(), 6);
+        engine.source_config_text("let &ic = 0\n");
+        assert!(!engine.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_let_option_errors() {
+        let mut engine = VimEngine::new();
+        let config =
+            "let &tw .= 1\nlet &ww += 1\nlet &nosuch = 1\nlet &tw = 1.5\nlet &ww = v:true\n";
+        let response = engine.source_config_text(config);
+        assert_eq!(
+            errors(&response),
+            [
+                "E734: Wrong variable type for .=",
+                "E734: Wrong variable type for +=",
+                "E355: Unknown option: nosuch",
+                "E805: Using a Float as a Number",
+                "E928: String required",
+            ]
+        );
+    }
+
+    #[test]
+    fn source_config_unlet_removes_variables() {
+        // ex_unlet(), do_unlet()
+        let mut engine = VimEngine::new();
+        let config = "let g:x = 1 | let y = 2 | unlet g:x y\necho exists('x') exists('y')\n\
+                      unlet nosuch | set ic\nunlet! nosuch\nunlet\nunlet $X\nlet x = 1 | unlet x+1\n";
+        let response = engine.source_config_text(config);
+        assert_eq!(infos(&response)[0], "0 0");
+        assert!(!engine.options().ignorecase());
+        assert_eq!(
+            errors(&response),
+            [
+                "E108: No such variable: \"nosuch\"",
+                "E471: Argument required",
+                "E319: Sorry, the command is not available in this version: unlet $X",
+                "E488: Trailing characters: +1",
+            ]
+        );
+    }
+
+    #[test]
+    fn source_config_let_and_unlet_change_the_leader() {
+        use crate::keymap::KeyEvent;
+
+        let mut engine = VimEngine::new();
+        engine.source_config_text("let g:mapleader = ',' | let mapleader .= ','\n");
+        assert_eq!(
+            engine.leader_keys(),
+            [KeyEvent::char(','), KeyEvent::char(',')]
+        );
+        engine.source_config_text("unlet mapleader\nlet maplocalleader = 1\n");
+        assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
+        assert_eq!(engine.local_leader_keys(), [KeyEvent::char('1')]);
+    }
+
+    #[test]
+    fn a_typed_let_still_goes_to_the_host() {
+        let mut session = HostSession::new("a");
+        type_keys(&mut session, ":let g:x = 1<CR>");
+        let variables = session.engine().state().variable_store();
+        assert!(!variables.exists(crate::primitives::VarScope::Global, "x"));
     }
 
     #[test]

@@ -506,6 +506,126 @@ fn echo_stops_at_an_expression_that_fails() {
     assert_eq!(echoed("1 +"), ["E15: Invalid expression: \"1 +\""]);
 }
 
+// ── :let ──────────────────────────────────────────────────────────────
+
+#[test]
+fn let_reads_its_target_and_operator() {
+    // ex_let(), skip_var_one()
+    let variable = |scope, name, written| {
+        Target::Variable(Variable {
+            scope,
+            name,
+            written,
+        })
+    };
+    let cases = [
+        ("g:x = 1", variable(VarScope::Global, "x", "g:x"), None, "1"),
+        ("x.=1", variable(VarScope::Global, "x", "x"), Some('.'), "1"),
+        (
+            "x ..= 'a'",
+            variable(VarScope::Global, "x", "x"),
+            Some('.'),
+            "'a'",
+        ),
+        (
+            "b:y -= 2",
+            variable(VarScope::Buffer, "y", "b:y"),
+            Some('-'),
+            "2",
+        ),
+        (
+            "g:a#b %= 2",
+            variable(VarScope::Global, "a#b", "g:a#b"),
+            Some('%'),
+            "2",
+        ),
+        (
+            "&l:tw += 2",
+            Target::Option(OptionLayer::Local, "tw"),
+            Some('+'),
+            "2",
+        ),
+        (
+            "&g:ic = 1",
+            Target::Option(OptionLayer::Global, "ic"),
+            None,
+            "1",
+        ),
+        (
+            "&cms = x",
+            Target::Option(OptionLayer::Both, "cms"),
+            None,
+            "x",
+        ),
+    ];
+    for (arg, target, op, expr) in cases {
+        assert_eq!(
+            parse_let(arg),
+            Some(Assignment { target, op, expr }),
+            "{arg}"
+        );
+    }
+}
+
+#[test]
+fn let_forms_the_evaluator_lacks_are_none() {
+    for arg in [
+        "s:x = 1",
+        "w:x = 1",
+        "v:x = 1",
+        "version = 1",
+        "[a, b] = l",
+        "x =<< END",
+        "x",
+        "x y",
+        "@a = 1",
+        "$X = 1",
+        "x[0] = 1",
+        "d.k = 1",
+        "g: = 1",
+        "b:x#y = 1",
+        "{x} = 1",
+        "& = 1",
+    ] {
+        assert_eq!(parse_let(arg), None, "{arg}");
+    }
+}
+
+#[test]
+fn let_operators_follow_tv_op() {
+    let n = Value::Number;
+    let s = |t: &str| Value::String(t.to_owned());
+    assert_eq!(assign_op('+', &n(1), &n(2)), Ok(n(3)));
+    assert_eq!(assign_op('+', &s("2"), &n(3)), Ok(n(5)));
+    assert_eq!(assign_op('/', &n(7), &n(0)), Ok(n(i64::MAX)));
+    assert_eq!(assign_op('.', &n(5), &n(1)), Ok(s("51")));
+    assert_eq!(
+        assign_op('.', &s("a"), &Value::Bool(true)),
+        Ok(s("av:true"))
+    );
+    assert_eq!(
+        assign_op('*', &n(2), &Value::Float(1.5)),
+        Ok(Value::Float(3.0))
+    );
+    assert_eq!(
+        assign_op('-', &Value::Float(1.5), &s("1")),
+        Ok(Value::Float(0.5))
+    );
+    for (op, current, value) in [
+        ('.', n(1), Value::Float(1.5)),
+        ('%', Value::Float(1.5), n(1)),
+        ('.', Value::Float(1.5), s("x")),
+        ('+', n(1), Value::Bool(true)),
+        ('+', Value::Bool(true), n(1)),
+    ] {
+        assert_eq!(
+            assign_op(op, &current, &value),
+            Err(VimError::WrongVariableType(op)),
+            "{op} {current:?} {value:?}"
+        );
+    }
+}
+
 // ── where an expression ends ──────────────────────────────────────────
 
 /// A generated expression, and whether it is a single operand.

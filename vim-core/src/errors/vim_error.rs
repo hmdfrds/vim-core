@@ -258,6 +258,19 @@ pub enum VimError {
     /// its Vim error number.
     InvalidPattern(Box<str>),
 
+    /// E108: `:unlet` of a variable that does not exist. Carries its name.
+    NoSuchVariable(Box<str>),
+
+    /// E355: `:let` of an option that does not exist. Carries its name.
+    UnknownOptionToSet(Box<str>),
+
+    /// E734: Wrong variable type for an operator such as `.=`. Carries the
+    /// operator before the `=`.
+    WrongVariableType(char),
+
+    /// E928: String required.
+    StringRequired,
+
     // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
@@ -454,6 +467,10 @@ impl fmt::Display for VimError {
                 write!(f, "E1169: Expression too recursive: {rest}")
             }
             Self::InvalidPattern(message) => write!(f, "{message}"),
+            Self::NoSuchVariable(name) => write!(f, "E108: No such variable: \"{name}\""),
+            Self::UnknownOptionToSet(name) => write!(f, "E355: Unknown option: {name}"),
+            Self::WrongVariableType(op) => write!(f, "E734: Wrong variable type for {op}="),
+            Self::StringRequired => write!(f, "E928: String required"),
 
             // Macros
             Self::RecursiveMacro { register, depth } => {
@@ -592,6 +609,10 @@ mod tests {
             VimError::StringAsFloat,
             VimError::ExpressionTooRecursive("1)".into()),
             VimError::InvalidPattern("E54: Unmatched \\(".into()),
+            VimError::NoSuchVariable("x".into()),
+            VimError::UnknownOptionToSet("x".into()),
+            VimError::WrongVariableType('.'),
+            VimError::StringRequired,
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -836,6 +857,27 @@ mod tests {
                 VimError::InvalidPattern("E54: Unmatched \\(".into()),
                 "E54: Unmatched \\(",
             ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_assignment_errors() {
+        for (error, text) in [
+            (
+                VimError::NoSuchVariable("g:x".into()),
+                "E108: No such variable: \"g:x\"",
+            ),
+            (
+                VimError::UnknownOptionToSet("nosuch".into()),
+                "E355: Unknown option: nosuch",
+            ),
+            (
+                VimError::WrongVariableType('.'),
+                "E734: Wrong variable type for .=",
+            ),
+            (VimError::StringRequired, "E928: String required"),
         ] {
             assert_eq!(error.to_string(), text);
         }

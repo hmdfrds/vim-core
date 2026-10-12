@@ -180,6 +180,155 @@ pub(crate) fn evaluate(text: &str, env: &Env<'_>) -> Evaluated {
     }
 }
 
+/// The value of an option an expression or `:let` names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OptionLayer {
+    /// `&name`: the value in effect, and both values for `:let`.
+    Both,
+    /// `&l:name`.
+    Local,
+    /// `&g:name`.
+    Global,
+}
+
+/// What `:let` assigns to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Target<'a> {
+    Variable(Variable<'a>),
+    Option(OptionLayer, &'a str),
+}
+
+/// A `g:`, `b:` or plain variable that `:let` and `:unlet` can name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Variable<'a> {
+    pub(crate) scope: VarScope,
+    /// The name in its scope.
+    pub(crate) name: &'a str,
+    /// The name as written, scope included.
+    pub(crate) written: &'a str,
+}
+
+/// `:let {target} {op}= {expr}`, as `ex_let()` reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Assignment<'a> {
+    pub(crate) target: Target<'a>,
+    /// `+ - * / %` or `.` (for `.=` and `..=`) before the `=`, `None`
+    /// for `=` alone.
+    pub(crate) op: Option<char>,
+    pub(crate) expr: &'a str,
+}
+
+/// Read the argument of `:let`. `None` for a form the evaluator lacks: a
+/// List of variables, a heredoc, a listing of variables, a register, an
+/// environment variable, an `s:`, `w:`, `t:`, `l:`, `a:` or `v:`
+/// variable, or a subscript.
+pub(crate) fn parse_let(arg: &str) -> Option<Assignment<'_>> {
+    let (target, end) = if arg.starts_with('&') {
+        let (layer, name, end) = option_name(arg, 0)?;
+        (Target::Option(layer, arg.get(name)?), end)
+    } else {
+        let (variable, end) = variable_name(arg)?;
+        // A List item or a Dictionary member.
+        let bytes = arg.as_bytes();
+        let member = bytes.get(end) == Some(&b'.')
+            && bytes
+                .get(end + 1)
+                .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_');
+        if bytes.get(end) == Some(&b'[') || member {
+            return None;
+        }
+        (Target::Variable(variable), end)
+    };
+    let rest = arg.get(skip_blanks(arg, end)..)?;
+    let (op, len) = match rest.as_bytes() {
+        [b'=', b'<', b'<', ..] => return None,
+        [b'=', ..] => (None, 1),
+        [b'.', b'.', b'=', ..] => (Some('.'), 3),
+        [c @ (b'+' | b'-' | b'*' | b'/' | b'%' | b'.'), b'=', ..] => (Some(char::from(*c)), 2),
+        _ => return None,
+    };
+    let expr = rest.get(len..)?;
+    Some(Assignment {
+        target,
+        op,
+        expr: expr.get(skip_blanks(expr, 0)..)?,
+    })
+}
+
+/// The variable named at the start of `text` and the end of its name,
+/// for `:let` and `:unlet`: `g:`, `b:` or plain; not another scope, nor
+/// `version`, which is `v:version`.
+pub(crate) fn variable_name(text: &str) -> Option<(Variable<'_>, usize)> {
+    let (end, curly) = name_end(text, 0);
+    let written = text.get(..end)?;
+    if curly || end == 0 || written.starts_with('<') || written == "version" {
+        return None;
+    }
+    let (scope, name) = match written.as_bytes() {
+        [b'g', b':', ..] => (VarScope::Global, written.get(2..)?),
+        [b'b', b':', ..] => (VarScope::Buffer, written.get(2..)?),
+        [_, b':', ..] => return None,
+        _ => (VarScope::Global, written),
+    };
+    // A `#` or `:` belongs only in a global name.
+    if name.is_empty() || (scope == VarScope::Buffer && name.contains([':', '#'])) {
+        return None;
+    }
+    Some((
+        Variable {
+            scope,
+            name,
+            written,
+        },
+        end,
+    ))
+}
+
+/// `{var} {op}= {value}`, as `tv_op()` computes it: `+ - * / %` on
+/// Numbers and Floats, `.` on Strings. Any other mix is E734.
+pub(crate) fn assign_op(op: char, current: &Value, value: &Value) -> Result<Value, VimError> {
+    let wrong = || VimError::WrongVariableType(op);
+    let number = |v: &Value| match v {
+        Value::Float(_) => 0,
+        other => other.number().unwrap_or(0),
+    };
+    match (current, value) {
+        (Value::Bool(_), _) => Err(wrong()),
+        (_, Value::Bool(_)) if op != '.' => Err(wrong()),
+        (Value::Float(_), _) | (_, Value::Float(_)) if matches!(op, '%' | '.') => Err(wrong()),
+        (Value::Float(f), rhs) => {
+            let g = match rhs {
+                Value::Float(g) => *g,
+                other => number_float(number(other)),
+            };
+            Ok(Value::Float(float_op(op, *f, g)))
+        }
+        (lhs, Value::Float(g)) => Ok(Value::Float(float_op(op, number_float(number(lhs)), *g))),
+        (lhs, rhs) if op == '.' => Ok(Value::String(format!("{}{}", lhs.text(), rhs.text()))),
+        (lhs, rhs) => Ok(Value::Number(number_op(op, number(lhs), number(rhs)))),
+    }
+}
+
+/// `{a} {op} {b}` on Numbers, wrapping, with Vim's division by zero.
+pub(crate) const fn number_op(op: char, a: i64, b: i64) -> i64 {
+    match op {
+        '+' => a.wrapping_add(b),
+        '-' => a.wrapping_sub(b),
+        '*' => a.wrapping_mul(b),
+        '/' => num_divide(a, b),
+        _ => num_modulus(a, b),
+    }
+}
+
+fn float_op(op: char, a: f64, b: f64) -> f64 {
+    match op {
+        '+' => a + b,
+        '-' => a - b,
+        '*' => a * b,
+        _ => a / b,
+    }
+}
+
 /// What `:echo` shows, in order.
 #[derive(Debug, PartialEq)]
 pub(crate) enum Echoed {
@@ -812,11 +961,11 @@ impl<'a> Parser<'a> {
         let rest_is_blank = |end: usize| skip_blanks(arg, end) == arg.len();
         match arg.as_bytes().first() {
             Some(b'&' | b'+') => {
-                let Some((global, name, end)) = option_name(arg, 0) else {
+                let Some((layer, name, end)) = option_name(arg, 0) else {
                     return 0;
                 };
                 let name = arg.get(name).unwrap_or_default();
-                i64::from(self.option_value(global, name).is_some() && rest_is_blank(end))
+                i64::from(self.option_value(layer, name).is_some() && rest_is_blank(end))
             }
             Some(b'*') => {
                 let (end, curly) = name_end(arg, 1);
@@ -831,7 +980,7 @@ impl<'a> Parser<'a> {
             Some(_) => {
                 let (end, curly) = name_end(arg, 0);
                 let name = arg.get(..end).unwrap_or_default();
-                let found = !curly && end > 0 && !matches!(self.variable(name), Variable::Missing);
+                let found = !curly && end > 0 && !matches!(self.variable(name), Lookup::Missing);
                 i64::from(found && rest_is_blank(end))
             }
         }
@@ -913,7 +1062,7 @@ impl<'a> Parser<'a> {
 
     /// `&name`, `&g:name` or `&l:name`, as `eval_option()` reads it.
     fn option(&mut self, ev: bool) -> Result<Value, Fail> {
-        let Some((global, name, end)) = option_name(self.text, self.pos) else {
+        let Some((layer, name, end)) = option_name(self.text, self.pos) else {
             let rest = self.rest();
             return self.fail(VimError::OptionNameMissing(rest.into()));
         };
@@ -922,7 +1071,7 @@ impl<'a> Parser<'a> {
             return Ok(Value::Number(0));
         }
         let name = self.slice(name);
-        match self.option_value(global, name) {
+        match self.option_value(layer, name) {
             Some(OptionValue::Bool(on)) => Ok(Value::Number(i64::from(on))),
             Some(OptionValue::Unsigned(n)) => {
                 Ok(Value::Number(i64::try_from(n).unwrap_or(i64::MAX)))
@@ -933,8 +1082,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn option_value(&self, global: bool, name: &str) -> Option<OptionValue> {
-        let options = if global {
+    fn option_value(&self, layer: OptionLayer, name: &str) -> Option<OptionValue> {
+        let options = if layer == OptionLayer::Global {
             self.env.global_options
         } else {
             self.env.options
@@ -999,11 +1148,11 @@ impl<'a> Parser<'a> {
         let value = if ev {
             let name = self.slice(start..end);
             match self.variable(name) {
-                Variable::Found(value) => value,
-                Variable::Missing => {
+                Lookup::Found(value) => value,
+                Lookup::Missing => {
                     return self.fail(VimError::UndefinedVariable(name.into()));
                 }
-                Variable::Unsupported => return self.unsupported(),
+                Lookup::Unsupported => return self.unsupported(),
             }
         } else {
             Value::Number(0)
@@ -1014,32 +1163,30 @@ impl<'a> Parser<'a> {
     /// A variable by its name as written, as `eval_variable()` finds it at
     /// the script level: a plain name is global, `version` is
     /// `v:version`.
-    fn variable(&self, name: &str) -> Variable {
+    fn variable(&self, name: &str) -> Lookup {
         let bytes = name.as_bytes();
         let (scope, rest) = match (bytes.first(), bytes.get(1)) {
             (Some(&scope), Some(b':')) => (Some(scope), name.get(2..).unwrap_or_default()),
             _ => (None, name),
         };
         let store = |scope: VarScope, rest: &str| match self.env.variables.get(scope, rest) {
-            Some(value) => {
-                Value::from_variable(value).map_or(Variable::Unsupported, Variable::Found)
-            }
-            None => Variable::Missing,
+            Some(value) => Value::from_variable(value).map_or(Lookup::Unsupported, Lookup::Found),
+            None => Lookup::Missing,
         };
         match scope {
             // The dictionary of a scope.
-            Some(_) if rest.is_empty() => Variable::Unsupported,
+            Some(_) if rest.is_empty() => Lookup::Unsupported,
             Some(b'g') => store(VarScope::Global, rest),
             Some(b'b') if !rest.contains([':', '#']) => store(VarScope::Buffer, rest),
             Some(b'v') => match rest {
-                "version" => Variable::Found(Value::Number(VERSION)),
-                "versionlong" => Variable::Found(Value::Number(VERSION_LONG)),
-                "true" => Variable::Found(Value::Bool(true)),
-                "false" => Variable::Found(Value::Bool(false)),
-                _ => Variable::Missing,
+                "version" => Lookup::Found(Value::Number(VERSION)),
+                "versionlong" => Lookup::Found(Value::Number(VERSION_LONG)),
+                "true" => Lookup::Found(Value::Bool(true)),
+                "false" => Lookup::Found(Value::Bool(false)),
+                _ => Lookup::Missing,
             },
-            Some(_) => Variable::Missing,
-            None if name == "version" => Variable::Found(Value::Number(VERSION)),
+            Some(_) => Lookup::Missing,
+            None if name == "version" => Lookup::Found(Value::Number(VERSION)),
             None => store(VarScope::Global, name),
         }
     }
@@ -1198,7 +1345,7 @@ impl<'a> Parser<'a> {
 }
 
 /// What a variable name finds.
-enum Variable {
+enum Lookup {
     Found(Value),
     Missing,
     /// A value the evaluator does not have, such as a List.
@@ -1243,21 +1390,18 @@ fn name_end(text: &str, start: usize) -> (usize, bool) {
 }
 
 /// The option name after the `&` or `+` at `at`, as `find_option_end()`
-/// finds it: whether `g:` asks for the global value, the name, and the end.
-fn option_name(text: &str, at: usize) -> Option<(bool, Range<usize>, usize)> {
+/// finds it: the value it names, the name, and the end.
+fn option_name(text: &str, at: usize) -> Option<(OptionLayer, Range<usize>, usize)> {
     let bytes = text.as_bytes();
     let mut p = at + 1;
-    let global = match bytes.get(p..p + 2) {
-        Some(b"g:") => {
-            p += 2;
-            true
-        }
-        Some(b"l:") => {
-            p += 2;
-            false
-        }
-        _ => false,
+    let layer = match bytes.get(p..p + 2) {
+        Some(b"g:") => OptionLayer::Global,
+        Some(b"l:") => OptionLayer::Local,
+        _ => OptionLayer::Both,
     };
+    if layer != OptionLayer::Both {
+        p += 2;
+    }
     if !bytes.get(p).is_some_and(u8::is_ascii_alphabetic) {
         return None;
     }
@@ -1273,7 +1417,7 @@ fn option_name(text: &str, at: usize) -> Option<(bool, Range<usize>, usize)> {
             p += 1;
         }
     }
-    Some((global, start..p, p))
+    Some((layer, start..p, p))
 }
 
 /// Whether `name` is a function that can be called.
