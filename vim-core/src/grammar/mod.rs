@@ -93,6 +93,7 @@ pub mod command;
 pub mod command_line_intent;
 pub mod command_meta;
 pub mod ex_parser;
+mod ex_split;
 pub mod handlers;
 pub mod hints;
 pub mod input_state;

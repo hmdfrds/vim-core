@@ -152,6 +152,10 @@ pub enum VimError {
     /// E168: `:finish` used outside of a sourced file.
     FinishOutsideSource,
 
+    /// E488: Trailing characters, such as text after the flags of `:s`.
+    /// Carries the text.
+    TrailingCharacters(Box<str>),
+
     // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
@@ -300,6 +304,7 @@ impl fmt::Display for VimError {
             Self::FinishOutsideSource => {
                 write!(f, "E168: :finish used outside of a sourced file")
             }
+            Self::TrailingCharacters(text) => write!(f, "E488: Trailing characters: {text}"),
 
             // Macros
             Self::RecursiveMacro { register, depth } => {
@@ -408,6 +413,7 @@ mod tests {
             VimError::NoRangeAllowed,
             VimError::NotAvailable("source!".into()),
             VimError::FinishOutsideSource,
+            VimError::TrailingCharacters("x".into()),
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -534,6 +540,14 @@ mod tests {
         assert_eq!(
             VimError::NotAvailable("source!".into()).to_string(),
             "E319: Sorry, the command is not available in this version: source!"
+        );
+    }
+
+    #[test]
+    fn display_trailing_characters() {
+        assert_eq!(
+            VimError::TrailingCharacters("x | set ic".into()).to_string(),
+            "E488: Trailing characters: x | set ic"
         );
     }
 

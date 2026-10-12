@@ -9715,6 +9715,30 @@ fn undojoin_abbreviated_activates_undo_tree_merge() {
     );
 }
 
+// ─── :split on the command line ───────────────────────────────────
+
+#[test]
+fn a_typed_split_takes_a_backslash_bar_as_a_file_and_a_quote_as_a_comment() {
+    use crate::execution::host::HostRequest;
+
+    // Vim's `:split` opens `|x` and has no argument before the comment;
+    // neither splits the cursors at a pattern.
+    for (line, path) in [("sp \\|x", Some("|x")), ("sp \"x\"", None)] {
+        let mut engine = VimEngine::new();
+        let doc = SimpleDocument::new("|x \"x\"");
+        type_command_line(&mut engine, &doc, line);
+        let response = process_key(&mut engine, &doc, KeyEvent::enter());
+        assert!(
+            has_host_request(&response, |r| matches!(
+                r,
+                HostRequest::SplitWindow { path: p, .. } if p.as_deref() == path
+            )),
+            ":{line}: {:?}",
+            response.host_requests()
+        );
+    }
+}
+
 // ─── last_ex_for_dot wiring ───────────────────────────────────────
 
 #[test]

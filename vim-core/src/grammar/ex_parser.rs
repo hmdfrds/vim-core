@@ -69,7 +69,7 @@ fn modifier_min_len(full: &str) -> usize {
 
 /// Strip modifier keyword prefixes from the input, returning accumulated
 /// flags and the remaining unparsed input.
-fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
+pub(super) fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
     let mut flags = ModifierFlags::empty();
     let mut rest = input;
 
@@ -134,18 +134,13 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
 
     // Repeat-substitute commands: `:&` and `:&&`.
     // Must be checked before the named-command path since `&` is not alphabetic.
-    if rest.starts_with("&&") {
-        // `:&&` — repeat last substitute keeping same flags.
+    if let Some(after) = rest.strip_prefix('&') {
+        // `:&&` keeps the flags of the last substitute, `:&` drops them.
+        let after = after.trim_start_matches([' ', '\t']);
+        substitute_flags(after)?;
         return Ok(ExCommand::RepeatSubstitute {
             range,
-            use_previous_flags: true,
-        });
-    }
-    if rest.starts_with('&') {
-        // `:&` — repeat last substitute with no flags.
-        return Ok(ExCommand::RepeatSubstitute {
-            range,
-            use_previous_flags: false,
+            use_previous_flags: after.starts_with('&'),
         });
     }
 
@@ -153,7 +148,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     if let Some(flags_str) = rest.strip_prefix('~') {
         return Ok(ExCommand::SubTilde {
             range: range.unwrap_or_else(ExRange::current_line),
-            flags: SubFlags::parse(flags_str.trim()),
+            flags: substitute_flags(flags_str.trim_start_matches([' ', '\t']))?,
         });
     }
 
@@ -242,18 +237,6 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     let (head, tail) = split_head(rest);
     let force = head.ends_with('!');
     let name = head.trim_end_matches('!');
-
-    // Strip trailing comments for commands that allow them.
-    // Commands with TRLBAR (but not NOTRLCOM) treat `" ...` as a comment.
-    let tail = if let Some(meta) = command_meta::meta_for_command(name) {
-        if meta.allows_trailing_comment() {
-            command_meta::strip_trailing_comment(tail)
-        } else {
-            tail
-        }
-    } else {
-        tail
-    };
 
     let has_range = range.is_some();
     // Pre-compute read's after_line before consuming range (borrows only).
@@ -754,30 +737,21 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     // ── Iterator commands (:windo, :bufdo, :tabdo) ───────────────────
     } else if matches_abbrev(name, "windo", "windo") {
         let nested = tail.trim();
-        if nested.is_empty() {
-            return Err(VimError::ArgumentRequired);
-        }
-        let command = parse_ex_command(nested)?;
+        let command = parse_first_command(nested)?;
         Ok(ExCommand::WinDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
         })
     } else if matches_abbrev(name, "bufdo", "bufdo") {
         let nested = tail.trim();
-        if nested.is_empty() {
-            return Err(VimError::ArgumentRequired);
-        }
-        let command = parse_ex_command(nested)?;
+        let command = parse_first_command(nested)?;
         Ok(ExCommand::BufDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
         })
     } else if matches_abbrev(name, "tabdo", "tabdo") {
         let nested = tail.trim();
-        if nested.is_empty() {
-            return Err(VimError::ArgumentRequired);
-        }
-        let command = parse_ex_command(nested)?;
+        let command = parse_first_command(nested)?;
         Ok(ExCommand::TabDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
@@ -811,6 +785,16 @@ fn parse_script_command(rest: &str) -> Option<ExCommand> {
         kind,
         argument: argument.trim_matches([' ', '\t']).into(),
     })
+}
+
+/// The first command of `text`, the argument of `:windo`, `:bufdo` or
+/// `:tabdo`, which the host runs as a whole command line.
+fn parse_first_command(text: &str) -> Result<ExCommand, VimError> {
+    let first = split_ex_pipeline(text)
+        .into_iter()
+        .next()
+        .ok_or(VimError::ArgumentRequired)?;
+    parse_ex_command(&first)
 }
 
 fn read_after_line(range: Option<&ExRange>) -> Option<u32> {
@@ -1020,8 +1004,26 @@ fn parse_substitute(input: &str, range: ExRange) -> Result<ExCommand, VimError> 
         range,
         pattern: CompactString::from(pattern),
         replacement: CompactString::from(replacement),
-        flags: SubFlags::parse(flags.trim()),
+        flags: substitute_flags(flags)?,
     })
+}
+
+/// The flags and count after the pattern and replacement of `:s`, `:&` or
+/// `:~`, as `ex_substitute()` reads them: other text after them, except a
+/// `"` comment or a `|`, is E488.
+fn substitute_flags(text: &str) -> Result<SubFlags, VimError> {
+    let first = usize::from(text.starts_with('&'));
+    let flags_end = text[first..]
+        .find(|c: char| !"gcneriI#lp".contains(c))
+        .map_or(text.len(), |at| first + at);
+    let rest = text[flags_end..]
+        .trim_start_matches([' ', '\t'])
+        .trim_start_matches(|c: char| c.is_ascii_digit())
+        .trim_start_matches([' ', '\t']);
+    if !rest.is_empty() && !rest.starts_with(['"', '|', '\n']) {
+        return Err(VimError::TrailingCharacters(rest.into()));
+    }
+    Ok(SubFlags::parse(&text[..flags_end]))
 }
 
 fn parse_global(input: &str, invert: bool, range: ExRange) -> Result<ExCommand, VimError> {
@@ -1902,192 +1904,25 @@ fn parse_unabbreviate_command(args: &str, mode: AbbrevMode) -> Result<ExCommand,
     })
 }
 
-/// Split an ex command line into individual commands separated by `|`, as
-/// Vim's `:bar` rules do.
+/// Split an Ex command line into its commands, as Vim does.
 ///
-/// The `|` character does NOT split:
-/// - inside regex patterns delimited by `/` or `?`;
-/// - when a backslash comes before it: `\|` is a literal `|` and the
-///   backslash is dropped;
-/// - in the rest of the line after a command that takes `|` as part of
-///   its argument: `:normal`, `:windo`, `:bufdo`, `:tabdo`, `:!`, `:r !`,
-///   `:w !`, and commands the engine does not know, which Vim user commands
-///   and `:autocmd`, `:command` and `:function` are.
+/// Where a command ends follows Vim's command table (`ex_cmds.h`): most
+/// commands end at a `|` or at a `"` comment, an expression command such as
+/// `:echo` or `:let` after its expression (`:echo "a|b"` is one command),
+/// `:s` and `:g` after their pattern, and commands such as `:normal`,
+/// `:windo`, `:!` and unknown ones take the rest of the line, `|` included.
 ///
-/// Returns a `Vec` of individual command strings (trimmed).
+/// Each command comes back with its text as Vim leaves it: a comment is
+/// gone, a backslash before `|` or `"` is dropped (`\\|` leaves `\|`), a
+/// Ctrl-V is dropped except for mappings and file names, and trailing blanks
+/// go unless the command keeps them, as a mapping does. An empty command,
+/// as after `set ic |`, is left out.
+///
+/// [`parse_ex_command`] and [`parse_ex_command_with_modifiers`] take one of
+/// these commands; they do not split or strip comments themselves.
 #[must_use]
 pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
-    let mut commands = Vec::new();
-    let bytes = input.as_bytes();
-    let mut start = 0;
-    'segments: loop {
-        let rest = input[start..].trim_start();
-        let head = segment_head(rest);
-        if !rest.starts_with('|') && (bar_is_argument(head) || ends_in_comment(head)) {
-            push_segment(&mut commands, input, start..input.len(), &[]);
-            return commands;
-        }
-        let cmd_start = command_start(input, start);
-        let mut escapes = Vec::new();
-        let mut i = start;
-        while let Some(&byte) = bytes.get(i) {
-            match byte {
-                b'|' if i > start && bytes.get(i - 1) == Some(&b'\\') => escapes.push(i - 1),
-                b'|' => {
-                    push_segment(&mut commands, input, start..i, &escapes);
-                    start = i + 1;
-                    continue 'segments;
-                }
-                _ => {
-                    // Check if we're at the start of a command that uses
-                    // delimited arguments (s, g, v followed by a non-alnum).
-                    // If so, skip past all its delimiters to avoid splitting
-                    // on `|` embedded inside patterns/replacements.
-                    if let Some(new_i) = skip_delimited_command(bytes, cmd_start, i) {
-                        i = new_i;
-                    }
-                }
-            }
-            i += 1;
-        }
-        push_segment(&mut commands, input, start..input.len(), &escapes);
-        return commands;
-    }
-}
-
-/// The text before the first `|`, trimmed. A known command whose argument
-/// parser rejects `| ...` falls back to `Custom`, so only the head may
-/// decide what the command is.
-fn segment_head(rest: &str) -> &str {
-    rest.split('|').next().unwrap_or(rest).trim()
-}
-
-/// Whether the command `head` starts with takes the rest of the line, `|`
-/// included, as its argument.
-fn bar_is_argument(head: &str) -> bool {
-    match parse_ex_command(head) {
-        Ok(
-            ExCommand::Norm { .. }
-            | ExCommand::WinDo { .. }
-            | ExCommand::BufDo { .. }
-            | ExCommand::TabDo { .. }
-            | ExCommand::External { .. }
-            | ExCommand::Filter { .. }
-            | ExCommand::Custom { .. },
-        ) => true,
-        Ok(ExCommand::Read { path, .. }) => path.starts_with('!'),
-        Ok(ExCommand::Write {
-            path: Some(path), ..
-        }) => path.starts_with('!'),
-        _ => false,
-    }
-}
-
-/// Whether `head` ends in a `"` comment, which runs to the end of the line,
-/// `|` included, after a command that allows one (Vim's `separate_nextcmd`).
-fn ends_in_comment(head: &str) -> bool {
-    let (_, command) = parse_modifier_prefixes(head);
-    let Ok((_, command)) = parse_optional_range(command) else {
-        return false;
-    };
-    let (name, args) = split_head(command);
-    command_meta::meta_for_command(name.trim_end_matches('!'))
-        .is_some_and(|meta| meta.allows_trailing_comment())
-        && command_meta::strip_trailing_comment(args).len() < args.len()
-}
-
-/// Push `input[range]` trimmed, without the backslashes at `escapes`, unless
-/// it is empty.
-fn push_segment<'a>(
-    commands: &mut Vec<Cow<'a, str>>,
-    input: &'a str,
-    range: std::ops::Range<usize>,
-    escapes: &[usize],
-) {
-    let raw = &input[range.clone()];
-    let start = range.start + (raw.len() - raw.trim_start().len());
-    let end = range.end - (raw.len() - raw.trim_end().len());
-    if start >= end {
-        return;
-    }
-    if escapes.is_empty() {
-        commands.push(Cow::Borrowed(&input[start..end]));
-        return;
-    }
-    let mut owned = String::with_capacity(end - start);
-    let mut from = start;
-    for &at in escapes {
-        owned.push_str(&input[from..at]);
-        from = at + 1;
-    }
-    owned.push_str(&input[from..end]);
-    commands.push(Cow::Owned(owned));
-}
-
-/// Where the command name of the segment at `start` begins: after colons,
-/// command modifiers and range prefixes (digits, `.`, `$`, `%`, marks, `+`,
-/// `-`, `,`, `;`, whitespace).
-fn command_start(input: &str, start: usize) -> usize {
-    let (_, command) = parse_modifier_prefixes(&input[start..]);
-    let bytes = input.as_bytes();
-    // Bytes, not str slices: a mark can be a multi-byte character.
-    let mut j = input.len() - command.len();
-    while let Some(&byte) = bytes.get(j) {
-        match byte {
-            b'0'..=b'9' | b'.' | b'$' | b'%' | b',' | b';' | b'+' | b'-' => j += 1,
-            b if b.is_ascii_whitespace() => j += 1,
-            b'\'' if j + 1 < bytes.len() => j += 2, // mark 'x
-            // The rest of a mark that is a multi-byte character.
-            0x80..=0xBF => j += 1,
-            _ => break,
-        }
-    }
-    j
-}
-
-/// If position `i` is the command letter of `s`, `g`, or `v` followed by a
-/// delimiter, skip past all the delimited fields. Returns the new scan
-/// position (pointing at the last consumed character), or `None` if this
-/// is not a delimited command.
-fn skip_delimited_command(bytes: &[u8], cmd_start: usize, i: usize) -> Option<usize> {
-    if i != cmd_start {
-        return None;
-    }
-
-    let cmd = bytes[i];
-    // s/g/v must be followed by a non-alphanumeric, non-underscore delimiter.
-    let next = bytes.get(i + 1)?;
-    if next.is_ascii_alphanumeric() || *next == b'_' {
-        return None;
-    }
-
-    let delim = *next;
-    let delim_count = match cmd {
-        b's' => 3,        // s{d}pattern{d}replacement{d}
-        b'g' | b'v' => 2, // g{d}pattern{d}  (the nested command follows)
-        _ => return None,
-    };
-
-    // Skip past `delim_count` unescaped delimiters starting from the first one.
-    let mut pos = i + 1; // at the first delimiter
-    let mut seen = 0;
-    while pos < bytes.len() && seen < delim_count {
-        if bytes[pos] == delim {
-            seen += 1;
-        } else if bytes[pos] == b'\\' && pos + 1 < bytes.len() {
-            pos += 1; // skip escaped char
-        }
-        pos += 1;
-    }
-
-    if seen >= delim_count {
-        // pos is now just past the last delimiter. Back up by 1 because
-        // the outer loop will do i += 1.
-        Some(pos - 1)
-    } else {
-        // Fewer delimiters than expected -- consume to where we got.
-        Some(pos.saturating_sub(1))
-    }
+    super::ex_split::split(input)
 }
 
 #[cfg(test)]

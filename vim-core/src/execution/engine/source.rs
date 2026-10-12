@@ -10,7 +10,7 @@ use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::execution::executor_ex::{self, SetScope};
 use crate::execution::{ExecutionContext, InputContext};
-use crate::grammar::parse_ex_command_with_modifiers;
+use crate::grammar::{parse_ex_command_with_modifiers, split_ex_pipeline};
 use crate::primitives::{Offset, Position};
 use compact_str::CompactString;
 
@@ -70,7 +70,7 @@ impl super::VimEngine {
 
     /// Run one config line: each of its `|` commands in turn, until one fails.
     fn source_config_line(&mut self, line: &str, response: &mut Response) {
-        for command in executor_ex::split_ex_line(line) {
+        for command in split_ex_pipeline(line) {
             let (modifiers, parsed) = match parse_ex_command_with_modifiers(&command) {
                 Ok(parsed) => parsed,
                 Err(err) => {
@@ -234,6 +234,20 @@ mod tests {
         let session = sourced("", "set tw=33  \" wrap | set ic\n");
         assert_eq!(session.options().textwidth(), 33);
         assert!(!session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_ends_each_command_where_vim_s_table_says() {
+        let mut engine = VimEngine::new();
+        let config = "filetype plugin indent on | set ic\necho \"a|b\" | set tw=33\n\
+                      nnoremap x y | set et\n";
+        let response = engine.source_config_text(config);
+        assert!(engine.options().ignorecase());
+        assert_eq!(engine.options().textwidth(), 33);
+        assert!(engine.options().expandtab());
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+        let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
+        assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
     }
 
     #[test]

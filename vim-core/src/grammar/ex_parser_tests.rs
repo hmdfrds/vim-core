@@ -3,6 +3,13 @@ use crate::grammar::types::{ModifierFlags, ZWindowStyle};
 use crate::keymap::{MappingFlags, MappingKind};
 use crate::primitives::AbbrevMode;
 
+/// Parse `line`, which the splitter must leave as one command.
+fn parse_piece(line: &str) -> ExCommand {
+    let pieces = split_ex_pipeline(line);
+    assert_eq!(pieces.len(), 1, "{line:?} is {pieces:?}");
+    parse_ex_command(&pieces[0]).unwrap()
+}
+
 #[test]
 fn parses_write_and_quit() {
     let write = parse_ex_command("w! /tmp/x").unwrap();
@@ -33,6 +40,25 @@ fn parses_substitute() {
     match cmd {
         ExCommand::Substitute { flags, .. } => assert!(flags.global()),
         other => panic!("expected Substitute, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_substitute_flags_and_count_as_ex_substitute_does() {
+    let cmd = parse_ex_command("s/a/b/gi 3").unwrap();
+    assert!(matches!(cmd, ExCommand::Substitute { flags, .. } if flags.global()));
+    // Other text after the flags and count is E488.
+    for (line, rest) in [
+        ("s/o/0/x | set ic", "x | set ic"),
+        ("s/a/b/ g", "g"),
+        ("~x", "x"),
+        ("&& c", "c"),
+    ] {
+        assert_eq!(
+            parse_ex_command(line).unwrap_err(),
+            VimError::TrailingCharacters(rest.into()),
+            "{line}"
+        );
     }
 }
 
@@ -132,7 +158,7 @@ fn parses_source_command() {
 fn bare_source_leaves_the_file_to_the_host() {
     for input in ["source", "so", "so  ", "source \" comment"] {
         assert_eq!(
-            parse_ex_command(input).unwrap(),
+            parse_piece(input),
             ExCommand::Source { path: None },
             "{input:?}"
         );
@@ -148,7 +174,7 @@ fn source_trims_the_path_and_keeps_it_unexpanded() {
         }
     );
     assert_eq!(
-        parse_ex_command("source ~/x.vim \" comment").unwrap(),
+        parse_piece("source ~/x.vim \" comment"),
         ExCommand::Source {
             path: Some("~/x.vim".into())
         }
@@ -3526,8 +3552,9 @@ fn pipeline_skips_empty_segments() {
 fn pipeline_backslash_bar_is_a_literal_bar() {
     let cmds = split_ex_pipeline("nnoremap x :echo 1 \\| echo 2<CR>");
     assert_eq!(cmds, vec!["nnoremap x :echo 1 | echo 2<CR>"]);
+    // A mapping keeps the blank before the bar (`EX_NOTRLCOM`).
     let cmds = split_ex_pipeline("nnoremap x a\\|b | set et");
-    assert_eq!(cmds, vec!["nnoremap x a|b", "set et"]);
+    assert_eq!(cmds, vec!["nnoremap x a|b ", "set et"]);
 }
 
 #[test]
@@ -3600,12 +3627,362 @@ fn pipeline_finds_the_pattern_after_modifiers_and_colons() {
 
 #[test]
 fn pipeline_keeps_a_bar_inside_a_trailing_comment() {
-    for line in ["set tw=80  \" wrap | set ic", "sil noh \" a | b", "w \"| q"] {
-        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    // The comment, `|` included, is gone, as separate_nextcmd() ends the
+    // command at it.
+    for (line, command) in [
+        ("set tw=80  \" wrap | set ic", "set tw=80"),
+        ("sil noh \" a | b", "sil noh"),
+        ("w \"| q", "w"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![command], "{line}");
     }
     // `"` is part of a mapping, so the bar still ends it.
     let cmds = split_ex_pipeline("nnoremap x y \" z | set ic");
-    assert_eq!(cmds, vec!["nnoremap x y \" z", "set ic"]);
+    assert_eq!(cmds, vec!["nnoremap x y \" z ", "set ic"]);
+}
+
+#[test]
+fn pipeline_ends_trlbar_commands_at_a_bar_as_ex_cmds_h_says() {
+    // `EX_TRLBAR` commands the parser leaves to the host.
+    for (line, first) in [
+        ("filetype on | set ic", "filetype on"),
+        ("pwd | set ic", "pwd"),
+        ("syntax on|set ic", "syntax on"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_ends_an_expression_after_it_as_eval0_retarg_does() {
+    for line in [
+        "echo \"a|b\"",
+        "let mapleader = \"|\"",
+        "let x = 1 \" c | set ic",
+        // `ex_echo()`: a second `"` opens another string.
+        "echo \"a\" \" c | x",
+        "echo 'it''s|' 'x'",
+    ] {
+        assert_eq!(split_ex_pipeline(line).len(), 1, "{line}");
+    }
+    for (line, first) in [
+        ("echo \"a\" \"b|c\" | set ic", "echo \"a\" \"b|c\""),
+        ("call F('|') | set ic", "call F('|')"),
+        ("if a || b | set ic", "if a || b"),
+        ("if a && \"|\" | set ic", "if a && \"|\""),
+        ("if a && &ic | set ic", "if a && &ic"),
+        ("let x = [1, '|'] | set ic", "let x = [1, '|']"),
+        ("echo @\" | set ic", "echo @\""),
+        ("if &ic | set ic", "if &ic"),
+        ("for x in range(3) | set ic", "for x in range(3)"),
+        ("unlet g:x | set ic", "unlet g:x"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+    assert_eq!(
+        split_ex_pipeline("let x = 1 \" c | set ic"),
+        vec!["let x = 1"]
+    );
+}
+
+#[test]
+fn pipeline_keeps_a_ctrl_v_bar_as_separate_nextcmd_does() {
+    // Kept with the bar for a mapping (`EX_CTRLV`), dropped for `:set`.
+    assert_eq!(
+        split_ex_pipeline("nnoremap x a\u{16}|b"),
+        vec!["nnoremap x a\u{16}|b"]
+    );
+    assert_eq!(split_ex_pipeline("set ic\u{16}|x"), vec!["set ic|x"]);
+}
+
+#[test]
+fn pipeline_comment_needs_no_blank_before_it() {
+    for line in ["set tw=20 \" c | set ic", "set tw=20\" c | set ic"] {
+        assert_eq!(split_ex_pipeline(line), vec!["set tw=20"], "{line}");
+    }
+    // A backslash makes it part of the argument.
+    assert_eq!(split_ex_pipeline("set tw=20\\\" c"), vec!["set tw=20\" c"]);
+}
+
+#[test]
+fn pipeline_trims_trailing_blanks_unless_the_command_keeps_them() {
+    assert_eq!(
+        split_ex_pipeline("nnoremap x y | set ic"),
+        vec!["nnoremap x y ", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("set tw=1 | set ic"),
+        vec!["set tw=1", "set ic"]
+    );
+    // `del_trailing_spaces()` keeps a blank after a backslash.
+    assert_eq!(split_ex_pipeline("e foo\\  "), vec!["e foo\\ "]);
+    assert_eq!(split_ex_pipeline("normal ihi  "), vec!["normal ihi  "]);
+}
+
+#[test]
+fn pipeline_two_backslashes_leave_one_before_the_bar() {
+    assert_eq!(
+        split_ex_pipeline("nnoremap x a\\\\|b"),
+        vec!["nnoremap x a\\|b"]
+    );
+}
+
+#[test]
+fn pipeline_leaves_out_empty_commands_and_comments() {
+    assert_eq!(split_ex_pipeline("set ic |"), vec!["set ic"]);
+    assert_eq!(split_ex_pipeline("set ic | \" note"), vec!["set ic"]);
+    assert!(split_ex_pipeline("#!/usr/bin/vim").is_empty());
+    assert!(split_ex_pipeline("\" a | b").is_empty());
+    // "#!" is a comment only at the very start of a command.
+    assert_eq!(split_ex_pipeline("set ic |#!x | set et"), vec!["set ic"]);
+    // A comment after modifiers ends at a newline.
+    assert_eq!(split_ex_pipeline("sil \" a\nset ic"), vec!["set ic"]);
+}
+
+#[test]
+fn pipeline_gives_these_commands_the_rest_of_the_line() {
+    for line in [
+        "normal ihello|world",
+        "autocmd FileType x setlocal et | setlocal sw=4",
+        "!ls | wc",
+        "r !ls | wc",
+        "r!ls | wc",
+        "w !sort | uniq",
+        "Foo a | set ic",
+        "windo set ic | set sw=2",
+        "function! F() | set ic",
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    // A newline still ends a shell command.
+    assert_eq!(split_ex_pipeline("!ls\nset ic"), vec!["!ls", "set ic"]);
+}
+
+#[test]
+fn pipeline_skips_a_pattern_in_the_range() {
+    assert_eq!(
+        split_ex_pipeline("/a|b/d | set ic"),
+        vec!["/a|b/d", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("?a|b?,/c|d/d | set ic"),
+        vec!["?a|b?,/c|d/d", "set ic"]
+    );
+}
+
+#[test]
+fn pipeline_ends_the_engine_s_own_commands_at_a_bar() {
+    assert_eq!(
+        split_ex_pipeline("sethandler <C-a> n:vim | set ic"),
+        vec!["sethandler <C-a> n:vim", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("select /a|b/ | set ic"),
+        vec!["select /a|b/", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("sx/a|b/d | set ic"),
+        vec!["sx/a|b/d", "set ic"]
+    );
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(4000))]
+
+    /// Any line splits, and each of its commands parses, without a panic.
+    #[test]
+    fn pipeline_takes_any_line(
+        line in "[a-gsvnwk0-9 |\"\\\\'/?!:%&~@#.$\u{16}\né\u{a0}()\\[\\]{}<>=+,;*`-]{0,40}",
+    ) {
+        for piece in split_ex_pipeline(&line) {
+            let _ = parse_ex_command_with_modifiers(&piece);
+        }
+    }
+}
+
+#[test]
+fn pipeline_ends_a_catch_after_its_pattern_as_ex_catch_does() {
+    assert_eq!(
+        split_ex_pipeline("catch /a|b/ | set ic"),
+        vec!["catch /a|b/", "set ic"]
+    );
+}
+
+#[test]
+fn pipeline_ends_a_command_that_reads_its_own_argument_where_vim_does() {
+    // No backslash is dropped: each of these finds its own end in Vim.
+    for (line, pieces) in [
+        // `ex_match()`: the first `|` after the pattern.
+        (
+            "match Foo /a\\|b/ | set ic",
+            &["match Foo /a\\|b/", "set ic"][..],
+        ),
+        ("2match Foo /a|b/|set ic", &["2match Foo /a|b/", "set ic"]),
+        ("match none | set ic", &["match none", "set ic"]),
+        // `ex_findpat()`: a `|` only after a `/pattern/`.
+        ("ilist /a\\|b/ | set ic", &["ilist /a\\|b/", "set ic"]),
+        ("dsearch 2 /a|b/ \" c | set ic", &["dsearch 2 /a|b/"]),
+        ("ilist a | set ic", &["ilist a | set ic"]),
+        // `ex_help()`: a `|` with text after it.
+        ("help a\\|b", &["help a\\", "b"]),
+        ("help /\\|", &["help /\\|"]),
+        ("help || set ic", &["help |", "set ic"]),
+        // `ex_wincmd()`: one character, or two after `g`.
+        ("wincmd |", &["wincmd |"]),
+        ("wincmd | | set ic", &["wincmd |", "set ic"]),
+        ("winc gt|set ic", &["winc gt", "set ic"]),
+        // `ex_sort()`: a pattern, letters and a `"` comment.
+        ("sort /a|b/ n | set ic", &["sort /a|b/ n", "set ic"]),
+        ("sort /a\\|b/", &["sort /a\\|b/"]),
+        ("sort n \" sorted | set ic", &["sort n"]),
+        // `ex_delfunction()` and a listing `ex_function()`.
+        ("delfunction F | set ic", &["delfunction F", "set ic"]),
+        ("delf F \" c | set ic", &["delf F"]),
+        ("function /a|b/ | set ic", &["function /a|b/", "set ic"]),
+        ("function | set ic", &["function", "set ic"]),
+        ("function F | call G()", &["function F | call G()"]),
+        // `ex_syntax()`: a `|` at the start of a word, outside a pattern.
+        (
+            "syntax match Foo /a\\|b/ | set ic",
+            &["syntax match Foo /a\\|b/", "set ic"],
+        ),
+        (
+            "syn match Foo \"|\" | set ic",
+            &["syn match Foo \"|\"", "set ic"],
+        ),
+        (
+            "syntax region Foo start=/a|b/ end=/c/ | set ic",
+            &["syntax region Foo start=/a|b/ end=/c/", "set ic"],
+        ),
+        (
+            "syntax keyword Foo a|b | set ic",
+            &["syntax keyword Foo a|b", "set ic"],
+        ),
+        (
+            "syntax keyword Foo a \" c | set ic",
+            &["syntax keyword Foo a"],
+        ),
+    ] {
+        assert_eq!(split_ex_pipeline(line), pieces, "{line}");
+    }
+}
+
+#[test]
+fn pipeline_reads_past_a_modifier_the_engine_lacks() {
+    // `parse_command_modifiers()` skips every modifier, so the command after
+    // it decides where the piece ends.
+    for (line, pieces) in [
+        (
+            "verbose echo \"a|b\" | set ic",
+            &["verbose echo \"a|b\"", "set ic"][..],
+        ),
+        ("3verb set tw=1 \" c | set ic", &["3verb set tw=1"]),
+        ("noautocmd normal x|y", &["noautocmd normal x|y"]),
+        ("filter /a|b/ ls | set ic", &["filter /a|b/ ls", "set ic"]),
+        (
+            "unsilent keepmarks s/a|b/c/ | set ic",
+            &["unsilent keepmarks s/a|b/c/", "set ic"],
+        ),
+        ("hide normal x|y", &["hide normal x|y"]),
+        // `:hide` alone is the command.
+        ("hide | set ic", &["hide", "set ic"]),
+        ("verbose", &[]),
+    ] {
+        assert_eq!(split_ex_pipeline(line), pieces, "{line}");
+    }
+}
+
+#[test]
+fn pipeline_skips_a_vimgrep_pattern_and_a_backtick_expression() {
+    // `skip_vimgrep_pat()` and the `` `=expr` `` rule of separate_nextcmd().
+    assert_eq!(
+        split_ex_pipeline("vimgrep /a|b/g % | cw"),
+        vec!["vimgrep /a|b/g % ", "cw"]
+    );
+    assert_eq!(
+        split_ex_pipeline("e `=expand('a|b')` | set ic"),
+        vec!["e `=expand('a|b')`", "set ic"]
+    );
+}
+
+#[test]
+fn pipeline_reads_a_register_quote_as_no_comment() {
+    // separate_nextcmd(): `:@"` and `:redir @"` name the unnamed register.
+    for (line, first) in [
+        ("@\" | set ic", "@\""),
+        ("redir @\" | set ic", "redir @\""),
+        ("redir @\">> | set ic", "redir @\">>"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+    // Anywhere else in their argument a `"` starts a comment.
+    assert_eq!(split_ex_pipeline("@a \" c | set ic"), vec!["@a"]);
+    assert_eq!(
+        split_ex_pipeline("redir @a \" c | set ic"),
+        vec!["redir @a"]
+    );
+    // `:*` is the Visual range, as 'cpoptions' has no `*`, so `"` is a comment.
+    assert_eq!(split_ex_pipeline("*\" c | set ic"), vec!["*"]);
+}
+
+#[test]
+fn pipeline_skips_plus_cmd_and_plus_plus_opt_as_do_one_cmd_does() {
+    // getargcmd(): `+cmd` runs to a blank, so its `|` ends nothing.
+    for (line, first) in [
+        ("e +/a|b/ f | set ic", "e +/a|b/ f"),
+        ("e ++ff=dos +/a|b/ f | set ic", "e ++ff=dos +/a|b/ f"),
+        ("w ++ff=unix | set ic", "w ++ff=unix"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+    // A `!` after `++opt` makes `:w` and `:r` a filter, which takes the rest
+    // of the line.
+    for line in ["w ++ff=unix !cat | wc", "r ++enc=utf8 !cmd | wc"] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_ends_split_where_vim_s_split_ends() {
+    // `:split` has `EX_TRLBAR`: `\|` is a `|` in the file name and `"`
+    // starts a comment, and neither is the delimiter of a pattern.
+    assert_eq!(
+        split_ex_pipeline("sp \\|x | set ic"),
+        vec!["sp |x", "set ic"]
+    );
+    assert_eq!(
+        parse_piece("sp \\|x"),
+        ExCommand::Split {
+            path: Some("|x".into())
+        }
+    );
+    assert_eq!(split_ex_pipeline("sp \"x\" | set ic"), vec!["sp"]);
+    assert_eq!(parse_piece("sp \"x\""), ExCommand::Split { path: None });
+}
+
+#[test]
+fn pipeline_ends_a_substitute_after_its_flags_as_ex_substitute_does() {
+    assert_eq!(split_ex_pipeline("s/a/b/g \" x | w"), vec!["s/a/b/g"]);
+    assert_eq!(split_ex_pipeline("s/a/b/g 3 | w"), vec!["s/a/b/g 3", "w"]);
+    assert_eq!(split_ex_pipeline("&& | w"), vec!["&&", "w"]);
+    // The replacement keeps its trailing blank.
+    assert_eq!(split_ex_pipeline("s/a/b "), vec!["s/a/b "]);
+}
+
+#[test]
+fn pipeline_ends_a_global_after_its_command() {
+    for (line, first) in [
+        ("g/x/s/a|b/c/ | w", "g/x/s/a|b/c/"),
+        ("g/x/set ic \" c | w", "g/x/set ic"),
+        ("g!/x/d | w", "g!/x/d"),
+    ] {
+        let pieces = split_ex_pipeline(line);
+        assert_eq!(pieces.first().map(AsRef::as_ref), Some(first), "{line}");
+    }
+    assert_eq!(
+        split_ex_pipeline("g/x/normal a|b | w"),
+        vec!["g/x/normal a|b | w"]
+    );
 }
 
 #[test]
@@ -4623,7 +5000,7 @@ fn task_8_7_silent_chains_with_other_modifiers() {
 fn task_9_set_strips_trailing_comment() {
     // `:set number " enable line numbers` — the `" enable...` is a comment
     // because :set has TRLBAR without NOTRLCOM.
-    let cmd = parse_ex_command("set number \" enable line numbers").unwrap();
+    let cmd = parse_piece("set number \" enable line numbers");
     match cmd {
         ExCommand::Set { assignments } => {
             assert_eq!(
@@ -4655,7 +5032,7 @@ fn task_9_echo_preserves_quote_in_argument() {
 #[test]
 fn task_9_delete_strips_trailing_comment() {
     // `:delete " remove this line` — :delete has TRLBAR without NOTRLCOM.
-    let cmd = parse_ex_command("delete \" remove this line").unwrap();
+    let cmd = parse_piece("delete \" remove this line");
     match cmd {
         ExCommand::Delete { register, .. } => {
             // The `"` followed by space+text is a comment, not a register arg.
