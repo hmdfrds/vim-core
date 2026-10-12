@@ -17,10 +17,12 @@ use crate::keymap::{Handler, KeyEvent, MappingMode};
 use crate::primitives::byte_delta;
 use crate::primitives::{
     MotionType, OptionId, OptionOverrides, OptionValue, Range, RegisterContent, RegisterName,
+    VimValue,
 };
 use compact_str::CompactString;
 use smallvec::SmallVec;
 
+use super::script_expr;
 use super::set_operator::{apply_set_operator, SetOperator};
 use super::shell_expand::expand_shell_tokens;
 use super::ExecutionContext;
@@ -102,6 +104,16 @@ pub(crate) enum AbbrevChange {
     Clear { mode: crate::primitives::AbbrevMode },
 }
 
+/// A `:let` of `mapleader` or `maplocalleader`.
+#[derive(Debug)]
+pub(crate) struct LeaderChange {
+    /// `maplocalleader`.
+    pub local: bool,
+    /// The value, which the engine stores in the `g:` variable and takes
+    /// the leader from.
+    pub value: VimValue,
+}
+
 /// Undo tree navigation request from `:earlier`/`:later`/`:undolist`/`:undo N`.
 ///
 /// The executor cannot perform tree navigation (needs `&mut VimState`),
@@ -139,8 +151,9 @@ pub(crate) struct ExExecutionOutput {
     pub handler_changes: SmallVec<[HandlerChange; 2]>,
     /// Undo tree navigation (engine handles tree mutation).
     pub undo_navigation: Option<UndoNavigation>,
-    /// Leader key change from `:let mapleader = ...` (engine applies to keymap).
-    pub leader_change: Option<char>,
+    /// Leader changes from `:let mapleader = ...` and
+    /// `:let maplocalleader = ...` (engine applies to the keymap).
+    pub leader_changes: SmallVec<[LeaderChange; 1]>,
     /// Multi-cursor command to execute (engine handles `&mut VimState` mutation).
     ///
     /// The executor has only `&VimState`, so it signals the engine to run
@@ -244,9 +257,7 @@ fn merge_output(target: &mut ExExecutionOutput, source: ExExecutionOutput) {
     if source.undo_navigation.is_some() {
         target.undo_navigation = source.undo_navigation;
     }
-    if source.leader_change.is_some() {
-        target.leader_change = source.leader_change;
-    }
+    target.leader_changes.extend(source.leader_changes);
     if source.multi_cursor_command.is_some() {
         target.multi_cursor_command = source.multi_cursor_command;
     }
@@ -653,10 +664,7 @@ pub(crate) fn execute_ex_command<D: Document>(
         }),
         // Display / Misc
         ExCommand::Echo { message } => effects_only(Ok(ex_effects::show_message(message.clone()))),
-        ExCommand::LetMapleader { leader } => Ok(ExExecutionOutput {
-            leader_change: Some(*leader),
-            ..ExExecutionOutput::default()
-        }),
+        ExCommand::LetLeader { local, value } => let_leader(*local, value, ctx),
         ExCommand::PrintLines { .. } | ExCommand::ZWindow { .. } => {
             // Display commands handled by core dispatch (already dispatched above).
             effects_only(Ok(Effects::new()))
@@ -1278,6 +1286,41 @@ pub(crate) fn apply_set_assignments(
     };
     effects.extend(error_effects);
     effects
+}
+
+/// `:let mapleader = {expr}`: the value of the expression, as `ex_let()`
+/// evaluates it. The first error stands for an expression that fails.
+fn let_leader<D: Document>(
+    local: bool,
+    expr: &str,
+    ctx: &ExecutionContext<'_, D>,
+) -> Result<ExExecutionOutput, VimError> {
+    let env = script_expr::Env {
+        variables: ctx.state.variable_store(),
+        options: ctx.options,
+        global_options: ctx.options,
+    };
+    let evaluated = script_expr::evaluate(expr, &env);
+    let mut errors = evaluated.errors.into_iter();
+    let Some(value) = evaluated.value else {
+        return Err(errors
+            .next()
+            .unwrap_or_else(|| VimError::InvalidExpression(expr.into())));
+    };
+    let mut effects = Effects::new();
+    for error in errors {
+        effects.extend(ex_effects::show_error(error));
+    }
+    let mut leader_changes = SmallVec::new();
+    leader_changes.push(LeaderChange {
+        local,
+        value: value.into_variable(),
+    });
+    Ok(ExExecutionOutput {
+        effects,
+        leader_changes,
+        ..ExExecutionOutput::default()
+    })
 }
 
 /// Parse a string value into an [`OptionValue`] for the given option id.

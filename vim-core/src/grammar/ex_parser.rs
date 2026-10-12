@@ -603,7 +603,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             message: CompactString::from(tail),
         })
     } else if name.eq_ignore_ascii_case("let") {
-        parse_let_command(tail)
+        Ok(parse_let_command(tail))
     } else if matches_abbrev(name, "p", "print") {
         Ok(ExCommand::PrintLines {
             range: line_range,
@@ -923,41 +923,34 @@ fn parse_count_or_default(tail: &str) -> u32 {
     trimmed.parse::<u32>().unwrap_or(1)
 }
 
-/// Parse `:let mapleader = "X"` (only supports mapleader assignment).
-fn parse_let_command(tail: &str) -> Result<ExCommand, VimError> {
-    let tail = tail.trim();
-
-    // Match: mapleader = "X" or mapleader = 'X' or mapleader = X
-    if let Some(rest) = tail
-        .strip_prefix("mapleader")
-        .or_else(|| tail.strip_prefix("g:mapleader"))
-    {
-        let rest = rest.trim();
-        let Some(rest) = rest.strip_prefix('=') else {
-            return Err(VimError::InvalidArgument(CompactString::from(tail)));
-        };
-        let rest = rest.trim();
-
-        // Strip optional quotes
-        let value = rest
-            .strip_prefix('"')
-            .and_then(|s| s.strip_suffix('"'))
-            .or_else(|| rest.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))
-            .unwrap_or(rest);
-
-        let mut chars = value.chars();
-        match (chars.next(), chars.next()) {
-            (Some(ch), None) => Ok(ExCommand::LetMapleader { leader: ch }),
-            _ => Err(VimError::InvalidArgument(CompactString::from(
-                "mapleader must be a single character",
-            ))),
+/// Parse `:let`: an assignment to `mapleader` or `maplocalleader`, with
+/// `g:` or without, takes an expression; any other `:let` goes to the host.
+fn parse_let_command(tail: &str) -> ExCommand {
+    let tail = tail.trim_matches(BLANKS);
+    let leader = |name: &str| {
+        let rest = tail.strip_prefix("g:").unwrap_or(tail).strip_prefix(name)?;
+        let rest = rest.trim_start_matches(BLANKS).strip_prefix('=')?;
+        // Not `==`, `=~` or a heredoc.
+        if rest.starts_with(['=', '~', '<']) {
+            return None;
         }
-    } else {
-        // Unsupported :let variant — forward as custom
-        let mut cmd = CompactString::from("let ");
-        cmd.push_str(tail);
-        Ok(ExCommand::Custom { command: cmd })
+        Some(rest.trim_start_matches(BLANKS))
+    };
+    if let Some(value) = leader("mapleader") {
+        return ExCommand::LetLeader {
+            local: false,
+            value: value.into(),
+        };
     }
+    if let Some(value) = leader("maplocalleader") {
+        return ExCommand::LetLeader {
+            local: true,
+            value: value.into(),
+        };
+    }
+    let mut cmd = CompactString::from("let ");
+    cmd.push_str(tail);
+    ExCommand::Custom { command: cmd }
 }
 
 fn split_head(input: &str) -> (&str, &str) {

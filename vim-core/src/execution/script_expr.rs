@@ -94,9 +94,19 @@ impl Value {
         }
     }
 
+    /// The value as the variable store holds it.
+    pub(crate) fn into_variable(self) -> VimValue {
+        match self {
+            Self::Number(n) => VimValue::Int(n),
+            Self::Float(f) => VimValue::Float(f),
+            Self::String(s) => VimValue::String(s.into()),
+            Self::Bool(b) => VimValue::Bool(b),
+        }
+    }
+
     /// A value the variable store holds, or `None` for a List, a
     /// Dictionary or no value, which the evaluator does not have.
-    fn from_variable(value: &VimValue) -> Option<Self> {
+    pub(crate) fn from_variable(value: &VimValue) -> Option<Self> {
         match value {
             VimValue::Int(n) => Some(Self::Number(*n)),
             VimValue::Float(f) => Some(Self::Float(*f)),
@@ -127,6 +137,47 @@ pub(crate) struct Env<'a> {
     pub(crate) options: &'a VimOptions,
     /// The global values, for `&g:name`.
     pub(crate) global_options: &'a VimOptions,
+}
+
+/// A whole expression evaluated: its value, unless it failed, and the
+/// errors it gave, which an expression that does not fail can give too.
+pub(crate) struct Evaluated {
+    pub(crate) value: Option<Value>,
+    pub(crate) errors: Vec<VimError>,
+}
+
+/// Evaluate `text` as one whole expression, as `eval0()` does: E15 when it
+/// is none and nothing more specific was said, E488 for text after it.
+pub(crate) fn evaluate(text: &str, env: &Env<'_>) -> Evaluated {
+    let mut parser = Parser::new(text, env);
+    parser.skip_blanks();
+    parser.start = parser.pos;
+    let result = parser.expr1(true);
+    parser.skip_blanks();
+    let quiet = parser.errors.is_empty();
+    let value = match result {
+        Ok(value) if matches!(parser.peek(), None | Some(b'|' | b'\n' | b'"')) => Some(value),
+        Ok(_) => {
+            if quiet {
+                let rest = parser.rest();
+                parser
+                    .errors
+                    .push(VimError::TrailingCharacters(rest.into()));
+            }
+            None
+        }
+        Err(Fail) => {
+            if quiet {
+                let expr = parser.text.get(parser.start..).unwrap_or_default();
+                parser.errors.push(VimError::InvalidExpression(expr.into()));
+            }
+            None
+        }
+    };
+    Evaluated {
+        value,
+        errors: parser.errors,
+    }
 }
 
 /// What `:echo` shows, in order.

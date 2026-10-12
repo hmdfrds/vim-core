@@ -606,6 +606,72 @@ finish
     }
 
     #[test]
+    fn source_config_takes_the_leader_from_an_expression() {
+        // ex_let(); replace_termcodes() reads g:mapleader.
+        let config = "let mapleader = \"\\<Space>\"\nnnoremap <Leader>w :set ic<CR>\n";
+        let mut session = sourced("a", config);
+        type_keys(&mut session, "<Space>w");
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_takes_a_leader_of_several_keys() {
+        let mut session = sourced(
+            "a",
+            "let mapleader = ',,'\nnnoremap <Leader>w :set ic<CR>\n",
+        );
+        type_keys(&mut session, ",,w");
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_keeps_the_leader_in_g_mapleader() {
+        use crate::keymap::KeyEvent;
+
+        let mut engine = VimEngine::new();
+        engine.source_config_text("let mapleader = ','\nlet mapleader = ''\n");
+        assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
+        // `<Space>` in a value is seven keys; only "\<Space>" is Space.
+        engine.source_config_text("let mapleader = '<Space>'\n");
+        assert_eq!(engine.leader_keys().len(), 7);
+        engine.source_config_text("let mapleader = \"\\<C-W>\\t\"\nlet maplocalleader = ','\n");
+        assert_eq!(engine.leader_keys(), [KeyEvent::ctrl('w'), KeyEvent::tab()]);
+        assert_eq!(engine.local_leader_keys(), [KeyEvent::char(',')]);
+        let response =
+            engine.source_config_text("echo g:maplocalleader exists('g:mapleader') g:mapleader\n");
+        assert_eq!(infos(&response)[0], ", 1 \x17\t");
+    }
+
+    #[test]
+    fn source_config_keeps_the_leader_when_its_expression_fails() {
+        let mut engine = VimEngine::new();
+        let response =
+            engine.source_config_text("let mapleader = nosuch | set ic\nlet mapleader = \\\n");
+        assert_eq!(engine.leader(), crate::keymap::KeyEvent::char('\\'));
+        assert!(!engine.options().ignorecase());
+        assert_eq!(
+            errors(&response),
+            [
+                "E121: Undefined variable: nosuch",
+                "E15: Invalid expression: \"\\\""
+            ]
+        );
+    }
+
+    #[test]
+    fn a_typed_let_mapleader_takes_an_expression() {
+        // It gave E521 for anything but one character.
+        let mut session = HostSession::new("a");
+        type_keys(&mut session, ":let mapleader = \"\\<lt>Space>\"<CR>");
+        assert_eq!(
+            session.engine().leader_keys(),
+            [crate::keymap::KeyEvent::char(' ')]
+        );
+        type_keys(&mut session, ":let maplocalleader = ',' . ','<CR>");
+        assert_eq!(session.engine().local_leader_keys().len(), 2);
+    }
+
+    #[test]
     fn source_config_shows_sourced_message() {
         let mut engine = VimEngine::new();
         let response = engine.source_config_text("");

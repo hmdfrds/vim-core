@@ -257,15 +257,15 @@ pub struct Keymap {
     /// `None` = no buffer-local mappings active.
     /// Shell swaps these via `set_buffer_mappings()` / `take_buffer_mappings()`.
     buf: ModeMap<Option<MappingTrie>>,
-    /// Leader key — used to resolve `<Leader>` placeholders at mapping
+    /// Leader keys, used to resolve `<Leader>` placeholders at mapping
     /// definition time. Default: backslash (`\`).
-    #[default(KeyEvent::char('\\'))]
-    leader: KeyEvent,
-    /// Local leader key — used to resolve `<LocalLeader>` placeholders at
+    #[default(LeaderKeys::one(KeyEvent::char('\\')))]
+    leader: LeaderKeys,
+    /// Local leader keys, used to resolve `<LocalLeader>` placeholders at
     /// mapping definition time. Default: backslash (`\`).
     /// Typically set to `,` for filetype-specific plugin mappings.
-    #[default(KeyEvent::char('\\'))]
-    local_leader: KeyEvent,
+    #[default(LeaderKeys::one(KeyEvent::char('\\')))]
+    local_leader: LeaderKeys,
     /// Maximum recursive mapping expansion depth. Prevents infinite
     /// loops in recursive mappings. Corresponds to Vim's `maxmapdepth`
     /// option. Default: 1000.
@@ -290,6 +290,45 @@ pub struct Keymap {
     /// Set by the engine via `set_filetype()`.
     #[default(None)]
     active_filetype: Option<CompactString>,
+}
+
+/// The most bytes a leader can have, as in Vim.
+const MAX_LEADER_BYTES: usize = 48;
+
+/// The keys of a leader: one or more.
+#[derive(Debug, Clone, Copy)]
+struct LeaderKeys {
+    keys: [KeyEvent; MAX_LEADER_BYTES],
+    len: usize,
+}
+
+impl LeaderKeys {
+    const fn one(key: KeyEvent) -> Self {
+        Self {
+            keys: [key; MAX_LEADER_BYTES],
+            len: 1,
+        }
+    }
+
+    fn from_text(text: &str) -> Self {
+        let mut leader = Self::one(KeyEvent::char('\\'));
+        if text.is_empty() || text.len() > MAX_LEADER_BYTES {
+            return leader;
+        }
+        for (slot, c) in leader.keys.iter_mut().zip(text.chars()) {
+            *slot = KeyEvent::typed(c);
+        }
+        leader.len = text.chars().count();
+        leader
+    }
+
+    const fn first(&self) -> KeyEvent {
+        self.keys[0]
+    }
+
+    fn as_slice(&self) -> &[KeyEvent] {
+        self.keys.get(..self.len).unwrap_or_default()
+    }
 }
 
 impl Keymap {
@@ -329,22 +368,31 @@ impl Keymap {
 
     /// Resolve `<Leader>` placeholders in a key sequence.
     ///
-    /// Replaces any `Key::Leader` with the current leader key value.
+    /// Replaces any `Key::Leader` with the keys of the current leader.
     /// Used by both `map`/`unmap` and `map_buffer`/`unmap_buffer`.
     fn resolve_leader(&self, keys: &[KeyEvent]) -> smallvec::SmallVec<[KeyEvent; 8]> {
-        keys.iter()
-            .map(|k| self.resolve_leader_single(*k))
-            .collect()
+        let mut resolved = smallvec::SmallVec::new();
+        for &key in keys {
+            match key.key {
+                Key::Leader => resolved.extend_from_slice(self.leader.as_slice()),
+                Key::LocalLeader => resolved.extend_from_slice(self.local_leader.as_slice()),
+                _ => resolved.push(key),
+            }
+        }
+        resolved
     }
 
-    /// Resolve `<Leader>` and `<LocalLeader>` for a single key event.
+    /// Resolve `<Leader>` and `<LocalLeader>` for a single key event. A
+    /// leader of several keys is no single key, so it stays a placeholder.
     fn resolve_leader_single(&self, event: KeyEvent) -> KeyEvent {
-        if event.key == Key::Leader {
-            self.leader
-        } else if event.key == Key::LocalLeader {
-            self.local_leader
-        } else {
-            event
+        let leader = match event.key {
+            Key::Leader => &self.leader,
+            Key::LocalLeader => &self.local_leader,
+            _ => return event,
+        };
+        match leader.as_slice() {
+            [key] => *key,
+            _ => event,
         }
     }
 
@@ -722,11 +770,19 @@ impl Keymap {
         }
     }
 
-    /// Get the current leader key.
+    /// Get the current leader key: the first one when the leader has
+    /// several (see [`leader_keys`](Self::leader_keys)).
     #[inline]
     #[must_use]
     pub const fn leader(&self) -> KeyEvent {
-        self.leader
+        self.leader.first()
+    }
+
+    /// Get every key of the current leader.
+    #[inline]
+    #[must_use]
+    pub fn leader_keys(&self) -> &[KeyEvent] {
+        self.leader.as_slice()
     }
 
     /// Set the leader key.
@@ -735,14 +791,22 @@ impl Keymap {
     /// Existing mappings retain the leader key they were defined with.
     #[inline]
     pub const fn set_leader(&mut self, key: KeyEvent) {
-        self.leader = key;
+        self.leader = LeaderKeys::one(key);
     }
 
-    /// Get the current local leader key.
+    /// Get the current local leader key: the first one when the local
+    /// leader has several (see [`local_leader_keys`](Self::local_leader_keys)).
     #[inline]
     #[must_use]
     pub const fn local_leader(&self) -> KeyEvent {
-        self.local_leader
+        self.local_leader.first()
+    }
+
+    /// Get every key of the current local leader.
+    #[inline]
+    #[must_use]
+    pub fn local_leader_keys(&self) -> &[KeyEvent] {
+        self.local_leader.as_slice()
     }
 
     /// Set the local leader key (`maplocalleader`).
@@ -751,7 +815,21 @@ impl Keymap {
     /// Existing mappings retain the local leader key they were defined with.
     #[inline]
     pub const fn set_local_leader(&mut self, key: KeyEvent) {
-        self.local_leader = key;
+        self.local_leader = LeaderKeys::one(key);
+    }
+
+    /// Take the leader (`local`: the local leader) from the value of
+    /// `g:mapleader` (`g:maplocalleader`), as Vim's `replace_termcodes()`
+    /// reads it: each character is a key, a control character the key
+    /// typed for it, and an empty value or one of more than 48 bytes means
+    /// `\`.
+    pub(crate) fn set_leader_text(&mut self, local: bool, text: &str) {
+        let keys = LeaderKeys::from_text(text);
+        if local {
+            self.local_leader = keys;
+        } else {
+            self.leader = keys;
+        }
     }
 
     /// Get the current maximum mapping expansion depth (`maxmapdepth`).

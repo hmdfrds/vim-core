@@ -464,18 +464,37 @@ fn parses_echo() {
 }
 
 #[test]
-fn parses_let_mapleader() {
-    let cmd = parse_ex_command(r#"let mapleader = ",""#).unwrap();
-    assert!(matches!(cmd, ExCommand::LetMapleader { leader: ',' }));
-
-    let cmd2 = parse_ex_command("let g:mapleader = ' '").unwrap();
-    assert!(matches!(cmd2, ExCommand::LetMapleader { leader: ' ' }));
+fn parses_let_mapleader_with_its_expression() {
+    for (line, local, value) in [
+        (r#"let mapleader = ",""#, false, r#"",""#),
+        ("let g:mapleader = ' '", false, "' '"),
+        (r#"let mapleader="\<Space>""#, false, r#""\<Space>""#),
+        ("let maplocalleader = g:x . 'y'", true, "g:x . 'y'"),
+        ("let g:maplocalleader = ','", true, "','"),
+        // Evaluated when it runs, where `\` is E15.
+        (r"let mapleader = \", false, r"\"),
+    ] {
+        let cmd = parse_ex_command(line).unwrap();
+        assert!(
+            matches!(&cmd, ExCommand::LetLeader { local: l, value: v } if *l == local && &**v == value),
+            "{line}: {cmd:?}"
+        );
+    }
 }
 
 #[test]
-fn parses_let_mapleader_bare() {
-    let cmd = parse_ex_command(r"let mapleader = \").unwrap();
-    assert!(matches!(cmd, ExCommand::LetMapleader { leader: '\\' }));
+fn sends_any_other_let_to_the_host() {
+    for line in [
+        "let g:x = 1",
+        "let mapleader .= 'x'",
+        "let mapleaders = 1",
+        "let mapleader =<< END",
+    ] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Custom { .. }),
+            "{line}"
+        );
+    }
 }
 
 #[test]

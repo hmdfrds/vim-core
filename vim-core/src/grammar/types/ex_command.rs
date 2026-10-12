@@ -610,10 +610,13 @@ pub enum ExCommand {
         /// Message text to display.
         message: CompactString,
     },
-    /// Set the mapleader variable: `:let mapleader = "{char}"`
-    LetMapleader {
-        /// Leader key character.
-        leader: char,
+    /// Set the leader: `:let mapleader = {expr}`, or the local leader:
+    /// `:let maplocalleader = {expr}`, with `g:` or without.
+    LetLeader {
+        /// `maplocalleader`.
+        local: bool,
+        /// The expression, which the executor evaluates.
+        value: Box<str>,
     },
     /// Display lines: `:[range]print`, `:[range]number`, `:[range]list`, `:[range]#`
     ///
@@ -1133,7 +1136,7 @@ impl ExCommand {
             | Self::TabPrev { .. }
             | Self::TabClose { .. }
             | Self::Echo { .. }
-            | Self::LetMapleader { .. }
+            | Self::LetLeader { .. }
             | Self::Set { .. }
             | Self::SetLocal { .. }
             | Self::SetGlobal { .. }

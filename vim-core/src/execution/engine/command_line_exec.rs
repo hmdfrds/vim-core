@@ -83,9 +83,8 @@ impl VimEngine {
         for change in &output.handler_changes {
             self.apply_handler_change(change);
         }
-        if let Some(leader) = output.leader_change {
-            self.keymap
-                .set_leader(crate::keymap::KeyEvent::char(leader));
+        for change in &output.leader_changes {
+            self.apply_leader_change(change);
         }
         if output.clear_message_history {
             self.state.message_history_mut().clear();

@@ -11,7 +11,8 @@ fn options(ignorecase: bool) -> VimOptions {
     options
 }
 
-/// Evaluate `text` as a whole expression, as `eval0()` does.
+/// Evaluate `text`, with 'textwidth' 33 in effect and 20 as the global
+/// value.
 fn eval_with(
     text: &str,
     variables: &VariableStore,
@@ -25,20 +26,10 @@ fn eval_with(
         options: &options,
         global_options: &global,
     };
-    let mut parser = Parser::new(text, &env);
-    let result = parser.expr1(true);
-    parser.skip_blanks();
-    let errors = |parser: &Parser<'_>| parser.errors.iter().map(ToString::to_string).collect();
-    match result {
-        Ok(value) if parser.pos == text.len() && parser.errors.is_empty() => Ok(value),
-        Ok(_) if parser.errors.is_empty() => Err(vec![format!(
-            "E488: Trailing characters: {}",
-            parser.rest()
-        )]),
-        Err(_) if parser.errors.is_empty() => {
-            Err(vec![format!("E15: Invalid expression: \"{text}\"")])
-        }
-        _ => Err(errors(&parser)),
+    let evaluated = evaluate(text, &env);
+    match evaluated.value {
+        Some(value) if evaluated.errors.is_empty() => Ok(value),
+        _ => Err(evaluated.errors.iter().map(ToString::to_string).collect()),
     }
 }
 

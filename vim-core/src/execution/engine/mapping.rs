@@ -7,9 +7,21 @@
 //! Extracted from `engine.rs` for single-responsibility decomposition.
 
 use super::VimEngine;
+use crate::execution::executor_ex::LeaderChange;
+use crate::execution::script_expr::Value;
 use crate::keymap::{
     BufferMappings, KeyEvent, MappingEntry, MappingFlags, MappingKind, MappingMode, TrieLookup,
 };
+use crate::primitives::VarScope;
+
+/// The `g:` variable that holds the leader (`local`: the local leader).
+const fn leader_variable(local: bool) -> &'static str {
+    if local {
+        "maplocalleader"
+    } else {
+        "mapleader"
+    }
+}
 
 impl VimEngine {
     // ═══════════════════════════════════════════════════════════════════════
@@ -144,11 +156,50 @@ impl VimEngine {
         self.options.set_timeoutlen_ms(ms);
     }
 
-    /// Get the current leader key.
+    /// Get the current leader key: the first one when the leader has
+    /// several (see [`leader_keys`](Self::leader_keys)).
     #[inline]
     #[must_use]
     pub const fn leader(&self) -> KeyEvent {
         self.keymap.leader()
+    }
+
+    /// Get every key of the current leader, which `:let mapleader` can
+    /// make several.
+    #[inline]
+    #[must_use]
+    pub fn leader_keys(&self) -> &[KeyEvent] {
+        self.keymap.leader_keys()
+    }
+
+    /// Get every key of the current local leader (`:let maplocalleader`).
+    #[inline]
+    #[must_use]
+    pub fn local_leader_keys(&self) -> &[KeyEvent] {
+        self.keymap.local_leader_keys()
+    }
+
+    /// Apply `:let mapleader` or `:let maplocalleader`: the value goes to
+    /// the `g:` variable, as in Vim, and the leader comes from it.
+    pub(super) fn apply_leader_change(&mut self, change: &LeaderChange) {
+        let name = leader_variable(change.local);
+        self.state
+            .variable_store_mut()
+            .set(VarScope::Global, name, change.value.clone());
+        self.sync_leader(change.local);
+    }
+
+    /// Take the leader (`local`: the local leader) from `g:mapleader`
+    /// (`g:maplocalleader`) as it is now.
+    pub(super) fn sync_leader(&mut self, local: bool) {
+        let text = self
+            .state
+            .variable_store()
+            .get(VarScope::Global, leader_variable(local))
+            .and_then(Value::from_variable)
+            .map(|value| value.text().into_owned())
+            .unwrap_or_default();
+        self.keymap.set_leader_text(local, &text);
     }
 
     /// Set the leader key.
