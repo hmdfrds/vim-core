@@ -99,6 +99,7 @@ pub mod input_state;
 pub mod parser;
 pub mod result;
 pub mod types;
+mod vim_commands;
 
 // Re-exports for convenience
 pub use command::{

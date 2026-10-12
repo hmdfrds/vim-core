@@ -40,24 +40,32 @@ pub fn parse_ex_command_with_modifiers(
     Ok((modifiers, cmd))
 }
 
-/// Vim's command modifiers that the engine knows, as
-/// `(shortest form, full name, flag)`: `sil[ent]`, `keepj[umps]`, ...
-const COMMAND_MODIFIERS: &[(&str, &str, ModifierFlags)] = &[
-    ("abo", "aboveleft", ModifierFlags::ABOVELEFT),
-    ("bel", "belowright", ModifierFlags::BELOWRIGHT),
-    ("bo", "botright", ModifierFlags::BOTRIGHT),
-    ("bro", "browse", ModifierFlags::BROWSE),
-    ("conf", "confirm", ModifierFlags::CONFIRM),
-    ("hor", "horizontal", ModifierFlags::HORIZONTAL),
-    ("keepa", "keepalt", ModifierFlags::KEEPALT),
-    ("keepj", "keepjumps", ModifierFlags::KEEPJUMPS),
-    ("keepp", "keeppatterns", ModifierFlags::KEEPPATTERNS),
-    ("loc", "lockmarks", ModifierFlags::LOCKMARKS),
-    ("sil", "silent", ModifierFlags::SILENT),
-    ("tab", "tab", ModifierFlags::TAB),
-    ("to", "topleft", ModifierFlags::TOPLEFT),
-    ("vert", "vertical", ModifierFlags::VERTICAL),
+/// Vim's command modifiers that the engine knows. Their shortest forms
+/// (`sil[ent]`, `keepj[umps]`, ...) are those of Vim's `cmdmods[]`.
+const COMMAND_MODIFIERS: &[(&str, ModifierFlags)] = &[
+    ("aboveleft", ModifierFlags::ABOVELEFT),
+    ("belowright", ModifierFlags::BELOWRIGHT),
+    ("botright", ModifierFlags::BOTRIGHT),
+    ("browse", ModifierFlags::BROWSE),
+    ("confirm", ModifierFlags::CONFIRM),
+    ("horizontal", ModifierFlags::HORIZONTAL),
+    ("keepalt", ModifierFlags::KEEPALT),
+    ("keepjumps", ModifierFlags::KEEPJUMPS),
+    ("keeppatterns", ModifierFlags::KEEPPATTERNS),
+    ("lockmarks", ModifierFlags::LOCKMARKS),
+    ("silent", ModifierFlags::SILENT),
+    ("tab", ModifierFlags::TAB),
+    ("topleft", ModifierFlags::TOPLEFT),
+    ("vertical", ModifierFlags::VERTICAL),
 ];
+
+/// The shortest form of the Vim modifier `full`.
+fn modifier_min_len(full: &str) -> usize {
+    super::vim_commands::MODIFIERS
+        .iter()
+        .find(|(name, _, _)| *name == full)
+        .map_or(full.len(), |&(_, min, _)| min)
+}
 
 /// Strip modifier keyword prefixes from the input, returning accumulated
 /// flags and the remaining unparsed input.
@@ -74,14 +82,14 @@ fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
         let (word, after) = trimmed.split_at(word_len);
         let modifier = COMMAND_MODIFIERS
             .iter()
-            .find(|(min, full, _)| word.len() >= min.len() && full.starts_with(word));
+            .find(|(full, _)| word.len() >= modifier_min_len(full) && full.starts_with(word));
         // A modifier is a whole word: `:silently` is not `:silent` + `ly`.
         match (modifier, after.as_bytes().first()) {
-            (Some(&(_, "silent", _)), Some(b'!')) => {
+            (Some(&("silent", _)), Some(b'!')) => {
                 flags |= ModifierFlags::SILENT | ModifierFlags::SILENT_BANG;
                 rest = &after[1..];
             }
-            (Some(&(_, _, flag)), None | Some(b' ' | b'\t')) => {
+            (Some(&(_, flag)), None | Some(b' ' | b'\t')) => {
                 flags |= flag;
                 rest = after;
             }
@@ -1580,9 +1588,8 @@ fn parse_multi_cursor_ex(
     // (without delimiter → falls through to window Split via parse_named_command)
     if matches_abbrev(name, "sp", "split") {
         let trimmed = tail.trim_start();
-        // If tail starts with a non-alphanumeric, non-space char → treat as pattern delimiter
         if let Some(first) = trimmed.chars().next() {
-            if !first.is_alphanumeric() && !first.is_whitespace() && first != '!' {
+            if command_meta::is_split_pattern_delimiter(first) {
                 let pattern = parse_pattern_arg(tail)?;
                 return Ok(Some(ExCommand::SplitMatches { range, pattern }));
             }

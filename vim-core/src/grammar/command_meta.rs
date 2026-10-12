@@ -1,16 +1,13 @@
-//! Per-command metadata table for ex commands.
+//! Per-command metadata for Ex commands.
 //!
 //! Provides `CmdFlags` bitflags and `CommandMeta` structs that describe
-//! each ex command's capabilities: whether it accepts a range, bang,
+//! each Ex command's capabilities: whether it accepts a range, bang,
 //! register argument, trailing bar separator, etc.
 //!
-//! This metadata drives:
-//! - **Trailing comment stripping** — commands with `TRLBAR` (and without
-//!   `NOTRLCOM`) allow `" comment` after the command arguments.
-//! - **Pipeline splitting** — only `TRLBAR` commands split at `|`.
-//! - **Range/bang validation** — callers can check before parsing.
-//!
-//! Flag values and addr types are derived from Vim's `ex_cmds.h`.
+//! The data is Vim's own command table (`ex_cmds.h`), and a command name is
+//! found the way Vim's `find_ex_command()` finds it, with the engine's own
+//! commands first. The same lookup decides where each command of an Ex line
+//! ends, see [`split_ex_pipeline`](super::split_ex_pipeline).
 //!
 //! # Layering
 //!
@@ -19,13 +16,12 @@
 
 use bitflags::bitflags;
 
+use super::vim_commands::{ex, Addr, VimCommand, COMMANDS};
+
 bitflags! {
-    /// Per-command capability flags, derived from Vim's `EX_*` defines in `ex_cmds.h`.
+    /// Per-command capability flags, from Vim's `EX_*` defines in `ex_cmds.h`.
     ///
-    /// Only the flags relevant to this engine are included. Vim-internal flags
-    /// like `EX_SBOXOK`, `EX_CMDWIN`, `EX_LOCK_OK`, `EX_EXPAND` are omitted
-    /// because they govern sandbox/cmdline-window policy that this engine does
-    /// not implement.
+    /// Only the flags relevant to this engine are included.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CmdFlags: u16 {
         /// Command accepts a line range (`:1,5d`).
@@ -50,6 +46,39 @@ bitflags! {
         const MODIFY   = 0x100;
         /// Command requires at least one argument (`:normal`, `:windo`).
         const NEEDARG  = 0x200;
+        /// A Ctrl-V in the argument is kept (mappings, `:normal`).
+        const CTRLV    = 0x400;
+        /// The argument is a file name, with wildcards expanded.
+        const XFILE    = 0x800;
+        /// The argument is an expression, which decides where it ends.
+        const EXPR_ARG = 0x1000;
+        /// Vim allows the command in its sandbox.
+        const SBOXOK   = 0x2000;
+    }
+}
+
+impl CmdFlags {
+    /// The flags among Vim's `EX_*` bits `vim`.
+    fn from_vim(vim: u32) -> Self {
+        const MAP: [(u32, CmdFlags); 14] = [
+            (ex::RANGE, CmdFlags::RANGE),
+            (ex::BANG, CmdFlags::BANG),
+            (ex::EXTRA, CmdFlags::EXTRA),
+            (ex::DFLALL, CmdFlags::DFLALL),
+            (ex::COUNT, CmdFlags::COUNT),
+            (ex::REGSTR, CmdFlags::REGSTR),
+            (ex::TRLBAR, CmdFlags::TRLBAR),
+            (ex::NOTRLCOM, CmdFlags::NOTRLCOM),
+            (ex::MODIFY, CmdFlags::MODIFY),
+            (ex::NEEDARG, CmdFlags::NEEDARG),
+            (ex::CTRLV, CmdFlags::CTRLV),
+            (ex::XFILE, CmdFlags::XFILE),
+            (ex::EXPR_ARG, CmdFlags::EXPR_ARG),
+            (ex::SBOXOK, CmdFlags::SBOXOK),
+        ];
+        MAP.iter()
+            .filter(|(bit, _)| vim & bit != 0)
+            .fold(Self::empty(), |flags, &(_, flag)| flags.union(flag))
     }
 }
 
@@ -72,6 +101,20 @@ pub enum AddrType {
     Other,
     /// No range used (`:echo`, `:set`, `:map`).
     None,
+}
+
+impl AddrType {
+    const fn from_vim(addr: Addr) -> Self {
+        match addr {
+            Addr::Lines => Self::Lines,
+            Addr::Windows => Self::Windows,
+            Addr::LoadedBuffers | Addr::Buffers => Self::Buffers,
+            Addr::Tabs | Addr::TabsRelative => Self::Tabs,
+            Addr::QuickfixValid | Addr::Quickfix | Addr::Unsigned => Self::Unsigned,
+            Addr::Arguments | Addr::Other => Self::Other,
+            Addr::None => Self::None,
+        }
+    }
 }
 
 /// Metadata for a single ex command.
@@ -110,29 +153,300 @@ impl CommandMeta {
     }
 }
 
-// ─── Abbreviation matching (reused from ex_parser) ────────────────────────
+/// How one of the engine's own commands ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OwnKind {
+    /// At `|` or a `"` comment, as a Vim command with `EX_TRLBAR` does.
+    Bar,
+    /// At the first unescaped `|`; a `"` is part of the argument.
+    Plain,
+    /// As `Plain`, after a delimited pattern argument such as `/a|b/`.
+    Pattern,
+}
+
+/// One of the engine's own commands.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OwnCommand {
+    /// The shortest form.
+    pub(crate) min: &'static str,
+    /// The full name.
+    pub(crate) full: &'static str,
+    /// How the command ends.
+    pub(crate) kind: OwnKind,
+}
+
+const fn own(min: &'static str, full: &'static str, kind: OwnKind) -> OwnCommand {
+    OwnCommand { min, full, kind }
+}
+
+/// The engine's own commands, in the order the parser tries them, which is
+/// before Vim's table. `sp[lit]` is one of them only with a pattern.
+static OWN_COMMANDS: [OwnCommand; 28] = [
+    own("sel", "select", OwnKind::Pattern),
+    own("sp", "split", OwnKind::Pattern),
+    own("kee", "keep", OwnKind::Pattern),
+    own("remo", "remove", OwnKind::Pattern),
+    own("tri", "trim", OwnKind::Plain),
+    own("ali", "align", OwnKind::Plain),
+    own("rot", "rotate", OwnKind::Plain),
+    own("addn", "addnext", OwnKind::Plain),
+    own("addp", "addprev", OwnKind::Plain),
+    own("skip", "skipmatch", OwnKind::Plain),
+    own("addc", "addcursor", OwnKind::Plain),
+    own("selecta", "selectall", OwnKind::Plain),
+    own("cursorf", "cursorfilter", OwnKind::Pattern),
+    own("cursorfl", "cursorflip", OwnKind::Plain),
+    own("cursorfo", "cursorforward", OwnKind::Plain),
+    own("cursorco", "cursorcollapse", OwnKind::Plain),
+    own("cursorm", "cursormerge", OwnKind::Plain),
+    own("cursorp", "cursorprimary", OwnKind::Plain),
+    own("cursorrem", "cursorremove", OwnKind::Plain),
+    own("cursorrot", "cursorrotate", OwnKind::Plain),
+    own("cursorsplits", "cursorsplitsel", OwnKind::Pattern),
+    own("cursorsp", "cursorsplit", OwnKind::Plain),
+    own("cursorsel", "cursorselect", OwnKind::Pattern),
+    own("cursort", "cursortrim", OwnKind::Plain),
+    own("cursora", "cursoralign", OwnKind::Plain),
+    own("seth", "sethandler", OwnKind::Bar),
+    own("actionl", "actionlist", OwnKind::Bar),
+    own("undot", "undotree", OwnKind::Bar),
+];
+
+/// The forms the parser reads as another command than Vim does, with the
+/// command the parser reads. Deviation: Vim reads `:sm` as `:smagic`,
+/// `:sn` as `:snext`, `:sno` as `:snomagic`, `:su` as `:substitute`, `:sun`
+/// as `:sunhide`, `:mar` as `:mark` and `:cha` as `:change`.
+const PARSER_FORMS: [(&str, &str); 14] = [
+    ("sm", "smap"),
+    ("sma", "smap"),
+    ("sn", "snoremap"),
+    ("sno", "snoremap"),
+    ("su", "sunmap"),
+    ("sun", "sunmap"),
+    ("mar", "marks"),
+    ("mark", "marks"),
+    ("cha", "changes"),
+    ("chan", "changes"),
+    ("chang", "changes"),
+    ("change", "changes"),
+    ("centr", "center"),
+    ("centre", "center"),
+];
+
+/// A command found at the start of an Ex command.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum FoundCommand {
+    /// A row of Vim's command table.
+    Vim(&'static VimCommand),
+    /// One of the engine's own commands.
+    Own(&'static OwnCommand),
+    /// The engine's `:sx` or `:sy`, followed by a pattern.
+    Structural,
+}
+
+impl FoundCommand {
+    fn meta(self) -> CommandMeta {
+        let (flags, addr) = match self {
+            Self::Vim(command) => (
+                CmdFlags::from_vim(command.flags),
+                AddrType::from_vim(command.addr),
+            ),
+            Self::Own(OwnCommand {
+                kind: OwnKind::Bar, ..
+            }) => (
+                CmdFlags::BANG
+                    .union(CmdFlags::EXTRA)
+                    .union(CmdFlags::TRLBAR),
+                AddrType::None,
+            ),
+            Self::Own(_) | Self::Structural => (
+                CmdFlags::RANGE
+                    .union(CmdFlags::BANG)
+                    .union(CmdFlags::EXTRA)
+                    .union(CmdFlags::TRLBAR)
+                    .union(CmdFlags::NOTRLCOM),
+                AddrType::Lines,
+            ),
+        };
+        CommandMeta::new(flags, addr)
+    }
+}
 
 /// Check if `name` matches the abbreviation range from `min` to `full` (case-insensitive).
-///
-/// Implements Vim's bracket abbreviation notation: `d[elete]` means `min="d"`, `full="delete"`.
-/// Any prefix of `full` that is at least `min.len()` characters long matches.
 #[inline]
 fn matches_abbrev(name: &str, min: &str, full: &str) -> bool {
     let n = name.len();
     n >= min.len() && n <= full.len() && name.eq_ignore_ascii_case(&full[..n])
 }
 
+/// Whether the parser reads `byte` after `s`, `g`, `v`, `sx` or `sy` as a
+/// pattern delimiter.
+pub(crate) const fn is_pattern_delimiter(byte: Option<u8>) -> bool {
+    match byte {
+        None => false,
+        Some(b) => !b.is_ascii_alphanumeric() && b != b'_',
+    }
+}
+
+/// The command `text` starts with and the length of its name, found as
+/// Vim's `find_ex_command()` and `one_letter_cmd()` find it in a legacy
+/// script, with the engine's own commands first, as the parser takes them.
+///
+/// Deviation: a name is read in lowercase, as the parser reads it; Vim
+/// matches case, so `:Set` is a user command and `:bN` is `:bNext`.
+pub(crate) fn find_command(text: &str) -> Option<(FoundCommand, usize)> {
+    let bytes = text.as_bytes();
+    let alpha_len = bytes
+        .iter()
+        .position(|b| !b.is_ascii_alphabetic())
+        .unwrap_or(bytes.len());
+    let alpha = &text[..alpha_len];
+
+    if (alpha.starts_with("sx") || alpha.starts_with("sy"))
+        && alpha_len == 2
+        && is_pattern_delimiter(bytes.get(2).copied())
+    {
+        return Some((FoundCommand::Structural, 2));
+    }
+    if let Some(own) = own_command(text, alpha) {
+        return Some((FoundCommand::Own(own), alpha_len));
+    }
+    // A modifier the engine does not know, used as a command: Vim takes it
+    // before `one_letter_cmd()` sees `:keepmarks` as `:k`.
+    if let Some(&(name, _, _)) = super::vim_commands::MODIFIERS
+        .iter()
+        .find(|(name, min, _)| alpha_len >= *min && matches_abbrev(alpha, &name[..*min], name))
+    {
+        return vim_command(name).map(|row| (FoundCommand::Vim(row), alpha_len));
+    }
+    if let Some(&(_, name)) = PARSER_FORMS
+        .iter()
+        .find(|(form, _)| alpha.eq_ignore_ascii_case(form))
+    {
+        return vim_command(name).map(|row| (FoundCommand::Vim(row), alpha_len));
+    }
+    if let Some(row) = one_letter_command(bytes) {
+        return Some((FoundCommand::Vim(row), 1));
+    }
+
+    let mut len = alpha_len;
+    if alpha
+        .get(..2)
+        .is_some_and(|start| start.eq_ignore_ascii_case("py"))
+    {
+        len += bytes
+            .iter()
+            .skip(len)
+            .take_while(|b| b.is_ascii_alphanumeric())
+            .count();
+    } else if bytes.get(len) == Some(&b'9') && alpha.eq_ignore_ascii_case("vim") {
+        len += 1 + bytes
+            .iter()
+            .skip(len + 1)
+            .take_while(|b| b.is_ascii_alphabetic())
+            .count();
+    }
+    if len == 0 {
+        let first = *bytes.first()?;
+        if !b"@*!=><&~#}".contains(&first) {
+            return None;
+        }
+        len = 1;
+    }
+    let name = text.get(..len)?;
+    // `:dl`, `:dell`, ... `:deletel` are `:delete` with the `l` flag, and the
+    // same for `p`.
+    let lookup = match name.strip_suffix(['l', 'p']) {
+        Some(head) if !head.is_empty() && "delete".starts_with(head) => head,
+        _ => name,
+    };
+    let typed = lookup.to_ascii_lowercase();
+    let row = COMMANDS
+        .iter()
+        .find(|row| row.name.starts_with(typed.as_str()))?;
+    // `:*` is the star command only with `*` in 'cpoptions'.
+    if row.name == "*" {
+        return None;
+    }
+    // `:fina` is `:finally` in a legacy script.
+    let row = if row.name == "final" && len == 4 {
+        vim_command("finally")?
+    } else {
+        row
+    };
+    Some((FoundCommand::Vim(row), len))
+}
+
+/// The own command `text` starts with, whose name is `alpha`. `:action` is
+/// only that whole word, and `:sp[lit]` only with a pattern after it.
+fn own_command(text: &str, alpha: &str) -> Option<&'static OwnCommand> {
+    if alpha.eq_ignore_ascii_case("action") {
+        return Some(&ACTION);
+    }
+    let own = OWN_COMMANDS
+        .iter()
+        .find(|own| matches_abbrev(alpha, own.min, own.full))?;
+    if own.full == "split" {
+        let after = text[alpha.len()..].trim_start_matches('!');
+        let first = after.trim_start_matches([' ', '\t']).chars().next()?;
+        if !is_split_pattern_delimiter(first) {
+            return None;
+        }
+    }
+    Some(own)
+}
+
+/// Whether `:sp[lit]` followed by `c` splits the cursors at a pattern.
+/// Not after `|` or `"`, which end Vim's `:split` or start a comment, nor
+/// after `\`, which escapes them in a file name: `:sp \|x` opens `|x`.
+pub(crate) fn is_split_pattern_delimiter(c: char) -> bool {
+    !(c.is_alphanumeric() || c.is_whitespace() || matches!(c, '!' | '|' | '"' | '\\'))
+}
+
+static ACTION: OwnCommand = own("action", "action", OwnKind::Bar);
+
+/// `:k` followed by anything, and the `s` forms Vim reads as
+/// `:substitute` with flags (`one_letter_cmd()`).
+fn one_letter_command(p: &[u8]) -> Option<&'static VimCommand> {
+    let at = |i: usize| p.get(i).copied().unwrap_or(0);
+    if at(0) == b'k' {
+        return vim_command("k");
+    }
+    let substitute = at(0) == b's'
+        && ((at(1) == b'c'
+            && (at(2) == 0
+                || (at(2) != b's'
+                    && at(2) != b'r'
+                    && (at(3) == 0 || (at(3) != b'i' && at(4) != b'p')))))
+            || at(1) == b'g'
+            || (at(1) == b'i' && at(2) != b'm' && at(2) != b'l' && at(2) != b'g')
+            || at(1) == b'I'
+            || (at(1) == b'r' && at(2) != b'e'));
+    if substitute {
+        vim_command("substitute")
+    } else {
+        None
+    }
+}
+
+/// The row of Vim's table with the full name `name`.
+pub(crate) fn vim_command(name: &str) -> Option<&'static VimCommand> {
+    COMMANDS.iter().find(|row| row.name == name)
+}
+
 /// Look up metadata for a named ex command.
 ///
-/// Accepts any valid abbreviation of the command name (case-insensitive),
-/// matching the same abbreviation rules used by `ex_parser::parse_named_command`.
+/// Accepts every abbreviation of a command name that the parser accepts:
+/// Vim's commands, found in Vim's command table the way Vim finds them
+/// (`:s` is `:substitute`, `:r` is `:read`, `:fina` is `:finally`), and the
+/// engine's own commands, such as `:sethandler`. Case does not matter.
 ///
-/// Returns `None` for unknown commands (would fall through to `ExCommand::Custom`).
+/// Returns `None` for a name that is no command, such as a user command.
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use vim_core::grammar::command_meta::meta_for_command;
+/// ```
+/// use vim_core::grammar::command_meta::{meta_for_command, CmdFlags};
 ///
 /// let meta = meta_for_command("d").unwrap();
 /// assert!(meta.flags.contains(CmdFlags::RANGE));
@@ -144,1132 +458,10 @@ fn matches_abbrev(name: &str, min: &str, full: &str) -> bool {
 /// ```
 #[must_use]
 pub fn meta_for_command(name: &str) -> Option<CommandMeta> {
-    // ── Text manipulation ──────────────────────────────────────────────
-
-    if matches_abbrev(name, "d", "delete") {
-        // :delete — EX_RANGE|EX_WHOLEFOLD|EX_REGSTR|EX_COUNT|EX_TRLBAR|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::REGSTR)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
+    match find_command(name) {
+        Some((found, len)) if len == name.len() => Some(found.meta()),
+        _ => None,
     }
-    if matches_abbrev(name, "y", "yank") {
-        // :yank — EX_RANGE|EX_WHOLEFOLD|EX_REGSTR|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::REGSTR)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "m", "move") {
-        // :move — EX_RANGE|EX_WHOLEFOLD|EX_EXTRA|EX_TRLBAR|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if name.eq_ignore_ascii_case("t") || matches_abbrev(name, "co", "copy") {
-        // :copy/:t — EX_RANGE|EX_WHOLEFOLD|EX_EXTRA|EX_TRLBAR|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "j", "join") {
-        // :join — EX_BANG|EX_RANGE|EX_WHOLEFOLD|EX_COUNT|EX_TRLBAR|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "sor", "sort") {
-        // :sort — EX_RANGE|EX_DFLALL|EX_WHOLEFOLD|EX_BANG|EX_EXTRA|EX_NOTRLCOM|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::NOTRLCOM)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "pu", "put") {
-        // :put — EX_RANGE|EX_WHOLEFOLD|EX_BANG|EX_REGSTR|EX_TRLBAR|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::REGSTR)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "ret", "retab") {
-        // :retab — EX_TRLBAR|EX_RANGE|EX_WHOLEFOLD|EX_DFLALL|EX_BANG|EX_EXTRA|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::TRLBAR
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "le", "left") {
-        // :left — EX_TRLBAR|EX_RANGE|EX_WHOLEFOLD|EX_EXTRA|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::TRLBAR
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "ri", "right") {
-        // :right — EX_TRLBAR|EX_RANGE|EX_WHOLEFOLD|EX_EXTRA|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::TRLBAR
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "ce", "center") || matches_abbrev(name, "ce", "centre") {
-        // :center — EX_TRLBAR|EX_RANGE|EX_WHOLEFOLD|EX_EXTRA|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::TRLBAR
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-
-    // ── Substitute / Global ────────────────────────────────────────────
-
-    // Note: :substitute and :global are typically matched by delimiter before
-    // reaching parse_named_command, but we include them for completeness.
-    if name.eq_ignore_ascii_case("substitute") {
-        // :substitute — EX_RANGE|EX_WHOLEFOLD|EX_EXTRA (no TRLBAR, no NOTRLCOM in Vim)
-        // Practically: does NOT split at |, | inside pattern is literal.
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if name.eq_ignore_ascii_case("global") {
-        // :global — EX_RANGE|EX_WHOLEFOLD|EX_BANG|EX_EXTRA|EX_DFLALL
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-
-    // ── Informational ──────────────────────────────────────────────────
-
-    if matches_abbrev(name, "noh", "nohlsearch") {
-        // :nohlsearch — EX_TRLBAR
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if matches_abbrev(name, "reg", "registers") || matches_abbrev(name, "di", "display") {
-        // :registers/:display — EX_EXTRA|EX_NOTRLCOM|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::NOTRLCOM)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "mar", "marks") {
-        // :marks — EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "ju", "jumps") {
-        // :jumps — EX_TRLBAR
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if matches_abbrev(name, "cha", "changes") {
-        // :changes — EX_TRLBAR
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if matches_abbrev(name, "clearj", "clearjumps") {
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if matches_abbrev(name, "mes", "messages") {
-        // :messages — EX_EXTRA|EX_TRLBAR|EX_RANGE
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::RANGE),
-            AddrType::Other,
-        ));
-    }
-
-    // ── Abbreviation commands (must precede mapping commands) ──────────
-
-    if matches_abbrev(name, "ab", "abbreviate") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "ia", "iabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "ca", "cabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "norea", "noreabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "inorea", "inoreabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cnorea", "cnoreabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "una", "unabbreviate") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "iuna", "iunabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cuna", "cunabbrev") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "abc", "abclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "iabc", "iabclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cabc", "cabclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-
-    // ── Mapping commands (recursive) ───────────────────────────────────
-
-    if name.eq_ignore_ascii_case("map") {
-        // :map — EX_BANG|EX_EXTRA|EX_TRLBAR|EX_NOTRLCOM
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "nm", "nmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "vm", "vmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "im", "imap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "om", "omap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cm", "cmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-
-    // ── Mapping commands (non-recursive) ───────────────────────────────
-
-    if matches_abbrev(name, "no", "noremap") {
-        // :noremap — EX_BANG|EX_EXTRA|EX_TRLBAR|EX_NOTRLCOM
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "nn", "nnoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "vn", "vnoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "ino", "inoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "ono", "onoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cno", "cnoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-
-    // ── Unmap commands ─────────────────────────────────────────────────
-
-    if matches_abbrev(name, "unm", "unmap") {
-        // :unmap — EX_BANG|EX_EXTRA|EX_TRLBAR|EX_NOTRLCOM
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "nun", "nunmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "vu", "vunmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "iu", "iunmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "ou", "ounmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cu", "cunmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-
-    // ── xmap/xnoremap/xunmap (visual-only) ────────────────────────────
-
-    if matches_abbrev(name, "xm", "xmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "xn", "xnoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "xu", "xunmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-
-    // ── smap/snoremap/sunmap (select-only) ────────────────────────────
-
-    if matches_abbrev(name, "sn", "snoremap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "su", "sunmap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "sm", "smap") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-
-    // ── mapclear commands ─────────────────────────────────────────────
-
-    if name.eq_ignore_ascii_case("mapclear") {
-        // :mapclear — EX_BANG|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "nmapc", "nmapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "vmapc", "vmapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "imapc", "imapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "omapc", "omapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "cmapc", "cmapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "xmapc", "xmapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "smapc", "smapclear") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-
-    // ── Options (:set variants) — specific prefixes first ──────────────
-
-    if matches_abbrev(name, "seth", "sethandler") {
-        // :sethandler uses same flags as :set
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::EXTRA),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "setl", "setlocal") {
-        // :setlocal — EX_BANG|EX_TRLBAR|EX_EXTRA
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::EXTRA),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "setg", "setglobal") {
-        // :setglobal — EX_BANG|EX_TRLBAR|EX_EXTRA
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::EXTRA),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "se", "set") {
-        // :set — EX_BANG|EX_TRLBAR|EX_EXTRA
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::EXTRA),
-            AddrType::None,
-        ));
-    }
-
-    // ── File / Session commands ─────────────────────────────────────────
-
-    if matches_abbrev(name, "w", "write") {
-        // :write — EX_RANGE|EX_WHOLEFOLD|EX_BANG|EX_DFLALL|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "q", "quit") {
-        // :quit — EX_BANG|EX_RANGE|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Windows,
-        ));
-    }
-    if name.eq_ignore_ascii_case("wq") || matches_abbrev(name, "x", "xit") {
-        // :wq/:xit — EX_RANGE|EX_WHOLEFOLD|EX_BANG|EX_DFLALL|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "e", "edit") {
-        // :edit — EX_BANG|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "r", "read") {
-        // :read — EX_BANG|EX_RANGE|EX_EXTRA|EX_TRLBAR|EX_MODIFY
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::MODIFY),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "up", "update") {
-        // :update — EX_RANGE|EX_WHOLEFOLD|EX_BANG|EX_DFLALL|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "so", "source") {
-        // :source — EX_RANGE|EX_DFLALL|EX_BANG|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::DFLALL)
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-
-    // ── Normal mode ────────────────────────────────────────────────────
-
-    if matches_abbrev(name, "norm", "normal") {
-        // :normal — EX_RANGE|EX_BANG|EX_EXTRA|EX_NEEDARG|EX_NOTRLCOM
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::NEEDARG)
-                .union(CmdFlags::NOTRLCOM),
-            AddrType::Lines,
-        ));
-    }
-
-    // ── Display / Misc ─────────────────────────────────────────────────
-
-    if matches_abbrev(name, "ec", "echo") {
-        // :echo — EX_EXTRA|EX_NOTRLCOM
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if name.eq_ignore_ascii_case("let") {
-        // :let — EX_EXTRA|EX_NOTRLCOM
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::NOTRLCOM),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "p", "print") {
-        // :print — EX_RANGE|EX_WHOLEFOLD|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "nu", "number") || name == "#" {
-        // :number/:#  — EX_RANGE|EX_WHOLEFOLD|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "l", "list") {
-        // :list — EX_RANGE|EX_WHOLEFOLD|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-
-    // ── Action commands ────────────────────────────────────────────────
-
-    if name.eq_ignore_ascii_case("action") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA
-                .union(CmdFlags::NEEDARG)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "actionl", "actionlist") {
-        return Some(CommandMeta::new(
-            CmdFlags::EXTRA.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-
-    // ── Undo / Redo ────────────────────────────────────────────────────
-
-    if matches_abbrev(name, "ea", "earlier") {
-        // :earlier — EX_TRLBAR|EX_EXTRA
-        return Some(CommandMeta::new(
-            CmdFlags::TRLBAR.union(CmdFlags::EXTRA),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "lat", "later") {
-        // :later — EX_TRLBAR|EX_EXTRA
-        return Some(CommandMeta::new(
-            CmdFlags::TRLBAR.union(CmdFlags::EXTRA),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "undol", "undolist") {
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if matches_abbrev(name, "undot", "undotree") {
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if matches_abbrev(name, "red", "redo") {
-        // :redo — EX_TRLBAR
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-    if name.eq_ignore_ascii_case("undo") || name.eq_ignore_ascii_case("u") {
-        // :undo — EX_RANGE|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "undoj", "undojoin") {
-        // :undojoin — EX_TRLBAR
-        return Some(CommandMeta::new(CmdFlags::TRLBAR, AddrType::None));
-    }
-
-    // ── Buffer navigation ──────────────────────────────────────────────
-
-    if matches_abbrev(name, "b", "buffer") {
-        // :buffer — EX_BANG|EX_RANGE|EX_COUNT|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Buffers,
-        ));
-    }
-    if matches_abbrev(name, "bn", "bnext") {
-        // :bnext — EX_BANG|EX_RANGE|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "bp", "bprevious") {
-        // :bprevious — EX_BANG|EX_RANGE|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "bf", "bfirst") || matches_abbrev(name, "bre", "brewind") {
-        // :bfirst — EX_BANG|EX_RANGE|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "bl", "blast") {
-        // :blast — EX_BANG|EX_RANGE|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if name.eq_ignore_ascii_case("ls")
-        || matches_abbrev(name, "buffers", "buffers")
-        || matches_abbrev(name, "files", "files")
-    {
-        // :buffers/:ls — EX_BANG|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "bd", "bdelete") {
-        // :bdelete — EX_BANG|EX_RANGE|EX_COUNT|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Buffers,
-        ));
-    }
-    if matches_abbrev(name, "bw", "bwipeout") {
-        // :bwipeout — EX_BANG|EX_RANGE|EX_COUNT|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Buffers,
-        ));
-    }
-
-    // ── Tab navigation ─────────────────────────────────────────────────
-
-    if name.eq_ignore_ascii_case("tabnew") || matches_abbrev(name, "tabe", "tabedit") {
-        // :tabnew — EX_BANG|EX_RANGE|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Tabs,
-        ));
-    }
-    if matches_abbrev(name, "tabn", "tabnext") {
-        // :tabnext — EX_RANGE|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Tabs,
-        ));
-    }
-    if matches_abbrev(name, "tabp", "tabprevious") {
-        // :tabprevious — EX_RANGE|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Tabs,
-        ));
-    }
-    if matches_abbrev(name, "tabc", "tabclose") {
-        // :tabclose — EX_BANG|EX_RANGE|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Tabs,
-        ));
-    }
-
-    // ── Window commands ────────────────────────────────────────────────
-
-    if matches_abbrev(name, "sp", "split") {
-        // :split — EX_BANG|EX_RANGE|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "vs", "vsplit") {
-        // :vsplit — EX_BANG|EX_RANGE|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-
-    // ── Diagnostic navigation (before :close to avoid prefix clash) ───
-
-    if matches_abbrev(name, "cn", "cnext") {
-        // :cnext — EX_RANGE|EX_COUNT|EX_TRLBAR|EX_BANG
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::BANG),
-            AddrType::Unsigned,
-        ));
-    }
-    if matches_abbrev(name, "cp", "cprevious") || matches_abbrev(name, "cp", "cprev") {
-        // :cprevious — EX_RANGE|EX_COUNT|EX_TRLBAR|EX_BANG
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::BANG),
-            AddrType::Unsigned,
-        ));
-    }
-    if matches_abbrev(name, "cl", "clist") {
-        // :clist — EX_BANG|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if name.eq_ignore_ascii_case("cc") {
-        // :cc — EX_RANGE|EX_COUNT|EX_TRLBAR|EX_BANG
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::BANG),
-            AddrType::Unsigned,
-        ));
-    }
-
-    if matches_abbrev(name, "clo", "close") {
-        // :close — EX_BANG|EX_RANGE|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Windows,
-        ));
-    }
-    if name.eq_ignore_ascii_case("new") {
-        // :new — EX_BANG|EX_EXTRA|EX_RANGE|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "vne", "vnew") {
-        // :vnew — EX_BANG|EX_EXTRA|EX_RANGE|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Other,
-        ));
-    }
-    if matches_abbrev(name, "on", "only") {
-        // :only — EX_BANG|EX_RANGE|EX_COUNT|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Windows,
-        ));
-    }
-    if matches_abbrev(name, "wa", "wall") {
-        // :wall — EX_BANG|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "qa", "qall") {
-        // :qall — EX_BANG|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-    if matches_abbrev(name, "wqa", "wqall") || matches_abbrev(name, "xa", "xall") {
-        // :wqall/:xall — EX_BANG|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG.union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-
-    // ── Delete marks ───────────────────────────────────────────────────
-
-    if matches_abbrev(name, "delm", "delmarks") {
-        // :delmarks — EX_BANG|EX_EXTRA|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::TRLBAR),
-            AddrType::None,
-        ));
-    }
-
-    // ── Quit with error code ───────────────────────────────────────────
-
-    if matches_abbrev(name, "cq", "cquit") {
-        // :cquit — EX_RANGE|EX_COUNT|EX_TRLBAR|EX_BANG
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::COUNT)
-                .union(CmdFlags::TRLBAR)
-                .union(CmdFlags::BANG),
-            AddrType::Unsigned,
-        ));
-    }
-
-    // ── Fold commands ──────────────────────────────────────────────────
-
-    if matches_abbrev(name, "fo", "fold") {
-        // :fold — EX_RANGE|EX_WHOLEFOLD|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE.union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "foldo", "foldopen") {
-        // :foldopen — EX_RANGE|EX_BANG|EX_WHOLEFOLD|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-    if matches_abbrev(name, "foldc", "foldclose") {
-        // :foldclose — EX_RANGE|EX_BANG|EX_WHOLEFOLD|EX_TRLBAR
-        return Some(CommandMeta::new(
-            CmdFlags::RANGE
-                .union(CmdFlags::BANG)
-                .union(CmdFlags::TRLBAR),
-            AddrType::Lines,
-        ));
-    }
-
-    // ── Iterator commands ──────────────────────────────────────────────
-
-    if matches_abbrev(name, "windo", "windo") {
-        // :windo — EX_NEEDARG|EX_EXTRA|EX_NOTRLCOM|EX_RANGE|EX_DFLALL
-        return Some(CommandMeta::new(
-            CmdFlags::NEEDARG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::NOTRLCOM)
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::DFLALL),
-            AddrType::Windows,
-        ));
-    }
-    if matches_abbrev(name, "bufdo", "bufdo") {
-        // :bufdo — EX_BANG|EX_NEEDARG|EX_EXTRA|EX_NOTRLCOM|EX_RANGE|EX_DFLALL
-        return Some(CommandMeta::new(
-            CmdFlags::BANG
-                .union(CmdFlags::NEEDARG)
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::NOTRLCOM)
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::DFLALL),
-            AddrType::Buffers,
-        ));
-    }
-    if matches_abbrev(name, "tabdo", "tabdo") {
-        // :tabdo — EX_NEEDARG|EX_EXTRA|EX_NOTRLCOM|EX_RANGE|EX_DFLALL
-        return Some(CommandMeta::new(
-            CmdFlags::NEEDARG
-                .union(CmdFlags::EXTRA)
-                .union(CmdFlags::NOTRLCOM)
-                .union(CmdFlags::RANGE)
-                .union(CmdFlags::DFLALL),
-            AddrType::Tabs,
-        ));
-    }
-
-    // ── No match — unknown command ─────────────────────────────────────
-    None
 }
 
 /// Strip a trailing comment from an ex command argument string.
@@ -1397,6 +589,202 @@ mod tests {
         );
     }
 
+    // ── Vim's command table ────────────────────────────────────────────
+
+    fn found(text: &str) -> (Option<&'static str>, usize) {
+        match find_command(text) {
+            Some((FoundCommand::Vim(row), len)) => (Some(row.name), len),
+            Some((_, len)) => (None, len),
+            None => (None, 0),
+        }
+    }
+
+    #[test]
+    fn table_holds_every_command_of_ex_cmds_h() {
+        assert_eq!(COMMANDS.len(), 594);
+        let count = |flag| COMMANDS.iter().filter(|c| c.flags & flag != 0).count();
+        assert_eq!(count(ex::TRLBAR), 456);
+        assert_eq!(count(ex::EXPR_ARG), 23);
+        assert_eq!(super::super::vim_commands::MODIFIERS.len(), 26);
+    }
+
+    #[test]
+    fn table_flags_are_those_of_ex_cmds_h() {
+        use ex::*;
+        for (name, flags) in [
+            ("set", BANG | TRLBAR | EXTRA | CMDWIN | LOCK_OK | SBOXOK),
+            (
+                "map",
+                BANG | EXTRA | TRLBAR | NOTRLCOM | CTRLV | CMDWIN | LOCK_OK,
+            ),
+            (
+                "if",
+                EXTRA | NOTRLCOM | EXPR_ARG | SBOXOK | CMDWIN | LOCK_OK,
+            ),
+            (
+                "echo",
+                EXTRA | NOTRLCOM | EXPR_ARG | SBOXOK | CMDWIN | LOCK_OK,
+            ),
+            (
+                "normal",
+                RANGE | BANG | EXTRA | NEEDARG | NOTRLCOM | CTRLV | SBOXOK | CMDWIN | LOCK_OK,
+            ),
+            (
+                "source",
+                RANGE | DFLALL | BANG | FILE1 | TRLBAR | SBOXOK | CMDWIN | LOCK_OK,
+            ),
+            ("finish", TRLBAR | SBOXOK | CMDWIN | LOCK_OK | WHOLE),
+            ("filetype", EXTRA | TRLBAR | CMDWIN | LOCK_OK),
+        ] {
+            assert_eq!(vim_command(name).unwrap().flags, flags, ":{name}");
+        }
+    }
+
+    #[test]
+    fn a_name_finds_the_first_row_it_starts_as_find_ex_command_does() {
+        for (typed, name) in [
+            ("s", "substitute"),
+            ("r", "read"),
+            ("n", "next"),
+            ("fu", "function"),
+            ("so", "source"),
+            ("sil", "silent"),
+            ("fin", "find"),
+            ("fini", "finish"),
+            ("fina", "finally"),
+            ("final", "final"),
+            ("py3", "py3"),
+            ("python3", "python3"),
+            ("vim9s", "vim9script"),
+            ("dl", "delete"),
+            ("deletep", "delete"),
+            ("k", "k"),
+            ("ka", "k"),
+            ("sg", "substitute"),
+            ("snom", "snomagic"),
+            ("smag", "smagic"),
+            ("smap", "smap"),
+            ("e", "edit"),
+            ("en", "endif"),
+            ("&", "&"),
+            ("#", "#"),
+            ("filet", "filetype"),
+            ("pw", "pwd"),
+        ] {
+            assert_eq!(found(typed).0, Some(name), ":{typed}");
+        }
+        assert_eq!(found("dl"), (Some("delete"), 2));
+        assert_eq!(found("py3file x"), (Some("py3file"), 7));
+        assert_eq!(found("set|x"), (Some("set"), 3));
+    }
+
+    #[test]
+    fn own_commands_come_before_vim_s_table() {
+        for typed in [
+            "seth",
+            "sethandler",
+            "kee",
+            "sel",
+            "selectall",
+            "undot",
+            "actionl",
+            "action",
+            "sp /a/",
+            "split! /a/",
+        ] {
+            assert!(
+                matches!(find_command(typed), Some((FoundCommand::Own(_), _))),
+                ":{typed}"
+            );
+        }
+        assert!(matches!(
+            find_command("sx/a/d"),
+            Some((FoundCommand::Structural, 2))
+        ));
+        // `|` ends Vim's `:split`, `"` starts a comment after it and `\`
+        // escapes either in a file name.
+        for typed in ["sp x", "sp | e x", "sp!|e x", "sp \"x\"", "sp \\|x", "sp"] {
+            assert_eq!(found(typed), (Some("split"), 2), ":{typed}");
+        }
+        assert!(find_command("actio").is_none());
+    }
+
+    #[test]
+    fn a_modifier_used_as_a_command_is_its_own_row() {
+        assert_eq!(found("keepmarks"), (Some("keepmarks"), 9));
+        assert_eq!(found("noa"), (Some("noautocmd"), 3));
+        assert_eq!(found("verb"), (Some("verbose"), 4));
+    }
+
+    /// Every form of a Vim command or an own command that the parser reads
+    /// as a command is found in the table as a command the parser reads the
+    /// same way, and all the forms the parser reads as one command are one
+    /// row, so the splitter ends each by the row the parser runs.
+    #[test]
+    fn the_table_finds_the_command_the_parser_reads() {
+        use super::super::parse_ex_command;
+        use super::super::types::ExCommand;
+
+        // The names in the parser's source, so that one the table lacks is
+        // tried too.
+        let parser_words = include_str!("ex_parser.rs")
+            .split('"')
+            .filter(|word| !word.is_empty() && word.bytes().all(|b| b.is_ascii_lowercase()));
+        let forms: std::collections::BTreeSet<&str> = COMMANDS
+            .iter()
+            .map(|row| row.name)
+            .chain(OWN_COMMANDS.iter().map(|own| own.full))
+            .chain(PARSER_FORMS.iter().map(|&(form, _)| form))
+            .chain(parser_words)
+            .flat_map(|name| (1..=name.len()).map(move |len| &name[..len]))
+            .collect();
+        let mut wrong = Vec::new();
+        let mut read_forms = Vec::new();
+        for typed in forms {
+            let read = parse_ex_command(typed);
+            if matches!(read, Ok(ExCommand::Custom { .. })) {
+                continue;
+            }
+            let full = match find_command(typed) {
+                Some((FoundCommand::Vim(row), len)) if len == typed.len() => row.name,
+                Some((FoundCommand::Own(own), len)) if len == typed.len() => own.full,
+                // `:ke` is `:k e`, `:sg` is `:s g` and `:dl` is `:d l`.
+                Some(_) => continue,
+                // `:+`, `:-` and `:*` are ranges.
+                None if !typed.starts_with(|c: char| c.is_ascii_alphabetic()) => continue,
+                None => {
+                    wrong.push(format!(":{typed} is no command in the table"));
+                    continue;
+                }
+            };
+            if parse_ex_command(full) != read {
+                wrong.push(format!(":{typed} is {full} in the table"));
+            }
+            read_forms.push((typed, read, full));
+        }
+        // Many commands give the same error without an argument.
+        read_forms.retain(|(_, read, _)| read.is_ok());
+        for (typed, read, full) in &read_forms {
+            for (longer, longer_read, longer_full) in &read_forms {
+                if longer.len() > typed.len()
+                    && longer.starts_with(typed)
+                    && longer_read == read
+                    && longer_full != full
+                {
+                    wrong.push(format!(":{typed} is {full} but :{longer} is {longer_full}"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    #[test]
+    fn no_command_is_found_for_these() {
+        for typed in ["", "Foo", "*", "{", "\u{a0}set", "1"] {
+            assert!(find_command(typed).is_none(), "{typed:?}");
+        }
+    }
+
     // ── meta_for_command ───────────────────────────────────────────────
 
     #[test]
@@ -1447,6 +835,23 @@ mod tests {
         assert!(meta.flags.contains(CmdFlags::TRLBAR));
         assert!(meta.flags.contains(CmdFlags::EXTRA));
         assert!(meta.allows_trailing_comment());
+    }
+
+    #[test]
+    fn meta_has_vim_s_ctrlv_xfile_expr_arg_and_sboxok_flags() {
+        let flags = |name| meta_for_command(name).unwrap().flags;
+        assert!(flags("nn").contains(CmdFlags::CTRLV));
+        assert!(flags("norm").contains(CmdFlags::CTRLV));
+        assert!(!flags("se").contains(CmdFlags::CTRLV));
+        assert!(flags("e").contains(CmdFlags::XFILE));
+        assert!(flags("so").contains(CmdFlags::XFILE));
+        assert!(!flags("se").contains(CmdFlags::XFILE));
+        assert!(flags("let").contains(CmdFlags::EXPR_ARG));
+        assert!(flags("ec").contains(CmdFlags::EXPR_ARG));
+        assert!(!flags("wh").contains(CmdFlags::EXPR_ARG));
+        assert!(flags("se").contains(CmdFlags::SBOXOK));
+        assert!(flags("wh").contains(CmdFlags::SBOXOK));
+        assert!(!flags("w").contains(CmdFlags::SBOXOK));
     }
 
     #[test]

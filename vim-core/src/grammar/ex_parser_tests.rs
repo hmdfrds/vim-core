@@ -2678,6 +2678,16 @@ mod multi_cursor_ex {
     }
 
     #[test]
+    fn parses_sp_bar_as_a_file_not_a_delimiter() {
+        // What `:sp \|x` leaves: Vim's `:split` opens the file `|x`.
+        let cmd = parse_ex_command("sp |x").unwrap();
+        assert!(matches!(
+            cmd,
+            ExCommand::Split { path: Some(p) } if p.as_str() == "|x"
+        ));
+    }
+
+    #[test]
     fn parses_keep_with_pattern() {
         let cmd = parse_ex_command("keep /test/").unwrap();
         assert!(matches!(
