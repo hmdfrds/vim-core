@@ -157,6 +157,13 @@ pub enum VimError {
     TrailingCharacters(Box<str>),
 
     // ═══════════════════════════════════════════════════════════════════
+    // Sourced file errors
+    // ═══════════════════════════════════════════════════════════════════
+    /// W15: a line of a file whose first line ends in CR LF ends in LF
+    /// alone. Vim gives this warning as an error.
+    WrongLineSeparator,
+
+    // ═══════════════════════════════════════════════════════════════════
     // Macro errors
     // ═══════════════════════════════════════════════════════════════════
     /// E223: Recursive mapping.
@@ -306,6 +313,11 @@ impl fmt::Display for VimError {
             }
             Self::TrailingCharacters(text) => write!(f, "E488: Trailing characters: {text}"),
 
+            // Sourced files
+            Self::WrongLineSeparator => {
+                write!(f, "W15: Warning: Wrong line separator, ^M may be missing")
+            }
+
             // Macros
             Self::RecursiveMacro { register, depth } => {
                 write!(f, "E223: recursive mapping for @{register} (depth {depth})")
@@ -414,6 +426,7 @@ mod tests {
             VimError::NotAvailable("source!".into()),
             VimError::FinishOutsideSource,
             VimError::TrailingCharacters("x".into()),
+            VimError::WrongLineSeparator,
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -548,6 +561,14 @@ mod tests {
         assert_eq!(
             VimError::TrailingCharacters("x | set ic".into()).to_string(),
             "E488: Trailing characters: x | set ic"
+        );
+    }
+
+    #[test]
+    fn display_wrong_line_separator() {
+        assert_eq!(
+            VimError::WrongLineSeparator.to_string(),
+            "W15: Warning: Wrong line separator, ^M may be missing"
         );
     }
 

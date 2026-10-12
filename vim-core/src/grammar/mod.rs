@@ -99,6 +99,7 @@ pub mod hints;
 pub mod input_state;
 pub mod parser;
 pub mod result;
+pub(crate) mod script;
 pub mod types;
 mod vim_commands;
 

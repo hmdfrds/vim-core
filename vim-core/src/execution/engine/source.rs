@@ -10,6 +10,7 @@ use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::execution::executor_ex::{self, SetScope};
 use crate::execution::{ExecutionContext, InputContext};
+use crate::grammar::script::{Line, Script};
 use crate::grammar::{parse_ex_command_with_modifiers, split_ex_pipeline};
 use crate::primitives::{Offset, Position};
 use compact_str::CompactString;
@@ -30,9 +31,11 @@ impl super::VimEngine {
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
     /// gives E523, and `:setlocal` and `:setglobal` act like `:set`.
     ///
-    /// As in Vim, a line whose first non-blank is `"` is a comment, a line
-    /// starting with `\` continues the line before it, and the lines of a
-    /// `:function` body are not run.
+    /// The text is read as Vim reads a sourced file: a byte order mark is
+    /// dropped, the CR of each CR LF goes when the first line ends in CR
+    /// LF, a line whose first non-blank is `\` continues the line before
+    /// it, and a line whose first non-blank is `"` is a comment. The lines
+    /// of a `:function` body are not run.
     ///
     /// A line can therefore hold several commands, so a host that filters
     /// an untrusted config must judge every `|` command of a line, and a
@@ -43,7 +46,11 @@ impl super::VimEngine {
     pub fn source_config_text(&mut self, text: &str) -> Response {
         let mut response = Response::with_effects(Effects::new());
         let mut function_depth = 0usize;
-        for line in config_lines(text) {
+        let mut script = Script::new(text);
+        while let Some(Line { text: line, .. }) = script.next_line() {
+            for (_, warning) in script.take_warnings() {
+                response.extend_effects(ex_effects::show_error(warning));
+            }
             let command = line.trim_start_matches([' ', '\t', ':']);
             if command.is_empty() || command.starts_with('"') {
                 continue;
@@ -111,24 +118,6 @@ impl super::VimEngine {
             response.host_requests.extend(output.host_requests);
         }
     }
-}
-
-/// The lines of a config file, with each line that starts with `\` joined
-/// to the one before it and `"\ ` comments inside such a run dropped, as
-/// Vim reads a sourced file.
-fn config_lines(text: &str) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    for raw in text.lines() {
-        let trimmed = raw.trim_start_matches([' ', '\t']);
-        if trimmed.starts_with("\"\\ ") {
-            continue;
-        }
-        match (trimmed.strip_prefix('\\'), lines.last_mut()) {
-            (Some(rest), Some(last)) => last.push_str(rest),
-            _ => lines.push(raw.to_owned()),
-        }
-    }
-    lines
 }
 
 enum FunctionBoundary {
@@ -408,6 +397,34 @@ finish
         let response = engine.source_config_text("\u{a0}\" x\n \t\" y\n");
         let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
         assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
+    }
+
+    #[test]
+    fn source_config_drops_a_byte_order_mark() {
+        let session = sourced("", "\u{feff}set ic\n");
+        assert!(session.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_reads_a_dos_file() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("set tw=33\r\nset ic\r\n");
+        assert_eq!(engine.options().textwidth(), 33);
+        assert!(engine.options().ignorecase());
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    }
+
+    #[test]
+    fn source_config_warns_of_a_lone_lf_in_a_dos_file() {
+        // `get_one_sourceline()` gives W15 as an error; the line still runs.
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("set ic\r\nset tw=33\nset et\r\n");
+        assert_eq!(engine.options().textwidth(), 33);
+        assert!(engine.options().expandtab());
+        assert_eq!(
+            errors(&response),
+            ["W15: Warning: Wrong line separator, ^M may be missing"]
+        );
     }
 
     #[test]
