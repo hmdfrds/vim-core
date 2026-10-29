@@ -524,3 +524,50 @@ fn c1_over_cap_returns_haystack_too_large() {
 fn multibyte_explicit_unicode_start_sound() {
     regex(r"[А-В]\+").text("АБ").expect_match(0..4).run();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Deep nesting is an error, not a stack overflow
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn on_a_1_mib_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap()
+}
+
+/// Found by: godot-vim's Sandbox.
+/// Bug: every compile pass recursed once per nested group, and the parser once
+/// per nested `\%[`, so about 120 nested `\%(` or 300 nested `\%[` overflowed a
+/// 1 MiB stack in a debug build.
+#[test]
+fn deep_nesting_is_an_error_not_a_stack_overflow() {
+    let errors = on_a_1_mib_stack(|| {
+        [
+            format!("{}x{}", r"\%(".repeat(1000), r"\)".repeat(1000)),
+            format!("{}x{}", r"\%[".repeat(1000), "]".repeat(1000)),
+        ]
+        .map(|p| VimRegex::new(&p).unwrap_err().to_string())
+    });
+    assert!(errors[0].starts_with("E339:"), "got: {}", errors[0]);
+    assert!(errors[1].starts_with("E369:"), "got: {}", errors[1]);
+}
+
+/// The deepest nesting allowed, with an alternation, a branch-and, a quantifier,
+/// a lookbehind and a back reference at every level, compiles and searches on a
+/// 1 MiB stack.
+#[test]
+fn the_deepest_nesting_allowed_fits_a_1_mib_stack() {
+    let searched = on_a_1_mib_stack(|| {
+        let pattern = format!(
+            r"\(x\){}x{}",
+            r"\%(x\|x\&\1".repeat(10),
+            r"\)*\@<=".repeat(10)
+        );
+        let re = VimRegex::new(&pattern).unwrap();
+        re.find(&MatchContext::simple("xxyx")).is_ok()
+    });
+    assert!(searched);
+}

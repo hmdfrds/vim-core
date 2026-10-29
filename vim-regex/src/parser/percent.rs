@@ -83,11 +83,20 @@ impl Parser {
     ) -> Result<Option<VimPatternNode>, VimRegexError> {
         self.advance(); // consume '['
 
+        if let Some(start) = self.optional_sequence_start {
+            return Err(VimRegexErrorKind::InvalidOptionalSequenceAtom {
+                span: self.span_from(start),
+            }
+            .into());
+        }
+        self.optional_sequence_start = Some(open_pos);
+
         let mut items = Vec::new();
 
         while let Some(ch) = self.peek() {
             if ch == ']' {
                 self.advance(); // consume ']'
+                self.optional_sequence_start = None;
                 if items.is_empty() {
                     return Err(VimRegexErrorKind::InvalidOptionalSequenceAtom {
                         span: self.span_from(open_pos),

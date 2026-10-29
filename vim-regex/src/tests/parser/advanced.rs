@@ -654,6 +654,20 @@ fn optional_sequence_rejects_group() {
 }
 
 #[test]
+fn optional_sequence_rejects_a_non_capturing_group_and_itself() {
+    // Nothing nests inside \%[]: Vim gives E369 for both.
+    for pattern in ["ab\\%[\\%(cd\\)]", "\\%[a\\%[b]]"] {
+        assert!(
+            matches!(
+                parse(pattern),
+                Err(ref e) if matches!(e.kind, VimRegexErrorKind::InvalidOptionalSequenceAtom { .. })
+            ),
+            "{pattern}"
+        );
+    }
+}
+
+#[test]
 fn optional_sequence_rejects_backreference() {
     // \%[\1] -- backreference inside \%[] is invalid
     assert!(matches!(
