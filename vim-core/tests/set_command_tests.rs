@@ -297,3 +297,18 @@ fn blanks_may_come_before_an_operator() {
     assert_eq!(engine.options().textwidth(), 3);
     assert_eq!(run_ex(&mut engine, "set tw  ?").0, ["textwidth=3"]);
 }
+
+#[test]
+fn langnoremap_is_langremap_inverted() {
+    // did_set_langnoremap() and did_set_langremap() set each other.
+    let mut engine = VimEngine::new();
+    assert_eq!(run_ex(&mut engine, "set langnoremap"), (vec![], vec![]));
+    assert!(!engine.options().langremap());
+    assert_eq!(run_ex(&mut engine, "set lnr?").0, ["langnoremap"]);
+    assert_eq!(run_ex(&mut engine, "set lrm?").0, ["nolangremap"]);
+    assert_eq!(run_ex(&mut engine, "set nolnr"), (vec![], vec![]));
+    assert!(engine.options().langremap());
+    assert_eq!(run_ex(&mut engine, "set langnoremap?").0, ["nolangnoremap"]);
+    assert_eq!(run_ex(&mut engine, "set lnr!"), (vec![], vec![]));
+    assert!(!engine.options().langremap());
+}

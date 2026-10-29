@@ -1788,6 +1788,7 @@ pub(crate) fn option_value(
         "visualstar" => ("visualstar", Bool(options.visualstar())),
         "langmap" | "lmap" => ("langmap", text(options.langmap())),
         "langremap" | "lrm" => ("langremap", Bool(options.langremap())),
+        "langnoremap" | "lnr" => ("langnoremap", Bool(!options.langremap())),
         "undoautogroupms" | "uagm" => (
             "undoautogroupms",
             Signed(options.undo_auto_group_ms().map_or(-1, i64::from)),
@@ -1828,6 +1829,8 @@ fn set_bool_option(options: &mut crate::primitives::VimOptions, name: &str, valu
         "gdefault" | "gd" => options.set_gdefault(value),
         "visualstar" => options.set_visualstar(value),
         "langremap" | "lrm" => options.set_langremap(value),
+        // did_set_langnoremap(): 'langnoremap' is 'langremap' inverted.
+        "langnoremap" | "lnr" => options.set_langremap(!value),
         "multilinefind" | "mlf" => options.set_multiline_find(value),
         _ => return false,
     }
