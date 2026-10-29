@@ -651,7 +651,8 @@ fn annotated_visualization(
 ///
 /// 1. Creates test input from parameters
 /// 2. Loads or generates golden file from Neovim
-/// 3. Runs same keys through vim-core via FidelitySession
+/// 3. Runs same keys through vim-core via FidelitySession, twice: as
+///    recorded, and with an empty fold provider
 /// 4. Compares results and panics on mismatch
 pub fn run_neovim_test(
     name: &str,
@@ -688,15 +689,20 @@ pub fn run_neovim_test(
         }
     };
 
-    let mut session = FidelitySession::new(&input, golden.expected.window.as_ref());
-    session.run_keys(&input.keys);
-    let actual = session.capture();
+    for folds in [false, true] {
+        let mut session = FidelitySession::new(&input, golden.expected.window.as_ref());
+        if folds {
+            session.session.session_mut().set_fold_state(Vec::new());
+        }
+        session.run_keys(&input.keys);
+        let actual = session.capture();
+        let run = if folds { " (empty fold provider)" } else { "" };
 
-    if let Some(diff) = compare_states(&actual, &golden.expected) {
-        let viz = annotated_visualization(&input, &golden.expected, &actual);
-        panic!(
-            "\n\n{bar}\n\
-             FIDELITY TEST FAILED: {name}\n\
+        if let Some(diff) = compare_states(&actual, &golden.expected) {
+            let viz = annotated_visualization(&input, &golden.expected, &actual);
+            panic!(
+                "\n\n{bar}\n\
+             FIDELITY TEST FAILED: {name}{run}\n\
              {bar}\n\n\
              {viz}\n\n\
              Input:\n\
@@ -704,11 +710,12 @@ pub fn run_neovim_test(
                Cursor: ({line}, {col})\n\
                Keys: {keys:?}\n\n\
              {diff}\n",
-            bar = "═".repeat(60),
-            text = input.text,
-            line = input.cursor.0,
-            col = input.cursor.1,
-            keys = input.keys,
-        );
+                bar = "═".repeat(60),
+                text = input.text,
+                line = input.cursor.0,
+                col = input.cursor.1,
+                keys = input.keys,
+            );
+        }
     }
 }
