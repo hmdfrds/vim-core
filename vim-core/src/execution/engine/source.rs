@@ -2000,21 +2000,21 @@ mod tests {
     #[test]
     fn source_config_set_langremap() {
         let mut engine = VimEngine::new();
-        // Default is false (Neovim convention)
-        assert!(!engine.options().langremap());
+        // On by default, as in Vim's option table.
+        assert!(engine.options().langremap());
 
-        let config = "set langremap\n";
+        let config = "set nolangremap\n";
         engine.source_config_text(config);
-        assert!(
-            engine.options().langremap(),
-            "langremap should be true after :set langremap"
-        );
-
-        let config2 = "set nolangremap\n";
-        engine.source_config_text(config2);
         assert!(
             !engine.options().langremap(),
             "langremap should be false after :set nolangremap"
+        );
+
+        let config2 = "set langremap\n";
+        engine.source_config_text(config2);
+        assert!(
+            engine.options().langremap(),
+            "langremap should be true after :set langremap"
         );
     }
 

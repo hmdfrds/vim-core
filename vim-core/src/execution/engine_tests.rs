@@ -2884,8 +2884,8 @@ fn engine_process_uses_buffer_local_mapping() {
     let response = engine.process(KeyEvent::char('q'), ctx);
 
     // The mapping should have been expanded:
-    // 'q' → ExactOnly('l') → Dispatch('l')
-    // Non-recursive single-key mapping: resolve_key() returns Dispatch('l'),
+    // 'q' → ExactOnly('l') → Mapped('l')
+    // Non-recursive single-key mapping: resolve_key() returns Mapped('l'),
     // so process() treats 'l' as the resolved key and executes it directly.
     // No drain needed — the 'l' motion is executed inline.
     assert!(

@@ -108,7 +108,7 @@ impl VimEngine {
         let mode = self.state.mode();
         debug!(target: "vim::engine::mapping", "mapping lookup resolved (mode={mode:?})");
         match self.typeahead.buffer.force_resolve(&self.keymap, mode) {
-            Some(ResolveResult::Dispatch(key, flags)) => {
+            Some(ResolveResult::Dispatch(key, flags) | ResolveResult::Mapped(key, flags)) => {
                 // Inject back into the buffer so drain_next_key() picks it up.
                 // The flags (typically NOREMAP for flushed literals, or
                 // noremap_rhs for expanded mappings) are preserved, and

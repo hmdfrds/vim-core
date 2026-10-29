@@ -312,3 +312,10 @@ fn langnoremap_is_langremap_inverted() {
     assert_eq!(run_ex(&mut engine, "set lnr!"), (vec![], vec![]));
     assert!(!engine.options().langremap());
 }
+
+#[test]
+fn langremap_is_on_by_default() {
+    // optiondefs.h gives 'langremap' TRUE; only defaults.vim turns it off.
+    let mut engine = VimEngine::new();
+    assert_eq!(run_ex(&mut engine, "set langremap?").0, ["langremap"]);
+}

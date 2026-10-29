@@ -392,3 +392,40 @@ fn map_bang_maps_insert_and_command_line_mode() {
     type_keys(&mut session, ":noremap! jk <lt>Esc><CR>ajk");
     assert_eq!(session.mode(), Mode::Normal);
 }
+
+#[test]
+fn langremap_decides_whether_langmap_applies_to_mapped_keys() {
+    // LANGMAP_ADJUST() translates a key that was typed, and any other key
+    // only with 'langremap' on. A mapping's keys are not typed, its first
+    // key included.
+    for (rhs, remap, text) in [
+        ("0js/hello/X/<CR>", true, "X\nworld"),
+        ("js/hello/X/<CR>", true, "X\nworld"),
+        ("0js/hello/X/<CR>", false, "hello\n/hello/X/\norld"),
+        ("js/hello/X/<CR>", false, "hello\n/hello/X/\norld"),
+    ] {
+        let mut session = HostSession::new("hello\nworld");
+        let langremap = if remap { "langremap" } else { "nolangremap" };
+        let config = format!("set langmap=j: {langremap}\nnnoremap <F5> {rhs}\n");
+        let _ = session.source_config(&config);
+        type_keys(&mut session, "<F5>");
+        assert_eq!(session.text(), text, "{rhs} with {langremap}");
+    }
+}
+
+#[test]
+fn langmap_applies_to_typed_keys_without_langremap() {
+    let mut session = HostSession::new("hello\nworld");
+    let _ = session.source_config("set langmap=j: nolangremap\n");
+    type_keys(&mut session, "j");
+    assert_eq!(session.mode(), Mode::CommandLine);
+
+    // Keys a host feeds are not typed either, as for feedkeys() without
+    // the "t" flag. They run after the next key.
+    let mut session = HostSession::new("hello\nworld");
+    let _ = session.source_config("set langmap=j: nolangremap\n");
+    session.feed_keys("j", true);
+    type_keys(&mut session, "<Esc>");
+    assert_eq!(session.mode(), Mode::Normal);
+    assert_eq!(session.cursor_offset(), 6);
+}
