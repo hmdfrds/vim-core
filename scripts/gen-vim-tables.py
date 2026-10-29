@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Generate vim-core/src/grammar/vim_commands.rs from a Vim source tree.
+"""Generate vim-core's tables of Vim's commands and options from a Vim source
+tree.
 
     python3 scripts/gen-vim-tables.py <vim-source-dir>
 
 The Vim tree must be a git checkout at a release tag. The script reads
 src/ex_cmds.h (the Ex command table, its EX_* flags and address types), the
 cmdmods[] table of src/ex_docmd.c and the event_names[] table of
-src/autocmd.c, and writes the Rust tables next to the grammar module. The output is checked in; regenerating it is a deliberate
-change.
+src/autocmd.c, and writes vim-core/src/grammar/vim_commands.rs. It reads the
+options[] table of src/optiondefs.h and writes
+vim-core/src/primitives/vim_option_names.rs. The output is checked in;
+regenerating it is a deliberate change.
 """
 
 import pathlib
@@ -18,8 +21,13 @@ import sys
 EXPECTED_COMMANDS = 594
 EXPECTED_MODIFIERS = 26
 EXPECTED_EVENTS = 117
+EXPECTED_OPTIONS = 436
+EXPECTED_SECURE = 62
+EXPECTED_TERMINAL_CODES = 89
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "vim-core/src/grammar/vim_commands.rs"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+OUT = ROOT / "vim-core/src/grammar/vim_commands.rs"
+OPTIONS_OUT = ROOT / "vim-core/src/primitives/vim_option_names.rs"
 
 
 def strip_comments(text):
@@ -96,6 +104,101 @@ def parse_events(path):
     if len(events) != EXPECTED_EVENTS:
         sys.exit(f"found {len(events)} events, expected {EXPECTED_EVENTS}")
     return events
+
+
+def parse_options(path):
+    text = strip_comments(path.read_text(encoding="latin-1"))
+    table = re.search(r"static struct vimoption options\[\]\s*=\s*\{(.*?)\n\};", text, flags=re.S)
+    if table is None:
+        sys.exit("options[] not found in optiondefs.h")
+    body = table.group(1)
+    rows = []
+    for name, short, flag_text in re.findall(
+        r'\{\s*"(\w+)"\s*,\s*(?:"(\w+)"|NULL)\s*,([^,]*),', body
+    ):
+        # A flag may sit inside #if lines (guifont).
+        flag_text = "\n".join(
+            line for line in flag_text.splitlines() if not line.lstrip().startswith("#")
+        )
+        names = re.findall(r"P_\w+", flag_text)
+        kinds = [f for f in names if f in ("P_BOOL", "P_NUM", "P_STRING")]
+        if len(kinds) != 1:
+            sys.exit(f"option {name} has no single type: {names}")
+        kind = {"P_BOOL": "Bool", "P_NUM": "Number", "P_STRING": "String"}[kinds[0]]
+        rows.append((name, short, kind, "P_SECURE" in names))
+    if len(rows) != EXPECTED_OPTIONS:
+        sys.exit(f"found {len(rows)} options, expected {EXPECTED_OPTIONS}")
+    secure = sum(1 for row in rows if row[3])
+    if secure != EXPECTED_SECURE:
+        sys.exit(f"found {secure} P_SECURE options, expected {EXPECTED_SECURE}")
+    macro = re.search(r"#define\s+p_term\(sss,\s*vvv\)(.*?)SCTX_INIT\}", text, flags=re.S)
+    if macro is None or "P_STRING" not in macro.group(1) or "P_SECURE" not in macro.group(1):
+        sys.exit("p_term() in optiondefs.h is no longer a P_STRING|P_SECURE option")
+    codes = re.findall(r'^\s*p_term\(\s*"([^"]+)"\s*,', body, flags=re.M)
+    if len(codes) != EXPECTED_TERMINAL_CODES:
+        sys.exit(f"found {len(codes)} terminal codes, expected {EXPECTED_TERMINAL_CODES}")
+    return rows, codes
+
+
+def render_options(tag, rows, codes):
+    out = []
+    w = out.append
+    w("//! Vim's option table at tag " + tag + ", from `options[]` in")
+    w("//! `src/optiondefs.h`.")
+    w("//!")
+    w("//! Generated; do not edit. Regenerate with")
+    w("//! `python3 scripts/gen-vim-tables.py <vim-source-dir>`.")
+    w("")
+    w("/// The type of an option's value: `P_BOOL`, `P_NUM` or `P_STRING`.")
+    w("#[derive(Debug, Clone, Copy, PartialEq, Eq)]")
+    w("pub(crate) enum OptionType {")
+    w("    Bool,")
+    w("    Number,")
+    w("    String,")
+    w("}")
+    w("")
+    w("/// One row of Vim's option table.")
+    w("#[derive(Debug, Clone, Copy)]")
+    w("pub(crate) struct VimOption {")
+    w("    /// The full name.")
+    w("    pub(crate) name: &'static str,")
+    w("    /// The short name, or `\"\"` for none.")
+    w("    pub(crate) short: &'static str,")
+    w("    /// The type of its value.")
+    w("    pub(crate) kind: OptionType,")
+    w("    /// `P_SECURE`: a modeline and secure mode cannot set it.")
+    w("    #[allow(dead_code, reason = \"the whole of Vim's table\")]")
+    w("    pub(crate) secure: bool,")
+    w("}")
+    w("")
+    w("const fn o(name: &'static str, short: &'static str, kind: OptionType, secure: bool) -> VimOption {")
+    w("    VimOption {")
+    w("        name,")
+    w("        short,")
+    w("        kind,")
+    w("        secure,")
+    w("    }")
+    w("}")
+    w("")
+    w("/// Every option but the terminal codes, in Vim's order, which is")
+    w("/// alphabetic by full name.")
+    w("#[rustfmt::skip]")
+    w(f"pub(crate) static OPTIONS: [VimOption; {len(rows)}] = {{")
+    w("    use OptionType::{Bool, Number, String};")
+    w("    [")
+    for name, short, kind, secure in rows:
+        w(f'        o("{name}", "{short}", {kind}, {"true" if secure else "false"}),')
+    w("    ]")
+    w("};")
+    w("")
+    w("/// The terminal output codes (`t_xx`), each a `P_STRING` and `P_SECURE`")
+    w("/// option.")
+    w("#[rustfmt::skip]")
+    w(f"pub(crate) static TERMINAL_CODES: [&str; {len(codes)}] = [")
+    for code in codes:
+        w(f'    "{code}",')
+    w("];")
+    return "\n".join(out) + "\n"
 
 
 def render(tag, flags, composite, addr_types, rows, mods, events):
@@ -178,8 +281,11 @@ def main():
     flags, composite, addr_types, rows = parse_ex_cmds(src / "src/ex_cmds.h")
     mods = parse_cmdmods(src / "src/ex_docmd.c")
     events = parse_events(src / "src/autocmd.c")
+    options, codes = parse_options(src / "src/optiondefs.h")
     OUT.write_text(render(tag, flags, composite, addr_types, rows, mods, events), encoding="utf-8")
     print(f"wrote {OUT}: {len(rows)} commands, {len(mods)} modifiers, {len(events)} events ({tag})")
+    OPTIONS_OUT.write_text(render_options(tag, options, codes), encoding="utf-8")
+    print(f"wrote {OPTIONS_OUT}: {len(options)} options, {len(codes)} terminal codes ({tag})")
 
 
 if __name__ == "__main__":

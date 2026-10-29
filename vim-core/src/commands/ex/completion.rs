@@ -325,6 +325,7 @@ const OPTION_NAMES: &[&str] = &[
     "bs",
     "cb",
     "clipboard",
+    "cms",
     "com",
     "comments",
     "commentstring",
@@ -454,6 +455,7 @@ fn canonical_option_name(name: &str) -> &str {
         "bo" => "belloff",
         "bs" => "backspace",
         "cb" => "clipboard",
+        "cms" => "commentstring",
         "com" => "comments",
         "et" => "expandtab",
         "fo" => "formatoptions",
@@ -1386,18 +1388,15 @@ mod tests {
     }
 
     #[test]
-    fn commentstring_has_no_short_name() {
-        // `:set` knows 'commentstring' by its full name only, so completion
-        // offers no `cms`.
+    fn commentstring_completes_by_both_names() {
+        // `:set` knows 'commentstring' as `cms` too.
         let names: Vec<_> = complete_setting_name("c", &VimOptions::default())
             .into_iter()
             .map(|c| c.text)
             .collect();
-        assert!(!names.iter().any(|n| n.as_str() == "cms"), "{names:?}");
-        assert!(
-            names.iter().any(|n| n.as_str() == "commentstring"),
-            "{names:?}"
-        );
+        for name in ["cms", "commentstring"] {
+            assert!(names.iter().any(|n| n.as_str() == name), "{names:?}");
+        }
     }
 
     #[test]

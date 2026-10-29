@@ -384,6 +384,17 @@ fn options_read_their_value() {
 }
 
 #[test]
+fn options_this_build_lacks_read_as_empty() {
+    // eval_option() with gov_hidden_*: a Vim option vim-core lacks.
+    assert_eq!(string("&mouse"), "");
+    assert_eq!(string("&t_Co"), "");
+    assert_eq!(string("&g:enc"), "");
+    assert_eq!(number("&compatible"), 0);
+    assert_eq!(number("&l:report"), 0);
+    assert_eq!(string("&cms"), "// %s");
+}
+
+#[test]
 fn environment_variables_are_empty() {
     // Deviation: Vim reads the process environment.
     assert_eq!(string("$HOME"), "");
@@ -399,6 +410,11 @@ fn exists_answers_as_f_exists() {
     assert_eq!(number("exists('&g:tw')"), 1);
     assert_eq!(number("exists('&tw x')"), 0);
     assert_eq!(number("exists('&nosuch')"), 0);
+    // eval_option(): an option this build lacks exists, but does not work.
+    assert_eq!(number("exists('&mouse')"), 1);
+    assert_eq!(number("exists('+mouse')"), 0);
+    assert_eq!(number("exists('&t_Co')"), 1);
+    assert_eq!(number("exists('+cms')"), 1);
     assert_eq!(number("exists(':set')"), 2);
     assert_eq!(number("exists(':se')"), 1);
     assert_eq!(number("exists(':sil')"), 1);

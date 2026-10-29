@@ -117,6 +117,10 @@ pub enum VimError {
     /// argument as written, such as `nosuch=1`.
     UnknownOptionArgument(Box<str>),
 
+    /// E519: `:set` asks for the value of an option this build lacks.
+    /// Carries the argument as written, such as `mouse?`.
+    OptionNotSupported(Box<str>),
+
     /// E474: a map or abbreviation command with an argument it does not
     /// take, such as `:mapclear x`.
     InvalidMapArgument,
@@ -490,6 +494,7 @@ impl fmt::Display for VimError {
             Self::InvalidArgument(msg) => write!(f, "E521: {msg}"),
             Self::OptionValue(msg) => write!(f, "{msg}"),
             Self::UnknownOptionArgument(arg) => write!(f, "E518: Unknown option: {arg}"),
+            Self::OptionNotSupported(arg) => write!(f, "E519: Option not supported: {arg}"),
             Self::InvalidMapArgument => write!(f, "E474: Invalid argument"),
             Self::GlobalMappingExists(keys) => {
                 write!(f, "E225: Global mapping already exists for {keys}")
@@ -644,6 +649,14 @@ mod tests {
     }
 
     #[test]
+    fn option_not_supported_keeps_the_argument() {
+        assert_eq!(
+            VimError::OptionNotSupported("mouse?".into()).to_string(),
+            "E519: Option not supported: mouse?"
+        );
+    }
+
+    #[test]
     fn display_mapping_errors() {
         for (error, text) in [
             (VimError::InvalidMapArgument, "E474: Invalid argument"),
@@ -732,6 +745,7 @@ mod tests {
             VimError::InvalidArgument("bad".into()),
             VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()),
             VimError::UnknownOptionArgument("nosuch".into()),
+            VimError::OptionNotSupported("mouse?".into()),
             VimError::InvalidMapArgument,
             VimError::GlobalMappingExists("x".into()),
             VimError::AbbreviationExists("teh".into()),

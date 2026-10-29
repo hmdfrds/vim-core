@@ -199,6 +199,61 @@ fn reset_forms_are_not_available() {
 }
 
 #[test]
+fn an_option_this_build_lacks_takes_every_form_that_sets_it() {
+    // do_set_option(): an option of Vim's table that vim-core lacks acts
+    // as a hidden one, which a set command for is ignored.
+    let mut engine = VimEngine::new();
+    let before = engine.options().clone();
+    for command in [
+        "set nocompatible",
+        "set compatible",
+        "set encoding=utf-8",
+        "set mouse=a",
+        "set mouse+=v mouse-=a mouse^=n mouse:a mouse! mouse& mouse<",
+        "set nomouse=a invmouse!",
+        "set termguicolors notgc invtgc tgc! tgc, tgc!x",
+        "set t_Co=256",
+        r"set guifont=Monospace\ 11",
+        "set gfn =x",
+        "setlocal mouse=a",
+        "setglobal mouse=a",
+        // vim-core has 'showmatch', but `:set` cannot name it.
+        "set showmatch",
+    ] {
+        assert_eq!(run_ex(&mut engine, command), (vec![], vec![]), ":{command}");
+    }
+    assert_eq!(engine.options(), &before);
+}
+
+#[test]
+fn asking_for_an_option_this_build_lacks_is_e519() {
+    // do_set_option(): a query of a hidden option, or a bare name of one
+    // that is not a boolean.
+    let mut engine = VimEngine::new();
+    for (command, message) in [
+        ("set mouse?", "E519: Option not supported: mouse?"),
+        ("set mouse", "E519: Option not supported: mouse"),
+        ("set nomouse", "E519: Option not supported: nomouse"),
+        ("set nomouse?", "E519: Option not supported: nomouse?"),
+        ("set mouse?x", "E519: Option not supported: mouse?x"),
+        ("set mouse,", "E519: Option not supported: mouse,"),
+        ("set tgc?", "E519: Option not supported: tgc?"),
+        ("set t_Co?", "E519: Option not supported: t_Co?"),
+        ("set t_Co", "E519: Option not supported: t_Co"),
+        ("set nosuch", "E518: Unknown option: nosuch"),
+        ("set t_ku=x", "E518: Unknown option: t_ku=x"),
+    ] {
+        assert_eq!(error(&mut engine, command), message, ":{command}");
+    }
+    // The first bad argument ends the :set.
+    assert_eq!(
+        error(&mut engine, "set mouse? ic"),
+        "E519: Option not supported: mouse?"
+    );
+    assert!(!engine.options().ignorecase());
+}
+
+#[test]
 fn inv_inverts_a_boolean() {
     let mut engine = VimEngine::new();
     let _ = run_ex(&mut engine, "set invic");
@@ -220,8 +275,8 @@ fn a_string_value_loses_its_backslashes() {
     // An escaped blank joins the argument, and the error shows it as
     // written.
     assert_eq!(
-        error(&mut engine, r"set guifont=Monospace\ 11 ic"),
-        r"E518: Unknown option: guifont=Monospace\ 11"
+        error(&mut engine, r"set nosuch=Monospace\ 11 ic"),
+        r"E518: Unknown option: nosuch=Monospace\ 11"
     );
     assert!(!engine.options().ignorecase());
     assert_eq!(

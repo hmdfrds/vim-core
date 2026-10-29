@@ -1056,7 +1056,7 @@ fn option_name_to_id(name: &str) -> Option<OptionId> {
         "expandtab" | "et" => Some(OptionId::ExpandTab),
         "autoindent" | "ai" => Some(OptionId::AutoIndent),
         "smartindent" | "si" => Some(OptionId::SmartIndent),
-        "commentstring" => Some(OptionId::CommentString),
+        "commentstring" | "cms" => Some(OptionId::CommentString),
         "iskeyword" | "isk" => Some(OptionId::IsKeyword),
         "textwidth" | "tw" => Some(OptionId::TextWidth),
         "scrolloff" | "so" => Some(OptionId::ScrollOff),
@@ -1184,7 +1184,7 @@ struct SetLayers<'a> {
 
 /// The type of an option as `:set` reads its arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SetKind {
+pub(crate) enum SetKind {
     Bool,
     Number,
     Text,
@@ -1204,6 +1204,30 @@ fn set_kind(options: &crate::primitives::VimOptions, name: &str) -> Option<SetKi
         OptionKind::Bool => SetKind::Bool,
         OptionKind::Number => SetKind::Number,
         _ => SetKind::Text,
+    })
+}
+
+/// The type of an option of Vim's table that `:set` cannot name, by its
+/// long or short name: vim-core acts as a Vim built without it
+/// (`*hidden-options*`).
+pub(crate) fn hidden_option(
+    options: &crate::primitives::VimOptions,
+    name: &str,
+) -> Option<SetKind> {
+    use crate::primitives::vim_option_names::{OptionType, OPTIONS, TERMINAL_CODES};
+    if set_kind(options, name).is_some() {
+        return None;
+    }
+    if TERMINAL_CODES.contains(&name) {
+        return Some(SetKind::Text);
+    }
+    let row = OPTIONS
+        .iter()
+        .find(|row| row.name == name || (!row.short.is_empty() && row.short == name))?;
+    Some(match row.kind {
+        OptionType::Bool => SetKind::Bool,
+        OptionType::Number => SetKind::Number,
+        OptionType::String => SetKind::Text,
     })
 }
 
@@ -1284,6 +1308,9 @@ impl SetLayers<'_> {
         messages: &mut Vec<String>,
     ) -> Result<(), VimError> {
         use crate::grammar::types::SetAssignment as A;
+        if let Some(result) = self.apply_hidden(assignment) {
+            return result;
+        }
         let argument = || set_argument(assignment);
         let unknown = || VimError::UnknownOptionArgument(argument().into());
         let invalid = || set_error("E474: Invalid argument", &argument());
@@ -1370,6 +1397,52 @@ impl SetLayers<'_> {
                 },
             ),
         }
+    }
+
+    /// An argument for an option this build lacks, as `do_set_option()`
+    /// skips it: any form that sets it does nothing, and a query, or a
+    /// bare name of one that is not a boolean, is E519. `None` when the
+    /// argument names no such option.
+    fn apply_hidden(
+        &self,
+        assignment: &crate::grammar::types::SetAssignment,
+    ) -> Option<Result<(), VimError>> {
+        use crate::grammar::types::SetAssignment as A;
+        // A name written with its `no` or `inv` prefix.
+        let written = |name: &str| {
+            hidden_option(self.global, name).or_else(|| {
+                strip_set_prefix(name).and_then(|bare| hidden_option(self.global, bare))
+            })
+        };
+        // The type, and the character after the name and its blanks, with
+        // `+=`, `-=` and `^=` read as `=`.
+        let (kind, next) = match assignment {
+            A::ShowAll => return None,
+            A::SetBool(name) | A::UnsetBool(name) => (hidden_option(self.global, name)?, None),
+            // Deviation: a bare `inv` prefix comes here too, where Vim reads
+            // a bare name.
+            A::ToggleBool(name) => (written(name)?, Some('!')),
+            A::Query(name) => (written(name)?, Some('?')),
+            A::Assign(name, _) | A::Append(name, _) | A::Remove(name, _) | A::Prepend(name, _) => {
+                (written(name)?, Some('='))
+            }
+            A::Reset { name, .. } => (hidden_option(self.global, name)?, Some('&')),
+            A::Invalid { name, argument } => {
+                let kind = hidden_option(self.global, name)?;
+                let unprefixed = strip_set_prefix(argument).unwrap_or(argument);
+                let after = unprefixed.get(name.len()..).unwrap_or_default();
+                (kind, after.trim_start_matches([' ', '\t']).chars().next())
+            }
+        };
+        let sets = matches!(next, Some('=' | ':' | '!' | '&' | '<'))
+            || (kind == SetKind::Bool && next != Some('?'));
+        Some(if sets {
+            Ok(())
+        } else {
+            Err(VimError::OptionNotSupported(
+                set_argument(assignment).into(),
+            ))
+        })
     }
 
     /// The name `:set` knows, and whether a `no` or `inv` prefix came off
@@ -1696,6 +1769,7 @@ pub(crate) fn option_value(
         "textwidth" | "tw" => ("textwidth", Unsigned(options.textwidth())),
         "formatoptions" | "fo" => ("formatoptions", text(options.formatoptions())),
         "comments" | "com" => ("comments", text(options.comments())),
+        "commentstring" | "cms" => ("commentstring", text(options.commentstring())),
         "timeoutlen" | "tm" => ("timeoutlen", Signed(i64::from(options.timeoutlen_ms()))),
         "undolevels" | "ul" => (
             "undolevels",

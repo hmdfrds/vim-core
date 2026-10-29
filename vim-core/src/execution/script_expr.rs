@@ -25,7 +25,7 @@ use crate::keymap::{Key, KeyEvent, Modifiers};
 use crate::primitives::{OptionValue, VarScope, VimOptions, VimValue};
 use crate::state::VariableStore;
 
-use super::executor_ex::option_value;
+use super::executor_ex::{hidden_option, option_value, SetKind};
 
 /// `v:version`: Vim's `VIM_VERSION_100` for 9.1.
 const VERSION: i64 = 901;
@@ -965,7 +965,11 @@ impl<'a> Parser<'a> {
                     return 0;
                 };
                 let name = arg.get(name).unwrap_or_default();
-                i64::from(self.option_value(layer, name).is_some() && rest_is_blank(end))
+                // eval_option(): `+name` is not "working" for an option this
+                // build lacks, `&name` exists.
+                let found = self.option_value(layer, name).is_some()
+                    || (arg.starts_with('&') && hidden_option(self.env.options, name).is_some());
+                i64::from(found && rest_is_blank(end))
             }
             Some(b'*') => {
                 let (end, curly) = name_end(arg, 1);
@@ -1078,7 +1082,12 @@ impl<'a> Parser<'a> {
             }
             Some(OptionValue::Signed(n)) => Ok(Value::Number(n)),
             Some(OptionValue::Str(s)) => Ok(Value::String(s.to_string())),
-            None => self.fail(VimError::UnknownOption(name.into())),
+            // An option this build lacks reads as 0 or an empty String.
+            None => match hidden_option(self.env.options, name) {
+                Some(SetKind::Text) => Ok(Value::String(String::new())),
+                Some(_) => Ok(Value::Number(0)),
+                None => self.fail(VimError::UnknownOption(name.into())),
+            },
         }
     }
 

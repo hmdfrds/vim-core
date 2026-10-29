@@ -78,6 +78,7 @@ mod undo_nav_step;
 mod undo_tree_snapshot;
 mod vim_context;
 mod vim_event;
+pub(crate) mod vim_option_names;
 mod vim_options;
 mod virtual_column;
 mod virtual_text;

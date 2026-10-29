@@ -299,17 +299,17 @@ fn comments_errors_match_vim() {
 // ── commentstring ────────────────────────────────────────────────────────────
 
 #[test]
-fn commentstring_has_no_short_name_or_query() {
+fn commentstring_has_its_short_name_and_a_query() {
+    // optiondefs.h: 'commentstring' is "cms" for short. Vim's table has
+    // it, so without the name `:set cms=` would be ignored silently.
     let mut engine = VimEngine::new();
+    set(&mut engine, "set cms=#%s");
+    assert_eq!(engine.options().commentstring(), "#%s");
     assert_eq!(
-        error(&mut engine, "set cms=#%s"),
-        "E518: Unknown option: cms=#%s"
+        query(&mut engine, "set commentstring?"),
+        "commentstring=#%s"
     );
-    assert_eq!(engine.options().commentstring(), "// %s");
-    assert_eq!(
-        error(&mut engine, "set commentstring?"),
-        "E518: Unknown option: commentstring?"
-    );
+    assert_eq!(query(&mut engine, "set cms"), "commentstring=#%s");
 }
 
 // ── :set +=, -=, ^= ──────────────────────────────────────────────────────────

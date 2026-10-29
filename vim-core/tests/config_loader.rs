@@ -486,3 +486,54 @@ fn finish_with_an_argument_is_an_error_and_the_file_goes_on() {
     assert_eq!(textwidth, 33);
     assert_eq!(errors, ["E488: Trailing characters: x"]);
 }
+
+// ── what vim-core lacks ───────────────────────────────────────────────
+
+#[test]
+fn a_vim_option_vim_core_lacks_is_set_silently() {
+    // do_set_option(): a hidden option takes the value and keeps nothing.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text(
+        "set nocompatible\nset encoding=utf-8\nset mouse=a\nset t_Co=256\n\
+         set guifont=Monospace\\ 11\nlet &mouse = 'a'\nlet &compatible += 1\nset ic\n",
+    );
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
+fn asking_for_a_vim_option_vim_core_lacks_is_e519() {
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("set mouse? | set ic\nset nosuch\n");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(
+        errors(&response),
+        [
+            "E519: Option not supported: mouse?",
+            "E518: Unknown option: nosuch"
+        ]
+    );
+}
+
+#[test]
+fn a_vim_option_vim_core_lacks_exists_and_reads_as_empty() {
+    // eval_option(): `&name` of a hidden option is 0 or "", and only
+    // `+name` tells that it does not work.
+    let mut engine = VimEngine::new();
+    engine.source_config_text(
+        "if exists('&mouse') && !exists('+mouse') && &mouse == '' && &compatible == 0\n\
+         set ic\nendif\n",
+    );
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
+fn let_of_a_vim_option_vim_core_lacks_checks_the_value_type() {
+    // ex_let_option(): a Float is no Number, v:true no String.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("let &compatible = 1.5\nlet &mouse = v:true\n");
+    assert_eq!(
+        errors(&response),
+        ["E805: Using a Float as a Number", "E928: String required"]
+    );
+}

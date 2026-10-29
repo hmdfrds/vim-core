@@ -9,7 +9,7 @@ use crate::commands::ex::effects as ex_effects;
 use crate::document::Document;
 use crate::effects::{Effect, Effects};
 use crate::errors::VimError;
-use crate::execution::executor_ex::{self, SetScope};
+use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, InputContext};
 use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
@@ -48,6 +48,10 @@ impl super::VimEngine {
     /// Each line runs as it would from the command line, `|` and command
     /// modifiers included, and what it changes is applied the same way.
     /// A command the host runs comes back as a host request.
+    ///
+    /// A Vim option vim-core lacks acts as one the build lacks: setting it
+    /// does nothing, asking for its value gives E519, and `&name` reads 0
+    /// or an empty String.
     ///
     /// `:if`, `:elseif`, `:else` and `:endif` choose the lines that run, as
     /// in Vim. A `:while`, `:for` or `:try` block gives E319 and the lines
@@ -376,11 +380,12 @@ impl super::VimEngine {
             Target::Variable(variable) => self.let_variable(variable, assignment.op, value),
             Target::Option(layer, name) => {
                 match self.let_option(layer, name, assignment.op, &value) {
-                    Ok(command) => {
+                    Ok(Some(command)) => {
                         show_config_errors(modifiers, errors, response);
                         let text = format!("let {argument}");
                         return self.run_config_command(modifiers, &command, &text, response);
                     }
+                    Ok(None) => Ok(()),
                     Err(err) => Err(err),
                 }
             }
@@ -421,21 +426,29 @@ impl super::VimEngine {
     /// The `:set` that `:let &name = value` amounts to, as Vim's
     /// `ex_let_option()` makes it: a Number for a boolean or number option
     /// (E805 for a Float), a String for a string option, and `.=` only for
-    /// a string option.
+    /// a string option. `None` for an option this build lacks, which takes
+    /// the value and keeps nothing.
     fn let_option(
         &self,
         layer: OptionLayer,
         name: &str,
         op: Option<char>,
         value: &Value,
-    ) -> Result<ExCommand, VimError> {
+    ) -> Result<Option<ExCommand>, VimError> {
         let options = if layer == OptionLayer::Global {
             &self.options
         } else {
             &self.resolved_options
         };
         let Some((name, current)) = executor_ex::option_value(options, name) else {
-            return Err(VimError::UnknownOptionToSet(name.into()));
+            return match executor_ex::hidden_option(options, name) {
+                Some(SetKind::Text) if matches!(value, Value::Bool(_)) => {
+                    Err(VimError::StringRequired)
+                }
+                Some(SetKind::Text) => Ok(None),
+                Some(_) => value.number().map(|_| None),
+                None => Err(VimError::UnknownOptionToSet(name.into())),
+            };
         };
         let name = CompactString::from(name);
         let assignment = match current {
@@ -477,11 +490,11 @@ impl super::VimEngine {
         };
         let mut assignments = smallvec::SmallVec::new();
         assignments.push(assignment);
-        Ok(match layer {
+        Ok(Some(match layer {
             OptionLayer::Both => ExCommand::Set { assignments },
             OptionLayer::Local => ExCommand::SetLocal { assignments },
             OptionLayer::Global => ExCommand::SetGlobal { assignments },
-        })
+        }))
     }
 
     /// `:unlet[!] {name} ...` in a config, as Vim's `ex_unlet()` runs it:
