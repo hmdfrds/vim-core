@@ -48,6 +48,12 @@ fn located(response: &Response, file: &str) -> Vec<(u32, String)> {
         .collect()
 }
 
+/// The text of each entry of the engine's message history.
+fn history(engine: &VimEngine) -> Vec<String> {
+    let entries = engine.state().message_history().entries();
+    entries.iter().map(|e| e.text.to_string()).collect()
+}
+
 /// A host that has the features it names.
 struct Features(&'static [&'static str]);
 
@@ -842,4 +848,41 @@ fn a_config_without_a_name_places_its_errors_at_their_lines() {
         [(1, "E518: Unknown option: nosuch".to_owned())]
     );
     assert_eq!(infos(&response), ["Config file sourced"]);
+}
+
+// ── :messages ─────────────────────────────────────────────────────────
+
+#[test]
+fn a_config_s_messages_and_errors_reach_the_message_history_once() {
+    // A session also hands the effects to its host.
+    let mut session = HostSession::new("a");
+    let _ = session.source_config("set tw?\nset nosuch\n");
+    assert_eq!(
+        history(session.engine()),
+        [
+            "textwidth=0",
+            "E518: Unknown option: nosuch",
+            "Config file sourced"
+        ]
+    );
+}
+
+#[test]
+fn messages_in_a_config_lists_what_the_config_showed_before_it() {
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("set tw? | set nosuch\nmessages\n");
+    let listed: Vec<_> = response
+        .host_requests()
+        .iter()
+        .filter_map(|r| match r {
+            HostRequest::ShowMessageHistory { entries, .. } => Some(
+                entries
+                    .iter()
+                    .map(|e| e.text.to_string())
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(listed, [["textwidth=0", "E518: Unknown option: nosuch"]]);
 }

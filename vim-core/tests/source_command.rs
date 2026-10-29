@@ -222,6 +222,28 @@ fn returned_text_names_its_errors_after_the_path_as_typed() {
 }
 
 #[test]
+fn returned_text_keeps_its_messages_in_the_history() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let req = request(&run(&mut engine, &doc, "source x.vim"));
+    let _ = engine.complete_host_request(&HostResult::Data {
+        id: req.id(),
+        data: "set tw?\nset nosuch".into(),
+        offset: None,
+    });
+    let entries = engine.state().message_history().entries();
+    let texts: Vec<_> = entries.iter().map(|e| e.text.as_str()).collect();
+    assert_eq!(
+        texts,
+        [
+            "textwidth=0",
+            "E518: Unknown option: nosuch",
+            "Config file sourced"
+        ]
+    );
+}
+
+#[test]
 fn sourcing_adds_to_existing_state() {
     let doc = SimpleDocument::new("alpha");
     let mut engine = VimEngine::new();

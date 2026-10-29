@@ -77,7 +77,8 @@ impl super::VimEngine {
     /// Each error says where it was raised: its `source` holds the name of
     /// the config and the line Vim gives it at, the first of the lines a
     /// continued line joins, or the line after the last for an error at
-    /// the end of the file.
+    /// the end of the file. The messages and errors go to the message
+    /// history, as those of the command line do.
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
@@ -141,9 +142,11 @@ impl super::VimEngine {
         let mut response = self
             .source_script(ConfigText::new(name, text), &mut NoHost)
             .response;
+        let from = response.effects().len();
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
         )));
+        self.settle(&mut response, from);
         response
     }
 
@@ -174,7 +177,9 @@ impl super::VimEngine {
             let Some(line) = frame.script.next_line() else {
                 break;
             };
+            let from = response.effects().len();
             show_warnings(&mut frame, &mut response);
+            self.settle(&mut response, from);
             let mut next = Some(line);
             while let Some(line) = next {
                 next = self.source_config_line(&mut frame, host, &line, &mut response);
@@ -184,6 +189,7 @@ impl super::VimEngine {
             let from = response.effects().len();
             response.extend_effects(ex_effects::show_error(error));
             locate(&mut response, from, frame.name, frame.script.end_line());
+            self.settle(&mut response, from);
         }
         // Not register_pending_host_requests: its effect optimizer keeps only
         // the last of several messages, and a config can print many.
@@ -234,8 +240,22 @@ impl super::VimEngine {
                 frame.error |= shows_error(response, from);
             }
             locate(response, start, frame.name, at);
+            self.settle(response, start);
         }
         rest
+    }
+
+    /// Keep in the engine's state what the response's effects after its
+    /// first `from` show, as the command line keeps its own: the messages
+    /// and errors go to the message history.
+    fn settle(&mut self, response: &mut Response, from: usize) {
+        if let Some(effects) = response.effects.get_mut(from..) {
+            crate::execution::effect_processor::sync_effects(
+                &mut self.state,
+                &mut self.parser,
+                effects,
+            );
+        }
     }
 
     /// Run a command of a script block, `:finish`, `:break` or `:continue`
@@ -403,11 +423,6 @@ impl super::VimEngine {
             Err(err) => return show_config_errors(modifiers, [err], response),
         };
         crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
-        crate::execution::effect_processor::sync_effects(
-            &mut self.state,
-            &mut self.parser,
-            output.effects.as_mut_slice(),
-        );
         // No buffer or window to hold a local value.
         for set in &mut output.set_commands {
             set.scope = SetScope::Effective;
