@@ -336,3 +336,22 @@ neovim_test!(visual, nf_gv_swap, "hello\nworld", "vl<Esc>jvlgv");
 
 // Ctrl-V $ j — block visual extends to EOL on each line
 neovim_test!(visual, nf_block_dollar_j, "abc\nde\nfghij", "<C-v>$j");
+
+// A linewise selection that ends on the empty last line of a text ending
+// in '\n' takes that line in; one that ends on the line above keeps it.
+neovim_test!(visual, visual_line_to_empty_last_line_delete, "a\nb\nc\n", cursor(1, 0), "Vjjd");
+neovim_test!(visual, visual_line_to_empty_last_line_yank, "a\nb\nc\n", cursor(1, 0), "Vjjy");
+neovim_test!(visual, visual_line_empty_last_line_delete, "a\nb\n", cursor(2, 0), "Vd");
+
+neovim_test!(visual, vipd_two_trailing_blank_lines, "aaa\nbbb ccc\n\n", cursor(3, 0), "vipd");
+neovim_test!(visual, vip_indent_trailing_blank_line, "var x = 1\n\n", cursor(1, 0), "vip>");
+neovim_test!(visual, vipd_blank_run_at_end, "abc\n\n\n", cursor(2, 0), "vipd");
+neovim_test!(visual, vipd_blank_after_two_paragraphs, "a\n\nb\nc\n\n", cursor(4, 0), "vipd");
+// Linewise Visual ap and ip on a single blank line grow the selection the
+// way Vim's current_par() does for "Vipipip", which takes in the empty
+// last line of a text ending in '\n'.
+neovim_test!(visual, vapd_line_blank_above_last_paragraph, "aa\nbb\n\ncc\ndd\n", cursor(2, 0), "Vapd");
+neovim_test!(visual, vapd_line_blank_above_paragraph_before_end, "aa\nbb\n\ncc\ndd\n\nee\n", cursor(5, 0), "Vapd");
+neovim_test!(visual, vipipd_line_blank_above_paragraph_before_end, "aa\nbb\n\ncc\ndd\n\nee\n", cursor(5, 0), "Vipipd");
+
+neovim_test!(visual, visual_line_blank_to_empty_last_line_delete_paste, "a\n\n\n", cursor(2, 0), "VjdP");
