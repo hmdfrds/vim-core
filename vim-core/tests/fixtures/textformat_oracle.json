@@ -3433,6 +3433,69 @@
    }
   },
   {
+   "name": "3R over mixed widths appends past the end",
+   "lines": [
+    "aé日b"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "3R",
+   "typed": "xx yy ",
+   "opts": {
+    "tw": 8,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "xx yy xx",
+     "yy xx yy "
+    ],
+    "cursor": [
+     0,
+     6
+    ]
+   }
+  },
+  {
+   "name": "2R with Enter overwrites the split line",
+   "lines": [
+    "wxyz"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "2R",
+   "typed": "ab\rc",
+   "opts": {
+    "tw": 0,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "ab",
+     "cab",
+     "c"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
    "name": "b: blank typed before margin, break later",
    "lines": [
     "aaaa bbbb cccc ddd"
@@ -4819,6 +4882,98 @@
     "cursor": [
      0,
      19
+    ]
+   }
+  },
+  {
+   "name": "R with a Tab under et overwrites one character",
+   "lines": [
+    "abcdefghijkl"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "cmd": "R",
+   "typed": "a\tb",
+   "opts": {
+    "tw": 0,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 4,
+    "et": true,
+    "ai": false,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "a       bdefghijkl"
+    ],
+    "cursor": [
+     0,
+     9
+    ]
+   }
+  },
+  {
+   "name": "R Enter ai drops the blanks after the break",
+   "lines": [
+    "ab  cd"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "cmd": "R",
+   "typed": "x\ry",
+   "opts": {
+    "tw": 0,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "ax",
+     "yd"
+    ],
+    "cursor": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "i Enter ai drops the blanks after the break",
+   "lines": [
+    "ab  cd"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "cmd": "i",
+   "typed": "\ry",
+   "opts": {
+    "tw": 0,
+    "fo": "tq",
+    "ts": 8,
+    "sw": 8,
+    "et": false,
+    "ai": true,
+    "com": "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-"
+   },
+   "expected": {
+    "lines": [
+     "ab",
+     "ycd"
+    ],
+    "cursor": [
+     1,
+     1
     ]
    }
   }
