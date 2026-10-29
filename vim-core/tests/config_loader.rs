@@ -1147,6 +1147,28 @@ fn errors_in_a_sourced_file_name_the_files_that_run() {
 }
 
 #[test]
+fn errors_in_a_file_sourced_twice_share_one_header() {
+    // msg_source() compares the innermost file and its line.
+    let mut files = Files::new(&[
+        ("a.vim", "source b.vim\nsource b.vim\n"),
+        ("b.vim", "set nosuch\n"),
+    ]);
+    let mut engine = VimEngine::new();
+    let response = source_file(&mut engine, &mut files, "a.vim");
+    let files: Vec<_> = places(&response).into_iter().map(|p| p.0).collect();
+    assert_eq!(files, ["a.vim[1]..b.vim", "a.vim[2]..b.vim"]);
+    assert_eq!(
+        history(&engine),
+        [
+            "Error detected while processing a.vim[1]..b.vim:",
+            "line    1:",
+            "E518: Unknown option: nosuch",
+            "E518: Unknown option: nosuch",
+        ]
+    );
+}
+
+#[test]
 fn finish_ends_only_its_own_file() {
     // do_finish() marks the cookie of the file it is in.
     let mut files = Files::new(&[
