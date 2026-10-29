@@ -378,17 +378,11 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     } else if matches_abbrev(name, "cuna", "cunabbrev") {
         parse_unabbreviate_command("cunabbrev", raw_tail, AbbrevMode::CommandLine)
     } else if matches_abbrev(name, "abc", "abclear") {
-        Ok(ExCommand::AbClear {
-            mode: AbbrevMode::Both,
-        })
+        parse_abclear_command(tail, AbbrevMode::Both)
     } else if matches_abbrev(name, "iabc", "iabclear") {
-        Ok(ExCommand::AbClear {
-            mode: AbbrevMode::Insert,
-        })
+        parse_abclear_command(tail, AbbrevMode::Insert)
     } else if matches_abbrev(name, "cabc", "cabclear") {
-        Ok(ExCommand::AbClear {
-            mode: AbbrevMode::CommandLine,
-        })
+        parse_abclear_command(tail, AbbrevMode::CommandLine)
     // Mapping commands — recursive
     } else if name.eq_ignore_ascii_case("map") {
         parse_map_command(raw_tail, all_or_insert_command(force), false)
@@ -1918,6 +1912,17 @@ fn parse_unabbreviate_command(
         trigger: CompactString::from(trigger),
         mode,
     })
+}
+
+/// Parse `:abclear` / `:iabclear` / `:cabclear`, which take `<buffer>`
+/// and no other argument, as Vim's `map_clear()`.
+fn parse_abclear_command(args: &str, mode: AbbrevMode) -> Result<ExCommand, VimError> {
+    let buffer = match args {
+        "" => false,
+        "<buffer>" => true,
+        _ => return Err(VimError::InvalidMapArgument),
+    };
+    Ok(ExCommand::AbClear { mode, buffer })
 }
 
 fn abbreviation_not_available(name: &str, args: &str) -> VimError {

@@ -66,12 +66,19 @@ pub fn abbreviate(
             Ok(Effects::new())
         }
         (Some(trigger), None) => {
-            if let Some(entry) = table.get(trigger) {
-                let output = format!("{} {}\n", entry.trigger, entry.replacement);
-                Ok(Effects::new().show_info(InfoMessage::Text(CompactString::from(output))))
-            } else {
-                Err(VimError::InvalidArgument(CompactString::from(trigger)))
+            let mut output = String::new();
+            for entry in table.list(mode) {
+                if entry.trigger == trigger {
+                    output.push_str(&entry.trigger);
+                    output.push(' ');
+                    output.push_str(&entry.replacement);
+                    output.push('\n');
+                }
             }
+            if output.is_empty() {
+                return Err(VimError::InvalidArgument(CompactString::from(trigger)));
+            }
+            Ok(Effects::new().show_info(InfoMessage::Text(CompactString::from(output))))
         }
         (None, Some(_)) => Err(VimError::ArgumentRequired),
     }
@@ -99,7 +106,9 @@ pub fn unabbreviate(
     }
 }
 
-/// Execute `:abclear`/`:iabclear`/`:cabclear`.
+/// Execute `:abclear`/`:iabclear`/`:cabclear`: each abbreviation loses
+/// the modes of `mode`, as in Vim's `map_clear_mode()`, so `:abclear`
+/// clears them all.
 pub fn ab_clear(mode: AbbrevMode, table: &mut AbbrevTable) -> Effects {
     table.clear(mode);
     Effects::new()
@@ -255,35 +264,69 @@ mod tests {
 
     #[test]
     fn ab_clear_both_clears_all() {
+        // map_clear_mode() takes the Insert and Command-line bits off each.
         let mut table = AbbrevTable::default();
-        abbreviate(
-            Some("a"),
-            Some("b"),
-            AbbrevMode::Insert,
-            false,
-            &mut table,
-            &is_kw,
-        )
-        .unwrap();
-        abbreviate(
-            Some("c"),
-            Some("d"),
-            AbbrevMode::Both,
-            false,
-            &mut table,
-            &is_kw,
-        )
-        .unwrap();
+        define(&mut table, "a", "b", AbbrevMode::Insert);
+        define(&mut table, "c", "d", AbbrevMode::CommandLine);
+        define(&mut table, "e", "f", AbbrevMode::Both);
 
         ab_clear(AbbrevMode::Both, &mut table);
-        // Both entries match AbbrevMode::Both for clearing (Both covers Both)
-        assert!(table.is_empty() || table.get("a").is_some());
-        // Insert-only "a" is NOT cleared by an AbbrevMode::Both clear.
-        // AbbrevTable::clear keeps the entries that satisfy
-        //   retain(|e| e.mode != mode && e.mode != AbbrevMode::Both)
-        // With mode=Both that reads `e.mode != Both && e.mode != Both`, so
-        // "a" (Insert) is retained and "c" (Both) is removed.
-        assert!(table.get("a").is_some());
-        assert!(table.get("c").is_none());
+        assert!(table.is_empty());
+    }
+
+    #[test]
+    fn ab_clear_one_mode_keeps_the_other_part() {
+        let mut table = AbbrevTable::default();
+        define(&mut table, "e", "f", AbbrevMode::Both);
+
+        ab_clear(AbbrevMode::Insert, &mut table);
+        assert!(!table.defines("e", AbbrevMode::Insert));
+        assert!(table.defines("e", AbbrevMode::CommandLine));
+    }
+
+    #[test]
+    fn unabbreviate_one_mode_keeps_the_other_part() {
+        // do_map() resets the mode bits the command names.
+        let mut table = AbbrevTable::default();
+        define(&mut table, "e", "f", AbbrevMode::Both);
+
+        unabbreviate("e", AbbrevMode::Insert, &mut table).unwrap();
+        assert!(!table.defines("e", AbbrevMode::Insert));
+        assert_eq!(
+            table
+                .find("e", AbbrevMode::CommandLine)
+                .unwrap()
+                .replacement,
+            "f"
+        );
+        assert!(unabbreviate("e", AbbrevMode::Insert, &mut table).is_err());
+    }
+
+    #[test]
+    fn listing_every_abbreviation_shows_each_mode() {
+        let mut table = AbbrevTable::default();
+        define(&mut table, "a", "b", AbbrevMode::Insert);
+        define(&mut table, "a", "c", AbbrevMode::CommandLine);
+
+        let listed = abbreviate(None, None, AbbrevMode::Both, false, &mut table, &is_kw).unwrap();
+        let shown =
+            abbreviate(Some("a"), None, AbbrevMode::Both, false, &mut table, &is_kw).unwrap();
+        for effects in [listed, shown] {
+            let text = effects
+                .as_slice()
+                .iter()
+                .find_map(|effect| match effect {
+                    crate::effects::Effect::ShowInfo {
+                        info: InfoMessage::Text(text),
+                    } => Some(text.clone()),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(text.contains("a b") && text.contains("a c"), "{text:?}");
+        }
+    }
+
+    fn define(table: &mut AbbrevTable, trigger: &str, replacement: &str, mode: AbbrevMode) {
+        abbreviate(Some(trigger), Some(replacement), mode, false, table, &is_kw).unwrap();
     }
 }

@@ -2586,7 +2586,8 @@ fn parses_abclear() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::Both
+            mode: AbbrevMode::Both,
+            buffer: false
         }
     ));
 }
@@ -2597,7 +2598,8 @@ fn parses_abclear_full_name() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::Both
+            mode: AbbrevMode::Both,
+            buffer: false
         }
     ));
 }
@@ -2608,7 +2610,8 @@ fn parses_iabclear() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::Insert
+            mode: AbbrevMode::Insert,
+            buffer: false
         }
     ));
 }
@@ -2619,7 +2622,8 @@ fn parses_cabclear() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::CommandLine
+            mode: AbbrevMode::CommandLine,
+            buffer: false
         }
     ));
 }
@@ -2649,8 +2653,28 @@ fn unabbreviate_does_not_mutate_text() {
 fn abclear_does_not_mutate_text() {
     let cmd = ExCommand::AbClear {
         mode: AbbrevMode::Both,
+        buffer: false,
     };
     assert!(!cmd.mutates_text());
+}
+
+#[test]
+fn abclear_takes_buffer_and_no_other_argument() {
+    // map_clear(): `<buffer>` exactly, anything else is E474.
+    assert_eq!(
+        parse_ex_command("iabclear <buffer>"),
+        Ok(ExCommand::AbClear {
+            mode: AbbrevMode::Insert,
+            buffer: true
+        })
+    );
+    for line in ["abclear junk", "abclear <Buffer>", "cabclear <buffer> x"] {
+        assert_eq!(
+            parse_ex_command(line),
+            Err(VimError::InvalidMapArgument),
+            "{line}"
+        );
+    }
 }
 
 #[test]

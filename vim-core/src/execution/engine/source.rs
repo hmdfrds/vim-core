@@ -1022,6 +1022,7 @@ mod tests {
     use crate::effects::Effect;
     use crate::execution::host::HostRequestKind;
     use crate::execution::{parse_keys_from_string, HostSession, Response, VimEngine};
+    use crate::primitives::AbbrevMode;
 
     /// The text of each error the response shows.
     fn errors(response: &Response) -> Vec<String> {
@@ -1066,6 +1067,39 @@ mod tests {
     fn source_config_defines_abbreviations() {
         // :iabbrev was skipped without a word.
         let mut session = sourced("x", "iabbrev teh the\n");
+        type_keys(&mut session, "A teh <Esc>");
+        assert_eq!(session.text(), "x the ");
+    }
+
+    #[test]
+    fn source_config_abclear_clears_every_abbreviation() {
+        // map_clear_mode() takes the Insert and Command-line bits off each.
+        let mut session = sourced("x", "iabbrev a b\ncabbrev c d\nabclear\n");
+        assert!(session.engine().abbrev_table.is_empty());
+        type_keys(&mut session, "A a <Esc>");
+        assert_eq!(session.text(), "x a ");
+    }
+
+    #[test]
+    fn source_config_iabclear_keeps_the_command_line_part() {
+        let mut session = sourced("x", "abbreviate e f\niabclear\n");
+        let table = &session.engine().abbrev_table;
+        assert!(!table.defines("e", AbbrevMode::Insert));
+        assert_eq!(
+            table
+                .find("e", AbbrevMode::CommandLine)
+                .unwrap()
+                .replacement,
+            "f"
+        );
+        type_keys(&mut session, "A e <Esc>");
+        assert_eq!(session.text(), "x e ");
+    }
+
+    #[test]
+    fn source_config_abclear_buffer_clears_nothing() {
+        // vim-core has no buffer abbreviations for map_clear() to clear.
+        let mut session = sourced("x", "iabbrev teh the\nabclear <buffer>\n");
         type_keys(&mut session, "A teh <Esc>");
         assert_eq!(session.text(), "x the ");
     }

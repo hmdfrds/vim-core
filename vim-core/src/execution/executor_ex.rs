@@ -105,7 +105,7 @@ pub(crate) enum AbbrevChange {
         trigger: CompactString,
         mode: crate::primitives::AbbrevMode,
     },
-    /// Clear all abbreviations for a mode.
+    /// Take a mode off every abbreviation.
     Clear { mode: crate::primitives::AbbrevMode },
 }
 
@@ -948,7 +948,8 @@ pub(crate) fn execute_ex_command<D: Document>(
             }],
             ..ExExecutionOutput::default()
         }),
-        ExCommand::AbClear { mode } => Ok(ExExecutionOutput {
+        ExCommand::AbClear { buffer: true, .. } => Ok(ExExecutionOutput::default()),
+        ExCommand::AbClear { mode, .. } => Ok(ExExecutionOutput {
             abbrev_changes: smallvec::smallvec![AbbrevChange::Clear { mode: *mode }],
             ..ExExecutionOutput::default()
         }),

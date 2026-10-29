@@ -499,6 +499,9 @@ pub enum ExCommand {
     AbClear {
         /// Which mode(s) to clear.
         mode: AbbrevMode,
+        /// `:abclear <buffer>`: the abbreviations of the current buffer,
+        /// which vim-core never has, so it clears nothing.
+        buffer: bool,
     },
 
     /// Fallback custom ex command forwarded to host.
