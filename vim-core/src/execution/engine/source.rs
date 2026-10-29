@@ -198,7 +198,8 @@ impl super::VimEngine {
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
-    /// gives E523, and `:setlocal` and `:setglobal` act like `:set`.
+    /// gives E523, and `:setlocal` acts like `:set`. `:setglobal` sets only
+    /// the global value, as in Vim.
     ///
     /// The text is read as Vim reads a sourced file: a byte order mark is
     /// dropped, the CR of each CR LF goes when the first line ends in CR
@@ -652,7 +653,9 @@ impl super::VimEngine {
         crate::execution::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
         // No buffer or window to hold a local value.
         for set in &mut output.set_commands {
-            set.scope = SetScope::Effective;
+            if set.scope == SetScope::Local {
+                set.scope = SetScope::Effective;
+            }
         }
         let mut applied = self.apply_ex_output(&mut output, "");
         crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
@@ -1022,7 +1025,7 @@ mod tests {
     use crate::effects::Effect;
     use crate::execution::host::HostRequestKind;
     use crate::execution::{parse_keys_from_string, HostSession, Response, VimEngine};
-    use crate::primitives::AbbrevMode;
+    use crate::primitives::{AbbrevMode, OptionId, OptionValue};
 
     /// The text of each error the response shows.
     fn errors(response: &Response) -> Vec<String> {
@@ -1219,12 +1222,42 @@ mod tests {
         assert!(!engine.could_start_mapping(crate::keymap::KeyEvent::char('x')));
     }
 
+    /// The global and the effective 'textwidth' after `config`, in an
+    /// engine whose buffer has a local 'textwidth' of 20.
+    fn textwidths_after(config: &str) -> (usize, OptionValue) {
+        let mut engine = VimEngine::new();
+        engine
+            .buffer_overrides
+            .set(OptionId::TextWidth, OptionValue::Unsigned(20));
+        engine.rebuild_resolved_cache();
+        let response = engine.source_config_text(config);
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+        (
+            engine.options().textwidth(),
+            engine.effective_option(OptionId::TextWidth),
+        )
+    }
+
     #[test]
     fn source_config_treats_setlocal_as_set() {
         // There is no buffer to hold a local value.
+        let ten = OptionValue::Unsigned(10);
+        assert_eq!(textwidths_after("setlocal tw=10\n"), (10, ten.clone()));
+        assert_eq!(textwidths_after("set tw=10\n"), (10, ten));
+    }
+
+    #[test]
+    fn source_config_setglobal_sets_only_the_global_value() {
+        // ex_set() passes OPT_GLOBAL, and :let &g: sets the global value.
+        let twenty = OptionValue::Unsigned(20);
+        assert_eq!(textwidths_after("setglobal tw=10\n"), (10, twenty.clone()));
+        assert_eq!(
+            textwidths_after("setglobal tw=4 | setglobal tw+=5\n"),
+            (9, twenty.clone())
+        );
+        assert_eq!(textwidths_after("let &g:tw = 10\n"), (10, twenty));
         let mut engine = VimEngine::new();
-        engine.source_config_text("setlocal tw=33\nsetglobal ic\n");
-        assert_eq!(engine.options().textwidth(), 33);
+        engine.source_config_text("setglobal ic\n");
         assert!(engine.options().ignorecase());
     }
 
