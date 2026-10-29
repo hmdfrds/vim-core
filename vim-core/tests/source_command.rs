@@ -237,6 +237,8 @@ fn returned_text_keeps_its_messages_in_the_history() {
         texts,
         [
             "textwidth=0",
+            "Error detected while processing x.vim:",
+            "line    2:",
             "E518: Unknown option: nosuch",
             "Config file sourced"
         ]

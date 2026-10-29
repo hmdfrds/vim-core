@@ -861,6 +861,7 @@ fn a_config_s_messages_and_errors_reach_the_message_history_once() {
         history(session.engine()),
         [
             "textwidth=0",
+            "line    2:",
             "E518: Unknown option: nosuch",
             "Config file sourced"
         ]
@@ -884,5 +885,61 @@ fn messages_in_a_config_lists_what_the_config_showed_before_it() {
             _ => None,
         })
         .collect();
-    assert_eq!(listed, [["textwidth=0", "E518: Unknown option: nosuch"]]);
+    assert_eq!(
+        listed,
+        [["textwidth=0", "line    1:", "E518: Unknown option: nosuch"]]
+    );
+}
+
+#[test]
+fn errors_are_headed_in_the_history_as_vim_heads_them() {
+    // msg_source(): the file once, then the line of each error at a line
+    // no error before it was at.
+    let config = "set nosuch\r\nset nosuch\nset tw=x | set nosuch\r\nsilent! set nosuch\r\n\
+                  set nosuch\r\n";
+    let mut engine = VimEngine::new();
+    let sourced = engine.source_script(ConfigText::new("a.vim", config), &mut Features(&[]));
+    assert_eq!(sourced.outcome.errors, 5);
+    let mut expected = vec![
+        "Error detected while processing a.vim:",
+        "line    1:",
+        "E518: Unknown option: nosuch",
+        "line    2:",
+        "W15: Warning: Wrong line separator, ^M may be missing",
+        "E518: Unknown option: nosuch",
+        "line    3:",
+        "E521: Number required after =: tw=x",
+        "line    5:",
+        "E518: Unknown option: nosuch^M",
+    ];
+    assert_eq!(history(&engine), expected);
+
+    // A later call heads its first error again.
+    let text = ConfigText::new("a.vim", "set nosuch\nset nosuch\n");
+    let _ = engine.source_script(text, &mut Features(&[]));
+    expected.extend([
+        "Error detected while processing a.vim:",
+        "line    1:",
+        "E518: Unknown option: nosuch",
+        "line    2:",
+        "E518: Unknown option: nosuch",
+    ]);
+    assert_eq!(history(&engine), expected);
+}
+
+#[test]
+fn errors_of_a_config_without_a_name_get_line_labels_only() {
+    // Deviation: Vim gives neither without a name.
+    let mut engine = VimEngine::new();
+    let _ = engine.source_config_text("set nosuch\nset nosuch | set nosuch\n");
+    assert_eq!(
+        history(&engine),
+        [
+            "line    1:",
+            "E518: Unknown option: nosuch",
+            "line    2:",
+            "E518: Unknown option: nosuch",
+            "Config file sourced"
+        ]
+    );
 }

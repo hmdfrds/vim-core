@@ -78,7 +78,12 @@ impl super::VimEngine {
     /// the config and the line Vim gives it at, the first of the lines a
     /// continued line joins, or the line after the last for an error at
     /// the end of the file. The messages and errors go to the message
-    /// history, as those of the command line do.
+    /// history, as those of the command line do. Before an error the
+    /// history gets the lines Vim's `msg_source()` writes: `Error detected
+    /// while processing {name}:` unless the error before it in this call
+    /// was raised in the same config, and `line {N}:` unless that one was
+    /// also raised at the same line. A config without a name gets the line
+    /// labels only.
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
@@ -156,6 +161,9 @@ impl super::VimEngine {
             self.rebuild_resolved_cache();
             self.rebuild_langmap_if_needed();
         }
+        // Vim forgets the place of the last error at the hit-enter prompt
+        // after a config with errors.
+        self.state.message_history_mut().forget_source();
         let mut response = Response::with_effects(Effects::new());
         let mut frame = Frame {
             name: text.name,
