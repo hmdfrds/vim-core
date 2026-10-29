@@ -1,0 +1,6186 @@
+{
+ "generator": "headless vim -Nu NONE --not-a-term: nostartofline nojoinspaces backspace=indent,eol,start, explicit setlocal options, the keys through feedkeys('xt') one at a time (InsertCharPre autocommand), an Esc at the end in Insert or Replace mode; register is the unnamed one",
+ "vim": "VIM - Vi IMproved 9.1 (2024 Jan 02) / Included patches: 1-948, 950-2141",
+ "cases": [
+  {
+   "name": "counted cip past the only paragraph fails",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2cip}",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted yap in an empty buffer fails",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "3yap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot-repeat of dip with a count past the end fails",
+   "lines": [
+    "n"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dip2.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "n\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "counted dap in an empty buffer fails",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "d3ap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "( takes a trailing CR as a character",
+   "lines": [
+    "\r",
+    "r\r"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "(",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\r",
+     "r\r"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": ") takes a trailing CR as a character",
+   "lines": [
+    "\r",
+    "r\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ")",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\r",
+     "r\r"
+    ],
+    "cursor": [
+     1,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "c) over a CR line",
+   "lines": [
+    "re",
+    "\r",
+    ""
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "c)",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "r",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e\n\r",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "counted ip over a CR line, which is not blank",
+   "lines": [
+    "e",
+    "\r",
+    "r",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "y4ip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "\r",
+     "r",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": ">$ then a counted ip that fails",
+   "lines": [
+    "a"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ">$<lt>3ip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    a"
+    ],
+    "cursor": [
+     0,
+     4
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Vap on one line puts the cursor in column 0",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "Vap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Vip on one line puts the cursor in column 0",
+   "lines": [
+    "ww"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "Vip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "ww"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Visap that cannot extend still goes to column 0",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Visap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "v)ap> shifts with the curswant of the cursor end",
+   "lines": [
+    "b.",
+    "r"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "v)ap>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    b.",
+     "    r"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot-repeat of a two-line Visual shift takes the end column",
+   "lines": [
+    "re",
+    ""
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "vj<lt>3{.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "viw on the empty last line after vap",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "vap<Esc>viw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "v",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<ap from a paragraph whose trailing blanks reach the end",
+   "lines": [
+    "",
+    "a",
+    "",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "<lt>ap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "a",
+     "",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<ap after ( over blank lines",
+   "lines": [
+    "",
+    "",
+    "a",
+    "",
+    ""
+   ],
+   "cursor": [
+    3,
+    0
+   ],
+   "keys": "(<lt>ap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "",
+     "a",
+     "",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "yVW on the empty last line below an empty line",
+   "lines": [
+    "",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "yVW",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": ">VW on the last line below an empty first line",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "I<CR><Esc>>VW",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "    e"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "cVW on the empty last line keeps one empty line",
+   "lines": [
+    "",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "cVW",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "cVw on the empty last line below a line",
+   "lines": [
+    "r",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "cVw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "r",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "2cc over the empty last line leaves one empty line",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2cc<Esc>Vwd",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "c<CR> over the empty last line then dd",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "c<CR>f<CR><Esc>dd",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "f"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "dvap leaves the empty last line out",
+   "lines": [
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dvap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "n\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "cvap changes the paragraph without the empty last line",
+   "lines": [
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "cvap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "n\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "V)c then dG on the line it left",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "V)c<Esc>dG",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "p of lines ending with an empty line at the end of the text",
+   "lines": [
+    "n",
+    "e",
+    "t",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "cap<Esc>pdj",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "t",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "n\ne\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "dgg repeated in the buffer it emptied",
+   "lines": [
+    "l1",
+    "l2",
+    "l3"
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "dggG.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "l1\nl2\nl3\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "2dj in an empty buffer fails",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2dj",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<2$ on the last line fails",
+   "lines": [
+    "supercalifragilistic"
+   ],
+   "cursor": [
+    0,
+    13
+   ],
+   "keys": "<lt>2$",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "supercalifragilistic"
+    ],
+    "cursor": [
+     0,
+     13
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dV2} in an empty buffer fails",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dV2}",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dd. after dd left the empty last line",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dd.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "undo after gw puts the cursor back",
+   "lines": [
+    "nnn ooo ppp"
+   ],
+   "cursor": [
+    0,
+    10
+   ],
+   "keys": "gw$u",
+   "opts": {
+    "tw": 10,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "nnn ooo ppp"
+    ],
+    "cursor": [
+     0,
+     10
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo after Vjgq puts the cursor on its line",
+   "lines": [
+    "aaa bbb ccc ddd",
+    "eee fff ggg hhh",
+    "x"
+   ],
+   "cursor": [
+    0,
+    5
+   ],
+   "keys": "Vjgqu",
+   "opts": {
+    "tw": 8,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "aaa bbb ccc ddd",
+     "eee fff ggg hhh",
+     "x"
+    ],
+    "cursor": [
+     1,
+     5
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo of a counted Replace that wrapped",
+   "lines": [
+    "the lazy dog. It barked twice."
+   ],
+   "cursor": [
+    0,
+    29
+   ],
+   "keys": "3Rorem<Esc>u",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "the lazy dog. It barked twice."
+    ],
+    "cursor": [
+     0,
+     29
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo of 3cc puts the cursor on the second line",
+   "lines": [
+    "",
+    "a"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "3cc<Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "a"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "\na\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "u after a gw that changed nothing",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A <Esc>gwwu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " "
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "u after a gqq that changed nothing",
+   "lines": [
+    "r",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "o <Esc>gqqu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "r",
+     " ",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "a failed f keeps the Visual area",
+   "lines": [
+    "e."
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "v0fa>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    e."
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Visual shift with the cursor end on a line break",
+   "lines": [
+    "a",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "vaw>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    a",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": ">V$ is not MAXCOL",
+   "lines": [
+    "abc",
+    "defg",
+    "hijkl",
+    "m"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ">V3$",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    abc",
+     "    defg",
+     "    hijkl",
+     "m"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "2<< over the empty last line keeps its line",
+   "lines": [
+    "s",
+    "",
+    "",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "2<lt><lt>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "s",
+     "",
+     "",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<$ on a wide character",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "R本<Esc><lt>$",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "本"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "> lands on the tab that covers curswant",
+   "lines": [
+    "c",
+    "ar"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "vjl>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\tc",
+     "\tar"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Vis after Vip extends back to the line",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Vipis",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "v2ipas on a line before the empty last line",
+   "lines": [
+    "t",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "v2ipas",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "t",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "visap after cW",
+   "lines": [
+    ".",
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "cW<Esc>visap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "1"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "V",
+    "reg": ".",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "gqas then vap",
+   "lines": [
+    "t",
+    "",
+    "w",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqasvap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "t",
+     "",
+     "w",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Vas2ap from an empty line",
+   "lines": [
+    "",
+    "ne"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Vas2ap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "ne"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "2gqis leaves a short sentence alone",
+   "lines": [
+    ".",
+    "",
+    "new paragraph starts here! it short? Yes."
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": " 2gqis",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ".",
+     "",
+     "new paragraph starts here! it short? Yes."
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<as from the empty last line",
+   "lines": [
+    "x  ",
+    "  y",
+    ""
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "<lt>as",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "x  ",
+     "y",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Viwap on an empty first line",
+   "lines": [
+    "",
+    "a",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Viwap",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "a",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "V2apawgw",
+   "lines": [
+    "c",
+    "",
+    "ar"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "V2apawgw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "c",
+     "",
+     "ar"
+    ],
+    "cursor": [
+     2,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "daW over an empty line takes whole lines",
+   "lines": [
+    "t",
+    "",
+    "w"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "daW",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "t"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\nw\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "3>iw fails on the empty line before the last",
+   "lines": [
+    "",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": ">iw3.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "e crosses empty lines in Visual mode",
+   "lines": [
+    "a",
+    "",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "vise<Esc>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "a",
+     "",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "gw2iW on a wide character line",
+   "lines": [
+    "à. .",
+    "",
+    "n",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gw2iW",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "à. .",
+     "",
+     "n",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "vk3aw keeps the start it set when it fails",
+   "lines": [
+    "x  ",
+    "  y"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "vk3awd",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "x"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "  \n  y",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "a<Esc>u keeps the cursor",
+   "lines": [
+    "ar"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "a<Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "ar"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo of a shift goes back to the operator start",
+   "lines": [
+    "",
+    "r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "3>asu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "r"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo of >w restores the column",
+   "lines": [
+    "\"hi\")"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "keys": ">wu..",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t\t\"hi\")"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo of cip goes to the second line in column 0",
+   "lines": [
+    "re",
+    "nt"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "cip<Esc>ugg",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re",
+     "nt"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "re\nnt\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "undo onto the empty last line",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gqqu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Vgq is repeated by .",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Vc <Esc>Vgqu.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " "
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": ". skips an operator whose motion failed",
+   "lines": [
+    "in",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "Vas<lt>gqfo.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "in",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "p of an empty register does nothing",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "yass <Esc>p",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " "
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "VG on the last line goes to curswant",
+   "lines": [
+    "rt?",
+    "ne"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "jVGas",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "rt?",
+     "ne"
+    ],
+    "cursor": [
+     1,
+     1
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "a failed 2$ still sets curswant",
+   "lines": [
+    ":",
+    "1",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "Vipc! <Esc>Vw2$<lt>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "! ",
+     ""
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": ":\n1\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "ce on the empty last line still changes",
+   "lines": [
+    "r",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "ce0",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "r",
+     "0"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "yVe on the empty last line",
+   "lines": [
+    "r",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "yVe",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "r",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "I on a line of CR starts before it",
+   "lines": [
+    "e\r",
+    "\r"
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "I<BS><Esc>vasdVy",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "gq_w_at_last_word",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "yank_2w_across_lines",
+   "lines": [
+    ". x.",
+    "1",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "y2w",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ". x.",
+     "1",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "1\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "gq_2ge_from_empty_last_line",
+   "lines": [
+    "a",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "gq2ge",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "a",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "yank_visual_down_then_dd",
+   "lines": [
+    "):",
+    "\td"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "yvjdd",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\td"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "):\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "replace_count_repeat_undo",
+   "lines": [
+    "starts here! it short? Yes."
+   ],
+   "cursor": [
+    0,
+    26
+   ],
+   "keys": "2Rend!<Esc>.u",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "starts here! it short? Yesend!end!"
+    ],
+    "cursor": [
+     0,
+     33
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "replace_count_newline_autoindent_tail",
+   "lines": [
+    "mmm nnn ooo ppp"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2R<CR>end! he",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "end! he",
+     "end! he"
+    ],
+    "cursor": [
+     2,
+     6
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "shift_empty_word_repeats_shift",
+   "lines": [
+    ":",
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "o<Esc><lt>iw.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ":",
+     "",
+     "1"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "delete_counted_sentence_past_end_repeats_delete",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "az <Esc>2das.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "z "
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "visual_shift_up_past_line_end",
+   "lines": [
+    ":",
+    "-="
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "vk<lt>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ":",
+     "-="
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "visual_shift_keeps_curswant",
+   "lines": [
+    "pp",
+    "t",
+    "w"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "vj>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    pp",
+     "    t",
+     "w"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "visual_line_up_onto_carriage_return",
+   "lines": [
+    "\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "o<Esc>Vk",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\r",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo_shift_then_empty_put",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "<lt>0pu",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "delete_dollar_linewise_old_curswant",
+   "lines": [
+    "",
+    ".",
+    "last line"
+   ],
+   "cursor": [
+    2,
+    7
+   ],
+   "keys": "a<CR> <Esc>{d3$",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " e"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n.\nlast lin\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "undo_empty_put_then_counted_tab_insert",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ">aspu3I<Tab>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "                        e"
+    ],
+    "cursor": [
+     0,
+     23
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "enter_esc_drops_autoindent_then_gqip",
+   "lines": [
+    "",
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "a<Tab>r<CR><Esc>gqip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\tr",
+     "",
+     "1"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "format_forced_empty_range_formats_line",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "gqvG",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "format_forced_inclusive_end_on_empty_line",
+   "lines": [
+    "c",
+    "",
+    "r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqv}.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "c",
+     "",
+     "r"
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "replace_backspace_up_keeps_long_line_start",
+   "lines": [
+    " bit long.",
+    "# More doc."
+   ],
+   "cursor": [
+    1,
+    3
+   ],
+   "keys": "(R<BS>/",
+   "opts": {
+    "tw": 10,
+    "fo": "tql",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " bit long./",
+     "# More doc."
+    ],
+    "cursor": [
+     0,
+     10
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "format_linewise_forced_w_stops_at_line_end",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gqVw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "format_joins_carriage_return_lines",
+   "lines": [
+    "\r",
+    "r\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gw)a<CR>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\r",
+     "r\r"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "repeat_visual_onto_empty_line_formats_it",
+   "lines": [
+    "",
+    "",
+    "ne",
+    "e o",
+    "",
+    ""
+   ],
+   "cursor": [
+    4,
+    0
+   ],
+   "keys": "3GV$awgq.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "",
+     "ne e o",
+     "",
+     ""
+    ],
+    "cursor": [
+     3,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "outdent_rebuilds_tab_indent",
+   "lines": [
+    "\tf"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "a<CR><Esc><lt><lt>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t",
+     "    f"
+    ],
+    "cursor": [
+     1,
+     4
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "indent_rebuilds_indent_only_with_expandtab",
+   "lines": [
+    "  a\tb",
+    "\t  c"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ">j",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "      a\tb",
+     "              c"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "outdent_blank_line_and_tab_indent",
+   "lines": [
+    "  a\tb",
+    "\t  c",
+    "   "
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "<lt>2j",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "a\tb",
+     "      c",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "autoindent_kept_after_typing_and_backspacing",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "i<Tab><CR># <BS><BS>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "        ",
+     "        "
+    ],
+    "cursor": [
+     1,
+     7
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo_append_backspace_multibyte",
+   "lines": [
+    "す",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A<BS><Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "す",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "replace_repeat_moves_back_like_first_round",
+   "lines": [
+    "す",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "R<BS><CR><Esc>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "す",
+     "",
+     "",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "visual_shift_curswant_on_tab_indent",
+   "lines": [
+    "\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ">wyt..V<lt>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\r"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "failed_paragraph_motion_sets_curswant",
+   "lines": [
+    "ar",
+    ""
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "Vj3}>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    ar",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "textwidth_counts_carriage_return_as_two_cells",
+   "lines": [
+    "line one here\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "AbRsupercalifragilistic baix",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "line one here\rbRsupercalifragilistic",
+     "baix"
+    ],
+    "cursor": [
+     1,
+     3
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "replace_textwidth_carriage_return_width",
+   "lines": [
+    "line four\r"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "keys": "Rbaz<Space> <Tab>b",
+   "opts": {
+    "tw": 10,
+    "fo": "tql",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "linebaz  \tb"
+    ],
+    "cursor": [
+     0,
+     10
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "forced_charwise_word_object_count",
+   "lines": [
+    " _ready:",
+    "#"
+   ],
+   "cursor": [
+    0,
+    6
+   ],
+   "keys": "3>viw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "     _ready:",
+     "#"
+    ],
+    "cursor": [
+     0,
+     6
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "word_motion_stops_on_each_empty_line",
+   "lines": [
+    "",
+    "",
+    "",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2dVW",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n\n\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "yank_empty_region_in_emptied_buffer",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dggvy",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "repeat_visual_delete_in_emptied_buffer",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Vd<lt>#.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "repeat_after_format_in_emptied_buffer",
+   "lines": [
+    "n"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "vapdgqap.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "n\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "undo_forced_linewise_change_keeps_column",
+   "lines": [
+    "e\r"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "cVw<Esc>uvc",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\r",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "format_v_emptied_word_object_formats_line",
+   "lines": [
+    "o."
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": " gqviw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "o."
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "shift_v_emptied_word_object_shifts_line",
+   "lines": [
+    "1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": ">viw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    1"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "undo_forced_linewise_word_object_change",
+   "lines": [
+    "e\r"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "cViw<Esc>uvc",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\r",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "counted_replace_repeats_leading_backspace",
+   "lines": [
+    "ode",
+    "ng."
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "djuj3R<BS>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "ode",
+     "ng."
+    ],
+    "cursor": [
+     0,
+     2
+    ],
+    "mode": "n",
+    "reg": "ode\nng.\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "backspace_from_indent_start_keeps_indent",
+   "lines": [
+    "super",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "A<Tab><CR><BS><BS><Esc>",
+   "opts": {
+    "tw": 0,
+    "fo": "cqlj",
+    "ai": true,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "super",
+     "\t"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "operator_then_filter_cancels_both",
+   "lines": [
+    "\tspeed "
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "keys": "2ciped! ",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\tspeed "
+    ],
+    "cursor": [
+     0,
+     6
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Visual ip shift then undo with a Tab-only last line",
+   "lines": [
+    "d",
+    "\t"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Vip>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "d",
+     "\t"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "linewise Visual shift undo from a cursor left of the start on one line",
+   "lines": [
+    " nt"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "Vb>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " nt"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "linewise Visual shift undo from a cursor left on one line, two chars",
+   "lines": [
+    " b nt"
+   ],
+   "cursor": [
+    0,
+    3
+   ],
+   "keys": "Vh>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " b nt"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "a failed aw on the empty last line, then a failed yank",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": ">awyf.{.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "an empty dv$ is repeated by .",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A <Esc>dv$.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " "
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "an empty dv$ after an insert is repeated by .",
+   "lines": [
+    "ab"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "ix<Esc>ldv$.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "axb"
+    ],
+    "cursor": [
+     0,
+     2
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "a failed counted yip sets curswant to the cursor column",
+   "lines": [
+    "",
+    "w"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A<Tab><Esc>j2yipk",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "        ",
+     "w"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted o whose backspace joins the line back",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2o<BS><Esc>Vggd",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "gq on a v-forced word object that ends on the empty last line",
+   "lines": [
+    ".r ",
+    ""
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "gqv2iwb",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ".r ",
+     ""
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot repeat of an empty append after a failed yank",
+   "lines": [
+    "\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "a<Esc>yfa.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\r"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "cip without autoindent drops the indent, then a counted shift fails",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "cip<Esc>2<lt>}",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\t\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "undo of cc goes to the first non-blank",
+   "lines": [
+    "\tabc",
+    " c"
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "cc<Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\tabc",
+     " c"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "\tabc\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "Visual yank from past a line end leaves the cursor on the last character",
+   "lines": [
+    "e",
+    "g."
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "vkyvc",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "g."
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "Visual yank from past a line end, then x",
+   "lines": [
+    "e",
+    "g."
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "vkyx",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "g."
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "linewise change with autoindent, then a typed blank and a line break",
+   "lines": [
+    "\td",
+    ""
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "cas <CR>0",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t ",
+     "         0",
+     ""
+    ],
+    "cursor": [
+     1,
+     9
+    ],
+    "mode": "n",
+    "reg": "\td\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "linewise change with autoindent, then a Tab and a line break",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "O <Esc>cip<Tab><CR>(",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "        ",
+     "        (",
+     "e"
+    ],
+    "cursor": [
+     1,
+     8
+    ],
+    "mode": "n",
+    "reg": " \n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "dot repeat of an append that backspaced first, after a failed yank",
+   "lines": [
+    "\r"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "a<BS><Tab><Esc>yfa.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted insert with expandtab that backspaced first",
+   "lines": [
+    "emore"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "keys": "2i<BS><Tab>## ",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "emo     ##      ## e"
+    ],
+    "cursor": [
+     0,
+     18
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot repeat of an expandtab insert that backspaced first",
+   "lines": [
+    "fin"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "e2a<BS><Tab>m<Space><Esc>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "fi      m       m       m       m "
+    ],
+    "cursor": [
+     0,
+     33
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted expandtab insert that backspaced first and breaks lines",
+   "lines": [
+    "fin"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "e2a<BS><Tab><CR>m<Space>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "fi      ",
+     "m       ",
+     "m "
+    ],
+    "cursor": [
+     2,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted o whose backspace deletes the autoindent",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "3o<BS> ",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     " ",
+     " ",
+     " "
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted O whose backspace joins, then a Tab",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "O<CR><Esc>3O<BS><Tab>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t",
+     "\t",
+     "\t",
+     "",
+     ""
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "counted o with backspaces over the autoindent and line breaks",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "a<CR>  <Esc>2o<BS><BS><CR><BS><CR><Tab>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "  ",
+     "",
+     "    ",
+     "",
+     " ",
+     "    "
+    ],
+    "cursor": [
+     6,
+     3
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dvW on the empty last line makes no undo step",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "dvW(u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "d$ on an empty line makes no undo step",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "d$(u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "} goes past a line that holds a carriage return",
+   "lines": [
+    "e",
+    "\r",
+    "\r"
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "<BS><BS>}",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "\r",
+     "\r"
+    ],
+    "cursor": [
+     2,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "y{ goes past a line that holds a carriage return",
+   "lines": [
+    "e",
+    "\r",
+    "\r"
+   ],
+   "cursor": [
+    2,
+    0
+   ],
+   "keys": "y{",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     "\r",
+     "\r"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e\n\r\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "curswant after a dot repeat of o with an autoindent, into Visual",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "oo<Esc>.Vk",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t",
+     "        o",
+     "        o"
+    ],
+    "cursor": [
+     1,
+     8
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot repeat of o with an expandtab Tab after a long line",
+   "lines": [
+    "var speed = 10 # x"
+   ],
+   "cursor": [
+    0,
+    17
+   ],
+   "keys": "o# é<Space>    <Tab>## h<Esc>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "var speed = 10 # x",
+     "# é         ## h",
+     "# é         ## h"
+    ],
+    "cursor": [
+     2,
+     16
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot repeat of o with an expandtab Tab keeps the typed spaces",
+   "lines": [
+    ":",
+    "\teed"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "o<Tab><Esc>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ":",
+     "    ",
+     "        ",
+     "\teed"
+    ],
+    "cursor": [
+     2,
+     7
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "2w stops on a carriage return so das on it fails",
+   "lines": [
+    " r\r",
+    ""
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "I<Esc>2wdas",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": " r\r\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "b from past the line end stops on a carriage return",
+   "lines": [
+    "r\r"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "v$bu3$",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "r\r"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "C-w stops at a carriage return",
+   "lines": [
+    "a.\r."
+   ],
+   "cursor": [
+    0,
+    3
+   ],
+   "keys": "A<C-w>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "a.\r"
+    ],
+    "cursor": [
+     0,
+     2
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Esc out of Visual mode sets curswant to the cursor",
+   "lines": [
+    "",
+    "in"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "vk<Esc>VG",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "in"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "V",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "leaving Visual mode with v keeps curswant",
+   "lines": [
+    "",
+    "in"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "vkvj",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "in"
+    ],
+    "cursor": [
+     1,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "# on a period at the line end searches the period back",
+   "lines": [
+    "umps over the lazy dog. It barked twice.",
+    ".",
+    "e"
+   ],
+   "cursor": [
+    0,
+    39
+   ],
+   "keys": "Ar<Esc>u# <CR>",
+   "opts": {
+    "tw": 40,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "umps over the lazy dog. It barked twice.",
+     ".",
+     "e"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Replace backspace deletes a space an expandtab Tab added",
+   "lines": [
+    "abc "
+   ],
+   "cursor": [
+    0,
+    2
+   ],
+   "keys": "R<Tab><Tab><BS><CR>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "ab             ",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Replace Tab after a joined line break replaces the blank",
+   "lines": [
+    "# one two three four five six seven eight"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Rbar <Tab><Tab>// <CR><BS><Tab><BS>end!",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "bar             //     end!e four five six seven eight"
+    ],
+    "cursor": [
+     0,
+     26
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot of Replace with Tabs and line breaks from an earlier column",
+   "lines": [
+    "aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk lll mmm nnn ooo ppp",
+    "qqq rrr sss ttt",
+    "",
+    "uuu vvv www",
+    ""
+   ],
+   "cursor": [
+    0,
+    26
+   ],
+   "keys": "R<Tab><Tab><BS>hello a <CR>x<Space><CR>ipsum <Esc>v2gg$<Esc>.",
+   "opts": {
+    "tw": 10,
+    "fo": "cqlj",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "aaa bbb ccc ddd eee fff gg             hello a ",
+     "x              hello a ",
+     "x ",
+     "ipsum ",
+     "ipsum lll mmm nnn ooo ppp",
+     "qqq rrr sss ttt",
+     "",
+     "uuu vvv www",
+     ""
+    ],
+    "cursor": [
+     3,
+     5
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "<CR> on the last line fails and leaves the cursor",
+   "lines": [
+    "x",
+    "ar"
+   ],
+   "cursor": [
+    1,
+    1
+   ],
+   "keys": "<CR><BS>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "x",
+     "ar"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "+ after e onto the last line fails",
+   "lines": [
+    "",
+    "ar"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "e<CR><BS>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "ar"
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "0 in linewise Visual on a Tab at the start sets curswant to its first column",
+   "lines": [
+    "ur",
+    "\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "jV0d",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "ur"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\t\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "0 in Visual mode onto a Tab after the start keeps curswant at its last column",
+   "lines": [
+    "ab",
+    "\tcd",
+    "xxxxxxxxxx"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "vj0j",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "ab",
+     "\tcd",
+     "xxxxxxxxxx"
+    ],
+    "cursor": [
+     2,
+     7
+    ],
+    "mode": "v",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "gww on an empty buffer is the change . repeats",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Pgwwyy.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "yiw on an empty buffer after a dVW yanks the empty text",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dVWyiw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "diw on an empty line keeps the register",
+   "lines": [
+    "",
+    "x"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "yydiw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "",
+     "x"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "Replace mode that types nothing is no undo step",
+   "lines": [
+    ".",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "R<Esc>{u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ".",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Insert mode that types nothing is no undo step",
+   "lines": [
+    ".",
+    ""
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "i<Esc>{u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ".",
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "a Replace mode backspace that moves back is an undo step",
+   "lines": [
+    "abcd"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "xllR<BS><Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "bcd"
+    ],
+    "cursor": [
+     0,
+     2
+    ],
+    "mode": "n",
+    "reg": "a",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "c0 in column 0 is an undo step",
+   "lines": [
+    "abcd"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "xc0<Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "bcd"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "a",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "2das empties the buffer, so dip leaves the register alone",
+   "lines": [
+    "r",
+    "n"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "2dasdip",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "r\nn\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "V}d in the buffer 3das emptied leaves the register alone",
+   "lines": [
+    "e",
+    "t"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "3dasV}d",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e\nt\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "Vd in the empty line dip left deletes it",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dipVd",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "gUgU still works on the line",
+   "lines": [
+    "indented hash comment"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "gUgUw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "INDENTED HASH COMMENT"
+    ],
+    "cursor": [
+     0,
+     9
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "cc with autoindent keeps the indent a backspace leaves in column 1",
+   "lines": [
+    "\t\t"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "cc<BS>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\t\t\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "V on a Tab keeps curswant at the last column of the Tab",
+   "lines": [
+    "\tspeed 1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "V<lt>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    speed 1"
+    ],
+    "cursor": [
+     0,
+     7
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "0 in V that leaves the cursor on the same Tab keeps curswant",
+   "lines": [
+    "\tspeed 1"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "V0<lt>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    speed 1"
+    ],
+    "cursor": [
+     0,
+     7
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": ">e keeps the cursor at curswant from before the motion",
+   "lines": [
+    "eight",
+    "nt"
+   ],
+   "cursor": [
+    0,
+    4
+   ],
+   "keys": "G>e",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "eight",
+     "\tnt"
+    ],
+    "cursor": [
+     1,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": ">> after . of an insert of Tabs puts the cursor at curswant",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "i<Tab>x<Esc>.>>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t\t\txx"
+    ],
+    "cursor": [
+     0,
+     2
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "u after . of V< puts the cursor where the . started",
+   "lines": [
+    "re"
+   ],
+   "cursor": [
+    0,
+    1
+   ],
+   "keys": "V<lt>.u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "re"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "u after . of v$> puts the cursor in column 0",
+   "lines": [
+    "w"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "v$>.u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "    w"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "gg on the same line after a failed 2$ goes to curswant",
+   "lines": [
+    "icexpialidociousandthensomemore"
+   ],
+   "cursor": [
+    0,
+    29
+   ],
+   "keys": "2$gg",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "icexpialidociousandthensomemore"
+    ],
+    "cursor": [
+     0,
+     30
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "G on the same line after a failed 2$ goes to curswant",
+   "lines": [
+    "abcdefghij",
+    "abcdef"
+   ],
+   "cursor": [
+    1,
+    2
+   ],
+   "keys": "2$G",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "abcdefghij",
+     "abcdef"
+    ],
+    "cursor": [
+     1,
+     5
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "3cw that runs into empty lines at the end takes them in",
+   "lines": [
+    "e",
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "dvw3cw",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "e\n",
+    "regtype": "v"
+   }
+  },
+  {
+   "name": "o and Esc under noexpandtab keep curswant at the end of a Tab indent",
+   "lines": [
+    "\tx",
+    "ab"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "o<Esc>j",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\tx",
+     "",
+     "ab"
+    ],
+    "cursor": [
+     2,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "nosmarttab backspace after a line break keeps curswant for >>",
+   "lines": [
+    "\t",
+    "\t"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "A<CR><BS><Esc>j>>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\t",
+     "",
+     "        "
+    ],
+    "cursor": [
+     2,
+     3
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "nosmarttab backspace before I is repeated by dot",
+   "lines": [
+    ".",
+    "  "
+   ],
+   "cursor": [
+    1,
+    0
+   ],
+   "keys": "I<BS><Esc>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ".",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "nosmarttab backspace into a Tab of the autoindent from O",
+   "lines": [
+    "\t"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "O<BS>d",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": false,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "d",
+     "\t"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "dot types a Tab and the backspace into its spaces again",
+   "lines": [
+    "# one two"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "I<Tab><BS><Esc>w.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": true,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "   # one two"
+    ],
+    "cursor": [
+     0,
+     2
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "Space after an operator is l and V makes it linewise",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "yapcV<Space>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "dot after a Visual yank changes the area of the last change",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "Vc<Esc>vy.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     ""
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "dot of o that typed nothing stays on the new last line after undo",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "o<Esc>u.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "e",
+     ""
+    ],
+    "cursor": [
+     1,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "cip on an empty buffer puts the empty line in the register",
+   "lines": [
+    ""
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "yapcVipx<Esc>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "x"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "undo of cc puts the cursor back before the indent it started in",
+   "lines": [
+    "e"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "I<Tab><Esc>cc<BS><Esc>u",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "\te"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "\te\n",
+    "regtype": "V"
+   }
+  },
+  {
+   "name": "dot types again a Replace Tab that backspaces took away",
+   "lines": [
+    "abcdefghijklmnopqrstuv here."
+   ],
+   "cursor": [
+    0,
+    23
+   ],
+   "keys": "R<Tab><BS><Esc>.",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 4,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "abcdefghijklmnopqrstuv here."
+    ],
+    "cursor": [
+     0,
+     22
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  }
+ ]
+}
