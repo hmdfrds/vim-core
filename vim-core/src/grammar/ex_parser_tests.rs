@@ -5584,9 +5584,9 @@ fn set_colon_assignment() {
 }
 
 #[test]
-fn set_arguments_split_and_values_as_before_operators() {
-    // The operators did not change how other arguments split or how values
-    // read: white space separates arguments and a backslash is kept.
+fn set_values_are_kept_as_written() {
+    // stropt_copy_value() drops the backslashes of a string value; the
+    // parser keeps them, and a number value such as `\2` stays refused.
     assert_eq!(
         set_args(r"set sw=\2 cms=a\\ ts=4"),
         vec![
@@ -5595,67 +5595,77 @@ fn set_arguments_split_and_values_as_before_operators() {
             SetAssignment::Assign(cs("ts"), cs("4")),
         ]
     );
+}
+
+#[test]
+fn set_blanks_may_come_before_what_follows_the_name() {
+    // do_set_option(): "allow ':set ai  ?', ':set hlsearch  !'".
     assert_eq!(
-        set_args("set sw =2"),
+        set_args("set sw =2 tw  ? ic ! fo +=t ai sw"),
         vec![
+            SetAssignment::Assign(cs("sw"), cs("2")),
+            SetAssignment::Query(cs("tw")),
+            SetAssignment::ToggleBool(cs("ic")),
+            SetAssignment::Append(cs("fo"), cs("t")),
+            SetAssignment::SetBool(cs("ai")),
             SetAssignment::SetBool(cs("sw")),
-            SetAssignment::Assign(cs(""), cs("2")),
         ]
     );
 }
 
 #[test]
-fn set_backslash_before_white_space_keeps_it_in_the_value() {
-    // `:help option-backslash`: Vim 9.1 gives "# %s" and "<!-- %s -->".
+fn set_backslash_before_a_blank_keeps_it_in_the_value() {
+    // `:help option-backslash`
     assert_eq!(
         set_args(r"setlocal commentstring=#\ %s"),
-        vec![SetAssignment::Assign(cs("commentstring"), cs("# %s"))]
+        vec![SetAssignment::Assign(cs("commentstring"), cs(r"#\ %s"))]
     );
     assert_eq!(
         set_args(r"setlocal comments=fb:* commentstring=<!--\ %s\ -->"),
         vec![
             SetAssignment::Assign(cs("comments"), cs("fb:*")),
-            SetAssignment::Assign(cs("commentstring"), cs("<!-- %s -->")),
+            SetAssignment::Assign(cs("commentstring"), cs(r"<!--\ %s\ -->")),
         ]
     );
 }
 
 #[test]
-fn set_backslash_space_splits_other_options_as_before() {
-    // Only commentstring, comments and formatoptions take a backslash
-    // before white space into the value. Any other argument ends at white
-    // space as before the operators, keeping a trailing backslash.
+fn set_backslash_space_joins_any_argument() {
+    // do_set() skips an escaped blank whatever the option.
     assert_eq!(
         set_args(r"set sw=2\ ts=4"),
-        vec![
-            SetAssignment::Assign(cs("sw"), cs("2\\")),
-            SetAssignment::Assign(cs("ts"), cs("4")),
-        ]
-    );
-    assert_eq!(
-        set_args(r"set so=1\ commentstring=#\ %s"),
-        vec![
-            SetAssignment::Assign(cs("so"), cs("1\\")),
-            SetAssignment::Assign(cs("commentstring"), cs("# %s")),
-        ]
+        vec![SetAssignment::Assign(cs("sw"), cs(r"2\ ts=4"))]
     );
     assert_eq!(
         set_args(r"setlocal comments=sO:*\ -,mO:*\ \ ,exO:*/ fo+=a\ b"),
         vec![
-            SetAssignment::Assign(cs("comments"), cs("sO:* -,mO:*  ,exO:*/")),
-            SetAssignment::Append(cs("fo"), cs("a b")),
+            SetAssignment::Assign(cs("comments"), cs(r"sO:*\ -,mO:*\ \ ,exO:*/")),
+            SetAssignment::Append(cs("fo"), cs(r"a\ b")),
         ]
     );
 }
 
 #[test]
-fn set_bool_forms_unchanged() {
+fn set_arguments_end_at_a_space_or_tab_only() {
     assert_eq!(
-        set_args("set ic noai et! ts? all"),
+        set_args("set ic\tai fo=t\u{a0}c"),
+        vec![
+            SetAssignment::SetBool(cs("ic")),
+            SetAssignment::SetBool(cs("ai")),
+            SetAssignment::Assign(cs("fo"), cs("t\u{a0}c")),
+        ]
+    );
+}
+
+#[test]
+fn set_bool_forms() {
+    assert_eq!(
+        set_args("set ic noai et! invhls ts? all"),
         vec![
             SetAssignment::SetBool(cs("ic")),
             SetAssignment::UnsetBool(cs("ai")),
             SetAssignment::ToggleBool(cs("et")),
+            SetAssignment::ToggleBool(cs("hls")),
             SetAssignment::Query(cs("ts")),
             SetAssignment::ShowAll,
         ]
@@ -5663,11 +5673,66 @@ fn set_bool_forms_unchanged() {
 }
 
 #[test]
-fn set_colon_after_a_sign_is_a_plain_assignment() {
-    // `tw+:7` is not an operator; it reaches the executor as an assignment
-    // to an unknown option `tw+`, as before the operators.
+fn set_prefix_stays_before_a_query_a_bang_and_a_value() {
     assert_eq!(
-        set_args("set tw+:7"),
-        vec![SetAssignment::Assign(cs("tw+"), cs("7"))]
+        set_args("set noic? invic! notw=5 nofo+=t novice no"),
+        vec![
+            SetAssignment::Query(cs("noic")),
+            SetAssignment::ToggleBool(cs("invic")),
+            SetAssignment::Assign(cs("notw"), cs("5")),
+            SetAssignment::Append(cs("nofo"), cs("t")),
+            SetAssignment::SetBool(cs("novice")),
+            SetAssignment::SetBool(cs("no")),
+        ]
+    );
+}
+
+#[test]
+fn set_text_after_the_name_is_invalid() {
+    let invalid = |name: &str, argument: &str| SetAssignment::Invalid {
+        name: name.into(),
+        argument: argument.into(),
+    };
+    assert_eq!(
+        set_args("set tw?x ic!x nosuch, tw+:7 ,"),
+        vec![
+            invalid("tw", "tw?x"),
+            invalid("ic", "ic!x"),
+            invalid("such", "nosuch,"),
+            invalid("tw", "tw+:7"),
+            invalid("", ","),
+        ]
+    );
+}
+
+#[test]
+fn set_reset_forms() {
+    let reset = |name: &str, argument: &str| SetAssignment::Reset {
+        name: name.into(),
+        argument: argument.into(),
+    };
+    assert_eq!(
+        set_args("set fo& fo&vim fo&vi fo< all& all"),
+        vec![
+            reset("fo", "fo&"),
+            reset("fo", "fo&vim"),
+            reset("fo", "fo&vi"),
+            reset("fo", "fo<"),
+            reset("all", "all&"),
+            SetAssignment::ShowAll,
+        ]
+    );
+}
+
+#[test]
+fn set_term_code_names_take_two_characters() {
+    // parse_option_name(): "The two characters after "t_" may not be
+    // alphanumeric."
+    assert_eq!(
+        set_args("set t_#4=x t_Co"),
+        vec![
+            SetAssignment::Assign(cs("t_#4"), cs("x")),
+            SetAssignment::SetBool(cs("t_Co")),
+        ]
     );
 }

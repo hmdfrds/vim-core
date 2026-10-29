@@ -1348,167 +1348,168 @@ fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExComma
     })
 }
 
-/// Parse `:set` assignments from the argument string.
+/// Parse the arguments of `:set` as Vim's `do_set()` and
+/// `do_set_option()` read them.
 ///
-/// Supports:
-/// - `:set all` → `ShowAll`
+/// - `:set` alone or `:set all` → `ShowAll`; `:set all&` → `Reset`
 /// - `:set expandtab` → `SetBool("expandtab")`
 /// - `:set noexpandtab` → `UnsetBool("expandtab")`
-/// - `:set expandtab!` → `ToggleBool("expandtab")`
+/// - `:set invexpandtab` and `:set expandtab!` → `ToggleBool("expandtab")`
 /// - `:set expandtab?` → `Query("expandtab")`
-/// - `:set tabstop=8` → `Assign("tabstop", "8")`
+/// - `:set tabstop=8` and `:set tabstop:8` → `Assign("tabstop", "8")`
 /// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
 ///   `Prepend`
+/// - `:set fo&`, `:set fo&vim` and `:set fo<` → `Reset`
+/// - text after the name that is none of these, as in `:set tw?x` →
+///   `Invalid`
 ///
-/// Arguments are separated by white space. In a value of `commentstring`,
-/// `comments` or `formatoptions` a backslash before white space makes it
-/// part of the value (`commentstring=#\ %s` gives `# %s`); every other
-/// backslash is kept as typed.
+/// Blanks may come between the name and what follows it (`:set sw =2`).
+/// A value runs to the first space or tab that a backslash does not
+/// escape and is kept as written. A `no` or `inv` prefix stays on the
+/// name before `?`, `!`, `=` and the operators.
 fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     let mut assignments = smallvec::SmallVec::new();
-
-    if args.is_empty() {
+    let mut rest = args.trim_start_matches(BLANKS);
+    if rest.is_empty() {
         assignments.push(SetAssignment::ShowAll);
-        return assignments;
     }
-
-    for token in split_set_args(args) {
-        let token = token.as_str();
-        if token == "all" {
-            assignments.push(SetAssignment::ShowAll);
-            continue;
-        }
-
-        // `:set name?` — query
-        if let Some(name) = token.strip_suffix('?') {
-            assignments.push(SetAssignment::Query(CompactString::from(name)));
-            continue;
-        }
-
-        // `:set name!` — toggle
-        if let Some(name) = token.strip_suffix('!') {
-            assignments.push(SetAssignment::ToggleBool(CompactString::from(name)));
-            continue;
-        }
-
-        // `:set name+=value`, `-=` and `^=`. These are checked before the
-        // plain `=`, so `fo-=t` is a removal from `fo` and not an assignment
-        // to an option `fo-`.
-        if let Some(op) = parse_set_operator(token) {
-            assignments.push(op);
-            continue;
-        }
-
-        // `:set name=value` — assignment
-        if let Some((name, value)) = token.split_once('=') {
-            assignments.push(SetAssignment::Assign(
-                CompactString::from(name),
-                CompactString::from(value),
-            ));
-            continue;
-        }
-
-        // `:set name:value` — alternate assignment syntax
-        if let Some((name, value)) = token.split_once(':') {
-            assignments.push(SetAssignment::Assign(
-                CompactString::from(name),
-                CompactString::from(value),
-            ));
-            continue;
-        }
-
-        // `:set noname` → UnsetBool("name"), `:set name` → SetBool("name").
-        // The "no" prefix is stripped here so the grammar layer emits the
-        // semantically correct variant.
-        if let Some(stripped) = token.strip_prefix("no") {
-            if stripped.is_empty() {
-                assignments.push(SetAssignment::SetBool(CompactString::from(token)));
-            } else {
-                assignments.push(SetAssignment::UnsetBool(CompactString::from(stripped)));
-            }
-        } else {
-            assignments.push(SetAssignment::SetBool(CompactString::from(token)));
-        }
+    while !rest.is_empty() {
+        let (assignment, len) = parse_set_argument(rest);
+        assignments.push(assignment);
+        rest = rest
+            .get(len..)
+            .unwrap_or_default()
+            .trim_start_matches(BLANKS);
     }
-
     assignments
 }
 
-/// Split `:set` arguments on white space.
-///
-/// An argument that sets `commentstring`, `comments` or `formatoptions`
-/// takes a backslash followed by white space as that white space inside
-/// the value (`commentstring=#\ %s` gives `# %s`); a backslash followed by
-/// anything else is kept with that character, so `\\ ` still ends the
-/// argument. Every other argument ends at the first white space, with its
-/// backslashes as typed.
-fn split_set_args(args: &str) -> smallvec::SmallVec<[String; 2]> {
-    let mut tokens = smallvec::SmallVec::new();
-    let mut rest = args.trim_start();
-    while !rest.is_empty() {
-        let mut current = String::new();
-        let mut chars = rest.char_indices();
-        let mut end = rest.len();
-        if takes_escaped_white_space(rest) {
-            while let Some((i, c)) = chars.next() {
-                if c == '\\' {
-                    match chars.next() {
-                        Some((_, next)) if next.is_whitespace() => current.push(next),
-                        Some((_, next)) => {
-                            current.push(c);
-                            current.push(next);
-                        }
-                        None => current.push(c),
-                    }
-                } else if c.is_whitespace() {
-                    end = i;
-                    break;
-                } else {
-                    current.push(c);
-                }
+/// Parse the `:set` argument at the start of `arg`, returning it and its
+/// length.
+fn parse_set_argument(arg: &str) -> (SetAssignment, usize) {
+    // do_set(): "all" and "all&" come before any option name.
+    if let Some(after) = arg.strip_prefix("all") {
+        if !after.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            if after.starts_with('&') {
+                return set_reset(arg, "all", 4);
             }
-        } else {
-            end = rest.find(char::is_whitespace).unwrap_or(rest.len());
-            current.push_str(&rest[..end]);
+            return (SetAssignment::ShowAll, 3);
         }
-        tokens.push(current);
-        rest = rest[end..].trim_start();
     }
-    tokens
+    // get_option_prefix(), parse_option_name()
+    let prefix_len = if arg.starts_with("no") && !arg.starts_with("novice") {
+        2
+    } else if arg.starts_with("inv") {
+        3
+    } else {
+        0
+    };
+    let (prefix, rest) = arg.split_at(prefix_len);
+    let (name, after_name) = rest.split_at(set_name_len(rest));
+    let name_end = prefix_len + name.len();
+    let written = CompactString::from(format!("{prefix}{name}"));
+    // do_set_option(): blanks may come before what follows the name.
+    let after = after_name.trim_start_matches(BLANKS);
+    let next = arg.len() - after.len();
+    if let Some(op) = ["+=", "-=", "^=", "=", ":"]
+        .into_iter()
+        .find(|op| after.starts_with(op))
+    {
+        let value = after.get(op.len()..).unwrap_or_default();
+        let (value, _) = value.split_at(set_value_len(value));
+        let end = next + op.len() + value.len();
+        let value = CompactString::from(value);
+        let assignment = match op {
+            "+=" => SetAssignment::Append(written, value),
+            "-=" => SetAssignment::Remove(written, value),
+            "^=" => SetAssignment::Prepend(written, value),
+            _ => SetAssignment::Assign(written, value),
+        };
+        return (assignment, end);
+    }
+    let Some(form) = after.chars().next().filter(|c| "?!&<".contains(*c)) else {
+        // A bare name, unless text other than a blank follows it.
+        if next > name_end || after.is_empty() {
+            return (set_bare(prefix, name), name_end);
+        }
+        return set_invalid(arg, name, name_end);
+    };
+    let mut tail = after.get(1..).unwrap_or_default();
+    if form == '&' {
+        tail = tail
+            .strip_prefix("vim")
+            .or_else(|| tail.strip_prefix("vi"))
+            .unwrap_or(tail);
+    }
+    let end = arg.len() - tail.len();
+    if tail.starts_with(|c: char| !BLANKS.contains(&c)) {
+        return set_invalid(arg, name, end);
+    }
+    match form {
+        '?' => (SetAssignment::Query(written), end),
+        '!' => (SetAssignment::ToggleBool(written), end),
+        _ => set_reset(arg, name, end),
+    }
 }
 
-/// Whether the argument at the start of `arg` sets `commentstring`,
-/// `comments` or `formatoptions` (with `=`, `:`, `+=`, `-=` or `^=`).
-fn takes_escaped_white_space(arg: &str) -> bool {
-    let name_len = arg
-        .find(|c: char| !c.is_ascii_alphabetic())
-        .unwrap_or(arg.len());
-    let (name, rest) = arg.split_at(name_len);
-    matches!(
-        name,
-        "commentstring" | "comments" | "com" | "formatoptions" | "fo"
-    ) && ["=", ":", "+=", "-=", "^="]
-        .iter()
-        .any(|op| rest.starts_with(op))
+/// The length of the option name at the start of `text`: `t_` and two
+/// characters, or letters, digits and `_` (`parse_option_name()`).
+fn set_name_len(text: &str) -> usize {
+    if text.starts_with("t_") && text.chars().nth(3).is_some() {
+        return text
+            .char_indices()
+            .nth(4)
+            .map_or(text.len(), |(end, _)| end);
+    }
+    text.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .unwrap_or(text.len())
 }
 
-/// Parse `name+=value`, `name-=value` or `name^=value`, where `name` is a
-/// bare option name. Any other token gives `None`.
-fn parse_set_operator(token: &str) -> Option<SetAssignment> {
-    let name_len = token.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))?;
-    let (name, rest) = token.split_at(name_len);
+/// The length of the value at the start of `text`: up to the first space
+/// or tab that a backslash does not escape.
+fn set_value_len(text: &str) -> usize {
+    let mut chars = text.char_indices();
+    while let Some((i, c)) = chars.next() {
+        if c == '\\' {
+            chars.next();
+        } else if BLANKS.contains(&c) {
+            return i;
+        }
+    }
+    text.len()
+}
+
+/// A bare option name with its `no` or `inv` prefix.
+fn set_bare(prefix: &str, name: &str) -> SetAssignment {
     if name.is_empty() {
-        return None;
+        return SetAssignment::SetBool(CompactString::from(prefix));
     }
     let name = CompactString::from(name);
-    if let Some(value) = rest.strip_prefix("+=") {
-        Some(SetAssignment::Append(name, CompactString::from(value)))
-    } else if let Some(value) = rest.strip_prefix("-=") {
-        Some(SetAssignment::Remove(name, CompactString::from(value)))
-    } else {
-        rest.strip_prefix("^=")
-            .map(|value| SetAssignment::Prepend(name, CompactString::from(value)))
+    match prefix {
+        "no" => SetAssignment::UnsetBool(name),
+        "inv" => SetAssignment::ToggleBool(name),
+        _ => SetAssignment::SetBool(name),
     }
+}
+
+/// An argument with text Vim does not take after `name`: from the start of
+/// `arg` to the first blank from `from`.
+fn set_invalid(arg: &str, name: &str, from: usize) -> (SetAssignment, usize) {
+    let end = from + set_value_len(arg.get(from..).unwrap_or_default());
+    let assignment = SetAssignment::Invalid {
+        name: name.into(),
+        argument: arg.get(..end).unwrap_or_default().into(),
+    };
+    (assignment, end)
+}
+
+/// A `&` or `<` argument of `name` that ends at `end`.
+fn set_reset(arg: &str, name: &str, end: usize) -> (SetAssignment, usize) {
+    let assignment = SetAssignment::Reset {
+        name: name.into(),
+        argument: arg.get(..end).unwrap_or_default().into(),
+    };
+    (assignment, end)
 }
 
 /// Parse `:sethandler` arguments.

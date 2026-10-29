@@ -1210,10 +1210,11 @@ fn strip_set_prefix(name: &str) -> Option<&str> {
     name.strip_prefix("no").or_else(|| name.strip_prefix("inv"))
 }
 
-/// The argument an assignment was written as, for its error.
+/// The argument an assignment was written as, for its error, with a
+/// control character as `^M`, as `trans_characters()` shows it.
 fn set_argument(assignment: &crate::grammar::types::SetAssignment) -> String {
     use crate::grammar::types::SetAssignment as A;
-    match assignment {
+    let written = match assignment {
         A::ShowAll => "all".to_owned(),
         A::SetBool(name) => name.to_string(),
         A::UnsetBool(name) => format!("no{name}"),
@@ -1223,7 +1224,38 @@ fn set_argument(assignment: &crate::grammar::types::SetAssignment) -> String {
         A::Append(name, value) => format!("{name}+={value}"),
         A::Remove(name, value) => format!("{name}-={value}"),
         A::Prepend(name, value) => format!("{name}^={value}"),
+        A::Reset { argument, .. } | A::Invalid { argument, .. } => argument.to_string(),
+    };
+    let mut shown = String::with_capacity(written.len());
+    for c in written.chars() {
+        if c.is_ascii_control() {
+            shown.push('^');
+            shown.push(char::from(u8::try_from(c).unwrap_or(b'?') ^ 0x40));
+        } else {
+            shown.push(c);
+        }
     }
+    shown
+}
+
+/// A string value of `:set` without the backslash before each character,
+/// as Vim's `stropt_copy_value()` copies it.
+fn unescape_set_value(value: &str) -> std::borrow::Cow<'_, str> {
+    if !value.contains('\\') {
+        return std::borrow::Cow::Borrowed(value);
+    }
+    let mut unescaped = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(c) = chars.next() {
+        match chars.peek() {
+            Some(&next) if c == '\\' => {
+                unescaped.push(next);
+                chars.next();
+            }
+            _ => unescaped.push(c),
+        }
+    }
+    std::borrow::Cow::Owned(unescaped)
 }
 
 /// A `:set` error in Vim's format: the message, then the argument as
@@ -1291,7 +1323,7 @@ impl SetLayers<'_> {
                         .map_err(|message| set_error(message, &argument()))
                 }
                 SetKind::Text => self
-                    .set_text(name, value)
+                    .set_text(name, &unescape_set_value(value))
                     .map_err(|message| set_error(&message, &argument())),
             },
             A::Append(name, value) | A::Remove(name, value) | A::Prepend(name, value) => {
@@ -1300,10 +1332,31 @@ impl SetLayers<'_> {
                     A::Remove(..) => SetOperator::Remove,
                     _ => SetOperator::Prepend,
                 };
-                self.value_kind(name, &argument)?;
-                self.apply_operator(name, op, value)
+                let value = match self.value_kind(name, &argument)? {
+                    SetKind::Text => unescape_set_value(value),
+                    _ => std::borrow::Cow::Borrowed(value.as_str()),
+                };
+                self.apply_operator(name, op, &value)
                     .map_err(|message| set_error(&message, &argument()))
             }
+            A::Invalid { name, .. } => {
+                let kind = set_kind(self.global, name).ok_or_else(unknown)?;
+                // `:set tw,` shows 'textwidth' first, `:set tw?x` does not.
+                let after_name = set_argument(assignment)
+                    .strip_prefix(&**name)
+                    .is_some_and(|rest| !rest.starts_with(['?', '!', '&', '<', ' ', '\t']));
+                if kind != SetKind::Bool && after_name {
+                    self.show(name, messages);
+                }
+                Err(VimError::TrailingCharacters(argument().into()))
+            }
+            A::Reset { name, .. } => Err(
+                if &**name == "all" || set_kind(self.global, name).is_some() {
+                    VimError::NotAvailable(argument().into())
+                } else {
+                    unknown()
+                },
+            ),
         }
     }
 

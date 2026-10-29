@@ -499,24 +499,26 @@ fn escaped_space_in_commentstring() {
 }
 
 #[test]
-fn set_arguments_split_as_before_operators() {
-    // White space before `=` and a backslash in a value are handled as
-    // they were before the operators: neither sets 'shiftwidth', so `>>`
-    // shifts by the default 4.
-    for keys in [":set sw =2<CR>>>", r":set sw=\2<CR>>>"] {
+fn set_arguments_split_as_vim_splits_them() {
+    // do_set_option() takes blanks before `=`, so `>>` shifts by 2; a
+    // number value with a backslash is refused, so it shifts by 4.
+    for (keys, text) in [
+        (":set sw =2<CR>>>", "  abc"),
+        (r":set sw=\2<CR>>>", "    abc"),
+    ] {
         let mut session = HostSession::new("abc");
         feed(&mut session, keys);
-        assert_eq!(session.text().to_string(), "    abc", "{keys}");
+        assert_eq!(session.text().to_string(), text, "{keys}");
     }
 }
 
 #[test]
-fn backslash_space_in_a_number_value_splits_as_before() {
-    // `sw=2\` is refused, and the error ends the `:set`.
+fn backslash_space_in_a_number_value_is_part_of_it() {
+    // do_set() skips an escaped blank, so `sw=2\ ts=6` is one argument.
     let mut engine = VimEngine::new();
     assert_eq!(
         error(&mut engine, r"set sw=2\ ts=6"),
-        "E521: Number required after =: sw=2\\"
+        r"E521: Number required after =: sw=2\ ts=6"
     );
     assert_eq!(engine.options().tabstop(), 4);
     assert_eq!(engine.options().shiftwidth(), 4);

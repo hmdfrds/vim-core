@@ -146,3 +146,99 @@ fn each_set_of_a_typed_line_stops_on_its_own() {
     assert_eq!(engine.options().tabstop(), 4);
     assert!(engine.options().ignorecase());
 }
+
+#[test]
+fn text_after_the_name_is_an_error() {
+    let mut engine = VimEngine::new();
+    assert_eq!(
+        error(&mut engine, "set tw?x"),
+        "E488: Trailing characters: tw?x"
+    );
+    assert_eq!(
+        error(&mut engine, "set ic,"),
+        "E488: Trailing characters: ic,"
+    );
+    assert_eq!(
+        error(&mut engine, "set nosuch?x"),
+        "E518: Unknown option: nosuch?x"
+    );
+    // The value of a number or string option shows first.
+    assert_eq!(
+        run_ex(&mut engine, "set tw+5"),
+        (
+            vec!["textwidth=0".to_owned()],
+            vec!["E488: Trailing characters: tw+5".to_owned()]
+        )
+    );
+}
+
+#[test]
+fn reset_forms_are_not_available() {
+    let mut engine = VimEngine::new();
+    for (command, message) in [
+        (
+            "set fo&",
+            "E319: Sorry, the command is not available in this version: fo&",
+        ),
+        (
+            "set ic&vim",
+            "E319: Sorry, the command is not available in this version: ic&vim",
+        ),
+        (
+            "set tw<",
+            "E319: Sorry, the command is not available in this version: tw<",
+        ),
+        (
+            "set all&",
+            "E319: Sorry, the command is not available in this version: all&",
+        ),
+        ("set nosuch&", "E518: Unknown option: nosuch&"),
+    ] {
+        assert_eq!(error(&mut engine, command), message, ":{command}");
+    }
+}
+
+#[test]
+fn inv_inverts_a_boolean() {
+    let mut engine = VimEngine::new();
+    let _ = run_ex(&mut engine, "set invic");
+    assert!(engine.options().ignorecase());
+    let _ = run_ex(&mut engine, "set invic");
+    assert!(!engine.options().ignorecase());
+}
+
+#[test]
+fn a_string_value_loses_its_backslashes() {
+    // stropt_copy_value(): a backslash before any character goes.
+    let mut engine = VimEngine::new();
+    assert_eq!(
+        run_ex(&mut engine, r"set commentstring=/*\ %s\ */ isk=@,\\,48-57"),
+        (vec![], vec![])
+    );
+    assert_eq!(engine.options().commentstring(), "/* %s */");
+    assert_eq!(engine.options().iskeyword(), r"@,\,48-57");
+    // An escaped blank joins the argument, and the error shows it as
+    // written.
+    assert_eq!(
+        error(&mut engine, r"set guifont=Monospace\ 11 ic"),
+        r"E518: Unknown option: guifont=Monospace\ 11"
+    );
+    assert!(!engine.options().ignorecase());
+    assert_eq!(
+        error(&mut engine, r"set fo=t\Z"),
+        r"E539: Illegal character <Z>: fo=t\Z"
+    );
+    assert_eq!(
+        error(&mut engine, r"set fo+=\Z"),
+        r"E539: Illegal character <Z>: fo+=\Z"
+    );
+}
+
+#[test]
+fn blanks_may_come_before_an_operator() {
+    let mut engine = VimEngine::new();
+    assert_eq!(run_ex(&mut engine, "set sw =2 tw +=3"), (vec![], vec![]));
+    assert_eq!(engine.options().shiftwidth(), 2);
+    assert_eq!(engine.options().textwidth(), 3);
+    assert_eq!(run_ex(&mut engine, "set tw  ?").0, ["textwidth=3"]);
+}

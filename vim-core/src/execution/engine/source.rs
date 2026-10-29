@@ -452,7 +452,9 @@ impl super::VimEngine {
                     CompactString::default()
                 };
                 text.push_str(&value.text());
-                SetAssignment::Assign(name, text)
+                // :set takes the value without the backslash before each
+                // character.
+                SetAssignment::Assign(name, text.replace('\\', r"\\").into())
             }
             number => {
                 if op == Some('.') {
@@ -888,14 +890,19 @@ mod tests {
 
     #[test]
     fn source_config_warns_of_a_lone_lf_in_a_dos_file() {
-        // `get_one_sourceline()` gives W15 as an error; the line still runs.
+        // `get_one_sourceline()` gives W15 as an error; the line still runs,
+        // and the file is read as Unix from there, so the CR of the next
+        // line stays in its value.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set ic\r\nset tw=33\nset et\r\n");
+        let response = engine.source_config_text("set ic\r\nset tw=33\nset tw=44\r\n");
+        assert!(engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
-        assert!(engine.options().expandtab());
         assert_eq!(
             errors(&response),
-            ["W15: Warning: Wrong line separator, ^M may be missing"]
+            [
+                "W15: Warning: Wrong line separator, ^M may be missing",
+                "E521: Number required after =: tw=44^M"
+            ]
         );
     }
 
@@ -1113,6 +1120,15 @@ mod tests {
         assert_eq!(engine.options().tabstop(), 6);
         engine.source_config_text("let &ic = 0\n");
         assert!(!engine.options().ignorecase());
+    }
+
+    #[test]
+    fn source_config_let_option_keeps_backslashes_and_blanks() {
+        // ex_let_option() sets the value itself, without :set's escapes.
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("let &isk = '@,\\,4 8' | let &isk .= '\\'\n");
+        assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+        assert_eq!(engine.options().iskeyword(), "@,\\,4 8\\");
     }
 
     #[test]

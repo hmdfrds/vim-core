@@ -974,7 +974,9 @@ pub enum SetAssignment {
     ToggleBool(CompactString),
     /// Query option value: `:set expandtab?`
     Query(CompactString),
-    /// Assign numeric/string value: `:set tabstop=8`
+    /// Assign a number or string: `:set tabstop=8`. The value is as
+    /// written; a string option takes it without the backslash before
+    /// each character, so `#\ %s` is `# %s`.
     Assign(CompactString, CompactString),
     /// Add to a number, append to a string, or add a flag or list item:
     /// `:set tw+=4`, `:set fo+=c`, `:set com+=b:##`
@@ -986,6 +988,23 @@ pub enum SetAssignment {
     Prepend(CompactString, CompactString),
     /// Show all options: `:set all`
     ShowAll,
+    /// Reset an option to its default or global value: `:set fo&`,
+    /// `:set fo&vim`, `:set fo<` and `:set all&`, which vim-core does not
+    /// run (E319).
+    Reset {
+        /// The option name, without a `no` or `inv` prefix.
+        name: Box<str>,
+        /// The argument as written.
+        argument: Box<str>,
+    },
+    /// An argument with text after the option name that `:set` does not
+    /// take, such as `tw?x` (E488, or E518 for a name it does not know).
+    Invalid {
+        /// The option name, without a `no` or `inv` prefix.
+        name: Box<str>,
+        /// The argument as written.
+        argument: Box<str>,
+    },
 }
 
 impl ExCommand {
