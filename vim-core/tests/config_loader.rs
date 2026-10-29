@@ -32,9 +32,12 @@ fn a_script_heredoc_never_runs_as_commands() {
     // The Lua line `x = 1` would be `:x`, which writes and quits.
     let mut engine = VimEngine::new();
     let response = engine.source_config_text("lua << EOF\nx = 1\nEOF\nset tw=33\n");
-    assert_eq!(host_commands(&response), ["lua << EOF"]);
+    assert!(response.host_requests().is_empty());
     assert_eq!(engine.options().textwidth(), 33);
-    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert_eq!(
+        errors(&response),
+        ["E319: Sorry, the command is not available in this version: lua << EOF"]
+    );
 }
 
 #[test]
@@ -56,11 +59,27 @@ fn a_let_heredoc_with_text_after_its_marker_fails() {
 
 #[test]
 fn a_function_body_never_runs_and_the_rest_of_its_end_line_does() {
+    // Under :silent! the E319 of :function counts as no error.
+    let mut engine = VimEngine::new();
+    let response =
+        engine.source_config_text("silent! function! F()\n  set ic\nendfunction | set tw=33\n");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 33);
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+}
+
+#[test]
+fn the_e319_of_a_function_skips_the_rest_of_its_end_line() {
+    // The text after `endfunction |` is the rest of the :function line.
     let mut engine = VimEngine::new();
     let response = engine.source_config_text("function! F()\n  set ic\nendfunction | set tw=33\n");
     assert!(!engine.options().ignorecase());
-    assert_eq!(engine.options().textwidth(), 33);
-    assert_eq!(host_commands(&response), ["function! F()"]);
+    assert_eq!(engine.options().textwidth(), 0);
+    assert_eq!(
+        errors(&response),
+        ["E319: Sorry, the command is not available in this version: function! F()"]
+    );
+    assert!(response.host_requests().is_empty());
 }
 
 #[test]
@@ -109,7 +128,10 @@ fn a_command_block_never_runs_as_commands() {
     let response = engine.source_config_text("command! Foo {\n  set ic\n}\nset tw=33\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
-    assert_eq!(host_commands(&response), ["command! Foo {"]);
+    assert_eq!(
+        errors(&response),
+        ["E319: Sorry, the command is not available in this version: command! Foo {"]
+    );
 }
 
 #[test]
@@ -536,4 +558,82 @@ fn let_of_a_vim_option_vim_core_lacks_checks_the_value_type() {
         errors(&response),
         ["E805: Using a Float as a Number", "E928: String required"]
     );
+}
+
+#[test]
+fn a_vim_command_vim_core_lacks_is_e319_and_ends_its_line() {
+    // ex_ni(): `syntax` is Vim's, so the error names it and ends the line.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("syntax on | set ic\ncolorscheme desert\n");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(
+        errors(&response),
+        [
+            "E319: Sorry, the command is not available in this version: syntax on",
+            "E319: Sorry, the command is not available in this version: colorscheme desert"
+        ]
+    );
+    assert!(response.host_requests().is_empty());
+}
+
+#[test]
+fn a_vim_command_vim_core_lacks_skips_the_rest_of_its_block() {
+    // do_cmdline(): the error skips to the end of the outermost block.
+    let mut engine = VimEngine::new();
+    let response =
+        engine.source_config_text("if 1\nautocmd BufRead * set ts=2\nset ic\nendif\nset tw=33\n");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 33);
+    assert_eq!(errors(&response).len(), 1, "{:?}", errors(&response));
+}
+
+#[test]
+fn a_skipped_vim_command_vim_core_lacks_gives_nothing() {
+    let mut engine = VimEngine::new();
+    let response =
+        engine.source_config_text("if 0\nsyntax on\nendif\nsilent! syntax on | set ic\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
+fn filetype_and_commands_that_are_not_vim_s_go_to_the_host() {
+    // find_ex_command(): a name that starts with a capital is a user
+    // command, but for :Next, :Print and :X.
+    let mut engine = VimEngine::new();
+    let response =
+        engine.source_config_text("filetype plugin indent on\npanelmap x y\nMake all\nNext\n");
+    assert_eq!(
+        errors(&response),
+        ["E319: Sorry, the command is not available in this version: Next"]
+    );
+    assert_eq!(
+        host_commands(&response),
+        ["filetype plugin indent on", "panelmap x y", "Make all"]
+    );
+}
+
+#[test]
+fn scriptencoding_does_nothing() {
+    // ex_scriptencoding(): the text is UTF-8 already.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("scriptencoding utf-8 | set ic\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert!(response.host_requests().is_empty());
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
+fn vim9script_is_e319_and_ends_the_file() {
+    // Deviation: Vim reads the rest as Vim9 script.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("if 1\nvim9script\nendif\nset ic\n");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(
+        errors(&response),
+        ["E319: Sorry, the command is not available in this version: vim9script"]
+    );
+    let response = engine.source_config_text("silent! vim9script\nset ic\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert!(!engine.options().ignorecase());
 }

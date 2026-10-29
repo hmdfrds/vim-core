@@ -49,9 +49,14 @@ impl super::VimEngine {
     /// modifiers included, and what it changes is applied the same way.
     /// A command the host runs comes back as a host request.
     ///
-    /// A Vim option vim-core lacks acts as one the build lacks: setting it
-    /// does nothing, asking for its value gives E519, and `&name` reads 0
-    /// or an empty String.
+    /// A Vim command vim-core lacks, such as `:syntax`, `:autocmd` or
+    /// `:function`, gives E319, as in a Vim built without it, where the
+    /// command line sends it to the host. `:filetype` and a command that
+    /// is not Vim's, such as one the host defines, still go to the host.
+    /// `:scriptencoding` does nothing, as the text is UTF-8 already, and
+    /// `:vim9script` gives E319 and ends the file. A Vim option vim-core
+    /// lacks acts as one the build lacks: setting it does nothing, asking
+    /// for its value gives E519, and `&name` reads 0 or an empty String.
     ///
     /// `:if`, `:elseif`, `:else` and `:endif` choose the lines that run, as
     /// in Vim. A `:while`, `:for` or `:try` block gives E319 and the lines
@@ -81,8 +86,8 @@ impl super::VimEngine {
     /// script heredoc (`:lua << EOF`), a `:function` or `:def` body,
     /// `:append`, `:insert` and `:change` text, a `{` block of `:command`
     /// or `:autocmd`, and the rest of the file after `:loadkeymap`. The
-    /// host gets only the command's own line, and the lines are skipped
-    /// even when the command fails. Where commands do not run, after an
+    /// lines are skipped even when the command fails, as those that
+    /// vim-core lacks do with E319. Where commands do not run, after an
     /// error or in a block that is not taken, only a heredoc or function
     /// body is skipped, as in Vim. Commands after a `|` on the line that
     /// ends a function run as the rest of that line.
@@ -171,8 +176,9 @@ impl super::VimEngine {
                 self.source_config_control(frame, command, response);
                 continue;
             }
-            if !skipping {
-                self.source_config_piece(&piece, response);
+            if !skipping && self.source_config_piece(&piece, response) {
+                frame.blocks.finish();
+                frame.finished = true;
             }
             frame.error |= shows_error(response, from);
         }
@@ -288,7 +294,9 @@ impl super::VimEngine {
     }
 
     /// Run one command of a config line as the command line runs it.
-    fn source_config_piece(&mut self, piece: &str, response: &mut Response) {
+    /// Returns whether no line is read after this one, as after
+    /// `:vim9script`.
+    fn source_config_piece(&mut self, piece: &str, response: &mut Response) -> bool {
         match vim_command_parts(piece) {
             Some((modifiers, "echo", argument)) => {
                 self.source_config_echo(modifiers, argument, response);
@@ -301,11 +309,15 @@ impl super::VimEngine {
             }
             _ => match parse_ex_piece(piece) {
                 (modifiers, Ok(parsed)) => {
+                    if let Some(name) = lacking_vim_command(&parsed) {
+                        return source_config_lacking(modifiers, name, piece, response);
+                    }
                     self.run_config_command(modifiers, &parsed, piece, response);
                 }
                 (modifiers, Err(err)) => show_config_errors(modifiers, [err], response),
             },
         }
+        false
     }
 
     /// Run a parsed config command, written as `command`.
@@ -567,6 +579,48 @@ impl super::VimEngine {
         crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
         response.extend_effects(effects);
     }
+}
+
+/// The Vim command that `parsed` runs when it is one the engine leaves to
+/// the host and vim-core lacks; not `:filetype`, which hosts run, nor a
+/// command that is not Vim's, such as one the host defines.
+fn lacking_vim_command(parsed: &ExCommand) -> Option<&'static str> {
+    let ExCommand::Custom { command } = parsed else {
+        return None;
+    };
+    // find_ex_command(): a name that starts with a capital is a user
+    // command, unless the case of Vim's `:Next`, `:Print` or `:X` matches.
+    let written_len = command.bytes().take_while(u8::is_ascii_alphabetic).count();
+    let written = command.get(..written_len)?;
+    if written.starts_with(|c: char| c.is_ascii_uppercase())
+        && !["Next", "Print", "X"]
+            .iter()
+            .any(|full| full.starts_with(written))
+    {
+        return None;
+    }
+    let (_, name, _) = vim_command_parts(command)?;
+    (name != "filetype").then_some(name)
+}
+
+/// Run the Vim command `name`, which vim-core lacks, written as `piece`:
+/// E319, as `ex_ni()` gives it in a Vim built without the command.
+/// Returns whether no line is read after this one.
+fn source_config_lacking(
+    modifiers: ModifierFlags,
+    name: &str,
+    piece: &str,
+    response: &mut Response,
+) -> bool {
+    // ex_scriptencoding(): the text is UTF-8 already.
+    if name == "scriptencoding" {
+        return false;
+    }
+    let error = VimError::NotAvailable(CompactString::from(piece.trim()));
+    show_config_errors(modifiers, [error], response);
+    // Deviation: Vim reads the rest of the file as Vim9 script, which the
+    // engine does not read.
+    name == "vim9script"
 }
 
 /// Show `errors` as the command's modifiers let them.
@@ -934,8 +988,11 @@ mod tests {
         let response = engine.source_config_text(config);
         assert!(!engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
-        // The host decides what the :function line means.
-        assert_eq!(response.host_requests().len(), 1);
+        assert_eq!(
+            errors(&response),
+            ["E319: Sorry, the command is not available in this version: function! Foo()"]
+        );
+        assert!(response.host_requests().is_empty());
     }
 
     #[test]
@@ -1195,6 +1252,15 @@ mod tests {
         engine.source_config_text("unlet mapleader\nlet maplocalleader = 1\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
         assert_eq!(engine.local_leader_keys(), [KeyEvent::char('1')]);
+    }
+
+    #[test]
+    fn a_typed_vim_command_vim_core_lacks_still_goes_to_the_host() {
+        let mut session = HostSession::new("a");
+        type_keys(&mut session, ":syntax on");
+        let response = session.process_key_host(crate::keymap::KeyEvent::enter());
+        let kinds: Vec<_> = response.host_requests.iter().map(|r| r.kind()).collect();
+        assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
     }
 
     #[test]
