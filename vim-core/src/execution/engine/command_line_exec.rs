@@ -510,7 +510,7 @@ impl VimEngine {
                 flags,
                 buffer,
             } => {
-                let lhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
+                let lhs_seq = crate::execution::key_notation::parse_mapping_keys(
                     lhs_raw,
                     Some(&mut self.keymap),
                 );
@@ -555,7 +555,7 @@ impl VimEngine {
                 lhs_raw,
                 buffer,
             } => {
-                let lhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
+                let lhs_seq = crate::execution::key_notation::parse_mapping_keys(
                     lhs_raw,
                     Some(&mut self.keymap),
                 );

@@ -180,3 +180,31 @@ fn action_notation_without_keymap_still_parses_compound() {
     );
     assert!(matches!(seq[0].key(), Key::Action(u32::MAX)));
 }
+
+// ── Ctrl-V ──────────────────────────────────────────────────────────
+
+#[test]
+fn ctrl_v_makes_the_next_character_a_key() {
+    // replace_termcodes() drops a Ctrl-V and copies the next character.
+    let chars = |s: &str| s.chars().map(KeyEvent::char).collect::<Vec<_>>();
+    assert_eq!(parse_key_notation_sequence("a\x16|b", None), chars("a|b"));
+    assert_eq!(parse_key_notation_sequence("\x16<CR>", None), chars("<CR>"));
+    assert_eq!(parse_key_notation_sequence("\x16\x16", None), chars("\x16"));
+    assert_eq!(
+        parse_key_notation_sequence("\x16é<Esc>", None),
+        [KeyEvent::char('é'), KeyEvent::escape()]
+    );
+}
+
+#[test]
+fn a_ctrl_v_at_the_end_is_a_key_only_on_the_left() {
+    // REPTERM_FROM_PART keeps it, so ":map xx ^V" maps xx to nothing.
+    assert_eq!(
+        parse_mapping_keys("x\x16", None),
+        [KeyEvent::char('x'), KeyEvent::ctrl('v')]
+    );
+    assert_eq!(
+        parse_key_notation_sequence("x\x16", None),
+        [KeyEvent::char('x')]
+    );
+}

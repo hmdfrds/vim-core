@@ -266,3 +266,21 @@ fn nop_abbreviation_expands_to_nothing() {
     type_keys(&mut session, ":iabbrev foo <Nop><CR>afoo bar<Esc>");
     assert_eq!(session.text(), " bar");
 }
+
+#[test]
+fn ctrl_v_makes_the_next_character_a_key() {
+    // A Ctrl-V keeps a "|" in the right-hand side, and replace_termcodes()
+    // then drops it: "a^V|b<Esc>" appends "|b".
+    let mut session = HostSession::new("");
+    let _ = session.source_config("nnoremap x a\x16|b<Esc>\nnnoremap y a\x16<CR><Esc>\n");
+    type_keys(&mut session, "x");
+    assert_eq!(session.text(), "|b");
+    type_keys(&mut session, "y");
+    assert_eq!(session.text(), "|b<CR>");
+
+    // A Ctrl-V before a blank keeps it in the keys.
+    let mut session = HostSession::new("abc");
+    let _ = session.source_config("nnoremap \x16 x l\n");
+    type_keys(&mut session, " x");
+    assert_eq!(session.cursor_offset(), 1);
+}
