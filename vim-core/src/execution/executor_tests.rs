@@ -1616,3 +1616,48 @@ fn select_next_sibling_normalizes_duplicates() {
         "Two cursors navigating to same sibling should merge to 1"
     );
 }
+
+// ─── Shift after sneak ────────────────────────────────────────────
+
+#[test]
+fn shift_after_sneak_uses_the_indent_options() {
+    // sw=2, ts=4, noexpandtab give two Tabs; a context left at its
+    // defaults (sw 4, ts 8, expandtab) gives 14 spaces.
+    let mut options = crate::primitives::VimOptions::default();
+    options.set_shiftwidth(2);
+    options.set_tabstop(4);
+    options.set_expandtab(false);
+    let text = "\t  ab cd";
+    let doc = SimpleDocument::new(text);
+    let state = crate::state::VimState::default();
+    let input = InputContext::new(&doc, 3).validate().unwrap();
+    let ctx = ExecutionContext::new(input, &state, &options);
+
+    let effects = execute(
+        Command::Sneak {
+            count: NonZeroU32::MIN,
+            register: None,
+            operator: Some(crate::grammar::types::Operator::Indent),
+            c1: 'c',
+            c2: 'd',
+            forward: true,
+        },
+        &ctx,
+    )
+    .effects;
+
+    let mut shifted = text.to_owned();
+    for effect in effects.as_slice() {
+        match effect {
+            Effect::Insert { offset, text } => shifted.insert_str(offset.get(), text),
+            Effect::Delete { range } => {
+                shifted.replace_range(range.start().get()..range.end().get(), "");
+            }
+            Effect::Replace { range, text } => {
+                shifted.replace_range(range.start().get()..range.end().get(), text);
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(shifted, "\t\tab cd");
+}
