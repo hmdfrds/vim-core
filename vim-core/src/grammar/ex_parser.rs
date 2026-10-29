@@ -35,9 +35,15 @@ pub fn parse_ex_command(input: &str) -> Result<ExCommand, VimError> {
 pub fn parse_ex_command_with_modifiers(
     input: &str,
 ) -> Result<(ModifierFlags, ExCommand), VimError> {
+    let (modifiers, cmd) = parse_ex_piece(input);
+    Ok((modifiers, cmd?))
+}
+
+/// Parse one command of an Ex line, keeping its modifiers when the command
+/// does not parse, so that `:silent!` can hide the error.
+pub(crate) fn parse_ex_piece(input: &str) -> (ModifierFlags, Result<ExCommand, VimError>) {
     let (modifiers, rest) = parse_modifier_prefixes(input);
-    let cmd = parse_ex_command_inner(rest)?;
-    Ok((modifiers, cmd))
+    (modifiers, parse_ex_command_inner(rest))
 }
 
 /// The blanks Vim skips around a command name and a range: space and tab

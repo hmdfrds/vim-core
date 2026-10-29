@@ -138,3 +138,24 @@ fn the_rest_of_an_end_line_after_an_error_still_reads_a_heredoc() {
     assert_eq!(engine.options().textwidth(), 33);
     assert_eq!(errors(&response), ["E523: Not allowed here: %d"]);
 }
+
+#[test]
+fn an_error_ends_its_line() {
+    // do_one_cmd() skips every command after an error on its line, :set
+    // errors and those of plain :silent included.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("set tw=abc | set ic\nsilent set nosuch | set ts=3\n");
+    assert!(!engine.options().ignorecase());
+    assert_ne!(engine.options().tabstop(), 3);
+    assert_eq!(errors(&response).len(), 2, "{:?}", errors(&response));
+}
+
+#[test]
+fn silent_bang_hides_an_error_and_skips_nothing() {
+    // emsg() under :silent! neither shows the error nor counts it.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("sil! %d | set tw=44\nsilent! source! x | set ic\n");
+    assert_eq!(engine.options().textwidth(), 44);
+    assert!(engine.options().ignorecase());
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+}

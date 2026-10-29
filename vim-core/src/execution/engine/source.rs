@@ -6,17 +6,26 @@
 use super::Response;
 use crate::commands::ex::effects as ex_effects;
 use crate::document::Document;
-use crate::effects::Effects;
+use crate::effects::{Effect, Effects};
 use crate::errors::VimError;
 use crate::execution::executor_ex::{self, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, InputContext};
-use crate::grammar::ex_parser::vim_command_parts;
-use crate::grammar::script::{Line, Script};
+use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
+use crate::grammar::script::{Body, Line, Script};
+use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{ExCommand, ModifierFlags, SetAssignment};
-use crate::grammar::{parse_ex_command_with_modifiers, split_ex_pipeline};
 use crate::primitives::{Offset, OptionValue, Position, VarScope};
 use compact_str::CompactString;
+
+/// A config being sourced, with what Vim's `do_cmdline()` keeps while it
+/// runs one.
+struct Frame<'a> {
+    script: Script<'a>,
+    /// Vim's `did_emsg`: an error was shown, so the commands after it on
+    /// its line do not run.
+    error: bool,
+}
 
 impl super::VimEngine {
     /// Run a config file's text as Ex commands, line by line.
@@ -27,8 +36,10 @@ impl super::VimEngine {
     ///
     /// Each line runs as it would from the command line, `|` and command
     /// modifiers included, and what it changes is applied the same way.
-    /// A command the host runs comes back as a host request. An error
-    /// stops the rest of its line and is shown; `:silent!` hides it.
+    /// A command the host runs comes back as a host request.
+    ///
+    /// An error is shown and, as in Vim, the commands after it on its line
+    /// do not run. `:silent!` hides the error, and then they do.
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
@@ -67,13 +78,16 @@ impl super::VimEngine {
             self.rebuild_langmap_if_needed();
         }
         let mut response = Response::with_effects(Effects::new());
-        let mut script = Script::new(text);
-        while let Some(line) = script.next_line() {
-            show_warnings(&mut script, &mut response);
-            let mut skipping = false;
+        let mut frame = Frame {
+            script: Script::new(text),
+            error: false,
+        };
+        while let Some(line) = frame.script.next_line() {
+            show_warnings(&mut frame.script, &mut response);
+            frame.error = false;
             let mut next = Some(line);
             while let Some(line) = next {
-                next = self.source_config_line(&mut script, &line, &mut skipping, &mut response);
+                next = self.source_config_line(&mut frame, &line, &mut response);
             }
         }
         response.extend_effects(ex_effects::show_message(CompactString::from(
@@ -86,64 +100,62 @@ impl super::VimEngine {
     }
 
     /// Run one config line: each of its `|` commands in turn, reading the
-    /// lines a command takes after the line from `script`. After an error
-    /// (`skipping`) the commands of the line do not run, as in Vim, but
-    /// those that read lines still read them. Returns the rest of the line
-    /// that ends a function, which runs next.
+    /// lines a command takes after the line from the frame's script.
+    /// Returns the rest of the line that ends a function, which runs next.
     fn source_config_line(
         &mut self,
-        script: &mut Script<'_>,
+        frame: &mut Frame<'_>,
         line: &Line,
-        skipping: &mut bool,
         response: &mut Response,
     ) -> Option<Line> {
         let mut rest = None;
-        for command in split_ex_pipeline(&line.text) {
-            let body = script.read_body(&command, line, *skipping);
-            show_warnings(script, response);
-            if let Some(body) = body {
-                let mut effects = Effects::new();
-                for (_, error) in body.errors {
-                    effects.extend(ex_effects::show_error(error));
+        for piece in split_ex_pipeline(&line.text) {
+            // `do_one_cmd()`: `ea.skip`.
+            let skipping = frame.error;
+            let body = frame.script.read_body(&piece, line, skipping);
+            show_warnings(&mut frame.script, response);
+            let from = response.effects().len();
+            if let Some(Body {
+                errors,
+                fails,
+                tail,
+            }) = body
+            {
+                rest = tail;
+                let (modifiers, _) = parse_ex_piece(&piece);
+                let errors = errors.into_iter().map(|(_, error)| error);
+                show_config_errors(modifiers, errors, response);
+                if fails {
+                    frame.error |= shows_error(response, from);
+                    continue;
                 }
-                if let Ok((modifiers, _)) = parse_ex_command_with_modifiers(&command) {
-                    crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
-                }
-                response.extend_effects(effects);
-                *skipping |= body.fails;
-                rest = body.tail;
             }
-            if *skipping {
-                continue;
+            if !skipping {
+                self.source_config_piece(&piece, response);
             }
-            let ran = match vim_command_parts(&command) {
-                Some((modifiers, "echo", argument)) => {
-                    self.source_config_echo(modifiers, argument, response)
-                }
-                Some((modifiers, "let", argument)) => {
-                    self.source_config_let(modifiers, argument, response)
-                }
-                Some((modifiers, "unlet", argument)) => {
-                    self.source_config_unlet(modifiers, argument, response)
-                }
-                _ => self.source_config_command(&command, response),
-            };
-            *skipping = !ran;
+            frame.error |= shows_error(response, from);
         }
         rest
     }
 
     /// Run one command of a config line as the command line runs it.
-    /// Returns whether it ran without an error.
-    fn source_config_command(&mut self, command: &str, response: &mut Response) -> bool {
-        match parse_ex_command_with_modifiers(command) {
-            Ok((modifiers, parsed)) => {
-                self.run_config_command(modifiers, &parsed, command, response)
+    fn source_config_piece(&mut self, piece: &str, response: &mut Response) {
+        match vim_command_parts(piece) {
+            Some((modifiers, "echo", argument)) => {
+                self.source_config_echo(modifiers, argument, response);
             }
-            Err(err) => {
-                response.extend_effects(ex_effects::show_error(err));
-                false
+            Some((modifiers, "let", argument)) => {
+                self.source_config_let(modifiers, argument, response);
             }
+            Some((modifiers, "unlet", argument)) => {
+                self.source_config_unlet(modifiers, argument, response);
+            }
+            _ => match parse_ex_piece(piece) {
+                (modifiers, Ok(parsed)) => {
+                    self.run_config_command(modifiers, &parsed, piece, response);
+                }
+                (modifiers, Err(err)) => show_config_errors(modifiers, [err], response),
+            },
         }
     }
 
@@ -154,7 +166,7 @@ impl super::VimEngine {
         parsed: &ExCommand,
         command: &str,
         response: &mut Response,
-    ) -> bool {
+    ) {
         let result = if parsed.needs_buffer() {
             Err(VimError::NotAllowedHere(CompactString::from(
                 command.trim(),
@@ -181,7 +193,6 @@ impl super::VimEngine {
         response.extend_effects(output.effects);
         response.extend_effects(applied);
         response.host_requests.extend(output.host_requests);
-        true
     }
 
     /// What an expression in a config reads.
@@ -203,7 +214,7 @@ impl super::VimEngine {
         modifiers: ModifierFlags,
         argument: &str,
         response: &mut Response,
-    ) -> bool {
+    ) {
         let argument = argument.trim_start_matches([' ', '\t']);
         let Some(assignment) = script_expr::parse_let(argument) else {
             let form = CompactString::from(format!("let {argument}"));
@@ -219,17 +230,16 @@ impl super::VimEngine {
             Target::Option(layer, name) => {
                 match self.let_option(layer, name, assignment.op, &value) {
                     Ok(command) => {
-                        let shown = show_config_errors(modifiers, errors, response);
+                        show_config_errors(modifiers, errors, response);
                         let text = format!("let {argument}");
-                        return self.run_config_command(modifiers, &command, &text, response)
-                            && shown;
+                        return self.run_config_command(modifiers, &command, &text, response);
                     }
                     Err(err) => Err(err),
                 }
             }
         };
         errors.extend(assigned.err());
-        show_config_errors(modifiers, errors, response)
+        show_config_errors(modifiers, errors, response);
     }
 
     /// Assign to a variable, and take the leader from `g:mapleader` or
@@ -333,7 +343,7 @@ impl super::VimEngine {
         modifiers: ModifierFlags,
         argument: &str,
         response: &mut Response,
-    ) -> bool {
+    ) {
         let (bang, names) = match argument.strip_prefix('!') {
             Some(names) => (true, names),
             None => (false, argument),
@@ -363,7 +373,6 @@ impl super::VimEngine {
             self.sync_leader_variable(variable);
             rest = after.trim_start_matches([' ', '\t']);
         }
-        true
     }
 
     /// Take the leader again when `variable` is `g:mapleader` or
@@ -385,39 +394,39 @@ impl super::VimEngine {
         modifiers: ModifierFlags,
         argument: &str,
         response: &mut Response,
-    ) -> bool {
+    ) {
         let mut effects = Effects::new();
-        let mut ran = true;
         for shown in script_expr::echo(argument, &self.script_env()) {
             match shown {
                 Echoed::Text(text) => effects.extend(ex_effects::show_message(text.into())),
-                Echoed::Error(err) => {
-                    ran = false;
-                    effects.extend(ex_effects::show_error(err));
-                }
+                Echoed::Error(err) => effects.extend(ex_effects::show_error(err)),
             }
         }
         crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
         response.extend_effects(effects);
-        ran
     }
 }
 
-/// Show `errors` as the command's modifiers let them. Returns whether
-/// there were none.
+/// Show `errors` as the command's modifiers let them.
 fn show_config_errors(
     modifiers: ModifierFlags,
     errors: impl IntoIterator<Item = VimError>,
     response: &mut Response,
-) -> bool {
+) {
     let mut effects = Effects::new();
     for error in errors {
         effects.extend(ex_effects::show_error(error));
     }
-    let none = effects.is_empty();
     crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
     response.extend_effects(effects);
-    none
+}
+
+/// Whether the response shows an error after its first `from` effects.
+fn shows_error(response: &Response, from: usize) -> bool {
+    response
+        .effects()
+        .get(from..)
+        .is_some_and(|new| new.iter().any(|e| matches!(e, Effect::ShowError { .. })))
 }
 
 /// Show the warnings of the lines `script` read since the last call.
@@ -638,11 +647,12 @@ mod tests {
 
     #[test]
     fn source_config_echo_error_ends_its_line() {
+        // Under :silent! emsg() counts no error, so the line goes on.
         let mut engine = VimEngine::new();
         let response = engine
             .source_config_text("echo \"a\" nosuch | set ic\nsilent! echo nosuch | set tw=33\n");
         assert!(!engine.options().ignorecase());
-        assert_eq!(engine.options().textwidth(), 0);
+        assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(infos(&response), ["a", "Config file sourced"]);
         assert_eq!(errors(&response), ["E121: Undefined variable: nosuch"]);
     }
