@@ -354,8 +354,11 @@ pub enum ExCommand {
         rhs: Option<CompactString>,
         /// Recursive (`:map`) vs non-recursive (`:noremap`).
         kind: crate::keymap::MappingKind,
-        /// Consolidated boolean attribute flags (`<nowait>`, `<silent>`, `<expr>`).
+        /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`. `<unique>` is
+        /// checked when the mapping is defined and is not kept with it.
         flags: crate::keymap::MappingFlags,
+        /// `<buffer>`: a mapping of the current buffer.
+        buffer: bool,
     },
     /// Remove mapping: `:unmap`, `:nunmap`, etc.
     Unmap {
@@ -363,13 +366,17 @@ pub enum ExCommand {
         mode_prefix: MapModePrefix,
         /// Left-hand side to remove.
         lhs: CompactString,
+        /// `<buffer>`: a mapping of the current buffer.
+        buffer: bool,
     },
     /// Clear all mappings for a mode: `:mapclear`, `:nmapclear`, etc.
     MapClear {
         /// Which mode(s) to clear.
         mode: MapModePrefix,
-        /// Whether the command was invoked with `!` (`:mapclear!` clears local mappings).
+        /// Whether the command was invoked with `!`.
         force: bool,
+        /// `:mapclear <buffer>`: the mappings of the current buffer.
+        buffer: bool,
     },
 
     // === UI (core emits effects) ===
@@ -475,8 +482,11 @@ pub enum ExCommand {
         replacement: Option<CompactString>,
         /// Which mode(s) the abbreviation applies to.
         mode: AbbrevMode,
-        /// Whether remapping is suppressed (noremap variant).
+        /// Whether remapping is suppressed (noremap variant, or
+        /// `<script>`).
         noremap: bool,
+        /// `<unique>`: E226 when the trigger is already defined.
+        unique: bool,
     },
     /// Remove abbreviation: `:unabbreviate`, `:iunabbrev`, `:cunabbrev`.
     Unabbreviate {
@@ -1110,7 +1120,10 @@ impl ExCommand {
             | Self::FoldOpen { .. }
             | Self::FoldClose { .. }
             | Self::ExecuteRegister { .. }
-            | Self::UndoJoin => true,
+            | Self::UndoJoin
+            | Self::Map { buffer: true, .. }
+            | Self::Unmap { buffer: true, .. }
+            | Self::MapClear { buffer: true, .. } => true,
             Self::Registers { .. }
             | Self::Messages { .. }
             | Self::Map { .. }

@@ -750,6 +750,28 @@ impl Keymap {
             .insert(&resolved, build_entry(to, kind, flags, expr_text));
     }
 
+    /// The mapping of exactly `lhs`, `<Leader>` resolved: in the current
+    /// buffer's mappings when `buffer`, in the global ones otherwise.
+    pub(crate) fn exact_mapping(
+        &self,
+        mm: MappingMode,
+        lhs: &[KeyEvent],
+        buffer: bool,
+    ) -> Option<&MappingEntry> {
+        let resolved = self.resolve_leader(lhs);
+        if buffer {
+            self.buf_table(mm)?.get_exact(&resolved)
+        } else {
+            self.user_table(mm).get_exact(&resolved)
+        }
+    }
+
+    /// `keys` with `<Leader>` and `<LocalLeader>` replaced, as a mapping
+    /// stores them.
+    pub(crate) fn resolved_keys(&self, keys: &[KeyEvent]) -> smallvec::SmallVec<[KeyEvent; 8]> {
+        self.resolve_leader(keys)
+    }
+
     /// Remove a user mapping from the given mode.
     ///
     /// Resolves `<Leader>` in `from` before lookup, matching `map()` semantics.

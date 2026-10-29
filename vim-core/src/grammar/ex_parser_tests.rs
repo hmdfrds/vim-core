@@ -829,18 +829,97 @@ fn parses_nmap_no_nowait_flag() {
 }
 
 #[test]
-fn parses_nowait_flag_case_insensitive() {
-    let cmd = parse_ex_command("nmap <NOWAIT> jk <Esc>").unwrap();
+fn map_flags_come_in_any_order_without_blanks() {
+    // do_map() reads <buffer>, <nowait>, <silent>, <special>, <script>,
+    // <expr> and <unique> in any order.
+    let cmd = parse_ex_command("nmap <silent><buffer><nowait> <special><script><unique><expr> x y")
+        .unwrap();
     assert!(
         matches!(
-            cmd,
+            &cmd,
             ExCommand::Map {
-                flags: MappingFlags { nowait: true, .. },
+                lhs,
+                rhs: Some(rhs),
+                kind: MappingKind::NonRecursive,
+                flags: MappingFlags {
+                    nowait: true,
+                    silent: true,
+                    expr: true,
+                    unique: true,
+                    script_local: false,
+                },
+                buffer: true,
                 ..
-            }
+            } if lhs.as_str() == "x" && rhs.as_str() == "y"
         ),
-        "expected nowait: true for case-variant `<NOWAIT>`, got: {cmd:?}"
+        "{cmd:?}"
     );
+}
+
+#[test]
+fn unmap_and_mapclear_take_buffer() {
+    assert!(matches!(
+        parse_ex_command("nunmap <buffer> x").unwrap(),
+        ExCommand::Unmap { ref lhs, buffer: true, .. } if lhs.as_str() == "x"
+    ));
+    assert!(matches!(
+        parse_ex_command("mapclear <buffer>").unwrap(),
+        ExCommand::MapClear { buffer: true, .. }
+    ));
+    assert_eq!(
+        parse_ex_command("imapclear x"),
+        Err(VimError::InvalidMapArgument)
+    );
+}
+
+#[test]
+fn abbreviation_flags() {
+    assert!(matches!(
+        parse_ex_command("iabbrev <unique><script> teh the").unwrap(),
+        ExCommand::Abbreviate {
+            trigger: Some(ref trigger),
+            noremap: true,
+            unique: true,
+            ..
+        } if trigger.as_str() == "teh"
+    ));
+    for line in [
+        "iabbrev <buffer> teh the",
+        "abbreviate <expr> x y",
+        "iunabbrev <buffer> teh",
+    ] {
+        assert!(
+            matches!(parse_ex_command(line), Err(VimError::NotAvailable(_))),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn map_flags_are_read_in_exact_case() {
+    // do_map() compares each flag with STRNCMP, so `<NOWAIT>` starts the
+    // left-hand side.
+    for (line, lhs, rhs) in [
+        ("nmap <NOWAIT> jk <Esc>", "<NOWAIT>", "jk <Esc>"),
+        ("nmap <EXPR> j <Esc>", "<EXPR>", "j <Esc>"),
+        ("nmap <Silent> j gj", "<Silent>", "j gj"),
+        ("nmap <Buffer> j gj", "<Buffer>", "j gj"),
+    ] {
+        let cmd = parse_ex_command(line).unwrap();
+        assert!(
+            matches!(
+                &cmd,
+                ExCommand::Map {
+                    lhs: l,
+                    rhs: Some(r),
+                    flags: MappingFlags::NONE,
+                    buffer: false,
+                    ..
+                } if l.as_str() == lhs && r.as_str() == rhs
+            ),
+            "{line}: {cmd:?}"
+        );
+    }
 }
 
 // ─── <expr> mapping flag ─────────────────────────────────────────
@@ -855,6 +934,7 @@ fn parses_nnoremap_expr_flag() {
             flags,
             lhs,
             rhs,
+            ..
         } => {
             assert_eq!(mode_prefix, MapModePrefix::Normal);
             assert!(matches!(kind, MappingKind::NonRecursive));
@@ -878,33 +958,6 @@ fn parses_nmap_expr_flag() {
         }
         other => panic!("expected Map, got {other:?}"),
     }
-}
-
-#[test]
-fn parses_expr_flag_case_insensitive() {
-    let cmd = parse_ex_command("nmap <EXPR> j <Esc>").unwrap();
-    assert!(
-        matches!(
-            cmd,
-            ExCommand::Map {
-                flags: MappingFlags { expr: true, .. },
-                ..
-            }
-        ),
-        "expected expr: true for case-variant `<EXPR>`, got: {cmd:?}"
-    );
-
-    let cmd2 = parse_ex_command("nmap <Expr> j <Esc>").unwrap();
-    assert!(
-        matches!(
-            cmd2,
-            ExCommand::Map {
-                flags: MappingFlags { expr: true, .. },
-                ..
-            }
-        ),
-        "expected expr: true for case-variant `<Expr>`, got: {cmd2:?}"
-    );
 }
 
 #[test]
@@ -1089,6 +1142,7 @@ fn parses_nnoremap_silent_flag() {
             flags,
             lhs,
             rhs,
+            ..
         } => {
             assert_eq!(mode_prefix, MapModePrefix::Normal);
             assert!(matches!(kind, MappingKind::NonRecursive));
@@ -1112,33 +1166,6 @@ fn parses_nmap_silent_flag() {
         }
         other => panic!("expected Map, got {other:?}"),
     }
-}
-
-#[test]
-fn parses_silent_flag_case_insensitive() {
-    let cmd = parse_ex_command("nmap <SILENT> j gj").unwrap();
-    assert!(
-        matches!(
-            cmd,
-            ExCommand::Map {
-                flags: MappingFlags { silent: true, .. },
-                ..
-            }
-        ),
-        "expected silent: true for <SILENT>, got: {cmd:?}"
-    );
-
-    let cmd2 = parse_ex_command("nmap <Silent> j gj").unwrap();
-    assert!(
-        matches!(
-            cmd2,
-            ExCommand::Map {
-                flags: MappingFlags { silent: true, .. },
-                ..
-            }
-        ),
-        "expected silent: true for <Silent>, got: {cmd2:?}"
-    );
 }
 
 #[test]
@@ -2281,6 +2308,7 @@ fn parses_abbreviate_define() {
             replacement: Some(ref r),
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         } if t.as_str() == "teh" && r.as_str() == "the"
     ));
 }
@@ -2295,6 +2323,7 @@ fn parses_abbreviate_full_name() {
             replacement: Some(ref r),
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         } if t.as_str() == "teh" && r.as_str() == "the"
     ));
 }
@@ -2309,6 +2338,7 @@ fn parses_abbreviate_list() {
             replacement: None,
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         }
     ));
 }
@@ -2323,6 +2353,7 @@ fn parses_abbreviate_show_single() {
             replacement: None,
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         } if t.as_str() == "teh"
     ));
 }
@@ -2536,6 +2567,7 @@ fn abbreviate_does_not_mutate_text() {
         replacement: Some("the".into()),
         mode: AbbrevMode::Both,
         noremap: false,
+        unique: false,
     };
     assert!(!cmd.mutates_text());
 }
@@ -5345,6 +5377,7 @@ fn parses_mapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::All,
             force: false,
+            ..
         }
     ));
 }
@@ -5357,6 +5390,7 @@ fn parses_mapclear_bang() {
         ExCommand::MapClear {
             mode: MapModePrefix::All,
             force: true,
+            ..
         }
     ));
 }
@@ -5369,6 +5403,7 @@ fn parses_nmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Normal,
             force: false,
+            ..
         }
     ));
 }
@@ -5381,6 +5416,7 @@ fn parses_nmapclear_abbreviation() {
         ExCommand::MapClear {
             mode: MapModePrefix::Normal,
             force: false,
+            ..
         }
     ));
 }
@@ -5393,6 +5429,7 @@ fn parses_vmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Visual,
             force: false,
+            ..
         }
     ));
 }
@@ -5405,6 +5442,7 @@ fn parses_imapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Insert,
             force: false,
+            ..
         }
     ));
 }
@@ -5417,6 +5455,7 @@ fn parses_omapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Operator,
             force: false,
+            ..
         }
     ));
 }
@@ -5429,6 +5468,7 @@ fn parses_cmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Command,
             force: false,
+            ..
         }
     ));
 }
@@ -5441,6 +5481,7 @@ fn parses_xmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::VisualOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -5453,6 +5494,7 @@ fn parses_smapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::SelectOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -5465,6 +5507,7 @@ fn parses_xmapclear_abbreviation() {
         ExCommand::MapClear {
             mode: MapModePrefix::VisualOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -5477,6 +5520,7 @@ fn parses_smapclear_abbreviation() {
         ExCommand::MapClear {
             mode: MapModePrefix::SelectOnly,
             force: false,
+            ..
         }
     ));
 }

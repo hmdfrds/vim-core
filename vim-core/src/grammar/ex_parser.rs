@@ -357,23 +357,23 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     // "ino"/"inoremap", "cnorea" before "cno"/"cnoremap", "iuna" before
     // "iu"/"iunmap", "cuna" before "cu"/"cunmap").
     } else if matches_abbrev(name, "ab", "abbreviate") {
-        parse_abbreviate_command(tail, AbbrevMode::Both, false)
+        parse_abbreviate_command("abbreviate", tail, AbbrevMode::Both, false)
     } else if matches_abbrev(name, "ia", "iabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::Insert, false)
+        parse_abbreviate_command("iabbrev", tail, AbbrevMode::Insert, false)
     } else if matches_abbrev(name, "ca", "cabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::CommandLine, false)
+        parse_abbreviate_command("cabbrev", tail, AbbrevMode::CommandLine, false)
     } else if matches_abbrev(name, "norea", "noreabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::Both, true)
+        parse_abbreviate_command("noreabbrev", tail, AbbrevMode::Both, true)
     } else if matches_abbrev(name, "inorea", "inoreabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::Insert, true)
+        parse_abbreviate_command("inoreabbrev", tail, AbbrevMode::Insert, true)
     } else if matches_abbrev(name, "cnorea", "cnoreabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::CommandLine, true)
+        parse_abbreviate_command("cnoreabbrev", tail, AbbrevMode::CommandLine, true)
     } else if matches_abbrev(name, "una", "unabbreviate") {
-        parse_unabbreviate_command(tail, AbbrevMode::Both)
+        parse_unabbreviate_command("unabbreviate", tail, AbbrevMode::Both)
     } else if matches_abbrev(name, "iuna", "iunabbrev") {
-        parse_unabbreviate_command(tail, AbbrevMode::Insert)
+        parse_unabbreviate_command("iunabbrev", tail, AbbrevMode::Insert)
     } else if matches_abbrev(name, "cuna", "cunabbrev") {
-        parse_unabbreviate_command(tail, AbbrevMode::CommandLine)
+        parse_unabbreviate_command("cunabbrev", tail, AbbrevMode::CommandLine)
     } else if matches_abbrev(name, "abc", "abclear") {
         Ok(ExCommand::AbClear {
             mode: AbbrevMode::Both,
@@ -441,45 +441,21 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         parse_map_command(tail, MapModePrefix::SelectOnly, false)
     // mapclear commands
     } else if name.eq_ignore_ascii_case("mapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::All,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::All, force)
     } else if matches_abbrev(name, "nmapc", "nmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Normal,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Normal, force)
     } else if matches_abbrev(name, "vmapc", "vmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Visual,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Visual, force)
     } else if matches_abbrev(name, "imapc", "imapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Insert,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Insert, force)
     } else if matches_abbrev(name, "omapc", "omapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Operator,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Operator, force)
     } else if matches_abbrev(name, "cmapc", "cmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Command,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Command, force)
     } else if matches_abbrev(name, "xmapc", "xmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::VisualOnly,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::VisualOnly, force)
     } else if matches_abbrev(name, "smapc", "smapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::SelectOnly,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::SelectOnly, force)
     // Options — more specific prefixes must come before general ones.
     // sethandler (seth) > setlocal (setl) > setglobal (setg) > set (se).
     } else if matches_abbrev(name, "seth", "sethandler") {
@@ -1259,31 +1235,48 @@ fn parse_line_spec_prefix(input: &str) -> Result<Option<(LineSpec, usize)>, VimE
     Ok(Some((base_spec, base_len)))
 }
 
-/// Strip mapping flag tokens from the start of args, returning flags and remainder.
-fn strip_map_flags(input: &str) -> (crate::keymap::MappingFlags, &str) {
-    let mut flags = crate::keymap::MappingFlags::default();
-    let mut rest = input;
-    loop {
-        let candidate = rest.trim_start();
-        if candidate.starts_with('<') {
-            if let Some(end) = candidate.find('>') {
-                let token = &candidate[..=end];
-                if token.eq_ignore_ascii_case("<nowait>") {
-                    flags.nowait = true;
-                } else if token.eq_ignore_ascii_case("<expr>") {
-                    flags.expr = true;
-                } else if token.eq_ignore_ascii_case("<silent>") {
-                    flags.silent = true;
-                } else {
-                    break;
-                }
-                rest = &candidate[end + 1..];
-                continue;
-            }
+/// The arguments a map or abbreviation command takes before its keys.
+#[derive(Debug, Default, Clone, Copy)]
+struct MapArgs {
+    buffer: bool,
+    script: bool,
+    /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`.
+    flags: crate::keymap::MappingFlags,
+}
+
+/// Read `<buffer>`, `<nowait>`, `<silent>`, `<special>`, `<script>`,
+/// `<expr>` and `<unique>` from the start of `input`, as `do_map()` does:
+/// in any order, in this exact case, each with any blanks after it.
+/// Returns them and the rest of `input`.
+fn parse_map_args(input: &str) -> (MapArgs, &str) {
+    const NAMES: [&str; 7] = [
+        "<buffer>",
+        "<nowait>",
+        "<silent>",
+        "<special>",
+        "<script>",
+        "<expr>",
+        "<unique>",
+    ];
+    let mut args = MapArgs::default();
+    let mut rest = input.trim_start_matches(BLANKS);
+    while let Some(name) = NAMES.into_iter().find(|name| rest.starts_with(name)) {
+        match name {
+            "<buffer>" => args.buffer = true,
+            "<nowait>" => args.flags.nowait = true,
+            "<silent>" => args.flags.silent = true,
+            "<script>" => args.script = true,
+            "<expr>" => args.flags.expr = true,
+            "<unique>" => args.flags.unique = true,
+            // vim-core always reads `<>` notation.
+            _ => {}
         }
-        break;
+        rest = rest
+            .get(name.len()..)
+            .unwrap_or_default()
+            .trim_start_matches(BLANKS);
     }
-    (flags, rest.trim_start())
+    (args, rest)
 }
 
 #[allow(
@@ -1297,54 +1290,56 @@ fn parse_map_command(
 ) -> Result<ExCommand, VimError> {
     use crate::keymap::MappingKind;
 
-    let kind = if noremap {
+    let (map_args, rest) = parse_map_args(args);
+    // `<script>` remaps only script-local mappings, and vim-core has none.
+    let kind = if noremap || map_args.script {
         MappingKind::NonRecursive
     } else {
         MappingKind::Recursive
     };
-
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
-        return Ok(ExCommand::Map {
-            mode_prefix,
-            lhs: CompactString::new(""),
-            rhs: None,
-            kind,
-            flags: crate::keymap::MappingFlags::default(),
-        });
-    }
-
-    let (flags, rest) = strip_map_flags(trimmed);
-
-    // Split into lhs (first token) and rhs (rest)
-    let (lhs, rhs) = match rest.find(char::is_whitespace) {
-        Some(idx) => (&rest[..idx], rest[idx..].trim_start()),
-        None => (rest, ""),
-    };
-    let rhs = if rhs.is_empty() {
-        None
-    } else {
-        Some(CompactString::from(rhs))
-    };
+    let (lhs, rhs) = rest
+        .split_once(char::is_whitespace)
+        .map_or((rest, ""), |(lhs, rhs)| (lhs, rhs.trim_start()));
     Ok(ExCommand::Map {
         mode_prefix,
         lhs: CompactString::from(lhs),
-        rhs,
+        rhs: (!rhs.is_empty()).then(|| CompactString::from(rhs)),
         kind,
-        flags,
+        flags: map_args.flags,
+        buffer: map_args.buffer,
     })
 }
 
 fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExCommand, VimError> {
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
+    let (map_args, rest) = parse_map_args(args);
+    if rest.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
     // lhs is the first token (unmap takes exactly one argument)
-    let lhs = trimmed.split_whitespace().next().unwrap_or(trimmed);
+    let lhs = rest.split_whitespace().next().unwrap_or(rest);
     Ok(ExCommand::Unmap {
         mode_prefix,
         lhs: CompactString::from(lhs),
+        buffer: map_args.buffer,
+    })
+}
+
+/// Parse `:mapclear` and its mode forms: `<buffer>` clears the current
+/// buffer's mappings, and any other argument is E474 (`map_clear()`).
+fn parse_mapclear_command(
+    args: &str,
+    mode: MapModePrefix,
+    force: bool,
+) -> Result<ExCommand, VimError> {
+    let buffer = match args {
+        "" => false,
+        "<buffer>" => true,
+        _ => return Err(VimError::InvalidMapArgument),
+    };
+    Ok(ExCommand::MapClear {
+        mode,
+        force,
+        buffer,
     })
 }
 
@@ -1863,60 +1858,56 @@ fn parse_z_command(
     })
 }
 
-/// Parse `:abbreviate` / `:iabbrev` / `:cabbrev` / `:noreabbrev` etc.
-///
-/// Arguments are whitespace-separated: `[trigger] [replacement ...]`.
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "returns Result to match parse_named_command dispatch"
-)]
+/// Parse `:abbreviate` / `:iabbrev` / `:cabbrev` / `:noreabbrev` etc.,
+/// named `name`: `[trigger] [replacement ...]` after the arguments that
+/// `do_map()` reads. vim-core has no buffer or expression abbreviations,
+/// so `<buffer>` and `<expr>` give E319.
 fn parse_abbreviate_command(
+    name: &str,
     args: &str,
     mode: AbbrevMode,
     noremap: bool,
 ) -> Result<ExCommand, VimError> {
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
-        return Ok(ExCommand::Abbreviate {
-            trigger: None,
-            replacement: None,
-            mode,
-            noremap,
-        });
+    let (map_args, rest) = parse_map_args(args);
+    if map_args.buffer || map_args.flags.expr {
+        return Err(abbreviation_not_available(name, args));
     }
-
-    // Split into trigger (first token) and replacement (rest).
-    let (trigger, rhs) = match trimmed.find(char::is_whitespace) {
-        Some(idx) => (&trimmed[..idx], trimmed[idx..].trim_start()),
-        None => (trimmed, ""),
-    };
-
-    let replacement = if rhs.is_empty() {
-        None
-    } else {
-        Some(CompactString::from(rhs))
-    };
-
+    let (trigger, replacement) = rest
+        .split_once(char::is_whitespace)
+        .map_or((rest, ""), |(trigger, rhs)| (trigger, rhs.trim_start()));
     Ok(ExCommand::Abbreviate {
-        trigger: Some(CompactString::from(trigger)),
-        replacement,
+        trigger: (!trigger.is_empty()).then(|| CompactString::from(trigger)),
+        replacement: (!replacement.is_empty()).then(|| CompactString::from(replacement)),
         mode,
-        noremap,
+        noremap: noremap || map_args.script,
+        unique: map_args.flags.unique,
     })
 }
 
-/// Parse `:unabbreviate` / `:iunabbrev` / `:cunabbrev`.
-fn parse_unabbreviate_command(args: &str, mode: AbbrevMode) -> Result<ExCommand, VimError> {
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
+/// Parse `:unabbreviate` / `:iunabbrev` / `:cunabbrev`, named `name`.
+fn parse_unabbreviate_command(
+    name: &str,
+    args: &str,
+    mode: AbbrevMode,
+) -> Result<ExCommand, VimError> {
+    let (map_args, rest) = parse_map_args(args);
+    if map_args.buffer {
+        return Err(abbreviation_not_available(name, args));
+    }
+    if rest.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
     // Trigger is the first token.
-    let trigger = trimmed.split_whitespace().next().unwrap_or(trimmed);
+    let trigger = rest.split_whitespace().next().unwrap_or(rest);
     Ok(ExCommand::Unabbreviate {
         trigger: CompactString::from(trigger),
         mode,
     })
+}
+
+fn abbreviation_not_available(name: &str, args: &str) -> VimError {
+    let args = args.trim_matches(BLANKS);
+    VimError::NotAvailable(CompactString::from(format!("{name} {args}")))
 }
 
 /// Split an Ex command line into its commands, as Vim does.

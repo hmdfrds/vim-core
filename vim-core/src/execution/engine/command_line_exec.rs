@@ -74,7 +74,7 @@ impl VimEngine {
             effects
         };
         for change in &output.mapping_changes {
-            self.apply_mapping_change(change);
+            effects.extend(self.apply_mapping_change(change));
         }
         for change in &output.abbrev_changes {
             effects.extend(self.apply_abbrev_change(change));
@@ -499,8 +499,8 @@ impl VimEngine {
     ///
     /// Parses the raw notation strings with access to `self.keymap` so that
     /// `<Action>(name)` and `<Plug>(name)` can be resolved against the
-    /// keymap's name registries.
-    pub(super) fn apply_mapping_change(&mut self, change: &executor_ex::MappingChange) {
+    /// keymap's name registries. Returns the error the change gives.
+    pub(super) fn apply_mapping_change(&mut self, change: &executor_ex::MappingChange) -> Effects {
         match change {
             executor_ex::MappingChange::Define {
                 modes,
@@ -508,48 +508,103 @@ impl VimEngine {
                 rhs_raw,
                 kind,
                 flags,
+                buffer,
             } => {
                 let lhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
                     lhs_raw,
                     Some(&mut self.keymap),
                 );
-                if flags.expr {
-                    let expr_text = Some(rhs_raw.clone());
-                    for &mode in modes {
-                        self.map_with_expr(
-                            mode,
-                            lhs_seq.as_slice(),
-                            Vec::new(),
-                            *kind,
-                            *flags,
-                            expr_text.clone(),
-                        );
+                if flags.unique {
+                    if let Some(error) = self.unique_mapping_error(modes, &lhs_seq, *buffer) {
+                        return ex_effects::show_error(error);
                     }
+                }
+                let flags = crate::keymap::MappingFlags {
+                    unique: false,
+                    ..*flags
+                };
+                let (rhs_seq, expr_text) = if flags.expr {
+                    (Vec::new(), Some(rhs_raw.clone()))
                 } else {
-                    let rhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
+                    let rhs = executor_ex::parse_key_notation_sequence_with_keymap(
                         rhs_raw,
                         Some(&mut self.keymap),
                     );
-                    for &mode in modes {
-                        self.map(mode, lhs_seq.as_slice(), rhs_seq.clone(), *kind, *flags);
+                    (rhs, None)
+                };
+                for &mode in modes {
+                    if *buffer {
+                        self.typeahead.buffer.clear();
+                        self.keymap.map_buffer_with_expr(
+                            mode,
+                            &lhs_seq,
+                            rhs_seq.clone(),
+                            *kind,
+                            flags,
+                            expr_text.clone(),
+                        );
+                        self.key_interest_dirty = true;
+                    } else {
+                        let rhs = rhs_seq.clone();
+                        self.map_with_expr(mode, &lhs_seq, rhs, *kind, flags, expr_text.clone());
                     }
                 }
             }
-            executor_ex::MappingChange::Remove { modes, lhs_raw } => {
+            executor_ex::MappingChange::Remove {
+                modes,
+                lhs_raw,
+                buffer,
+            } => {
                 let lhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
                     lhs_raw,
                     Some(&mut self.keymap),
                 );
                 for &mode in modes {
-                    self.unmap(mode, lhs_seq.as_slice());
+                    if *buffer {
+                        self.unmap_buffer(mode, &lhs_seq);
+                    } else {
+                        self.unmap(mode, &lhs_seq);
+                    }
                 }
             }
-            executor_ex::MappingChange::ClearAll { modes } => {
+            executor_ex::MappingChange::ClearAll { modes, buffer } => {
                 for &mode in modes {
-                    self.clear_mappings_for(mode);
+                    if *buffer {
+                        self.clear_buffer_mappings_for(mode);
+                    } else {
+                        self.clear_mappings_for(mode);
+                    }
                 }
             }
         }
+        Effects::new()
+    }
+
+    /// The error `<unique>` gives for `lhs` in `modes`, as `do_map()`
+    /// finds it: E225 for a buffer mapping whose keys are mapped in every
+    /// buffer, E227 for keys mapped in the same place.
+    fn unique_mapping_error(
+        &self,
+        modes: &[crate::keymap::MappingMode],
+        lhs: &[crate::keymap::KeyEvent],
+        buffer: bool,
+    ) -> Option<crate::errors::VimError> {
+        let mapped = |buffer| {
+            modes
+                .iter()
+                .any(|&mode| self.keymap.exact_mapping(mode, lhs, buffer).is_some())
+        };
+        let keys = || {
+            let keys = self.keymap.resolved_keys(lhs);
+            keys.iter()
+                .map(crate::keymap::KeyEvent::to_vim_notation)
+                .collect::<String>()
+                .into()
+        };
+        if buffer && mapped(false) {
+            return Some(crate::errors::VimError::GlobalMappingExists(keys()));
+        }
+        mapped(buffer).then(|| crate::errors::VimError::MappingExists(keys()))
     }
 
     /// Apply a single abbreviation change from `:abbreviate`/`:unabbreviate`/`:abclear`.
@@ -565,7 +620,15 @@ impl VimEngine {
                 replacement,
                 mode,
                 noremap,
+                unique,
             } => {
+                if let (true, Some(trigger), Some(_)) = (*unique, trigger, replacement) {
+                    if self.abbrev_table.defines(trigger, *mode) {
+                        let error =
+                            crate::errors::VimError::AbbreviationExists(trigger.as_str().into());
+                        return ex_effects::show_error(error);
+                    }
+                }
                 let is_keyword = |c: char| crate::primitives::is_word_char(c);
                 abbreviation::abbreviate(
                     trigger.as_deref(),

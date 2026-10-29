@@ -117,6 +117,21 @@ pub enum VimError {
     /// argument as written, such as `nosuch=1`.
     UnknownOptionArgument(Box<str>),
 
+    /// E474: a map or abbreviation command with an argument it does not
+    /// take, such as `:mapclear x`.
+    InvalidMapArgument,
+
+    /// E225: `<buffer><unique>` for keys mapped in every buffer. Carries
+    /// the keys.
+    GlobalMappingExists(Box<str>),
+
+    /// E226: `<unique>` for an abbreviation that is defined. Carries its
+    /// trigger.
+    AbbreviationExists(Box<str>),
+
+    /// E227: `<unique>` for keys that are mapped. Carries the keys.
+    MappingExists(Box<str>),
+
     /// E34: No previous command.
     NoPreviousCommand,
 
@@ -469,6 +484,14 @@ impl fmt::Display for VimError {
             Self::InvalidArgument(msg) => write!(f, "E521: {msg}"),
             Self::OptionValue(msg) => write!(f, "{msg}"),
             Self::UnknownOptionArgument(arg) => write!(f, "E518: Unknown option: {arg}"),
+            Self::InvalidMapArgument => write!(f, "E474: Invalid argument"),
+            Self::GlobalMappingExists(keys) => {
+                write!(f, "E225: Global mapping already exists for {keys}")
+            }
+            Self::AbbreviationExists(trigger) => {
+                write!(f, "E226: Abbreviation already exists for {trigger}")
+            }
+            Self::MappingExists(keys) => write!(f, "E227: Mapping already exists for {keys}"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
@@ -613,6 +636,27 @@ mod tests {
     }
 
     #[test]
+    fn display_mapping_errors() {
+        for (error, text) in [
+            (VimError::InvalidMapArgument, "E474: Invalid argument"),
+            (
+                VimError::GlobalMappingExists("x".into()),
+                "E225: Global mapping already exists for x",
+            ),
+            (
+                VimError::AbbreviationExists("teh".into()),
+                "E226: Abbreviation already exists for teh",
+            ),
+            (
+                VimError::MappingExists("x".into()),
+                "E227: Mapping already exists for x",
+            ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
     fn option_value_displays_message_verbatim() {
         assert_eq!(
             VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()).to_string(),
@@ -678,6 +722,10 @@ mod tests {
             VimError::InvalidArgument("bad".into()),
             VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()),
             VimError::UnknownOptionArgument("nosuch".into()),
+            VimError::InvalidMapArgument,
+            VimError::GlobalMappingExists("x".into()),
+            VimError::AbbreviationExists("teh".into()),
+            VimError::MappingExists("x".into()),
             VimError::NoPreviousCommand,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },

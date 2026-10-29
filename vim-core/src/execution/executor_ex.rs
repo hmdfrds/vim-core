@@ -69,15 +69,19 @@ pub(crate) enum MappingChange {
         rhs_raw: CompactString,
         kind: crate::keymap::MappingKind,
         flags: crate::keymap::MappingFlags,
+        /// In the current buffer's mappings.
+        buffer: bool,
     },
     /// Remove a mapping.
     Remove {
         modes: SmallVec<[crate::keymap::MappingMode; 4]>,
         lhs_raw: CompactString,
+        buffer: bool,
     },
     /// Clear all mappings for the given modes.
     ClearAll {
         modes: SmallVec<[crate::keymap::MappingMode; 4]>,
+        buffer: bool,
     },
 }
 
@@ -94,6 +98,7 @@ pub(crate) enum AbbrevChange {
         replacement: Option<CompactString>,
         mode: crate::primitives::AbbrevMode,
         noremap: bool,
+        unique: bool,
     },
     /// Remove an abbreviation.
     Remove {
@@ -525,9 +530,14 @@ pub(crate) fn execute_ex_command<D: Document>(
             rhs,
             kind,
             flags,
-        } => execute_map_command(*mode_prefix, lhs, rhs.as_deref(), *kind, *flags),
-        ExCommand::Unmap { mode_prefix, lhs } => execute_unmap_command(*mode_prefix, lhs),
-        ExCommand::MapClear { mode, .. } => execute_mapclear_command(*mode),
+            buffer,
+        } => execute_map_command(*mode_prefix, lhs, rhs.as_deref(), *kind, *flags, *buffer),
+        ExCommand::Unmap {
+            mode_prefix,
+            lhs,
+            buffer,
+        } => execute_unmap_command(*mode_prefix, lhs, *buffer),
+        ExCommand::MapClear { mode, buffer, .. } => execute_mapclear_command(*mode, *buffer),
         ExCommand::Action { name } => host_only(HostRequest::RunAction {
             meta: sequencer.next_meta(),
             name: name.clone(),
@@ -920,12 +930,14 @@ pub(crate) fn execute_ex_command<D: Document>(
             replacement,
             mode,
             noremap,
+            unique,
         } => Ok(ExExecutionOutput {
             abbrev_changes: smallvec::smallvec![AbbrevChange::Define {
                 trigger: trigger.clone(),
                 replacement: replacement.clone(),
                 mode: *mode,
                 noremap: *noremap,
+                unique: *unique,
             }],
             ..ExExecutionOutput::default()
         }),
@@ -2065,6 +2077,7 @@ fn execute_map_command(
     rhs: Option<&str>,
     kind: crate::keymap::MappingKind,
     flags: crate::keymap::MappingFlags,
+    buffer: bool,
 ) -> Result<ExExecutionOutput, VimError> {
     // `:map` or `:map lhs` without rhs — list mappings (not yet implemented)
     let Some(rhs) = rhs else {
@@ -2084,6 +2097,7 @@ fn execute_map_command(
             rhs_raw: CompactString::from(rhs),
             kind,
             flags,
+            buffer,
         }],
         ..ExExecutionOutput::default()
     })
@@ -2096,6 +2110,7 @@ fn execute_map_command(
 fn execute_unmap_command(
     mode_prefix: crate::grammar::types::MapModePrefix,
     lhs: &str,
+    buffer: bool,
 ) -> Result<ExExecutionOutput, VimError> {
     let modes = modes_for_prefix(mode_prefix);
 
@@ -2103,6 +2118,7 @@ fn execute_unmap_command(
         mapping_changes: smallvec::smallvec![MappingChange::Remove {
             modes,
             lhs_raw: CompactString::from(lhs),
+            buffer,
         }],
         ..ExExecutionOutput::default()
     })
@@ -2114,11 +2130,12 @@ fn execute_unmap_command(
 )]
 fn execute_mapclear_command(
     mode_prefix: crate::grammar::types::MapModePrefix,
+    buffer: bool,
 ) -> Result<ExExecutionOutput, VimError> {
     let modes = modes_for_prefix(mode_prefix);
 
     Ok(ExExecutionOutput {
-        mapping_changes: smallvec::smallvec![MappingChange::ClearAll { modes }],
+        mapping_changes: smallvec::smallvec![MappingChange::ClearAll { modes, buffer }],
         ..ExExecutionOutput::default()
     })
 }

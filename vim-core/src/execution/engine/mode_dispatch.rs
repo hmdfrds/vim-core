@@ -2777,7 +2777,8 @@ impl VimEngine {
                 }
 
                 for change in &output.mapping_changes {
-                    self.apply_mapping_change(change);
+                    let mapping_efx = self.apply_mapping_change(change);
+                    combined.extend_effects(mapping_efx);
                 }
                 for change in &output.abbrev_changes {
                     let abbrev_efx = self.apply_abbrev_change(change);

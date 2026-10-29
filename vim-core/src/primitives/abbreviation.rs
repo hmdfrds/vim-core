@@ -104,6 +104,14 @@ impl AbbrevTable {
             .retain(|_, entry| entry.mode != mode && entry.mode != AbbrevMode::Both);
     }
 
+    /// Whether `trigger` is an abbreviation in one of the modes of `mode`.
+    #[must_use]
+    pub fn defines(&self, trigger: &str, mode: AbbrevMode) -> bool {
+        self.entries.get(trigger).is_some_and(|entry| {
+            entry.mode == mode || entry.mode == AbbrevMode::Both || mode == AbbrevMode::Both
+        })
+    }
+
     /// Look up an abbreviation by exact trigger text.
     #[must_use]
     pub fn get(&self, trigger: &str) -> Option<&AbbrevEntry> {
