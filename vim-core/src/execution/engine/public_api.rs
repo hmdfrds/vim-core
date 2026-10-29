@@ -1538,6 +1538,7 @@ impl VimEngine {
         &mut self,
         id: crate::execution::host::HostRequestId,
     ) -> Option<crate::execution::HostRequest> {
+        self.host.source_depths.remove(&id);
         self.host.pending.remove(&id)
     }
 
@@ -1903,6 +1904,7 @@ impl VimEngine {
         self.typeahead.macro_stack.clear();
         self.typeahead.buffer.clear();
         self.host.pending.clear();
+        self.host.source_depths.clear();
         self.typeahead.last_drained_flags = super::typeahead::TypeaheadFlags::empty();
         // Apply configurable default mode (state.reset() sets Normal; override if needed)
         let default_mode = self.resolved_options.default_mode();

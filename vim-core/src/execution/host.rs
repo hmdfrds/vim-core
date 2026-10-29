@@ -434,7 +434,9 @@ pub enum HostRequest {
     ///
     /// - `HostResult::Data` with the text: the engine sources it with
     ///   [`VimEngine::source_config_text`], adding to the current state as
-    ///   Vim's `:source` does. The host must not source it again.
+    ///   Vim's `:source` does. The host must not source it again. A file
+    ///   sourced from a config counts the files that sourced it, so one that
+    ///   sources itself stops with E169 after 200 files, as in Vim.
     /// - `HostResult::Success`: the host sourced the file itself (for example
     ///   a full reload of its active config) and the engine only shows the
     ///   message, if any.

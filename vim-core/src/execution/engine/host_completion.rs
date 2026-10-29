@@ -253,6 +253,7 @@ impl super::VimEngine {
             return Response::ignored()
                 .with_message(format!("unexpected host result id {}", id.get()));
         };
+        let depth = self.host.source_depths.remove(&id);
 
         // ── <expr> mapping completion ────────────────────────────────
         // EvaluateMapping returns keys as a string. Parse them and inject
@@ -276,8 +277,10 @@ impl super::VimEngine {
         if let (HostRequest::ReadConfigFile { path, .. }, HostResult::Data { data, .. }) =
             (&pending, result)
         {
+            let name = path.as_deref().unwrap_or_default();
+            let depth = depth.unwrap_or(super::source::TYPED_SOURCE_DEPTH);
             // Already tracked; the optimizer would keep one message of many.
-            return self.source_config_named(path.as_deref().unwrap_or_default(), data);
+            return self.source_config_named(name, data, depth);
         }
 
         let mut response = completion_response(&pending, result);

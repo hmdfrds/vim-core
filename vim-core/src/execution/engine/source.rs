@@ -27,6 +27,10 @@ use std::borrow::Cow;
 /// Most files that run at once: `do_cmdline()` refuses a level past 200.
 const MAX_DEPTH: u32 = 200;
 
+/// The depth of a file sourced from the command line, which is the first
+/// level.
+pub(super) const TYPED_SOURCE_DEPTH: u32 = 2;
+
 /// A config being sourced, with what Vim's `do_cmdline()` and the cookie of
 /// `do_source_ext()` keep while it runs.
 struct Frame<'a> {
@@ -190,7 +194,7 @@ impl super::VimEngine {
     /// A refused file does, and so does a `:source` inside 200 files that
     /// run, which gives `E169: Command too recursive` without asking the
     /// host. A file the host defers runs when it answers the request with
-    /// the text.
+    /// the text, counted at the same depth.
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
@@ -244,14 +248,14 @@ impl super::VimEngine {
     /// runs a config without a name, with a host that answers nothing.
     /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
-        self.source_config_named("", text)
+        self.source_config_named("", text, 1)
     }
 
     /// [`source_config_text`](Self::source_config_text) for the config
     /// named `name`, as when a host answers `:source {name}` with the
-    /// file's text.
-    pub(super) fn source_config_named(&mut self, name: &str, text: &str) -> Response {
-        let mut response = self.run_script(ConfigText::new(name, text), &mut NoHost, 1);
+    /// file's text, run as the `depth`th of the files that run.
+    pub(super) fn source_config_named(&mut self, name: &str, text: &str, depth: u32) -> Response {
+        let mut response = self.run_script(ConfigText::new(name, text), &mut NoHost, depth);
         let from = response.effects().len();
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
@@ -613,10 +617,12 @@ impl super::VimEngine {
                 show_config_errors(modifiers, [error], response);
             }
             SourceReply::Defer => {
-                response.host_requests.push(HostRequest::ReadConfigFile {
+                let request = HostRequest::ReadConfigFile {
                     meta: self.host.sequencer.next_meta(),
                     path: path.map(CompactString::from),
-                });
+                };
+                self.host.source_depths.insert(request.id(), depth);
+                response.host_requests.push(request);
             }
         }
         Then::Next
@@ -1242,6 +1248,28 @@ mod tests {
             [HostRequestKind::WriteFile, HostRequestKind::CustomExCommand]
         );
         assert_eq!(session.pending_request_count(), 2);
+    }
+
+    #[test]
+    fn source_config_forgets_the_depth_of_a_source_once_its_request_goes() {
+        use crate::execution::HostResult;
+
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("source a.vim\nsource b.vim\nsource c.vim\n");
+        let ids: Vec<_> = response.host_requests().iter().map(|r| r.id()).collect();
+        assert_eq!(ids.len(), 3);
+        assert!(ids
+            .iter()
+            .all(|id| engine.host.source_depths.get(id) == Some(&2)));
+        let _ = engine.complete_host_request(&HostResult::Success {
+            id: ids[0],
+            message: None,
+        });
+        let _ = engine.remove_pending_host_request(ids[1]);
+        let left: Vec<_> = engine.host.source_depths.keys().copied().collect();
+        assert_eq!(left, [ids[2]]);
+        engine.reset();
+        assert!(engine.host.source_depths.is_empty());
     }
 
     // ── how Vim reads a sourced file ──────────────────────────────

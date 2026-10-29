@@ -316,3 +316,51 @@ fn host_session_sources_the_file_it_reads() {
     let _ = session.process_key_with_callbacks(KeyEvent::char('Q'), &mut host);
     assert_eq!(session.text(), "ne\ntwo");
 }
+
+/// Answer each `:source` of `response` with `text` until none is left,
+/// and count the answers. Stops at 500 answers.
+fn answer_every_source(
+    engine: &mut VimEngine,
+    mut response: Response,
+    text: &str,
+) -> (u32, Response) {
+    let mut answers = 0;
+    while let [request] = response.host_requests() {
+        assert!(answers < 500, "sourced without end");
+        answers += 1;
+        let id = request.id();
+        response = engine.complete_host_request(&HostResult::Data {
+            id,
+            data: text.into(),
+            offset: None,
+        });
+    }
+    (answers, response)
+}
+
+#[test]
+fn a_file_that_sources_itself_through_the_host_stops_at_vim_s_depth() {
+    // do_cmdline(): the command line is the first level, so a typed
+    // :source runs 199 files and the config the host passes 200.
+    let text = "set tw+=1\nsource a.vim\n";
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let typed = run(&mut engine, &doc, "source a.vim");
+    let (answers, last) = answer_every_source(&mut engine, typed, text);
+    assert_eq!(answers, 199);
+    assert_eq!(engine.options().textwidth(), 199);
+    assert!(
+        messages(&last).contains(&"E169: Command too recursive".to_owned()),
+        "{last:?}"
+    );
+
+    let mut engine = VimEngine::new();
+    let first = engine.source_config_text(text);
+    let (answers, last) = answer_every_source(&mut engine, first, text);
+    assert_eq!(answers, 199);
+    assert_eq!(engine.options().textwidth(), 200);
+    assert!(
+        messages(&last).contains(&"E169: Command too recursive".to_owned()),
+        "{last:?}"
+    );
+}
