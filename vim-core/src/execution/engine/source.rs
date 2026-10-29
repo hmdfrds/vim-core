@@ -9,6 +9,7 @@ use crate::commands::ex::effects as ex_effects;
 use crate::document::Document;
 use crate::effects::{Effect, Effects};
 use crate::errors::VimError;
+use crate::execution::config::{ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, NoHost};
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, InputContext};
@@ -39,11 +40,14 @@ impl Frame<'_> {
 }
 
 impl super::VimEngine {
-    /// Run a config file's text as Ex commands, line by line.
+    /// Run a config file's text as Ex commands, line by line, as Vim's
+    /// `:source` runs a file.
     ///
-    /// The engine calls it when a host answers `:source` with the file's
-    /// text; a host can call it for a config it reads itself, such as at
-    /// startup.
+    /// A host calls it for a config it reads itself, such as at startup;
+    /// `host` answers what the engine cannot know, such as `has()` of a
+    /// feature named after the host. `outcome` counts the errors shown.
+    /// Nothing is added after the config's own messages: Vim says nothing
+    /// once a file is sourced.
     ///
     /// Each line runs as it would from the command line, `|` and command
     /// modifiers included, and what it changes is applied the same way.
@@ -97,16 +101,49 @@ impl super::VimEngine {
     /// options; `g:mapleader` and `g:maplocalleader` give the leaders.
     /// Typed, `:echo` still shows its argument as written, and `:unlet` and
     /// a `:let` of anything but the leaders still go to the host.
+    pub fn source_script(
+        &mut self,
+        text: ConfigText<'_>,
+        host: &mut dyn ConfigHost,
+    ) -> ConfigResponse {
+        let response = self.run_script(text, host);
+        let errors = response
+            .effects()
+            .iter()
+            .filter(|e| matches!(e, Effect::ShowError { .. }))
+            .count();
+        ConfigResponse {
+            response,
+            outcome: ConfigOutcome {
+                errors: u32::try_from(errors).unwrap_or(u32::MAX),
+            },
+        }
+    }
+
+    /// Run a config file's text as [`source_script`](Self::source_script)
+    /// runs a config without a name, with a host that answers nothing.
     ///
-    /// The response ends with "Config file sourced".
+    /// The engine calls it when a host answers `:source` with the file's
+    /// text. The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
+        let mut response = self
+            .source_script(ConfigText::new("", text), &mut NoHost)
+            .response;
+        response.extend_effects(ex_effects::show_message(CompactString::from(
+            "Config file sourced",
+        )));
+        response
+    }
+
+    /// Run the config `text` for [`source_script`](Self::source_script).
+    fn run_script(&mut self, text: ConfigText<'_>, host: &dyn ConfigHost) -> Response {
         if self.options_dirty {
             self.rebuild_resolved_cache();
             self.rebuild_langmap_if_needed();
         }
         let mut response = Response::with_effects(Effects::new());
         let mut frame = Frame {
-            script: Script::new(text),
+            script: Script::new(text.text),
             blocks: Blocks::default(),
             error: false,
             finished: false,
@@ -127,15 +164,12 @@ impl super::VimEngine {
             show_warnings(&mut frame.script, &mut response);
             let mut next = Some(line);
             while let Some(line) = next {
-                next = self.source_config_line(&mut frame, &line, &mut response);
+                next = self.source_config_line(&mut frame, host, &line, &mut response);
             }
         }
         if let Some(error) = frame.blocks.missing_end().filter(|_| !frame.finished) {
             response.extend_effects(ex_effects::show_error(error));
         }
-        response.extend_effects(ex_effects::show_message(CompactString::from(
-            "Config file sourced",
-        )));
         // Not register_pending_host_requests: its effect optimizer keeps only
         // the last of several messages, and a config can print many.
         self.track_host_requests(&mut response);
@@ -148,6 +182,7 @@ impl super::VimEngine {
     fn source_config_line(
         &mut self,
         frame: &mut Frame<'_>,
+        host: &dyn ConfigHost,
         line: &Line,
         response: &mut Response,
     ) -> Option<Line> {
@@ -173,10 +208,10 @@ impl super::VimEngine {
                 }
             }
             if let Some(command) = script_command(&piece) {
-                self.source_config_control(frame, command, response);
+                self.source_config_control(frame, host, command, response);
                 continue;
             }
-            if !skipping && self.source_config_piece(&piece, response) {
+            if !skipping && self.source_config_piece(host, &piece, response) {
                 frame.blocks.finish();
                 frame.finished = true;
             }
@@ -192,6 +227,7 @@ impl super::VimEngine {
     fn source_config_control(
         &self,
         frame: &mut Frame<'_>,
+        host: &dyn ConfigHost,
         command: ScriptCommand<'_>,
         response: &mut Response,
     ) {
@@ -215,11 +251,12 @@ impl super::VimEngine {
         let error = &mut frame.error;
         let result = match command.control {
             Control::Block(BlockKind::If) => blocks.open_if(*error, || {
-                self.source_config_condition(argument, modifiers, error, response)
+                self.source_config_condition(host, argument, modifiers, error, response)
             }),
             Control::Block(BlockKind::ElseIf) => blocks.add_elseif(*error, |skip| {
                 if !skip {
-                    return self.source_config_condition(argument, modifiers, error, response);
+                    return self
+                        .source_config_condition(host, argument, modifiers, error, response);
                 }
                 // ex_else(): "When skipping we ignore most errors, but a
                 // missing expression is wrong".
@@ -272,12 +309,13 @@ impl super::VimEngine {
     /// are shown.
     fn source_config_condition(
         &self,
+        host: &dyn ConfigHost,
         text: &str,
         modifiers: ModifierFlags,
         error: &mut bool,
         response: &mut Response,
     ) -> Option<bool> {
-        let evaluated = script_expr::evaluate(text, &self.script_env());
+        let evaluated = script_expr::evaluate(text, &self.script_env(host));
         let mut errors = evaluated.errors;
         let result = match evaluated.value.map(|value| value.number()) {
             Some(Ok(n)) => Some(n != 0),
@@ -296,13 +334,18 @@ impl super::VimEngine {
     /// Run one command of a config line as the command line runs it.
     /// Returns whether no line is read after this one, as after
     /// `:vim9script`.
-    fn source_config_piece(&mut self, piece: &str, response: &mut Response) -> bool {
+    fn source_config_piece(
+        &mut self,
+        host: &dyn ConfigHost,
+        piece: &str,
+        response: &mut Response,
+    ) -> bool {
         match vim_command_parts(piece) {
             Some((modifiers, "echo", argument)) => {
-                self.source_config_echo(modifiers, argument, response);
+                self.source_config_echo(host, modifiers, argument, response);
             }
             Some((modifiers, "let", argument)) => {
-                self.source_config_let(modifiers, argument, response);
+                self.source_config_let(host, modifiers, argument, response);
             }
             Some((modifiers, "unlet", argument)) => {
                 self.source_config_unlet(modifiers, argument, response);
@@ -359,11 +402,12 @@ impl super::VimEngine {
     }
 
     /// What an expression in a config reads.
-    const fn script_env(&self) -> script_expr::Env<'_> {
+    const fn script_env<'a>(&'a self, host: &'a dyn ConfigHost) -> script_expr::Env<'a> {
         script_expr::Env {
             variables: self.state.variable_store(),
             options: &self.resolved_options,
             global_options: &self.options,
+            host,
         }
     }
 
@@ -374,6 +418,7 @@ impl super::VimEngine {
     /// still goes to the host.
     fn source_config_let(
         &mut self,
+        host: &dyn ConfigHost,
         modifiers: ModifierFlags,
         argument: &str,
         response: &mut Response,
@@ -383,7 +428,7 @@ impl super::VimEngine {
             let form = CompactString::from(format!("let {argument}"));
             return show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
         };
-        let evaluated = script_expr::evaluate(assignment.expr, &self.script_env());
+        let evaluated = script_expr::evaluate(assignment.expr, &self.script_env(host));
         let mut errors = evaluated.errors;
         let Some(value) = evaluated.value else {
             return show_config_errors(modifiers, errors, response);
@@ -565,12 +610,13 @@ impl super::VimEngine {
     /// `ex_echo()` does. A typed `:echo` shows its argument as written.
     fn source_config_echo(
         &self,
+        host: &dyn ConfigHost,
         modifiers: ModifierFlags,
         argument: &str,
         response: &mut Response,
     ) {
         let mut effects = Effects::new();
-        for shown in script_expr::echo(argument, &self.script_env()) {
+        for shown in script_expr::echo(argument, &self.script_env(host)) {
             match shown {
                 Echoed::Text(text) => effects.extend(ex_effects::show_message(text.into())),
                 Echoed::Error(err) => effects.extend(ex_effects::show_error(err)),

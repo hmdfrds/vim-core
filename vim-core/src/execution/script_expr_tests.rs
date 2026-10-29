@@ -1,6 +1,7 @@
 //! Tests for the config expression evaluator.
 
 use super::*;
+use crate::execution::config::NoHost;
 use proptest::prelude::*;
 
 /// Options with 'ignorecase' as given and 'textwidth' 33.
@@ -25,6 +26,7 @@ fn eval_with(
         variables,
         options: &options,
         global_options: &global,
+        host: &NoHost,
     };
     let evaluated = evaluate(text, &env);
     match evaluated.value {
@@ -62,6 +64,7 @@ fn echoed(text: &str) -> Vec<String> {
         variables: &variables,
         options: &options,
         global_options: &options,
+        host: &NoHost,
     };
     echo(text, &env)
         .into_iter()
@@ -713,7 +716,7 @@ proptest! {
 
         let variables = VariableStore::default();
         let options = VimOptions::default();
-        let env = Env { variables: &variables, options: &options, global_options: &options };
+        let env = Env { variables: &variables, options: &options, global_options: &options, host: &NoHost };
         let text = format!("{expr} | x");
         let mut parser = Parser::new(&text, &env);
         let result = parser.expr1(false);

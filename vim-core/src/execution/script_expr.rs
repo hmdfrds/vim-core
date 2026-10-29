@@ -25,6 +25,7 @@ use crate::keymap::{Key, KeyEvent, Modifiers};
 use crate::primitives::{OptionValue, VarScope, VimOptions, VimValue};
 use crate::state::VariableStore;
 
+use super::config::ConfigHost;
 use super::executor_ex::{hidden_option, option_value, SetKind};
 
 /// `v:version`: Vim's `VIM_VERSION_100` for 9.1.
@@ -137,6 +138,8 @@ pub(crate) struct Env<'a> {
     pub(crate) options: &'a VimOptions,
     /// The global values, for `&g:name`.
     pub(crate) global_options: &'a VimOptions,
+    /// The host, for `has()` of a feature the evaluator does not know.
+    pub(crate) host: &'a dyn ConfigHost,
 }
 
 /// A whole expression evaluated: its value, unless it failed, and the
@@ -942,7 +945,13 @@ impl<'a> Parser<'a> {
     /// `has({feature} [, {check}])`, as `f_has()` answers: with a {check}
     /// that is not zero, whether the name is a feature at all.
     fn has(&mut self, name: &str, check: Option<&Value>) -> i64 {
-        let (known, present) = feature(name);
+        let (known, present) = match feature(name) {
+            (false, _) => {
+                let present = self.env.host.has_feature(name);
+                (present, present)
+            }
+            known => known,
+        };
         if let Some(check) = check {
             // `tv_get_bool()`: an error, and then -1.
             let check = check.number().unwrap_or_else(|error| {

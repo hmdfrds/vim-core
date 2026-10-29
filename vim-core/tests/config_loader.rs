@@ -1,7 +1,9 @@
 //! A config file read and run as Vim sources one.
 
-use vim_core::effects::Effect;
-use vim_core::execution::{HostRequest, Response, VimEngine};
+use vim_core::effects::{Effect, InfoMessage};
+use vim_core::execution::{
+    ConfigHost, ConfigText, HostRequest, HostSession, Response, TrustTag, VimEngine,
+};
 
 /// The text of each error the response shows.
 fn errors(response: &Response) -> Vec<String> {
@@ -13,6 +15,29 @@ fn errors(response: &Response) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+/// The text of each message the response shows.
+fn infos(response: &Response) -> Vec<String> {
+    response
+        .effects()
+        .iter()
+        .filter_map(|e| match e {
+            Effect::ShowInfo {
+                info: InfoMessage::Text(text),
+            } => Some(text.to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A host that has the features it names.
+struct Features(&'static [&'static str]);
+
+impl ConfigHost for Features {
+    fn has_feature(&self, feature: &str) -> bool {
+        self.0.contains(&feature)
+    }
 }
 
 /// The command of each custom command the response sends to the host.
@@ -636,4 +661,52 @@ fn vim9script_is_e319_and_ends_the_file() {
     let response = engine.source_config_text("silent! vim9script\nset ic\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert!(!engine.options().ignorecase());
+}
+
+// ── the entry point ───────────────────────────────────────────────────
+
+#[test]
+fn source_script_counts_its_errors_and_adds_no_message() {
+    // do_source_ext() says nothing after a file, unless 'verbose' is 2 or more.
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", "set ic\nset nosuch\nsilent! set nosuch\nset tw?\n")
+        .with_trust(TrustTag::new(2));
+    assert_eq!(text.trust.get(), 2);
+    let sourced = engine.source_script(text, &mut Features(&[]));
+    assert!(engine.options().ignorecase());
+    assert_eq!(sourced.outcome.errors, 1);
+    assert_eq!(errors(&sourced.response), ["E518: Unknown option: nosuch"]);
+    assert_eq!(infos(&sourced.response), ["textwidth=0"]);
+}
+
+#[test]
+fn has_asks_the_host_for_a_feature_vim_core_does_not_know() {
+    // f_has(): with {check}, whether the feature is known at all.
+    let config = "if has('godot') | set ic | endif\nlet x = has('godot', 1) . has('eval')\n\
+                  if has('nosuch') || has('nosuch', 1) | set tw=33 | endif\n";
+    let mut engine = VimEngine::new();
+    let sourced = engine.source_script(ConfigText::new("", config), &mut Features(&["godot"]));
+    assert!(
+        errors(&sourced.response).is_empty(),
+        "{:?}",
+        errors(&sourced.response)
+    );
+    assert!(engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 0);
+    let shown = engine.source_script(ConfigText::new("", "echo x\n"), &mut Features(&[]));
+    assert_eq!(infos(&shown.response), ["11"]);
+
+    let mut engine = VimEngine::new();
+    let _ = engine.source_config_text("if has('godot') | set ic | endif\n");
+    assert!(!engine.options().ignorecase());
+}
+
+#[test]
+fn a_session_sources_a_script_through_its_host() {
+    let mut session = HostSession::new("a");
+    let _ = session.source_script(
+        ConfigText::new("init.vim", "if has('godot')\nset ic\nendif\n"),
+        &mut Features(&["godot"]),
+    );
+    assert!(session.options().ignorecase());
 }

@@ -904,18 +904,35 @@ impl VimSession<SessionHost> {
         Ok(self.complete_request_host(result))
     }
 
-    /// Source a config string (sequence of ex commands).
+    /// Source a config string (sequence of ex commands), as
+    /// [`VimEngine::source_config_text`](crate::execution::VimEngine::source_config_text)
+    /// does.
     pub fn source_config(&mut self, text: &str) -> HostResponse {
         self.host_mut().frame_id += 1;
         self.host_mut().clipboard_dirty = false;
+        let response = self.engine_mut().source_config_text(text);
+        self.deliver_config(response)
+    }
 
-        let (consumed, requests) = {
-            let mut response = self.engine_mut().source_config_text(text);
-            let consumed = response.consumed();
-            let requests = response.take_host_requests();
-            self.deliver_effects(response.effects());
-            (consumed, requests)
-        };
+    /// Source a config the host has read, as
+    /// [`VimEngine::source_script`](crate::execution::VimEngine::source_script)
+    /// does.
+    pub fn source_script(
+        &mut self,
+        text: crate::execution::ConfigText<'_>,
+        host: &mut dyn crate::execution::ConfigHost,
+    ) -> HostResponse {
+        self.host_mut().frame_id += 1;
+        self.host_mut().clipboard_dirty = false;
+        let response = self.engine_mut().source_script(text, host).response;
+        self.deliver_config(response)
+    }
+
+    /// Deliver what sourcing a config gave, and run its host requests.
+    fn deliver_config(&mut self, mut response: crate::execution::Response) -> HostResponse {
+        let consumed = response.consumed();
+        let requests = response.take_host_requests();
+        self.deliver_effects(response.effects());
 
         let mut host_requests = Vec::new();
         self.handle_sync_requests(&requests, &mut host_requests, 0);
