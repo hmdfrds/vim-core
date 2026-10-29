@@ -767,6 +767,7 @@ impl VimEngine {
                     break;
                 }
                 ResolveResult::Pending => return Response::pending_response(),
+                ResolveResult::Consumed => return Response::consumed_empty(),
                 ResolveResult::ExprMapping {
                     expression,
                     kind,

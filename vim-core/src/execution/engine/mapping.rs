@@ -135,7 +135,7 @@ impl VimEngine {
             Some(ResolveResult::RecursionOverflow) => {
                 self.typeahead.buffer.clear();
             }
-            Some(ResolveResult::Pending) | None => {}
+            Some(ResolveResult::Pending | ResolveResult::Consumed) | None => {}
         }
     }
 

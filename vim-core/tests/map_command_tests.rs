@@ -7,6 +7,7 @@ use common::document::TestDocument;
 use vim_core::effects::Effect;
 use vim_core::execution::{parse_keys_from_string, HostSession, InputContext, Response, VimEngine};
 use vim_core::keymap::{KeyEvent, MappingMode};
+use vim_core::primitives::Mode;
 
 fn press(engine: &mut VimEngine, doc: &TestDocument, key: KeyEvent) -> Response {
     let ctx = InputContext::new(doc, doc.cursor_offset()).validate_clamped();
@@ -210,4 +211,58 @@ fn unabbreviate_ignores_trailing_blanks() {
         ":iabbrev teh the<CR>:iunabbrev teh <CR>ateh <Esc>",
     );
     assert_eq!(session.text(), "teh ");
+}
+
+#[test]
+fn nop_maps_keys_to_nothing() {
+    // do_map() reads `<Nop>` in any case as an empty right-hand side, and
+    // handle_mapping() then inserts nothing.
+    for nop in ["<Nop>", "<NOP>", "<nop>"] {
+        let mut session = HostSession::new("abc");
+        type_keys(&mut session, &format!(":nnoremap x {nop}<CR>xl"));
+        assert_eq!(session.text(), "abc", "{nop}");
+        assert_eq!(session.cursor_offset(), 1, "{nop}");
+    }
+}
+
+#[test]
+fn nop_leaves_the_mode_as_it_is() {
+    let mut session = HostSession::new("");
+    type_keys(&mut session, ":inoremap x <Nop><CR>iaxb");
+    assert_eq!(session.mode(), Mode::Insert);
+    type_keys(&mut session, "<Esc>");
+    assert_eq!(session.text(), "ab");
+
+    let mut session = HostSession::new("abc");
+    type_keys(&mut session, ":vnoremap x <Nop><CR>vx");
+    assert!(
+        matches!(session.mode(), Mode::Visual(_)),
+        "{:?}",
+        session.mode()
+    );
+
+    let mut session = HostSession::new("abc");
+    type_keys(&mut session, ":cnoremap x <Nop><CR>:s/b/xX/<CR>");
+    assert_eq!(session.text(), "aXc");
+}
+
+#[test]
+fn nop_with_more_text_is_keys() {
+    // The whole right-hand side must be `<Nop>`.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("nnoremap x <Nop> | nnoremap y <Nop>x\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    let mappings = normal_mappings(&engine);
+    assert_eq!(mappings.len(), 2);
+    assert!(
+        mappings.iter().all(|(_, rhs, _)| rhs.contains("Nop")),
+        "{mappings:?}"
+    );
+}
+
+#[test]
+fn nop_abbreviation_expands_to_nothing() {
+    let mut session = HostSession::new("");
+    type_keys(&mut session, ":iabbrev foo <Nop><CR>afoo bar<Esc>");
+    assert_eq!(session.text(), " bar");
 }

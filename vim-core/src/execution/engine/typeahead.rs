@@ -65,6 +65,9 @@ pub(in crate::execution::engine) enum ResolveResult {
     /// The engine should return `Response::pending_response()` to the shell,
     /// which starts the mapping timeout timer.
     Pending,
+    /// A mapping with an empty right-hand side, such as `<Nop>`, took the
+    /// keys: there is nothing to dispatch.
+    Consumed,
     /// Mapping recursion overflow (depth > `MAX_RECURSION_DEPTH`).
     /// Indicates a circular mapping like `:map a b` + `:map b a`.
     /// The engine should abort expansion and report an error.
@@ -678,9 +681,8 @@ impl TypeaheadBuffer {
     /// injected keys' flags, causing `ShowMessage` effects to be suppressed
     /// during the mapping's execution.
     ///
-    /// Returns `Dispatch(first_rhs_key, flags)` for immediate processing.
-    /// If RHS is empty, dispatches an Escape (degenerate case, matches
-    /// `the legacy expander::expand_entry` behavior).
+    /// Returns `Dispatch(first_rhs_key, flags)` for immediate processing,
+    /// or `Consumed` for an empty RHS.
     fn inject_mapping_rhs(
         &mut self,
         sequence: &[KeyEvent],
@@ -688,11 +690,9 @@ impl TypeaheadBuffer {
         kind: MappingKind,
         silent: bool,
     ) -> ResolveResult {
-        if sequence.is_empty() {
-            // Degenerate: empty RHS (e.g., `:map x <Nop>`).
-            // Match the legacy expander behavior: dispatch Escape.
-            return ResolveResult::Dispatch(KeyEvent::escape(), TypeaheadFlags::NOREMAP);
-        }
+        let Some(&first) = sequence.first() else {
+            return ResolveResult::Consumed;
+        };
 
         let is_recursive = kind.is_recursive();
 
@@ -748,13 +748,6 @@ impl TypeaheadBuffer {
                 .collect();
             self.inject_front(remaining);
         }
-
-        // Return the first RHS key for immediate dispatch.
-        // Safety: we checked sequence.is_empty() above, so first() is Some.
-        let first = match sequence.first().copied() {
-            Some(k) => k,
-            None => return ResolveResult::Dispatch(KeyEvent::escape(), TypeaheadFlags::NOREMAP),
-        };
 
         // First key: if within REMAP_SKIP prefix, dispatch as NOREMAP.
         let first_flags = if skip_len > 0 {
@@ -1878,6 +1871,7 @@ mod tests {
                     break;
                 }
                 ResolveResult::Pending => panic!("unexpected Pending"),
+                ResolveResult::Consumed => panic!("unexpected Consumed"),
                 ResolveResult::ExprMapping { .. } => panic!("unexpected ExprMapping"),
             }
         }
@@ -1888,10 +1882,10 @@ mod tests {
         assert!(buf.is_empty());
     }
 
-    // ─── resolve_key: empty RHS (follows current the legacy expander behavior) ──
+    // ─── resolve_key: empty RHS ─────────────────────────────────────────
 
     #[test]
-    fn resolve_empty_rhs_dispatches_escape() {
+    fn resolve_empty_rhs_consumes_the_keys() {
         let mut buf = TypeaheadBuffer::new();
         let km = km_with(&[(
             &[KeyEvent::char('x')],
@@ -1905,8 +1899,10 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        // Empty RHS → degenerate case: dispatch Escape (matches the legacy expander).
-        assert_dispatch(&result, KeyEvent::escape(), TypeaheadFlags::NOREMAP);
+        // A `<Nop>` mapping inserts nothing (handle_mapping()).
+        assert!(matches!(result, ResolveResult::Consumed), "{result:?}");
+        assert!(!buf.has_pending());
+        assert!(buf.is_empty());
     }
 
     // ─── resolve_key: buffer state after inject_mapping_rhs ─────────────

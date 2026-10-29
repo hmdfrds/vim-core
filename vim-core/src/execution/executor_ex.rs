@@ -934,7 +934,7 @@ pub(crate) fn execute_ex_command<D: Document>(
         } => Ok(ExExecutionOutput {
             abbrev_changes: smallvec::smallvec![AbbrevChange::Define {
                 trigger: trigger.clone(),
-                replacement: replacement.clone(),
+                replacement: replacement.as_deref().map(|rhs| nop_as_nothing(rhs).into()),
                 mode: *mode,
                 noremap: *noremap,
                 unique: *unique,
@@ -2067,6 +2067,16 @@ pub(crate) fn modes_for_prefix(
     }
 }
 
+/// A right-hand side of `<Nop>`, in any case, is empty, as `do_map()`
+/// reads it; `<Nop> ` and `<Nop>x` are keys.
+const fn nop_as_nothing(rhs: &str) -> &str {
+    if rhs.eq_ignore_ascii_case("<nop>") {
+        ""
+    } else {
+        rhs
+    }
+}
+
 #[allow(
     clippy::unnecessary_wraps,
     reason = "returns Result to match execute_ex_command dispatch"
@@ -2094,7 +2104,7 @@ fn execute_map_command(
         mapping_changes: smallvec::smallvec![MappingChange::Define {
             modes,
             lhs_raw: CompactString::from(lhs),
-            rhs_raw: CompactString::from(rhs),
+            rhs_raw: CompactString::from(nop_as_nothing(rhs)),
             kind,
             flags,
             buffer,
