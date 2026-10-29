@@ -113,6 +113,10 @@ pub enum VimError {
     /// code depends on the option: `E539: Illegal character <Z>: fo=Z`.
     OptionValue(CompactString),
 
+    /// E518: `:set` names an option that does not exist. Carries the
+    /// argument as written, such as `nosuch=1`.
+    UnknownOptionArgument(Box<str>),
+
     /// E34: No previous command.
     NoPreviousCommand,
 
@@ -464,6 +468,7 @@ impl fmt::Display for VimError {
             }
             Self::InvalidArgument(msg) => write!(f, "E521: {msg}"),
             Self::OptionValue(msg) => write!(f, "{msg}"),
+            Self::UnknownOptionArgument(arg) => write!(f, "E518: Unknown option: {arg}"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
@@ -600,6 +605,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unknown_option_argument_keeps_the_argument() {
+        assert_eq!(
+            VimError::UnknownOptionArgument("nosuch=1".into()).to_string(),
+            "E518: Unknown option: nosuch=1"
+        );
+    }
+
+    #[test]
     fn option_value_displays_message_verbatim() {
         assert_eq!(
             VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()).to_string(),
@@ -664,6 +677,7 @@ mod tests {
             VimError::MoveIntoItself,
             VimError::InvalidArgument("bad".into()),
             VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()),
+            VimError::UnknownOptionArgument("nosuch".into()),
             VimError::NoPreviousCommand,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },

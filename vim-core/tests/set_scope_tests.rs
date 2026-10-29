@@ -483,3 +483,18 @@ fn setlocal_then_setglobal_independent() {
         OptionValue::Unsigned(8)
     );
 }
+
+// Each command of a `|` line writes the layers its own name says.
+#[test]
+fn each_set_command_of_a_line_keeps_its_scope() {
+    let doc = TestDocument::new("hello", (0, 0));
+    let mut engine = VimEngine::new();
+
+    run_ex(&mut engine, &doc, "setlocal tw=5 | setglobal tw=7");
+
+    assert_eq!(engine.options().textwidth(), 7);
+    assert_eq!(
+        engine.effective_option(OptionId::TextWidth),
+        OptionValue::Unsigned(5)
+    );
+}

@@ -164,6 +164,28 @@ fn silent_bang_hides_an_error_and_skips_nothing() {
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
 }
 
+#[test]
+fn a_set_error_ends_the_set_and_its_line() {
+    // do_set() returns at its first bad argument, and the error skips the
+    // rest of the line.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("set ts=7 nosuch sw=2 | set ic\nset tw=33\n");
+    assert_eq!(engine.options().tabstop(), 7);
+    assert_eq!(engine.options().shiftwidth(), 4);
+    assert!(!engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 33);
+    assert_eq!(errors(&response), ["E518: Unknown option: nosuch"]);
+}
+
+#[test]
+fn silent_bang_hides_a_set_error_but_still_ends_the_set() {
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("silent! set nosuch ic | set tw=33\n");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 33);
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+}
+
 fn strings(texts: &[&str]) -> Vec<String> {
     texts.iter().map(|&text| text.to_owned()).collect()
 }

@@ -332,7 +332,9 @@ impl super::VimEngine {
             output.effects.as_mut_slice(),
         );
         // No buffer or window to hold a local value.
-        output.set_scope = SetScope::Effective;
+        for set in &mut output.set_commands {
+            set.scope = SetScope::Effective;
+        }
         let mut applied = self.apply_ex_output(&mut output, "");
         crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
         response.extend_effects(output.effects);

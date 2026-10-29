@@ -205,23 +205,35 @@ fn query_formatoptions_shows_global_value() {
 }
 
 #[test]
-fn bare_name_of_value_option_is_silent() {
-    // `:set fo` and `:set tw` print nothing and change nothing.
+fn bare_name_of_value_option_shows_it() {
+    // do_set_option(): a bare name of a number or string option shows it,
+    // as `:set fo?` does.
     let mut engine = VimEngine::new();
-    set(&mut engine, "set fo");
-    set(&mut engine, "set tw");
-    assert_eq!(engine.options().formatoptions(), "tcqj");
+    assert_eq!(query(&mut engine, "set fo"), "formatoptions=tcqj");
+    assert_eq!(query(&mut engine, "set tw"), "textwidth=0");
     assert_eq!(engine.options().textwidth(), 0);
 }
 
 #[test]
-fn bool_syntax_on_value_option_is_silent() {
-    // `no` and `!` on a number or string option print nothing and change
-    // nothing.
+fn bool_syntax_on_value_option_is_an_error() {
+    // do_set_option_value() refuses a `no` prefix on a number or string
+    // option; `!` shows the option and then finds trailing characters.
     let mut engine = VimEngine::new();
-    for command in ["set nofo", "set fo!", "set notw", "set tw!"] {
-        set(&mut engine, command);
-    }
+    assert_eq!(
+        error(&mut engine, "set nofo"),
+        "E474: Invalid argument: nofo"
+    );
+    assert_eq!(
+        error(&mut engine, "set notw"),
+        "E474: Invalid argument: notw"
+    );
+    assert_eq!(
+        run_ex(&mut engine, "set tw!"),
+        (
+            vec!["textwidth=0".to_owned()],
+            vec!["E488: Trailing characters: tw!".to_owned()]
+        )
+    );
     assert_eq!(engine.options().formatoptions(), "tcqj");
     assert_eq!(engine.options().textwidth(), 0);
 }
@@ -291,12 +303,12 @@ fn commentstring_has_no_short_name_or_query() {
     let mut engine = VimEngine::new();
     assert_eq!(
         error(&mut engine, "set cms=#%s"),
-        "E492: Not an editor command: Unknown option: cms"
+        "E518: Unknown option: cms=#%s"
     );
     assert_eq!(engine.options().commentstring(), "// %s");
     assert_eq!(
         error(&mut engine, "set commentstring?"),
-        "E492: Not an editor command: Unknown option: commentstring"
+        "E518: Unknown option: commentstring?"
     );
 }
 
@@ -398,10 +410,9 @@ fn number_operator_errors_match_vim() {
         error(&mut engine, "set tw+=x"),
         "E521: Number required after =: tw+=x"
     );
-    // A plain `=` parses a decimal number as before the operators.
     assert_eq!(
         error(&mut engine, "set tw=-1"),
-        "E492: Not an editor command: E521: Number required after =: tw=-1"
+        "E487: Argument must be positive: tw=-1"
     );
     assert_eq!(
         error(&mut engine, "set ai+=1"),
@@ -421,21 +432,30 @@ fn number_operator_accepts_vim_number_syntax() {
 }
 
 #[test]
-fn plain_number_assignment_is_decimal() {
-    // A plain `=` keeps parsing the way it did before the operators were
-    // added: `010` is ten and `0x8` is refused, so the default 4 stays.
-    let mut session = HostSession::new("abc");
-    feed(&mut session, ":set ts=010 et<CR>i<Tab><Esc>");
-    assert_eq!(session.text().to_string(), format!("{}abc", " ".repeat(10)));
-
-    let mut session = HostSession::new("abc");
-    feed(&mut session, ":set ts=0x8 et<CR>i<Tab><Esc>");
-    assert_eq!(session.text().to_string(), "    abc");
+fn plain_number_assignment_reads_vim_number_syntax() {
+    // do_set_option_numeric() reads `=` with vim_str2nr(): `010` is eight
+    // and `0x8` is eight.
+    for keys in [
+        ":set ts=010 et<CR>i<Tab><Esc>",
+        ":set ts=0x8 et<CR>i<Tab><Esc>",
+    ] {
+        let mut session = HostSession::new("abc");
+        feed(&mut session, keys);
+        assert_eq!(session.text().to_string(), format!("{}abc", " ".repeat(8)));
+    }
 
     let mut engine = VimEngine::new();
     assert_eq!(
-        error(&mut engine, "set ts=0x8"),
-        "E492: Not an editor command: E521: Number required after =: ts=0x8"
+        error(&mut engine, "set ts=0x"),
+        "E521: Number required after =: ts=0x"
+    );
+    assert_eq!(
+        error(&mut engine, "set ts=0"),
+        "E487: Argument must be positive: ts=0"
+    );
+    assert_eq!(
+        error(&mut engine, "set ts=10000"),
+        "E474: Invalid argument: ts=10000"
     );
     assert_eq!(engine.options().tabstop(), 4);
 }
@@ -492,14 +512,13 @@ fn set_arguments_split_as_before_operators() {
 
 #[test]
 fn backslash_space_in_a_number_value_splits_as_before() {
-    // `sw=2\` is refused as before the operators, and `ts=6` after it is
-    // still set.
+    // `sw=2\` is refused, and the error ends the `:set`.
     let mut engine = VimEngine::new();
     assert_eq!(
         error(&mut engine, r"set sw=2\ ts=6"),
-        "E492: Not an editor command: E521: Number required after =: sw=2\\"
+        "E521: Number required after =: sw=2\\"
     );
-    assert_eq!(engine.options().tabstop(), 6);
+    assert_eq!(engine.options().tabstop(), 4);
     assert_eq!(engine.options().shiftwidth(), 4);
 }
 

@@ -60,15 +60,14 @@ impl VimEngine {
         output: &mut executor_ex::ExExecutionOutput,
         doc_text: &str,
     ) -> Effects {
-        let mut effects = if output.set_assignments.is_empty() {
+        let mut effects = if output.set_commands.is_empty() {
             Effects::new()
         } else {
-            let effects = executor_ex::apply_set_assignments(
-                output.set_scope,
+            let effects = executor_ex::apply_set_commands(
                 &mut self.options,
                 &mut self.buffer_overrides,
                 &mut self.window_overrides,
-                &output.set_assignments,
+                &output.set_commands,
             );
             self.rebuild_resolved_cache();
             self.rebuild_langmap_if_needed();

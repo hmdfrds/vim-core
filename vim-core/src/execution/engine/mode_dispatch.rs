@@ -2764,13 +2764,12 @@ impl VimEngine {
                     output.effects.as_mut_slice(),
                 );
 
-                if !output.set_assignments.is_empty() {
-                    let set_efx = crate::execution::executor_ex::apply_set_assignments(
-                        output.set_scope,
+                if !output.set_commands.is_empty() {
+                    let set_efx = crate::execution::executor_ex::apply_set_commands(
                         &mut self.options,
                         &mut self.buffer_overrides,
                         &mut self.window_overrides,
-                        &output.set_assignments,
+                        &output.set_commands,
                     );
                     self.rebuild_resolved_cache();
                     self.rebuild_langmap_if_needed();

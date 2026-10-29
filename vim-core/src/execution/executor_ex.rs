@@ -23,7 +23,7 @@ use compact_str::CompactString;
 use smallvec::SmallVec;
 
 use super::script_expr;
-use super::set_operator::{apply_set_operator, SetOperator};
+use super::set_operator::{apply_set_operator, parse_vim_number, SetOperator};
 use super::shell_expand::expand_shell_tokens;
 use super::ExecutionContext;
 
@@ -139,10 +139,9 @@ pub(crate) struct ExExecutionOutput {
     pub effects: Effects,
     /// Host operations to execute outside core.
     pub host_requests: SmallVec<[HostRequest; 4]>,
-    /// Option mutations from `:set` (engine applies these to `VimOptions`).
-    pub set_assignments: SmallVec<[crate::grammar::types::SetAssignment; 2]>,
-    /// Scope for set assignments — controls which option layers are written.
-    pub set_scope: SetScope,
+    /// The `:set` commands, which the engine applies to its options in
+    /// order.
+    pub set_commands: SmallVec<[SetCommand; 1]>,
     /// Mapping mutations from `:map`/`:noremap`/`:unmap`.
     pub mapping_changes: SmallVec<[MappingChange; 1]>,
     /// Abbreviation mutations from `:abbreviate`/`:unabbreviate`/`:abclear`.
@@ -245,12 +244,24 @@ pub(crate) fn execute_ex_line<D: Document>(
     Ok(combined)
 }
 
+fn set_output(
+    scope: SetScope,
+    assignments: &SmallVec<[crate::grammar::types::SetAssignment; 2]>,
+) -> ExExecutionOutput {
+    ExExecutionOutput {
+        set_commands: smallvec::smallvec![SetCommand {
+            scope,
+            assignments: assignments.clone(),
+        }],
+        ..ExExecutionOutput::default()
+    }
+}
+
 /// Merge a pipeline step's output into the accumulated result.
 fn merge_output(target: &mut ExExecutionOutput, source: ExExecutionOutput) {
     target.effects.extend(source.effects);
     target.host_requests.extend(source.host_requests);
-    target.set_assignments.extend(source.set_assignments);
-    target.set_scope = source.set_scope;
+    target.set_commands.extend(source.set_commands);
     target.mapping_changes.extend(source.mapping_changes);
     target.abbrev_changes.extend(source.abbrev_changes);
     target.handler_changes.extend(source.handler_changes);
@@ -415,21 +426,9 @@ pub(crate) fn execute_ex_command<D: Document>(
             meta: sequencer.next_meta(),
             command: command.clone(),
         }),
-        ExCommand::Set { assignments } => Ok(ExExecutionOutput {
-            set_assignments: assignments.clone(),
-            set_scope: SetScope::Effective,
-            ..ExExecutionOutput::default()
-        }),
-        ExCommand::SetLocal { assignments } => Ok(ExExecutionOutput {
-            set_assignments: assignments.clone(),
-            set_scope: SetScope::Local,
-            ..ExExecutionOutput::default()
-        }),
-        ExCommand::SetGlobal { assignments } => Ok(ExExecutionOutput {
-            set_assignments: assignments.clone(),
-            set_scope: SetScope::Global,
-            ..ExExecutionOutput::default()
-        }),
+        ExCommand::Set { assignments } => Ok(set_output(SetScope::Effective, assignments)),
+        ExCommand::SetLocal { assignments } => Ok(set_output(SetScope::Local, assignments)),
+        ExCommand::SetGlobal { assignments } => Ok(set_output(SetScope::Global, assignments)),
         ExCommand::Registers { filter } => {
             let msg = format_registers(ctx.state.registers(), filter.as_deref());
             effects_only(Ok(ex_effects::show_message(msg.into())))
@@ -1091,6 +1090,36 @@ pub(crate) fn execute_repeat_substitute<D: Document>(
     }
 }
 
+/// The options of one `:set`, `:setlocal` or `:setglobal`.
+#[derive(Debug, Clone)]
+pub(crate) struct SetCommand {
+    /// The layers it writes.
+    pub scope: SetScope,
+    /// Its arguments, in order.
+    pub assignments: SmallVec<[crate::grammar::types::SetAssignment; 2]>,
+}
+
+/// Apply each command of `commands` in turn, as [`apply_set_assignments`]
+/// applies one.
+pub(crate) fn apply_set_commands(
+    global: &mut crate::primitives::VimOptions,
+    buffer_overrides: &mut OptionOverrides,
+    window_overrides: &mut OptionOverrides,
+    commands: &[SetCommand],
+) -> Effects {
+    let mut effects = Effects::new();
+    for command in commands {
+        effects.extend(apply_set_assignments(
+            command.scope,
+            global,
+            buffer_overrides,
+            window_overrides,
+            &command.assignments,
+        ));
+    }
+    effects
+}
+
 /// Apply `:set` assignments to engine options, routing writes through the
 /// correct scope layers.
 ///
@@ -1102,7 +1131,9 @@ pub(crate) fn execute_repeat_substitute<D: Document>(
 /// | `Local`       | global only   | local only            | local only     |
 /// | `Global`      | global only   | global only           | global only    |
 ///
-/// Returns `ShowMessage` / error effects from query / unknown-option assignments.
+/// As Vim's `do_set()` does, the first argument that fails ends the
+/// command: the ones before it stay applied, and its error follows the
+/// values the command showed.
 pub(crate) fn apply_set_assignments(
     scope: SetScope,
     global: &mut crate::primitives::VimOptions,
@@ -1110,182 +1141,314 @@ pub(crate) fn apply_set_assignments(
     window_overrides: &mut OptionOverrides,
     assignments: &[crate::grammar::types::SetAssignment],
 ) -> Effects {
-    use crate::grammar::types::SetAssignment;
-
+    let mut layers = SetLayers {
+        scope,
+        global,
+        buffer: buffer_overrides,
+        window: window_overrides,
+    };
     let mut messages = Vec::new();
-    let mut error_effects = Effects::new();
-
-    for assignment in assignments {
-        match assignment {
-            SetAssignment::ShowAll => {
-                messages.push(format_all_options(global));
-            }
-            SetAssignment::Query(name) => {
-                if let Some(val) = query_option(global, name) {
-                    messages.push(val);
-                } else {
-                    error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                        format!("Unknown option: {name}").into(),
-                    )));
-                }
-            }
-            SetAssignment::SetBool(name) => {
-                // The parser now emits UnsetBool for "no"-prefixed names, so
-                // SetBool always means "turn on". Legacy fallback retained for
-                // safety: if a SetBool("noX") somehow arrives, resolve it here.
-                let (canonical, value) = if let Some(stripped) = name.strip_prefix("no") {
-                    if is_known_bool_option(stripped) {
-                        (stripped, false)
-                    } else {
-                        (name.as_str(), true)
-                    }
-                } else {
-                    (name.as_str(), true)
-                };
-
-                if let Some(id) = option_name_to_id(canonical) {
-                    apply_bool_with_scope(
-                        scope,
-                        id,
-                        value,
-                        global,
-                        buffer_overrides,
-                        window_overrides,
-                    );
-                } else {
-                    error_effects.extend(set_bool_option(global, canonical, value));
-                }
-            }
-            SetAssignment::UnsetBool(name) => {
-                if let Some(id) = option_name_to_id(name) {
-                    apply_bool_with_scope(
-                        scope,
-                        id,
-                        false,
-                        global,
-                        buffer_overrides,
-                        window_overrides,
-                    );
-                } else {
-                    error_effects.extend(set_bool_option(global, name, false));
-                }
-            }
-            SetAssignment::ToggleBool(name) => {
-                if let Some(id) = option_name_to_id(name) {
-                    // Read the *effective* value (not just global) so that
-                    // toggling respects local overrides.
-                    let current = match crate::primitives::resolve_option(
-                        id,
-                        global,
-                        Some(buffer_overrides),
-                        Some(window_overrides),
-                    ) {
-                        OptionValue::Bool(v) => v,
-                        _ => false,
-                    };
-                    apply_bool_with_scope(
-                        scope,
-                        id,
-                        !current,
-                        global,
-                        buffer_overrides,
-                        window_overrides,
-                    );
-                } else {
-                    error_effects.extend(toggle_bool_option(global, name));
-                }
-            }
-            SetAssignment::Append(name, value)
-            | SetAssignment::Remove(name, value)
-            | SetAssignment::Prepend(name, value) => {
-                let op = match assignment {
-                    SetAssignment::Append(..) => SetOperator::Append,
-                    SetAssignment::Remove(..) => SetOperator::Remove,
-                    _ => SetOperator::Prepend,
-                };
-                let arg = format!("{name}{}{value}", op.symbol());
-                if let Some(id) = option_name_to_id(name) {
-                    // `:setglobal` works from the global value; `:set` and
-                    // `:setlocal` from the effective one, and `:set` then
-                    // writes the result to both layers, as in Vim.
-                    let global_value = global.get_option(id);
-                    let local_value = crate::primitives::resolve_option(
-                        id,
-                        global,
-                        Some(buffer_overrides),
-                        Some(window_overrides),
-                    );
-                    // A bare name can leave a boolean in the local layer of
-                    // a number or string option. The value in use is then
-                    // the global one, as in the resolved options.
-                    let base = if scope == SetScope::Global
-                        || std::mem::discriminant(&local_value)
-                            != std::mem::discriminant(&global_value)
-                    {
-                        global_value
-                    } else {
-                        local_value
-                    };
-                    let result =
-                        apply_set_operator(id.kind(), id == OptionId::WhichWrap, &base, op, value)
-                            .map_err(str::to_owned)
-                            .and_then(|new| match new {
-                                OptionValue::Str(s) => {
-                                    validate_string_value(id, &s).map(OptionValue::Str)
-                                }
-                                // Vim keeps 'tabstop' within 1..=9999.
-                                OptionValue::Unsigned(0) if id == OptionId::TabStop => {
-                                    Err("E487: Argument must be positive".to_owned())
-                                }
-                                OptionValue::Unsigned(n) if id == OptionId::TabStop && n > 9999 => {
-                                    Err("E474: Invalid argument".to_owned())
-                                }
-                                other => Ok(other),
-                            });
-                    match result {
-                        Ok(new) => apply_value_with_scope(
-                            scope,
-                            id,
-                            new,
-                            global,
-                            buffer_overrides,
-                            window_overrides,
-                        ),
-                        Err(msg) => error_effects.extend(set_error(&msg, &arg)),
-                    }
-                } else {
-                    error_effects.extend(apply_operator_by_name(global, name, op, value, &arg));
-                }
-            }
-            SetAssignment::Assign(name, value) => {
-                if let Some(id) = option_name_to_id(name) {
-                    // Build the OptionValue by parsing through the existing helper on a temp
-                    // copy, then extract the result. Simpler: parse directly.
-                    let opt_value = parse_option_value(id, name, value, &mut error_effects);
-                    if let Some(opt_value) = opt_value {
-                        apply_value_with_scope(
-                            scope,
-                            id,
-                            opt_value,
-                            global,
-                            buffer_overrides,
-                            window_overrides,
-                        );
-                    }
-                } else {
-                    error_effects.extend(assign_option(global, name, value));
-                }
-            }
-        }
-    }
-
+    let failed = assignments
+        .iter()
+        .find_map(|assignment| layers.apply(assignment, &mut messages).err());
     let mut effects = if messages.is_empty() {
         Effects::new()
     } else {
         ex_effects::show_message(messages.join("\n").into())
     };
-    effects.extend(error_effects);
+    if let Some(error) = failed {
+        effects.extend(ex_effects::show_error(error));
+    }
     effects
+}
+
+/// What `:set` writes: the layers of one command.
+struct SetLayers<'a> {
+    scope: SetScope,
+    global: &'a mut crate::primitives::VimOptions,
+    buffer: &'a mut OptionOverrides,
+    window: &'a mut OptionOverrides,
+}
+
+/// The type of an option as `:set` reads its arguments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SetKind {
+    Bool,
+    Number,
+    Text,
+}
+
+/// The type of the option `:set` knows by `name`, long or short.
+fn set_kind(options: &crate::primitives::VimOptions, name: &str) -> Option<SetKind> {
+    use crate::primitives::OptionKind;
+    if let Some((_, value)) = option_value(options, name) {
+        return Some(match value {
+            OptionValue::Bool(_) => SetKind::Bool,
+            OptionValue::Unsigned(_) | OptionValue::Signed(_) => SetKind::Number,
+            OptionValue::Str(_) => SetKind::Text,
+        });
+    }
+    option_name_to_id(name).map(|id| match id.kind() {
+        OptionKind::Bool => SetKind::Bool,
+        OptionKind::Number => SetKind::Number,
+        _ => SetKind::Text,
+    })
+}
+
+/// The id `:set` writes an option through. 'belloff' is a string to
+/// `:set` but a flag to the engine, so it goes by name.
+fn set_id(name: &str) -> Option<OptionId> {
+    option_name_to_id(name).filter(|&id| id != OptionId::BellOff)
+}
+
+/// The name after a `no` or `inv` prefix, as `get_option_prefix()` reads
+/// it.
+fn strip_set_prefix(name: &str) -> Option<&str> {
+    if name.starts_with("novice") {
+        return None;
+    }
+    name.strip_prefix("no").or_else(|| name.strip_prefix("inv"))
+}
+
+/// The argument an assignment was written as, for its error.
+fn set_argument(assignment: &crate::grammar::types::SetAssignment) -> String {
+    use crate::grammar::types::SetAssignment as A;
+    match assignment {
+        A::ShowAll => "all".to_owned(),
+        A::SetBool(name) => name.to_string(),
+        A::UnsetBool(name) => format!("no{name}"),
+        A::ToggleBool(name) => format!("{name}!"),
+        A::Query(name) => format!("{name}?"),
+        A::Assign(name, value) => format!("{name}={value}"),
+        A::Append(name, value) => format!("{name}+={value}"),
+        A::Remove(name, value) => format!("{name}-={value}"),
+        A::Prepend(name, value) => format!("{name}^={value}"),
+    }
+}
+
+/// A `:set` error in Vim's format: the message, then the argument as
+/// written (`E539: Illegal character <Z>: fo+=Z`).
+fn set_error(message: &str, argument: &str) -> VimError {
+    VimError::OptionValue(format!("{message}: {argument}").into())
+}
+
+impl SetLayers<'_> {
+    /// Apply one argument, as Vim's `do_set_option()` does.
+    fn apply(
+        &mut self,
+        assignment: &crate::grammar::types::SetAssignment,
+        messages: &mut Vec<String>,
+    ) -> Result<(), VimError> {
+        use crate::grammar::types::SetAssignment as A;
+        let argument = || set_argument(assignment);
+        let unknown = || VimError::UnknownOptionArgument(argument().into());
+        let invalid = || set_error("E474: Invalid argument", &argument());
+        match assignment {
+            A::ShowAll => {
+                messages.push(format_all_options(self.global));
+                Ok(())
+            }
+            A::SetBool(name) => match set_kind(self.global, name).ok_or_else(unknown)? {
+                SetKind::Bool => {
+                    self.set_bool(name, true);
+                    Ok(())
+                }
+                // A bare name of a number or string option shows it.
+                _ => self.show(name, messages).ok_or_else(unknown),
+            },
+            A::UnsetBool(name) => match set_kind(self.global, name).ok_or_else(unknown)? {
+                SetKind::Bool => {
+                    self.set_bool(name, false);
+                    Ok(())
+                }
+                _ => Err(invalid()),
+            },
+            A::ToggleBool(name) => {
+                let (name, prefixed) = self.resolve(name).ok_or_else(unknown)?;
+                match set_kind(self.global, name) {
+                    Some(SetKind::Bool) => {
+                        self.toggle_bool(name);
+                        Ok(())
+                    }
+                    _ if prefixed => Err(invalid()),
+                    // `:set tw!` shows 'textwidth', then finds the `!`.
+                    _ => {
+                        self.show(name, messages).ok_or_else(unknown)?;
+                        Err(VimError::TrailingCharacters(argument().into()))
+                    }
+                }
+            }
+            A::Query(name) => {
+                let (name, _) = self.resolve(name).ok_or_else(unknown)?;
+                self.show(name, messages).ok_or_else(unknown)
+            }
+            A::Assign(name, value) => match self.value_kind(name, &argument)? {
+                SetKind::Bool => Err(invalid()),
+                SetKind::Number => {
+                    let n = parse_vim_number(value)
+                        .ok_or_else(|| set_error("E521: Number required after =", &argument()))?;
+                    self.set_number(name, n)
+                        .map_err(|message| set_error(message, &argument()))
+                }
+                SetKind::Text => self
+                    .set_text(name, value)
+                    .map_err(|message| set_error(&message, &argument())),
+            },
+            A::Append(name, value) | A::Remove(name, value) | A::Prepend(name, value) => {
+                let op = match assignment {
+                    A::Append(..) => SetOperator::Append,
+                    A::Remove(..) => SetOperator::Remove,
+                    _ => SetOperator::Prepend,
+                };
+                self.value_kind(name, &argument)?;
+                self.apply_operator(name, op, value)
+                    .map_err(|message| set_error(&message, &argument()))
+            }
+        }
+    }
+
+    /// The name `:set` knows, and whether a `no` or `inv` prefix came off
+    /// it, which `?` and `!` ignore.
+    fn resolve<'n>(&self, name: &'n str) -> Option<(&'n str, bool)> {
+        if set_kind(self.global, name).is_some() {
+            return Some((name, false));
+        }
+        strip_set_prefix(name)
+            .filter(|stripped| set_kind(self.global, stripped).is_some())
+            .map(|stripped| (stripped, true))
+    }
+
+    /// The type of the option an operator or `=` sets: E474 for a `no` or
+    /// `inv` prefix, which takes no value, and E518 for no such option.
+    fn value_kind(&self, name: &str, argument: &dyn Fn() -> String) -> Result<SetKind, VimError> {
+        if let Some(kind) = set_kind(self.global, name) {
+            return Ok(kind);
+        }
+        if strip_set_prefix(name).is_some_and(|stripped| set_kind(self.global, stripped).is_some())
+        {
+            return Err(set_error("E474: Invalid argument", &argument()));
+        }
+        Err(VimError::UnknownOptionArgument(argument().into()))
+    }
+
+    /// Show an option as `:set name?` does; `None` for one `:set` cannot
+    /// show.
+    fn show(&self, name: &str, messages: &mut Vec<String>) -> Option<()> {
+        messages.push(query_option(self.global, name)?);
+        Some(())
+    }
+
+    fn set_bool(&mut self, name: &str, value: bool) {
+        match set_id(name) {
+            Some(id) => self.write(id, OptionValue::Bool(value)),
+            None => {
+                set_bool_option(self.global, name, value);
+            }
+        }
+    }
+
+    fn toggle_bool(&mut self, name: &str) {
+        let Some(id) = set_id(name) else {
+            toggle_bool_option(self.global, name);
+            return;
+        };
+        // The value in use, so that toggling respects local overrides.
+        let current = matches!(
+            crate::primitives::resolve_option(
+                id,
+                self.global,
+                Some(self.buffer),
+                Some(self.window)
+            ),
+            OptionValue::Bool(true)
+        );
+        self.write(id, OptionValue::Bool(!current));
+    }
+
+    /// Set a number option from `=`, as `do_set_option_numeric()` and
+    /// the option's own check take it.
+    fn set_number(&mut self, name: &str, n: i64) -> Result<(), &'static str> {
+        let Some(id) = set_id(name) else {
+            let n = usize::try_from(n).map_err(|_| "E487: Argument must be positive")?;
+            return assign_option(self.global, name, &n.to_string());
+        };
+        let value = number_option_value(id, &self.global.get_option(id), n)?;
+        self.write(id, value);
+        Ok(())
+    }
+
+    /// Set a string option from `=`.
+    fn set_text(&mut self, name: &str, value: &str) -> Result<(), String> {
+        match set_id(name) {
+            Some(id) => {
+                let value = validate_string_value(id, value)?;
+                self.write(id, OptionValue::Str(value));
+                Ok(())
+            }
+            None => assign_option(self.global, name, value).map_err(str::to_owned),
+        }
+    }
+
+    /// Apply `+=`, `-=` or `^=`. Returns Vim's message without the
+    /// argument.
+    fn apply_operator(&mut self, name: &str, op: SetOperator, value: &str) -> Result<(), String> {
+        let Some(id) = set_id(name) else {
+            return apply_operator_by_name(self.global, name, op, value).map_err(str::to_owned);
+        };
+        // `:setglobal` works from the global value; `:set` and `:setlocal`
+        // from the effective one, and `:set` then writes the result to both
+        // layers, as in Vim.
+        let global_value = self.global.get_option(id);
+        let local_value = crate::primitives::resolve_option(
+            id,
+            self.global,
+            Some(self.buffer),
+            Some(self.window),
+        );
+        // A local layer that holds another type is not the value in use,
+        // as in the resolved options.
+        let base = if self.scope == SetScope::Global
+            || std::mem::discriminant(&local_value) != std::mem::discriminant(&global_value)
+        {
+            global_value
+        } else {
+            local_value
+        };
+        let new = apply_set_operator(id.kind(), id == OptionId::WhichWrap, &base, op, value)
+            .map_err(str::to_owned)?;
+        let new = match new {
+            OptionValue::Str(s) => OptionValue::Str(validate_string_value(id, &s)?),
+            OptionValue::Unsigned(n) => {
+                number_option_value(id, &base, i64::try_from(n).unwrap_or(i64::MAX))?
+            }
+            other => other,
+        };
+        self.write(id, new);
+        Ok(())
+    }
+
+    fn write(&mut self, id: OptionId, value: OptionValue) {
+        apply_value_with_scope(self.scope, id, value, self.global, self.buffer, self.window);
+    }
+}
+
+/// `n` as the value of the number option `id`, whose value now is `like`:
+/// E487 for a negative value of an option that takes none, and Vim's
+/// range of 'tabstop', 1 to 9999 (`check_num_option_bounds()`).
+fn number_option_value(
+    id: OptionId,
+    like: &OptionValue,
+    n: i64,
+) -> Result<OptionValue, &'static str> {
+    if let OptionValue::Signed(_) = like {
+        return Ok(OptionValue::Signed(n));
+    }
+    let n = usize::try_from(n).map_err(|_| "E487: Argument must be positive")?;
+    match n {
+        0 if id == OptionId::TabStop => Err("E487: Argument must be positive"),
+        10_000.. if id == OptionId::TabStop => Err("E474: Invalid argument"),
+        n => Ok(OptionValue::Unsigned(n)),
+    }
 }
 
 /// `:let mapleader = {expr}`: the value of the expression, as `ex_let()`
@@ -1323,66 +1486,6 @@ fn let_leader<D: Document>(
     })
 }
 
-/// Parse a string value into an [`OptionValue`] for the given option id.
-///
-/// Emits error effects for parse failures. Returns `None` on failure.
-fn parse_option_value(
-    id: OptionId,
-    name: &str,
-    value: &str,
-    error_effects: &mut Effects,
-) -> Option<OptionValue> {
-    // Determine the value type from the global default.
-    let dummy = crate::primitives::VimOptions::default();
-    match dummy.get_option(id) {
-        OptionValue::Bool(_) => {
-            // Bool options shouldn't arrive as Assign, but handle gracefully.
-            match value {
-                "1" | "true" | "on" => Some(OptionValue::Bool(true)),
-                "0" | "false" | "off" => Some(OptionValue::Bool(false)),
-                _ => {
-                    error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                        format!("Invalid boolean value for {name}: {value}").into(),
-                    )));
-                    None
-                }
-            }
-        }
-        // A plain `=` parses a decimal number only. Vim's number syntax
-        // (`0x10`, `010`) applies to the `+=`, `-=` and `^=` operators.
-        OptionValue::Unsigned(_) => {
-            if let Ok(v) = value.parse::<usize>() {
-                Some(OptionValue::Unsigned(v))
-            } else {
-                error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                    format!("E521: Number required after =: {name}={value}").into(),
-                )));
-                None
-            }
-        }
-        OptionValue::Signed(_) => {
-            // undolevels: -1 means unlimited
-            if let Ok(v) = value.parse::<i64>() {
-                Some(OptionValue::Signed(v))
-            } else {
-                error_effects.extend(Effects::new().show_error(VimError::NotEditorCommand(
-                    format!("E521: Number required after =: {name}={value}").into(),
-                )));
-                None
-            }
-        }
-        // `formatoptions` and `comments` are checked like Vim does; every
-        // other string is stored as given.
-        OptionValue::Str(_) => match validate_string_value(id, value) {
-            Ok(v) => Some(OptionValue::Str(v)),
-            Err(msg) => {
-                error_effects.extend(set_error(&msg, &format!("{name}={value}")));
-                None
-            }
-        },
-    }
-}
-
 /// Check a new string value the way Vim's per-option check does, and
 /// normalize it the way Vim stores it.
 ///
@@ -1403,70 +1506,28 @@ fn validate_string_value(id: OptionId, value: &str) -> Result<CompactString, Str
     }
 }
 
-/// An error effect in Vim's `:set` format: the message, then the argument
-/// as typed (`E539: Illegal character <Z>: fo+=Z`).
-fn set_error(message: &str, arg: &str) -> Effects {
-    Effects::new().show_error(VimError::OptionValue(format!("{message}: {arg}").into()))
-}
-
 /// Apply a `:set` operator to an option that has no [`OptionId`] and lives
-/// only in the global layer (`langmap`, `multilinefindrange`).
+/// only in the global layer (`langmap`, `multilinefindrange`, 'belloff').
+/// Returns Vim's message without the argument.
 fn apply_operator_by_name(
     options: &mut crate::primitives::VimOptions,
     name: &str,
     op: SetOperator,
     value: &str,
-    arg: &str,
-) -> Effects {
+) -> Result<(), &'static str> {
     use crate::primitives::OptionKind;
 
-    let Some(current) = query_option(options, name) else {
-        return Effects::new().show_error(VimError::NotEditorCommand(
-            format!("Unknown option: {name}").into(),
-        ));
+    let (kind, base) = match option_value(options, name) {
+        Some((_, OptionValue::Unsigned(n))) => (OptionKind::Number, OptionValue::Unsigned(n)),
+        Some((_, OptionValue::Str(s))) => (OptionKind::CommaList, OptionValue::Str(s)),
+        Some(_) => return Err("E474: Invalid argument"),
+        None => return Err("E518: Unknown option"),
     };
-    // A boolean shows as `name` or `noname`, with no `=`.
-    let Some((_, current_value)) = current.split_once('=') else {
-        return set_error("E474: Invalid argument", arg);
-    };
-    let (kind, base) = match current_value.parse::<usize>() {
-        Ok(n) => (OptionKind::Number, OptionValue::Unsigned(n)),
-        Err(_) => (
-            OptionKind::CommaList,
-            OptionValue::Str(CompactString::from(current_value)),
-        ),
-    };
-    match apply_set_operator(kind, false, &base, op, value) {
-        Ok(OptionValue::Unsigned(n)) => assign_option(options, name, &n.to_string()),
-        Ok(OptionValue::Str(s)) => assign_option(options, name, &s),
-        Ok(_) => Effects::new(),
-        Err(msg) => set_error(msg, arg),
+    match apply_set_operator(kind, false, &base, op, value)? {
+        OptionValue::Unsigned(n) => assign_option(options, name, &n.to_string()),
+        OptionValue::Str(s) => assign_option(options, name, &s),
+        _ => Ok(()),
     }
-}
-
-/// Write a boolean option value through the correct scope layers.
-fn apply_bool_with_scope(
-    scope: SetScope,
-    id: OptionId,
-    value: bool,
-    global: &mut crate::primitives::VimOptions,
-    buffer_overrides: &mut OptionOverrides,
-    window_overrides: &mut OptionOverrides,
-) {
-    // A bare name, `no`, `!` or `inv` never changes 'formatoptions' or
-    // 'comments' in Vim; writing a boolean would hide their value.
-    if matches!(id, OptionId::FormatOptions | OptionId::Comments) {
-        return;
-    }
-    let opt_value = OptionValue::Bool(value);
-    apply_value_with_scope(
-        scope,
-        id,
-        opt_value,
-        global,
-        buffer_overrides,
-        window_overrides,
-    );
 }
 
 /// Write an option value through the correct scope layers.
@@ -1609,248 +1670,84 @@ fn format_bool(name: &str, value: bool) -> String {
     }
 }
 
-fn is_known_bool_option(name: &str) -> bool {
-    matches!(
-        name,
-        "expandtab"
-            | "et"
-            | "autoindent"
-            | "ai"
-            | "smartindent"
-            | "si"
-            | "ignorecase"
-            | "ic"
-            | "smartcase"
-            | "scs"
-            | "hlsearch"
-            | "hls"
-            | "incsearch"
-            | "is"
-            | "wrapscan"
-            | "ws"
-            | "number"
-            | "nu"
-            | "relativenumber"
-            | "rnu"
-            | "gdefault"
-            | "gd"
-            | "visualstar"
-            | "langremap"
-            | "lrm"
-            | "multilinefind"
-            | "mlf"
-    )
+/// Set a boolean option `:set` knows only by name. Returns `false` for a
+/// name it does not know.
+fn set_bool_option(options: &mut crate::primitives::VimOptions, name: &str, value: bool) -> bool {
+    match name {
+        "expandtab" | "et" => options.set_expandtab(value),
+        "autoindent" | "ai" => options.set_autoindent(value),
+        "smartindent" | "si" => options.set_smartindent(value),
+        "ignorecase" | "ic" => options.set_ignorecase(value),
+        "smartcase" | "scs" => options.set_smartcase(value),
+        "hlsearch" | "hls" => options.set_hlsearch(value),
+        "incsearch" | "is" => options.set_incsearch(value),
+        "wrapscan" | "ws" => options.set_wrapscan(value),
+        "number" | "nu" => options.set_number(value),
+        "relativenumber" | "rnu" => options.set_relativenumber(value),
+        "gdefault" | "gd" => options.set_gdefault(value),
+        "visualstar" => options.set_visualstar(value),
+        "langremap" | "lrm" => options.set_langremap(value),
+        "multilinefind" | "mlf" => options.set_multiline_find(value),
+        _ => return false,
+    }
+    true
 }
 
-fn set_bool_option(
+/// Invert a boolean option `:set` knows only by name. Returns `false` for
+/// a name it does not know.
+fn toggle_bool_option(options: &mut crate::primitives::VimOptions, name: &str) -> bool {
+    match option_value(options, name) {
+        Some((_, OptionValue::Bool(current))) => set_bool_option(options, name, !current),
+        _ => false,
+    }
+}
+
+/// Set an option `:set` knows only by name from the text of `=`. Returns
+/// Vim's message without the argument.
+fn assign_option(
     options: &mut crate::primitives::VimOptions,
     name: &str,
-    value: bool,
-) -> Effects {
+    value: &str,
+) -> Result<(), &'static str> {
+    const NUMBER_REQUIRED: &str = "E521: Number required after =";
+    let number = || value.parse::<usize>().map_err(|_| NUMBER_REQUIRED);
+    let signed = || value.parse::<i64>().map_err(|_| NUMBER_REQUIRED);
     match name {
-        "expandtab" | "et" => {
-            options.set_expandtab(value);
-            Effects::new()
+        "tabstop" | "ts" => options.set_tabstop(number()?),
+        "shiftwidth" | "sw" => options.set_shiftwidth(number()?),
+        "scrolloff" | "so" => options.set_scrolloff(number()?),
+        "sidescrolloff" | "siso" => options.set_sidescrolloff(number()?),
+        "textwidth" | "tw" => options.set_textwidth(number()?),
+        "timeoutlen" | "tm" => {
+            options.set_timeoutlen_ms(value.parse::<u32>().map_err(|_| NUMBER_REQUIRED)?);
         }
-        "autoindent" | "ai" => {
-            options.set_autoindent(value);
-            Effects::new()
+        // -1 means no limit, and undo groups by time are off.
+        "undolevels" | "ul" => options.set_undolevels(usize::try_from(signed()?).ok()),
+        "undoautogroupms" | "uagm" => {
+            let ms = signed()?;
+            options
+                .set_undo_auto_group_ms((ms >= 0).then(|| u32::try_from(ms).unwrap_or(u32::MAX)));
         }
-        "smartindent" | "si" => {
-            options.set_smartindent(value);
-            Effects::new()
+        "whichwrap" | "ww" => options.set_whichwrap(value),
+        "backspace" | "bs" => options.set_backspace(value),
+        "virtualedit" | "ve" => options.set_virtualedit(value),
+        "selection" | "sel" => options.set_selection(value),
+        "clipboard" | "cb" => options.set_clipboard(value),
+        "iskeyword" | "isk" => options.set_iskeyword(value),
+        "inccommand" | "icm" => options.set_inccommand(value),
+        "langmap" | "lmap" => options.set_langmap(value),
+        "multilinefindrange" | "mlfr" => options.set_multiline_find_range(number()?),
+        "softtabstop" | "sts" => {
+            options.set_softtabstop(value.parse::<i32>().map_err(|_| NUMBER_REQUIRED)?);
         }
-        "ignorecase" | "ic" => {
-            options.set_ignorecase(value);
-            Effects::new()
-        }
-        "smartcase" | "scs" => {
-            options.set_smartcase(value);
-            Effects::new()
-        }
-        "hlsearch" | "hls" => {
-            options.set_hlsearch(value);
-            Effects::new()
-        }
-        "incsearch" | "is" => {
-            options.set_incsearch(value);
-            Effects::new()
-        }
-        "wrapscan" | "ws" => {
-            options.set_wrapscan(value);
-            Effects::new()
-        }
-        "number" | "nu" => {
-            options.set_number(value);
-            Effects::new()
-        }
-        "relativenumber" | "rnu" => {
-            options.set_relativenumber(value);
-            Effects::new()
-        }
-        "gdefault" | "gd" => {
-            options.set_gdefault(value);
-            Effects::new()
-        }
-        "visualstar" => {
-            options.set_visualstar(value);
-            Effects::new()
-        }
-        "langremap" | "lrm" => {
-            options.set_langremap(value);
-            Effects::new()
-        }
-        "multilinefind" | "mlf" => {
-            options.set_multiline_find(value);
-            Effects::new()
-        }
-        _ => Effects::new().show_error(VimError::NotEditorCommand(
-            format!("Unknown option: {name}").into(),
-        )),
-    }
-}
-
-fn toggle_bool_option(options: &mut crate::primitives::VimOptions, name: &str) -> Effects {
-    let current = match name {
-        "expandtab" | "et" => Some(options.expandtab()),
-        "autoindent" | "ai" => Some(options.autoindent()),
-        "smartindent" | "si" => Some(options.smartindent()),
-        "ignorecase" | "ic" => Some(options.ignorecase()),
-        "smartcase" | "scs" => Some(options.smartcase()),
-        "hlsearch" | "hls" => Some(options.hlsearch()),
-        "incsearch" | "is" => Some(options.incsearch()),
-        "wrapscan" | "ws" => Some(options.wrapscan()),
-        "number" | "nu" => Some(options.number()),
-        "relativenumber" | "rnu" => Some(options.relativenumber()),
-        "gdefault" | "gd" => Some(options.gdefault()),
-        "visualstar" => Some(options.visualstar()),
-        "langremap" | "lrm" => Some(options.langremap()),
-        "multilinefind" | "mlf" => Some(options.multiline_find()),
-        _ => None,
-    };
-    match current {
-        Some(v) => set_bool_option(options, name, !v),
-        None => Effects::new().show_error(VimError::NotEditorCommand(
-            format!("Unknown option: {name}").into(),
-        )),
-    }
-}
-
-fn number_required_error(name: &str, value: &str) -> Effects {
-    Effects::new().show_error(VimError::NotEditorCommand(
-        format!("E521: Number required after =: {name}={value}").into(),
-    ))
-}
-
-fn assign_option(options: &mut crate::primitives::VimOptions, name: &str, value: &str) -> Effects {
-    /// Set a numeric (`usize`) option, returning error effects on parse failure.
-    macro_rules! set_num {
-        ($setter:ident) => {
-            match value.parse::<usize>() {
-                Ok(v) => {
-                    options.$setter(v);
-                    Effects::new()
-                }
-                Err(_) => number_required_error(name, value),
-            }
-        };
-    }
-    match name {
-        "tabstop" | "ts" => set_num!(set_tabstop),
-        "shiftwidth" | "sw" => set_num!(set_shiftwidth),
-        "scrolloff" | "so" => set_num!(set_scrolloff),
-        "sidescrolloff" | "siso" => set_num!(set_sidescrolloff),
-        "textwidth" | "tw" => set_num!(set_textwidth),
-        "timeoutlen" | "tm" => match value.parse::<u32>() {
-            Ok(v) => {
-                options.set_timeoutlen_ms(v);
-                Effects::new()
-            }
-            Err(_) => number_required_error(name, value),
-        },
-        "undolevels" | "ul" => {
-            // Vim uses -1 to mean "unlimited". We map negative → None, >=0 → Some(n).
-            match value.parse::<i64>() {
-                Ok(v) if v < 0 => {
-                    options.set_undolevels(None);
-                    Effects::new()
-                }
-                Ok(v) => {
-                    options.set_undolevels(Some(usize::try_from(v).unwrap_or(usize::MAX)));
-                    Effects::new()
-                }
-                Err(_) => number_required_error(name, value),
-            }
-        }
-        "undoautogroupms" | "uagm" => match value.parse::<i64>() {
-            Ok(v) if v < 0 => {
-                options.set_undo_auto_group_ms(None);
-                Effects::new()
-            }
-            Ok(v) => {
-                let ms = u32::try_from(v).unwrap_or(u32::MAX);
-                options.set_undo_auto_group_ms(Some(ms));
-                Effects::new()
-            }
-            Err(_) => number_required_error(name, value),
-        },
-        "whichwrap" | "ww" => {
-            options.set_whichwrap(value);
-            Effects::new()
-        }
-        "backspace" | "bs" => {
-            options.set_backspace(value);
-            Effects::new()
-        }
-        "virtualedit" | "ve" => {
-            options.set_virtualedit(value);
-            Effects::new()
-        }
-        "selection" | "sel" => {
-            options.set_selection(value);
-            Effects::new()
-        }
-        "clipboard" | "cb" => {
-            options.set_clipboard(value);
-            Effects::new()
-        }
-        "iskeyword" | "isk" => {
-            options.set_iskeyword(value);
-            Effects::new()
-        }
-        "inccommand" | "icm" => {
-            options.set_inccommand(value);
-            Effects::new()
-        }
-        "langmap" | "lmap" => {
-            options.set_langmap(value);
-            Effects::new()
-        }
-        "multilinefindrange" | "mlfr" => set_num!(set_multiline_find_range),
-        "softtabstop" | "sts" => match value.parse::<i32>() {
-            Ok(v) => {
-                options.set_softtabstop(v);
-                Effects::new()
-            }
-            Err(_) => number_required_error(name, value),
-        },
         "belloff" | "bo" => match value {
-            "" => {
-                options.set_belloff(false);
-                Effects::new()
-            }
-            "all" => {
-                options.set_belloff(true);
-                Effects::new()
-            }
-            _ => Effects::new().show_error(VimError::NotEditorCommand(
-                format!("E474: Invalid argument: belloff={value}").into(),
-            )),
+            "" => options.set_belloff(false),
+            "all" => options.set_belloff(true),
+            _ => return Err("E474: Invalid argument"),
         },
-        _ => Effects::new().show_error(VimError::NotEditorCommand(
-            format!("Unknown option: {name}").into(),
-        )),
+        _ => return Err("E518: Unknown option"),
     }
+    Ok(())
 }
 
 fn format_all_options(options: &crate::primitives::VimOptions) -> String {
@@ -2362,46 +2259,6 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // is_known_bool_option
-    // ═══════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn known_bool_option_expandtab() {
-        assert!(is_known_bool_option("expandtab"));
-    }
-
-    #[test]
-    fn known_bool_option_short_form_et() {
-        assert!(is_known_bool_option("et"));
-    }
-
-    #[test]
-    fn known_bool_option_ignorecase() {
-        assert!(is_known_bool_option("ignorecase"));
-    }
-
-    #[test]
-    fn known_bool_option_short_form_ic() {
-        assert!(is_known_bool_option("ic"));
-    }
-
-    #[test]
-    fn unknown_bool_option_tabstop() {
-        // tabstop is numeric, not boolean
-        assert!(!is_known_bool_option("tabstop"));
-    }
-
-    #[test]
-    fn unknown_bool_option_shiftwidth() {
-        assert!(!is_known_bool_option("shiftwidth"));
-    }
-
-    #[test]
-    fn unknown_bool_option_arbitrary() {
-        assert!(!is_known_bool_option("nonexistent"));
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
     // option_name_to_id
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -2733,26 +2590,22 @@ mod tests {
     #[test]
     fn set_bool_option_expandtab_true() {
         let mut opts = crate::primitives::VimOptions::default();
-        let effects = set_bool_option(&mut opts, "expandtab", true);
+        assert!(set_bool_option(&mut opts, "expandtab", true));
         assert!(opts.expandtab());
-        assert!(effects.as_slice().is_empty());
     }
 
     #[test]
     fn set_bool_option_expandtab_false() {
         let mut opts = crate::primitives::VimOptions::default();
         opts.set_expandtab(true);
-        let effects = set_bool_option(&mut opts, "expandtab", false);
+        assert!(set_bool_option(&mut opts, "expandtab", false));
         assert!(!opts.expandtab());
-        assert!(effects.as_slice().is_empty());
     }
 
     #[test]
-    fn set_bool_option_unknown_returns_error() {
+    fn set_bool_option_unknown_is_refused() {
         let mut opts = crate::primitives::VimOptions::default();
-        let effects = set_bool_option(&mut opts, "nonexistent", true);
-        // Should produce an error effect
-        assert!(!effects.as_slice().is_empty());
+        assert!(!set_bool_option(&mut opts, "nonexistent", true));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2762,31 +2615,32 @@ mod tests {
     #[test]
     fn assign_option_tabstop_valid() {
         let mut opts = crate::primitives::VimOptions::default();
-        let effects = assign_option(&mut opts, "tabstop", "4");
+        assert_eq!(assign_option(&mut opts, "tabstop", "4"), Ok(()));
         assert_eq!(opts.tabstop(), 4);
-        assert!(effects.as_slice().is_empty());
     }
 
     #[test]
     fn assign_option_tabstop_invalid() {
         let mut opts = crate::primitives::VimOptions::default();
-        let effects = assign_option(&mut opts, "tabstop", "abc");
-        // Should produce a number-required error
-        assert!(!effects.as_slice().is_empty());
+        assert_eq!(
+            assign_option(&mut opts, "tabstop", "abc"),
+            Err("E521: Number required after =")
+        );
     }
 
     #[test]
     fn assign_option_clipboard() {
         let mut opts = crate::primitives::VimOptions::default();
-        let effects = assign_option(&mut opts, "clipboard", "unnamed");
-        assert!(effects.as_slice().is_empty());
+        assert_eq!(assign_option(&mut opts, "clipboard", "unnamed"), Ok(()));
     }
 
     #[test]
     fn assign_option_unknown_returns_error() {
         let mut opts = crate::primitives::VimOptions::default();
-        let effects = assign_option(&mut opts, "nonexistent", "value");
-        assert!(!effects.as_slice().is_empty());
+        assert_eq!(
+            assign_option(&mut opts, "nonexistent", "value"),
+            Err("E518: Unknown option")
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
