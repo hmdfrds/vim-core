@@ -5833,6 +5833,148 @@
    }
   },
   {
+   "name": "block > builds the indent with Tabs under noexpandtab",
+   "lines": [
+    "      1",
+    "      2",
+    "      3"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "<C-v>2j>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 2
+   },
+   "expected": {
+    "lines": [
+     "\t1",
+     "\t2",
+     "\t3"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "block > builds the indent with spaces under expandtab",
+   "lines": [
+    "      1",
+    "      2",
+    "      3"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "<C-v>2j>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": true,
+    "ts": 8,
+    "sw": 2
+   },
+   "expected": {
+    "lines": [
+     "        1",
+     "        2",
+     "        3"
+    ],
+    "cursor": [
+     0,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "block < takes out Tabs and splits the one the block starts in",
+   "lines": [
+    "    abcdefghijklmnopqrstuvwxyz",
+    "abcdefghij",
+    "    abc\t\tdefghijklmnopqrstuvwxyz",
+    "    abc\t\t   defghijklmnopqrstuvwxyz",
+    "    abc\t       \tdefghijklmnopqrstuvwxyz"
+   ],
+   "cursor": [
+    0,
+    12
+   ],
+   "keys": "<C-v>4j<",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 8
+   },
+   "expected": {
+    "lines": [
+     "    abcdefghijklmnopqrstuvwxyz",
+     "abcdefghij",
+     "    abc\t    defghijklmnopqrstuvwxyz",
+     "    abc\t    defghijklmnopqrstuvwxyz",
+     "    abc\t    defghijklmnopqrstuvwxyz"
+    ],
+    "cursor": [
+     0,
+     12
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
+   "name": "block > goes in front of a double-width character the block starts in",
+   "lines": [
+    "xヹxxx",
+    "ヹxxx"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "l<C-v>jl>",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 8
+   },
+   "expected": {
+    "lines": [
+     "x\t ヹxxx",
+     "\tヹxxx"
+    ],
+    "cursor": [
+     0,
+     1
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
    "name": "gg on the same line after a failed 2$ goes to curswant",
    "lines": [
     "icexpialidociousandthensomemore"

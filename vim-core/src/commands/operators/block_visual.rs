@@ -13,8 +13,10 @@
 //!
 //! Plain functions, not trait methods.
 
+use crate::commands::actions::BlockGeometry;
 use crate::commands::helpers::{
-    byte_to_vcol, compute_block_geometry, line_end, line_start, vcol_to_byte,
+    byte_to_vcol, compute_block_geometry, grapheme_display_width, line_end, line_start,
+    vcol_to_byte,
 };
 use crate::commands::operators::registers;
 use crate::commands::operators::types::OperatorContext;
@@ -23,6 +25,7 @@ use crate::grammar::types::Operator;
 use crate::primitives::byte_delta;
 use crate::primitives::{InsertEntryType, MotionType, Offset, Range, SelectionRange};
 use crate::primitives::{LastVisualInfo, Mode, VisualType};
+use unicode_segmentation::UnicodeSegmentation;
 /// Result type follows operator conventions.
 pub type BlockCommandResult = crate::commands::CommandResult;
 
@@ -58,6 +61,13 @@ pub fn execute_block_operator(
 
     // Compute cursor position (top-left corner of the block)
     let cursor_pos = compute_cursor_pos(text, geo.top_line, geo.left_vcol, ctx.tabstop);
+    let shifts = match operator {
+        Operator::Indent | Operator::Outdent => {
+            block_shift(text, &geo, operator == Operator::Outdent, ctx)
+        }
+        _ => Vec::new(),
+    };
+    let cursor_after = shift_cursor(text, geo.top_line, cursor_pos, &shifts);
 
     // Pre-set visual marks BEFORE operator effects so that text-modifying
     // operators (delete, change) trigger adjust_offsets and shift marks correctly.
@@ -107,22 +117,7 @@ pub fn execute_block_operator(
         Operator::ToggleCase | Operator::Uppercase | Operator::Lowercase | Operator::Rot13 => {
             apply_case_change(text, operator, &line_ranges)
         }
-        Operator::Indent => apply_indent(
-            text,
-            geo.top_line,
-            geo.bot_line,
-            geo.left_vcol,
-            ctx.shiftwidth,
-            ctx.tabstop,
-        ),
-        Operator::Outdent => apply_outdent(
-            text,
-            geo.top_line,
-            geo.bot_line,
-            geo.left_vcol,
-            ctx.shiftwidth,
-            ctx.tabstop,
-        ),
+        Operator::Indent | Operator::Outdent => apply_shift(&shifts),
         _ => {
             // Unsupported operators: register + exit only
             route_block_yank_registers(Effects::new(), &register_text, ctx)
@@ -146,7 +141,7 @@ pub fn execute_block_operator(
     effects.extend(op_effects);
     effects.extend(build_post_exit_effects(
         operator,
-        cursor_pos,
+        cursor_after,
         geo.top_line,
         geo.bot_line,
         geo.left_gcol,
@@ -154,11 +149,11 @@ pub fn execute_block_operator(
 
     // Neovim sets mark '.' to the top-left corner of a block visual operation.
     // sync_change_marks records the start of the FIRST edit (bottom line for
-    // reverse-order deletions), which is wrong. Override with cursor_pos for
+    // reverse-order deletions), which is wrong. Override with the corner for
     // text-mutating operators. Change enters insert mode, so mark '.' will be
     // set later during insert exit; skip it here to avoid clobbering.
     if operator != Operator::Change && operator != Operator::Yank {
-        effects = effects.set_mark(crate::primitives::MarkName::LAST_CHANGE, cursor_pos, None);
+        effects = effects.set_mark(crate::primitives::MarkName::LAST_CHANGE, cursor_after, None);
     }
 
     // ── Change marks '[' and ']' for block visual operations ───────────
@@ -213,63 +208,23 @@ pub fn execute_block_operator(
             }
         }
         Operator::Indent | Operator::Outdent => {
-            // Neovim's op_shift() sets b_op_end to last byte of last affected line
-            // in the POST-edit text. Compute the cumulative byte delta from all
-            // per-line shifts, then apply to the bottom line's position.
-            let sw = ctx.shiftwidth;
+            // Neovim's op_shift() sets b_op_end to the last byte of the
+            // bottom line in the post-edit text.
             let bot_line_start = line_start(text, geo.bot_line).unwrap_or(0);
             let bot_line_end = line_end(text, geo.bot_line).unwrap_or(text.len());
-            let bot_line_text = &text[bot_line_start..bot_line_end];
-            let mut total_delta: isize = 0;
-            for l in geo.top_line..=geo.bot_line {
-                let ls = line_start(text, l).unwrap_or(0);
-                let le = line_end(text, l).unwrap_or(text.len());
-                let line_text = &text[ls..le];
-                if line_text.is_empty() {
-                    continue;
-                }
-                let col_byte = vcol_to_byte(line_text, geo.left_vcol, ctx.tabstop);
-                if col_byte >= line_text.len() && geo.left_vcol > 0 {
-                    continue;
-                }
-                if operator == Operator::Indent {
-                    total_delta += byte_delta::to_isize(sw);
-                } else {
-                    let removable = line_text[col_byte..]
-                        .bytes()
-                        .take(sw)
-                        .take_while(|&b| b == b' ')
-                        .count();
-                    total_delta -= byte_delta::to_isize(removable);
-                }
-            }
-            // Bottom line's new length: original len + its own delta
-            let bot_col_byte = vcol_to_byte(bot_line_text, geo.left_vcol, ctx.tabstop);
-            let bot_reachable = !bot_line_text.is_empty()
-                && (bot_col_byte < bot_line_text.len() || geo.left_vcol == 0);
-            let bot_own_delta: isize = if !bot_reachable {
-                0
-            } else if operator == Operator::Indent {
-                byte_delta::to_isize(sw)
-            } else {
-                let removable = bot_line_text[bot_col_byte..]
-                    .bytes()
-                    .take(sw)
-                    .take_while(|&b| b == b' ')
-                    .count();
-                -byte_delta::to_isize(removable)
+            let delta = |lines: std::ops::Range<usize>| -> isize {
+                shifts
+                    .iter()
+                    .filter(|s| lines.contains(&s.line))
+                    .map(LineShift::delta)
+                    .sum()
             };
-            // Delta from lines ABOVE the bottom line
-            let delta_above = total_delta - bot_own_delta;
-            let new_bot_start = bot_line_start.saturating_add_signed(delta_above);
-            let new_bot_len = bot_line_text.len().saturating_add_signed(bot_own_delta);
-            let mark_end_val = if new_bot_len > 0 {
-                new_bot_start + new_bot_len - 1
-            } else {
-                new_bot_start
-            };
+            let new_bot_start = bot_line_start.saturating_add_signed(delta(0..geo.bot_line));
+            let new_bot_len = (bot_line_end - bot_line_start)
+                .saturating_add_signed(delta(geo.bot_line..geo.bot_line + 1));
+            let mark_end_val = new_bot_start + new_bot_len.saturating_sub(1);
             effects = effects.set_mark(MarkName::CHANGE_END, Offset::new(mark_end_val), None);
-            effects = effects.set_mark(MarkName::CHANGE_START, cursor_pos, None);
+            effects = effects.set_mark(MarkName::CHANGE_START, cursor_after, None);
         }
         _ => {}
     }
@@ -471,96 +426,223 @@ fn apply_case_change(text: &str, operator: Operator, line_ranges: &[(usize, usiz
     effects.end_undo()
 }
 
-/// Apply indent to all lines in the block at the block's left column.
-///
-/// Neovim's `shift_block` for right-shift inserts `shiftwidth` spaces at
-/// the block's start virtual column, not at column 0. This matches that
-/// behavior: for each line, compute the byte offset of `left_vcol` and
-/// insert spaces there. Lines shorter than the block column are skipped
-/// (matching Neovim's `bd.is_short` early return).
-fn apply_indent(
-    text: &str,
-    top_line: usize,
-    bottom_line: usize,
-    left_vcol: usize,
-    shiftwidth: usize,
-    tabstop: usize,
-) -> Effects {
-    let indent = " ".repeat(shiftwidth);
-    let mut effects = Effects::new().begin_undo();
+/// What a block shift does to one line: bytes `start..end` of the text
+/// become `text`.
+#[derive(Debug)]
+struct LineShift {
+    line: usize,
+    start: usize,
+    end: usize,
+    text: String,
+}
 
-    for line_idx in (top_line..=bottom_line).rev() {
-        let ls = line_start(text, line_idx).unwrap_or(0);
-        let le = line_end(text, line_idx).unwrap_or(text.len());
-        let line_text = &text[ls..le];
-
-        // Skip empty lines (matches Neovim: empty line → cursor.col = 0, no shift)
-        if line_text.is_empty() {
-            continue;
-        }
-
-        // Compute the byte offset within the line for left_vcol.
-        // If the line is shorter than the block column, vcol_to_byte returns
-        // line_text.len() — skip these short lines (Neovim's bd.is_short).
-        let insert_byte = vcol_to_byte(line_text, left_vcol, tabstop);
-        if insert_byte >= line_text.len() && left_vcol > 0 {
-            continue;
-        }
-
-        effects = effects.insert(Offset::new(ls + insert_byte), &indent);
+impl LineShift {
+    fn delta(&self) -> isize {
+        byte_delta::to_isize(self.text.len()) - byte_delta::to_isize(self.end - self.start)
     }
+}
 
+/// Shift each line of the block as Vim's `shift_block()` (ops.c) does.
+/// Lines that are empty, end before the block, or stay the same are left out.
+fn block_shift(
+    text: &str,
+    geo: &BlockGeometry,
+    left: bool,
+    ctx: &OperatorContext<'_>,
+) -> Vec<LineShift> {
+    (geo.top_line..=geo.bot_line)
+        .filter_map(|line| {
+            let ls = line_start(text, line)?;
+            let le = line_end(text, line).unwrap_or(text.len());
+            let (start, end, new) = shift_line(
+                &text[ls..le],
+                geo.left_vcol,
+                left,
+                ctx.shiftwidth,
+                ctx.tabstop.max(1),
+                ctx.expandtab,
+            )?;
+            Some(LineShift {
+                line,
+                start: ls + start,
+                end: ls + end,
+                text: new,
+            })
+        })
+        .collect()
+}
+
+/// One line of `shift_block()`, as the byte range of `line` to replace and
+/// what replaces it.
+///
+/// `>` rebuilds the whitespace from before the block's left edge to the
+/// first non-blank after it, `shiftwidth` columns wider, with Tabs unless
+/// 'expandtab' is set. `<` removes up to `shiftwidth` columns of the
+/// whitespace that starts at the left edge, and spaces fill in for a Tab
+/// that it only partly removes.
+fn shift_line(
+    line: &str,
+    left_vcol: usize,
+    left: bool,
+    sw: usize,
+    ts: usize,
+    et: bool,
+) -> Option<(usize, usize, String)> {
+    if line.is_empty() || sw == 0 {
+        return None;
+    }
+    let chars: Vec<(usize, &str)> = line.grapheme_indices(true).collect();
+    let byte = |i: usize| chars.get(i).map_or(line.len(), |&(b, _)| b);
+    let white = |i: usize| chars.get(i).is_some_and(|&(_, g)| g == " " || g == "\t");
+    let width = |i: usize, vcol: usize| {
+        chars
+            .get(i)
+            .map_or(0, |&(_, g)| grapheme_display_width(g, vcol, ts))
+    };
+
+    // block_prep(): walk to the block's left edge, tracking the whitespace
+    // just before it.
+    let (mut i, mut vcol, mut incr) = (0, 0, 0);
+    let (mut pre_white, mut pre_white_c) = (0, 0);
+    while vcol < left_vcol && i < chars.len() {
+        incr = width(i, vcol);
+        if white(i) {
+            pre_white += incr;
+            pre_white_c += 1;
+        } else {
+            pre_white = 0;
+            pre_white_c = 0;
+        }
+        vcol += incr;
+        i += 1;
+    }
+    if vcol < left_vcol {
+        return None;
+    }
+    // The block starts inside the character before `i`.
+    let split = vcol > left_vcol;
+
+    let (start, end, new) = if left {
+        let mut non_white = i;
+        let mut non_white_col = vcol;
+        while white(non_white) {
+            non_white_col += width(non_white, non_white_col);
+            non_white += 1;
+        }
+        let shift = (non_white_col - left_vcol).min(sw);
+        let destination = non_white_col - shift;
+        let (mut keep, mut keep_col) = if split {
+            (i - 1, vcol - incr)
+        } else {
+            (i, vcol)
+        };
+        while keep_col < destination && keep < chars.len() {
+            let w = width(keep, keep_col);
+            if keep_col + w > destination {
+                break;
+            }
+            keep_col += w;
+            keep += 1;
+        }
+        (
+            byte(keep),
+            byte(non_white),
+            " ".repeat(destination - keep_col),
+        )
+    } else {
+        let mut total = sw + pre_white;
+        // A wide character the block starts in: the shift goes in front of
+        // it, counted from column 0 as Vim does.
+        let wide = split && chars.get(i - 1).is_some_and(|&(_, g)| g.len() > 1);
+        let (ws_vcol, mut text_start, first) = if wide {
+            (0, i - 1, i - 1)
+        } else {
+            (vcol - pre_white, i, i - pre_white_c)
+        };
+        let mut col = vcol;
+        while white(text_start) {
+            let w = width(text_start, col);
+            total += w;
+            col += w;
+            text_start += 1;
+        }
+        let (tabs, spaces) = if et {
+            (0, total)
+        } else {
+            tabs_and_spaces(ws_vcol, ws_vcol + total, ts)
+        };
+        let mut new = "\t".repeat(tabs);
+        new.push_str(&" ".repeat(spaces));
+        (byte(first), byte(text_start), new)
+    };
+
+    // Keep the edit to the bytes that change.
+    let old = line.as_bytes().get(start..end).unwrap_or_default();
+    let prefix = old
+        .iter()
+        .zip(new.bytes())
+        .take_while(|&(&a, b)| a == b)
+        .count();
+    let suffix = old
+        .iter()
+        .skip(prefix)
+        .rev()
+        .zip(new.bytes().skip(prefix).rev())
+        .take_while(|&(&a, b)| a == b)
+        .count();
+    let (start, end) = (start + prefix, end - suffix);
+    let new = &new[prefix..new.len() - suffix];
+    (start != end || !new.is_empty()).then(|| (start, end, new.to_owned()))
+}
+
+/// The Tabs and spaces that fill columns `from..to`, as Vim's
+/// `tabstop_fromto()` counts them.
+const fn tabs_and_spaces(from: usize, to: usize, ts: usize) -> (usize, usize) {
+    let spaces = to - from;
+    let first_tab = ts - from % ts;
+    if spaces < first_tab {
+        return (0, spaces);
+    }
+    let rest = spaces - first_tab;
+    (1 + rest / ts, rest % ts)
+}
+
+/// Apply block shift edits bottom-to-top, so each edit leaves the offsets
+/// of the ones above it valid.
+fn apply_shift(shifts: &[LineShift]) -> Effects {
+    let mut effects = Effects::new().begin_undo();
+    for shift in shifts.iter().rev() {
+        let range = Range::from_raw(shift.start, shift.end);
+        effects = if shift.start == shift.end {
+            effects.insert(Offset::new(shift.start), shift.text.as_str())
+        } else if shift.text.is_empty() {
+            effects.delete(range)
+        } else {
+            effects.replace(range, shift.text.as_str())
+        };
+    }
     effects.end_undo()
 }
 
-/// Apply outdent to all lines in the block at the block's left column.
-///
-/// Neovim's `shift_block` for left-shift removes whitespace starting from
-/// the block's start virtual column, not from column 0. This matches that
-/// behavior: for each line, find whitespace at and after `left_vcol`, then
-/// remove up to `shiftwidth` columns worth of spaces. Lines shorter than
-/// the block column are skipped.
-fn apply_outdent(
-    text: &str,
-    top_line: usize,
-    bottom_line: usize,
-    left_vcol: usize,
-    shiftwidth: usize,
-    tabstop: usize,
-) -> Effects {
-    let mut effects = Effects::new().begin_undo();
-
-    for line_idx in (top_line..=bottom_line).rev() {
-        let ls = line_start(text, line_idx).unwrap_or(0);
-        let le = line_end(text, line_idx).unwrap_or(text.len());
-        let line_text = &text[ls..le];
-
-        if line_text.is_empty() {
-            continue;
-        }
-
-        // Find the byte offset of the block's left column on this line.
-        let start_byte = vcol_to_byte(line_text, left_vcol, tabstop);
-        if start_byte >= line_text.len() && left_vcol > 0 {
-            continue;
-        }
-
-        // Count whitespace characters from the block column onwards,
-        // up to shiftwidth spaces to remove.
-        let spaces_to_remove = line_text[start_byte..]
-            .chars()
-            .take_while(|c| *c == ' ')
-            .take(shiftwidth)
-            .count();
-        if spaces_to_remove > 0 {
-            effects = effects.delete(Range::from_raw(
-                ls + start_byte,
-                ls + start_byte + spaces_to_remove,
-            ));
-        }
-    }
-
-    effects.end_undo()
+/// Where a block shift leaves the cursor: the block's top-left byte, as
+/// op_shift() does, kept on a character of the top line when the shift
+/// took bytes out before it.
+fn shift_cursor(text: &str, top_line: usize, cursor: Offset, shifts: &[LineShift]) -> Offset {
+    let Some(shift) = shifts.iter().find(|s| s.line == top_line) else {
+        return cursor;
+    };
+    let ls = line_start(text, top_line).unwrap_or(0);
+    let le = line_end(text, top_line).unwrap_or(text.len());
+    let mut line = text[ls..le].to_owned();
+    line.replace_range(shift.start - ls..shift.end - ls, &shift.text);
+    let col = cursor.get().saturating_sub(ls);
+    let col = line
+        .grapheme_indices(true)
+        .map(|(b, _)| b)
+        .take_while(|&b| b <= col)
+        .last()
+        .unwrap_or(0);
+    Offset::new(ls + col)
 }
 
 // =============================================================================
@@ -818,22 +900,9 @@ mod tests {
             Operator::ToggleCase | Operator::Uppercase | Operator::Lowercase | Operator::Rot13 => {
                 apply_case_change(text, op, &line_ranges)
             }
-            Operator::Indent => apply_indent(
-                text,
-                geo.top_line,
-                geo.bot_line,
-                geo.left_vcol,
-                ctx.shiftwidth,
-                ctx.tabstop,
-            ),
-            Operator::Outdent => apply_outdent(
-                text,
-                geo.top_line,
-                geo.bot_line,
-                geo.left_vcol,
-                ctx.shiftwidth,
-                ctx.tabstop,
-            ),
+            Operator::Indent | Operator::Outdent => {
+                apply_shift(&block_shift(text, &geo, op == Operator::Outdent, ctx))
+            }
             _ => route_block_yank_registers(Effects::new(), &register_text, ctx),
         };
 
