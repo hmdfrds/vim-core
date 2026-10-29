@@ -21,6 +21,7 @@
 
 mod command_line;
 mod command_line_exec;
+mod conditionals;
 mod coordinators;
 mod external_edit;
 pub(crate) mod hooks;

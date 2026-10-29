@@ -196,6 +196,75 @@ pub enum VimError {
     MissingEndBlock,
 
     // ═══════════════════════════════════════════════════════════════════
+    // Script block errors
+    // ═══════════════════════════════════════════════════════════════════
+    /// E170: a `:while` has no `:endwhile`.
+    MissingEndwhile,
+
+    /// E170: a `:for` has no `:endfor`.
+    MissingEndfor,
+
+    /// E171: an `:if` has no `:endif`.
+    MissingEndif,
+
+    /// E477: a `!` after a command that takes none.
+    NoBangAllowed,
+
+    /// E579: `:if` inside 50 open blocks.
+    IfNestingTooDeep,
+
+    /// E580: `:endif` without `:if`.
+    EndifWithoutIf,
+
+    /// E581: `:else` without `:if`.
+    ElseWithoutIf,
+
+    /// E582: `:elseif` without `:if`.
+    ElseifWithoutIf,
+
+    /// E583: a second `:else` for one `:if`.
+    MultipleElse,
+
+    /// E584: `:elseif` after `:else`.
+    ElseifAfterElse,
+
+    /// E585: `:while` or `:for` inside 50 open blocks.
+    LoopNestingTooDeep,
+
+    /// E586: `:continue` outside a loop.
+    ContinueWithoutLoop,
+
+    /// E587: `:break` outside a loop.
+    BreakWithoutLoop,
+
+    /// E588: `:endwhile` without `:while`.
+    EndwhileWithoutWhile,
+
+    /// E588: `:endfor` without `:for`.
+    EndforWithoutFor,
+
+    /// E600: a `:try` has no `:endtry`.
+    MissingEndtry,
+
+    /// E601: `:try` inside 50 open blocks.
+    TryNestingTooDeep,
+
+    /// E602: `:endtry` without `:try`.
+    EndtryWithoutTry,
+
+    /// E603: `:catch` without `:try`.
+    CatchWithoutTry,
+
+    /// E606: `:finally` without `:try`.
+    FinallyWithoutTry,
+
+    /// E732: `:endfor` ends a `:while`.
+    EndforWithWhile,
+
+    /// E733: `:endwhile` ends a `:for`.
+    EndwhileWithFor,
+
+    // ═══════════════════════════════════════════════════════════════════
     // Expression errors
     // ═══════════════════════════════════════════════════════════════════
     /// E15: Invalid expression. Carries the expression.
@@ -439,6 +508,32 @@ impl fmt::Display for VimError {
             }
             Self::MissingEndBlock => write!(f, "E1171: Missing }} after inline function"),
 
+            // Script blocks
+            Self::MissingEndwhile => write!(f, "E170: Missing :endwhile"),
+            Self::MissingEndfor => write!(f, "E170: Missing :endfor"),
+            Self::MissingEndif => write!(f, "E171: Missing :endif"),
+            Self::NoBangAllowed => write!(f, "E477: No ! allowed"),
+            Self::IfNestingTooDeep => write!(f, "E579: :if nesting too deep"),
+            Self::EndifWithoutIf => write!(f, "E580: :endif without :if"),
+            Self::ElseWithoutIf => write!(f, "E581: :else without :if"),
+            Self::ElseifWithoutIf => write!(f, "E582: :elseif without :if"),
+            Self::MultipleElse => write!(f, "E583: Multiple :else"),
+            Self::ElseifAfterElse => write!(f, "E584: :elseif after :else"),
+            Self::LoopNestingTooDeep => write!(f, "E585: :while/:for nesting too deep"),
+            Self::ContinueWithoutLoop => {
+                write!(f, "E586: :continue without :while or :for")
+            }
+            Self::BreakWithoutLoop => write!(f, "E587: :break without :while or :for"),
+            Self::EndwhileWithoutWhile => write!(f, "E588: :endwhile without :while"),
+            Self::EndforWithoutFor => write!(f, "E588: :endfor without :for"),
+            Self::MissingEndtry => write!(f, "E600: Missing :endtry"),
+            Self::TryNestingTooDeep => write!(f, "E601: :try nesting too deep"),
+            Self::EndtryWithoutTry => write!(f, "E602: :endtry without :try"),
+            Self::CatchWithoutTry => write!(f, "E603: :catch without :try"),
+            Self::FinallyWithoutTry => write!(f, "E606: :finally without :try"),
+            Self::EndforWithWhile => write!(f, "E732: Using :endfor with :while"),
+            Self::EndwhileWithFor => write!(f, "E733: Using :endwhile with :for"),
+
             // Expressions
             Self::InvalidExpression(expr) => write!(f, "E15: Invalid expression: \"{expr}\""),
             Self::MissingColon => write!(f, "E109: Missing ':' after '?'"),
@@ -590,6 +685,8 @@ mod tests {
             VimError::FunctionNestingTooDeep,
             VimError::MissingHeredocEndMarker("END".into()),
             VimError::MissingEndBlock,
+            VimError::MissingEndif,
+            VimError::EndifWithoutIf,
             VimError::InvalidExpression("x".into()),
             VimError::MissingColon,
             VimError::MissingParen,
@@ -785,6 +882,48 @@ mod tests {
                 VimError::MissingEndBlock,
                 "E1171: Missing } after inline function",
             ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_script_block_errors() {
+        for (error, text) in [
+            (VimError::MissingEndwhile, "E170: Missing :endwhile"),
+            (VimError::MissingEndfor, "E170: Missing :endfor"),
+            (VimError::MissingEndif, "E171: Missing :endif"),
+            (VimError::NoBangAllowed, "E477: No ! allowed"),
+            (VimError::IfNestingTooDeep, "E579: :if nesting too deep"),
+            (VimError::EndifWithoutIf, "E580: :endif without :if"),
+            (VimError::ElseWithoutIf, "E581: :else without :if"),
+            (VimError::ElseifWithoutIf, "E582: :elseif without :if"),
+            (VimError::MultipleElse, "E583: Multiple :else"),
+            (VimError::ElseifAfterElse, "E584: :elseif after :else"),
+            (
+                VimError::LoopNestingTooDeep,
+                "E585: :while/:for nesting too deep",
+            ),
+            (
+                VimError::ContinueWithoutLoop,
+                "E586: :continue without :while or :for",
+            ),
+            (
+                VimError::BreakWithoutLoop,
+                "E587: :break without :while or :for",
+            ),
+            (
+                VimError::EndwhileWithoutWhile,
+                "E588: :endwhile without :while",
+            ),
+            (VimError::EndforWithoutFor, "E588: :endfor without :for"),
+            (VimError::MissingEndtry, "E600: Missing :endtry"),
+            (VimError::TryNestingTooDeep, "E601: :try nesting too deep"),
+            (VimError::EndtryWithoutTry, "E602: :endtry without :try"),
+            (VimError::CatchWithoutTry, "E603: :catch without :try"),
+            (VimError::FinallyWithoutTry, "E606: :finally without :try"),
+            (VimError::EndforWithWhile, "E732: Using :endfor with :while"),
+            (VimError::EndwhileWithFor, "E733: Using :endwhile with :for"),
         ] {
             assert_eq!(error.to_string(), text);
         }

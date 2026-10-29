@@ -7,9 +7,10 @@
 //! line as text, such as a heredoc or a function body, so that those lines
 //! never run as commands.
 
-use super::ex_split::{skip_range, vim_command_at};
+use super::ex_split::{command_head, skip_range, vim_command_at};
 use super::vim_commands::EVENTS;
 use crate::errors::VimError;
+use crate::grammar::types::{BlockKind, ModifierFlags};
 
 /// A line of a sourced file, with the number of the first line of the
 /// file it comes from.
@@ -478,6 +479,66 @@ impl<'a> Script<'a> {
         }
         have_read.then_some((Line { number, text }, warned))
     }
+}
+
+/// A command that a sourced file runs itself: a command of a script block,
+/// `:finish`, `:break` or `:continue`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Control {
+    Block(BlockKind),
+    Finish,
+    Break,
+    Continue,
+}
+
+/// A [`Control`] command as `do_one_cmd()` reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ScriptCommand<'p> {
+    pub(crate) control: Control,
+    /// The engine's modifiers before it.
+    pub(crate) modifiers: ModifierFlags,
+    /// Whether a range comes before it.
+    pub(crate) range: bool,
+    /// Whether a `!` follows its name.
+    pub(crate) bang: bool,
+    /// The text after the name and the `!`, without blanks around it.
+    pub(crate) argument: &'p str,
+}
+
+impl ScriptCommand<'_> {
+    /// Whether the command takes an argument (`EX_EXTRA`).
+    pub(crate) const fn takes_argument(&self) -> bool {
+        matches!(
+            self.control,
+            Control::Block(
+                BlockKind::If
+                    | BlockKind::ElseIf
+                    | BlockKind::While
+                    | BlockKind::For
+                    | BlockKind::Catch
+            )
+        )
+    }
+}
+
+/// The [`Control`] command of `piece`, if it is one.
+pub(crate) fn script_command(piece: &str) -> Option<ScriptCommand<'_>> {
+    let head = command_head(piece)?;
+    let control = match head.row.name {
+        "finish" => Control::Finish,
+        "break" => Control::Break,
+        "continue" => Control::Continue,
+        name => Control::Block(BlockKind::from_name(name)?),
+    };
+    let after = piece.get(head.name_end..)?;
+    let argument = after.strip_prefix('!');
+    Some(ScriptCommand {
+        control,
+        modifiers: head.modifiers,
+        range: head.range,
+        bang: argument.is_some(),
+        argument: argument.unwrap_or(after).trim_matches([' ', '\t']),
+    })
 }
 
 /// Most functions and blocks open at once in a function body, as

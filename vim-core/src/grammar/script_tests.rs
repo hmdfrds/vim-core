@@ -597,3 +597,33 @@ fn a_command_that_does_not_run_reads_only_what_vim_still_reads() {
         Some(vec![(1, VimError::MissingMarker)])
     );
 }
+
+// ── commands a sourced file runs itself ───────────────────────────────
+
+#[test]
+fn finds_block_commands_past_modifiers_and_ranges() {
+    // do_one_cmd() reads modifiers, the range, the name and a `!`.
+    let command = script_command("  verbose silent! :elsei  x > 1 ").unwrap();
+    assert_eq!(command.control, Control::Block(BlockKind::ElseIf));
+    assert!(command.modifiers.contains(ModifierFlags::SILENT_BANG));
+    assert!(!command.range && !command.bang);
+    assert_eq!(command.argument, "x > 1");
+
+    let command = script_command("2endif! x").unwrap();
+    assert_eq!(command.control, Control::Block(BlockKind::EndIf));
+    assert!(command.range && command.bang);
+    assert_eq!(command.argument, "x");
+
+    for (piece, control) in [
+        ("fini", Control::Finish),
+        ("brea", Control::Break),
+        ("con", Control::Continue),
+        ("endfo", Control::Block(BlockKind::EndFor)),
+        ("cat /x/", Control::Block(BlockKind::Catch)),
+    ] {
+        assert_eq!(script_command(piece).map(|c| c.control), Some(control));
+    }
+    for piece in ["endfunction", "set ic", "\" if 1", "Foo"] {
+        assert_eq!(script_command(piece), None, "{piece}");
+    }
+}

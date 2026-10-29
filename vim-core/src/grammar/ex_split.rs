@@ -13,6 +13,7 @@ use super::command_meta::{find_command, is_pattern_delimiter, FoundCommand, OwnK
 use super::ex_parser::parse_modifier_prefixes;
 use super::script::heredoc_start;
 use super::vim_commands::{ex, VimCommand, MODIFIERS};
+use crate::grammar::types::ModifierFlags;
 
 /// The commands of `line`, each with its text as Vim's rules leave it.
 pub(crate) fn split(line: &str) -> Vec<Cow<'_, str>> {
@@ -172,10 +173,29 @@ fn skip_blanks(bytes: &[u8], mut at: usize) -> usize {
 /// where its name starts and ends. `None` for no command, a name Vim does
 /// not know and the engine's own commands.
 pub(super) fn vim_command_at(piece: &str) -> Option<(&'static VimCommand, usize, usize)> {
+    command_head(piece).map(|head| (head.row, head.name, head.name_end))
+}
+
+/// What comes before the argument of a Vim command.
+pub(super) struct Head {
+    pub(super) row: &'static VimCommand,
+    /// The engine's modifiers among those before the command.
+    pub(super) modifiers: ModifierFlags,
+    /// Whether a range comes before the name.
+    pub(super) range: bool,
+    pub(super) name: usize,
+    pub(super) name_end: usize,
+}
+
+/// The command of `piece` as [`vim_command_at`] finds it, and what comes
+/// before it.
+pub(super) fn command_head(piece: &str) -> Option<Head> {
     let bytes = piece.as_bytes();
     let mut at = skip_blanks(bytes, 0);
+    let mut modifiers = ModifierFlags::empty();
     loop {
-        let (_, rest) = parse_modifier_prefixes(piece.get(at..)?);
+        let (flags, rest) = parse_modifier_prefixes(piece.get(at..)?);
+        modifiers |= flags;
         let cmd = piece.len() - rest.len();
         let name = skip_range(bytes, cmd);
         let (FoundCommand::Vim(row), len) = find_command(piece.get(name..)?)? else {
@@ -183,7 +203,17 @@ pub(super) fn vim_command_at(piece: &str) -> Option<(&'static VimCommand, usize,
         };
         match modifier_end(piece, cmd, name, len, row) {
             Some(after) => at = after,
-            None => return Some((row, name, name + len)),
+            None => {
+                return Some(Head {
+                    row,
+                    modifiers,
+                    range: bytes
+                        .get(cmd..name)
+                        .is_some_and(|range| range.iter().any(|b| !b" \t:".contains(b))),
+                    name,
+                    name_end: name + len,
+                })
+            }
         }
     }
 }

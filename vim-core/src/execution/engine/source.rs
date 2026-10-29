@@ -3,6 +3,7 @@
 //! Runs a config file's lines as the command line runs Ex commands, without
 //! a buffer.
 
+use super::conditionals::{Blocks, Kind};
 use super::Response;
 use crate::commands::ex::effects as ex_effects;
 use crate::document::Document;
@@ -12,9 +13,9 @@ use crate::execution::executor_ex::{self, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, InputContext};
 use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
-use crate::grammar::script::{Body, Line, Script};
+use crate::grammar::script::{script_command, Body, Control, Line, Script, ScriptCommand};
 use crate::grammar::split_ex_pipeline;
-use crate::grammar::types::{ExCommand, ModifierFlags, SetAssignment};
+use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, SetAssignment};
 use crate::primitives::{Offset, OptionValue, Position, VarScope};
 use compact_str::CompactString;
 
@@ -22,9 +23,17 @@ use compact_str::CompactString;
 /// runs one.
 struct Frame<'a> {
     script: Script<'a>,
-    /// Vim's `did_emsg`: an error was shown, so the commands after it on
-    /// its line do not run.
+    blocks: Blocks,
+    /// Vim's `did_emsg`: an error was shown, so the commands after it do
+    /// not run, up to the end of its line or of the outermost block.
     error: bool,
+}
+
+impl Frame<'_> {
+    /// Whether a command does not run here (`do_one_cmd()`: `ea.skip`).
+    fn skipping(&self) -> bool {
+        self.error || !self.blocks.active()
+    }
 }
 
 impl super::VimEngine {
@@ -38,8 +47,14 @@ impl super::VimEngine {
     /// modifiers included, and what it changes is applied the same way.
     /// A command the host runs comes back as a host request.
     ///
-    /// An error is shown and, as in Vim, the commands after it on its line
-    /// do not run. `:silent!` hides the error, and then they do.
+    /// `:if`, `:elseif`, `:else` and `:endif` choose the lines that run, as
+    /// in Vim. A `:while`, `:for` or `:try` block gives E319 and the lines
+    /// inside it never run.
+    ///
+    /// An error is shown and, as in Vim, the commands after it do not run,
+    /// up to the end of its line or, inside a block, of the outermost
+    /// block. `:silent!` hides the error, and then they do. A condition
+    /// that fails makes its block never run any branch.
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
@@ -60,10 +75,10 @@ impl super::VimEngine {
     /// `:append`, `:insert` and `:change` text, a `{` block of `:command`
     /// or `:autocmd`, and the rest of the file after `:loadkeymap`. The
     /// host gets only the command's own line, and the lines are skipped
-    /// even when the command fails. After an error earlier on the line,
-    /// as in Vim, only a heredoc or function body is skipped. Commands
-    /// after a `|` on the line that ends a function run as the rest of
-    /// that line.
+    /// even when the command fails. Where commands do not run, after an
+    /// error or in a block that is not taken, only a heredoc or function
+    /// body is skipped, as in Vim. Commands after a `|` on the line that
+    /// ends a function run as the rest of that line.
     ///
     /// As in Vim, `:echo` evaluates its expressions, and `:let` and
     /// `:unlet` assign and remove `g:`, `b:` and plain variables and set
@@ -80,15 +95,26 @@ impl super::VimEngine {
         let mut response = Response::with_effects(Effects::new());
         let mut frame = Frame {
             script: Script::new(text),
+            blocks: Blocks::default(),
             error: false,
         };
-        while let Some(line) = frame.script.next_line() {
+        loop {
+            // do_cmdline(): "stop skipping cmds for an error msg after all
+            // endif/while/for".
+            if frame.blocks.is_empty() {
+                frame.error = false;
+            }
+            let Some(line) = frame.script.next_line() else {
+                break;
+            };
             show_warnings(&mut frame.script, &mut response);
-            frame.error = false;
             let mut next = Some(line);
             while let Some(line) = next {
                 next = self.source_config_line(&mut frame, &line, &mut response);
             }
+        }
+        if let Some(error) = frame.blocks.missing_end() {
+            response.extend_effects(ex_effects::show_error(error));
         }
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
@@ -110,8 +136,7 @@ impl super::VimEngine {
     ) -> Option<Line> {
         let mut rest = None;
         for piece in split_ex_pipeline(&line.text) {
-            // `do_one_cmd()`: `ea.skip`.
-            let skipping = frame.error;
+            let skipping = frame.skipping();
             let body = frame.script.read_body(&piece, line, skipping);
             show_warnings(&mut frame.script, response);
             let from = response.effects().len();
@@ -130,12 +155,125 @@ impl super::VimEngine {
                     continue;
                 }
             }
+            if let Some(command) = script_command(&piece) {
+                self.source_config_control(frame, command, &piece, response);
+                continue;
+            }
             if !skipping {
                 self.source_config_piece(&piece, response);
             }
             frame.error |= shows_error(response, from);
         }
         rest
+    }
+
+    /// Run a command of a script block, `:break` or `:continue` as Vim's
+    /// `do_one_cmd()` and `ex_eval.c` run them. A block command runs even
+    /// while skipping, so that the blocks stay matched.
+    fn source_config_control(
+        &mut self,
+        frame: &mut Frame<'_>,
+        command: ScriptCommand<'_>,
+        piece: &str,
+        response: &mut Response,
+    ) {
+        let skipping = frame.skipping();
+        let modifiers = command.modifiers;
+        let argument = command.argument;
+        // do_one_cmd(): what it refuses before it calls the command.
+        let refused = if command.range && !skipping {
+            Some(VimError::NoRangeAllowed)
+        } else if command.bang {
+            Some(VimError::NoBangAllowed)
+        } else if !command.takes_argument() && !argument.is_empty() {
+            Some(VimError::TrailingCharacters(argument.into()))
+        } else {
+            None
+        };
+        if let Some(error) = refused {
+            return report(frame, modifiers, error, response);
+        }
+        let blocks = &mut frame.blocks;
+        let error = &mut frame.error;
+        let result = match command.control {
+            Control::Block(BlockKind::If) => blocks.open_if(*error, || {
+                self.source_config_condition(argument, modifiers, error, response)
+            }),
+            Control::Block(BlockKind::ElseIf) => blocks.add_elseif(*error, |skip| {
+                if !skip {
+                    return self.source_config_condition(argument, modifiers, error, response);
+                }
+                // ex_else(): "When skipping we ignore most errors, but a
+                // missing expression is wrong".
+                if matches!(argument.as_bytes().first(), None | Some(b'|' | b'\n')) {
+                    let missing = VimError::InvalidExpression(argument.into());
+                    emsg(error, modifiers, missing, response);
+                }
+                None
+            }),
+            Control::Block(BlockKind::Else) => blocks.add_else(*error),
+            Control::Block(BlockKind::EndIf) => blocks.close_if(),
+            Control::Block(kind @ (BlockKind::While | BlockKind::For | BlockKind::Try)) => {
+                let block = match kind {
+                    BlockKind::While => Kind::While,
+                    BlockKind::For => Kind::For,
+                    _ => Kind::Try,
+                };
+                let opened = blocks.open_never_active(block);
+                if opened.is_ok() && !skipping {
+                    let mut form = CompactString::from(kind.name());
+                    if !argument.is_empty() {
+                        form.push(' ');
+                        form.push_str(argument);
+                    }
+                    emsg(error, modifiers, VimError::NotAvailable(form), response);
+                }
+                opened
+            }
+            Control::Block(BlockKind::EndWhile) => blocks.close_loop(Kind::While),
+            Control::Block(BlockKind::EndFor) => blocks.close_loop(Kind::For),
+            Control::Block(BlockKind::Catch) => blocks.continue_try(VimError::CatchWithoutTry),
+            Control::Block(BlockKind::Finally) => blocks.continue_try(VimError::FinallyWithoutTry),
+            Control::Block(BlockKind::EndTry) => blocks.close_try(error),
+            Control::Break if !skipping => blocks.leave_loop(VimError::BreakWithoutLoop),
+            Control::Continue if !skipping => blocks.leave_loop(VimError::ContinueWithoutLoop),
+            Control::Finish if !skipping => {
+                let from = response.effects().len();
+                self.source_config_piece(piece, response);
+                *error |= shows_error(response, from);
+                Ok(())
+            }
+            Control::Break | Control::Continue | Control::Finish => Ok(()),
+        };
+        if let Err(error) = result {
+            report(frame, modifiers, error, response);
+        }
+    }
+
+    /// Whether the condition `text` of `:if` or `:elseif` is true, as
+    /// `eval_to_bool()` decides it; `None` when it fails, after its errors
+    /// are shown.
+    fn source_config_condition(
+        &self,
+        text: &str,
+        modifiers: ModifierFlags,
+        error: &mut bool,
+        response: &mut Response,
+    ) -> Option<bool> {
+        let evaluated = script_expr::evaluate(text, &self.script_env());
+        let mut errors = evaluated.errors;
+        let result = match evaluated.value.map(|value| value.number()) {
+            Some(Ok(n)) => Some(n != 0),
+            Some(Err(err)) => {
+                errors.push(err);
+                None
+            }
+            None => None,
+        };
+        for err in errors {
+            emsg(error, modifiers, err, response);
+        }
+        result
     }
 
     /// Run one command of a config line as the command line runs it.
@@ -421,6 +559,28 @@ fn show_config_errors(
     response.extend_effects(effects);
 }
 
+/// Show `error` as Vim's `emsg()` does: not at all under `:silent!`, and
+/// otherwise counted in `flag`, Vim's `did_emsg`.
+fn emsg(flag: &mut bool, modifiers: ModifierFlags, error: VimError, response: &mut Response) {
+    if !modifiers.contains(ModifierFlags::SILENT_BANG) {
+        response.extend_effects(ex_effects::show_error(error));
+        *flag = true;
+    }
+}
+
+/// Show the error a command refused with, as `do_one_cmd()` shows
+/// `errormsg`: only when no error was shown before it.
+fn report(
+    frame: &mut Frame<'_>,
+    modifiers: ModifierFlags,
+    error: VimError,
+    response: &mut Response,
+) {
+    if !frame.error {
+        emsg(&mut frame.error, modifiers, error, response);
+    }
+}
+
 /// Whether the response shows an error after its first `from` effects.
 fn shows_error(response: &Response, from: usize) -> bool {
     response
@@ -655,26 +815,6 @@ mod tests {
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(infos(&response), ["a", "Config file sourced"]);
         assert_eq!(errors(&response), ["E121: Undefined variable: nosuch"]);
-    }
-
-    #[test]
-    fn source_config_refuses_script_blocks_for_now() {
-        // `if` ends the line with E319, so nothing after it runs.
-        let mut engine = VimEngine::new();
-        let response = engine.source_config_text(
-            "if 0 | set ic | endif
-finish
-",
-        );
-        assert!(!engine.options().ignorecase());
-        assert_eq!(
-            errors(&response),
-            [
-                "E319: Sorry, the command is not available in this version: if 0",
-                "E168: :finish used outside of a sourced file"
-            ]
-        );
-        assert!(response.host_requests().is_empty());
     }
 
     // ── host commands ─────────────────────────────────────────────
