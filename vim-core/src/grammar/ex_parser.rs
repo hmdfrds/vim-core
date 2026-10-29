@@ -247,6 +247,9 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     let (head, tail) = split_head(rest);
     let force = head.ends_with('!');
     let name = head.trim_end_matches('!');
+    // The map and abbreviation commands and `:normal` keep the blanks at
+    // the end of their argument.
+    let raw_tail = rest.trim_start_matches(BLANKS)[head.len()..].trim_start_matches(BLANKS);
 
     let has_range = range.is_some();
     // Pre-compute read's after_line before consuming range (borrows only).
@@ -357,23 +360,23 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     // "ino"/"inoremap", "cnorea" before "cno"/"cnoremap", "iuna" before
     // "iu"/"iunmap", "cuna" before "cu"/"cunmap").
     } else if matches_abbrev(name, "ab", "abbreviate") {
-        parse_abbreviate_command("abbreviate", tail, AbbrevMode::Both, false)
+        parse_abbreviate_command("abbreviate", raw_tail, AbbrevMode::Both, false)
     } else if matches_abbrev(name, "ia", "iabbrev") {
-        parse_abbreviate_command("iabbrev", tail, AbbrevMode::Insert, false)
+        parse_abbreviate_command("iabbrev", raw_tail, AbbrevMode::Insert, false)
     } else if matches_abbrev(name, "ca", "cabbrev") {
-        parse_abbreviate_command("cabbrev", tail, AbbrevMode::CommandLine, false)
+        parse_abbreviate_command("cabbrev", raw_tail, AbbrevMode::CommandLine, false)
     } else if matches_abbrev(name, "norea", "noreabbrev") {
-        parse_abbreviate_command("noreabbrev", tail, AbbrevMode::Both, true)
+        parse_abbreviate_command("noreabbrev", raw_tail, AbbrevMode::Both, true)
     } else if matches_abbrev(name, "inorea", "inoreabbrev") {
-        parse_abbreviate_command("inoreabbrev", tail, AbbrevMode::Insert, true)
+        parse_abbreviate_command("inoreabbrev", raw_tail, AbbrevMode::Insert, true)
     } else if matches_abbrev(name, "cnorea", "cnoreabbrev") {
-        parse_abbreviate_command("cnoreabbrev", tail, AbbrevMode::CommandLine, true)
+        parse_abbreviate_command("cnoreabbrev", raw_tail, AbbrevMode::CommandLine, true)
     } else if matches_abbrev(name, "una", "unabbreviate") {
-        parse_unabbreviate_command("unabbreviate", tail, AbbrevMode::Both)
+        parse_unabbreviate_command("unabbreviate", raw_tail, AbbrevMode::Both)
     } else if matches_abbrev(name, "iuna", "iunabbrev") {
-        parse_unabbreviate_command("iunabbrev", tail, AbbrevMode::Insert)
+        parse_unabbreviate_command("iunabbrev", raw_tail, AbbrevMode::Insert)
     } else if matches_abbrev(name, "cuna", "cunabbrev") {
-        parse_unabbreviate_command("cunabbrev", tail, AbbrevMode::CommandLine)
+        parse_unabbreviate_command("cunabbrev", raw_tail, AbbrevMode::CommandLine)
     } else if matches_abbrev(name, "abc", "abclear") {
         Ok(ExCommand::AbClear {
             mode: AbbrevMode::Both,
@@ -388,57 +391,57 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         })
     // Mapping commands — recursive
     } else if name.eq_ignore_ascii_case("map") {
-        parse_map_command(tail, MapModePrefix::All, false)
+        parse_map_command(raw_tail, MapModePrefix::All, false)
     } else if matches_abbrev(name, "nm", "nmap") {
-        parse_map_command(tail, MapModePrefix::Normal, false)
+        parse_map_command(raw_tail, MapModePrefix::Normal, false)
     } else if matches_abbrev(name, "vm", "vmap") {
-        parse_map_command(tail, MapModePrefix::Visual, false)
+        parse_map_command(raw_tail, MapModePrefix::Visual, false)
     } else if matches_abbrev(name, "im", "imap") {
-        parse_map_command(tail, MapModePrefix::Insert, false)
+        parse_map_command(raw_tail, MapModePrefix::Insert, false)
     } else if matches_abbrev(name, "om", "omap") {
-        parse_map_command(tail, MapModePrefix::Operator, false)
+        parse_map_command(raw_tail, MapModePrefix::Operator, false)
     } else if matches_abbrev(name, "cm", "cmap") {
-        parse_map_command(tail, MapModePrefix::Command, false)
+        parse_map_command(raw_tail, MapModePrefix::Command, false)
     // Mapping commands — non-recursive
     } else if matches_abbrev(name, "no", "noremap") {
-        parse_map_command(tail, MapModePrefix::All, true)
+        parse_map_command(raw_tail, MapModePrefix::All, true)
     } else if matches_abbrev(name, "nn", "nnoremap") {
-        parse_map_command(tail, MapModePrefix::Normal, true)
+        parse_map_command(raw_tail, MapModePrefix::Normal, true)
     } else if matches_abbrev(name, "vn", "vnoremap") {
-        parse_map_command(tail, MapModePrefix::Visual, true)
+        parse_map_command(raw_tail, MapModePrefix::Visual, true)
     } else if matches_abbrev(name, "ino", "inoremap") {
-        parse_map_command(tail, MapModePrefix::Insert, true)
+        parse_map_command(raw_tail, MapModePrefix::Insert, true)
     } else if matches_abbrev(name, "ono", "onoremap") {
-        parse_map_command(tail, MapModePrefix::Operator, true)
+        parse_map_command(raw_tail, MapModePrefix::Operator, true)
     } else if matches_abbrev(name, "cno", "cnoremap") {
-        parse_map_command(tail, MapModePrefix::Command, true)
+        parse_map_command(raw_tail, MapModePrefix::Command, true)
     // Unmap commands
     } else if matches_abbrev(name, "unm", "unmap") {
-        parse_unmap_command(tail, MapModePrefix::All)
+        parse_unmap_command(raw_tail, MapModePrefix::All)
     } else if matches_abbrev(name, "nun", "nunmap") {
-        parse_unmap_command(tail, MapModePrefix::Normal)
+        parse_unmap_command(raw_tail, MapModePrefix::Normal)
     } else if matches_abbrev(name, "vu", "vunmap") {
-        parse_unmap_command(tail, MapModePrefix::Visual)
+        parse_unmap_command(raw_tail, MapModePrefix::Visual)
     } else if matches_abbrev(name, "iu", "iunmap") {
-        parse_unmap_command(tail, MapModePrefix::Insert)
+        parse_unmap_command(raw_tail, MapModePrefix::Insert)
     } else if matches_abbrev(name, "ou", "ounmap") {
-        parse_unmap_command(tail, MapModePrefix::Operator)
+        parse_unmap_command(raw_tail, MapModePrefix::Operator)
     } else if matches_abbrev(name, "cu", "cunmap") {
-        parse_unmap_command(tail, MapModePrefix::Command)
+        parse_unmap_command(raw_tail, MapModePrefix::Command)
     // xmap/xnoremap/xunmap (visual-only)
     } else if matches_abbrev(name, "xm", "xmap") {
-        parse_map_command(tail, MapModePrefix::VisualOnly, false)
+        parse_map_command(raw_tail, MapModePrefix::VisualOnly, false)
     } else if matches_abbrev(name, "xn", "xnoremap") {
-        parse_map_command(tail, MapModePrefix::VisualOnly, true)
+        parse_map_command(raw_tail, MapModePrefix::VisualOnly, true)
     } else if matches_abbrev(name, "xu", "xunmap") {
-        parse_unmap_command(tail, MapModePrefix::VisualOnly)
+        parse_unmap_command(raw_tail, MapModePrefix::VisualOnly)
     // smap/snoremap/sunmap (select-only)
     } else if matches_abbrev(name, "sn", "snoremap") {
-        parse_map_command(tail, MapModePrefix::SelectOnly, true)
+        parse_map_command(raw_tail, MapModePrefix::SelectOnly, true)
     } else if matches_abbrev(name, "su", "sunmap") {
-        parse_unmap_command(tail, MapModePrefix::SelectOnly)
+        parse_unmap_command(raw_tail, MapModePrefix::SelectOnly)
     } else if matches_abbrev(name, "sm", "smap") {
-        parse_map_command(tail, MapModePrefix::SelectOnly, false)
+        parse_map_command(raw_tail, MapModePrefix::SelectOnly, false)
     // mapclear commands
     } else if name.eq_ignore_ascii_case("mapclear") {
         parse_mapclear_command(tail, MapModePrefix::All, force)
@@ -493,7 +496,6 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             after_line: read_after_line,
         })
     } else if matches_abbrev(name, "norm", "normal") {
-        let (_, raw_tail) = split_head_raw(rest);
         let remap = !force;
         if raw_tail.is_empty() {
             return Err(VimError::ArgumentRequired);
@@ -956,20 +958,6 @@ fn split_head(input: &str) -> (&str, &str) {
     }
 }
 
-/// Like `split_head` but preserves trailing whitespace in the tail.
-///
-/// Used by commands where the tail is raw content and trailing spaces are
-/// significant (e.g., `:norm` keystroke arguments).
-fn split_head_raw(input: &str) -> (&str, &str) {
-    let trimmed = input.trim_start_matches(BLANKS);
-    if let Some(idx) = trimmed.find(BLANKS) {
-        let (head, tail) = trimmed.split_at(idx);
-        (head, tail.trim_start_matches(BLANKS)) // only trim leading blanks, preserve trailing
-    } else {
-        (trimmed, "")
-    }
-}
-
 fn parse_optional_register(input: &str) -> Option<crate::primitives::RegisterName> {
     let trimmed = input.trim();
     let mut chars = trimmed.chars();
@@ -1297,9 +1285,7 @@ fn parse_map_command(
     } else {
         MappingKind::Recursive
     };
-    let (lhs, rhs) = rest
-        .split_once(char::is_whitespace)
-        .map_or((rest, ""), |(lhs, rhs)| (lhs, rhs.trim_start()));
+    let (lhs, rhs) = split_map_keys(rest);
     Ok(ExCommand::Map {
         mode_prefix,
         lhs: CompactString::from(lhs),
@@ -1310,13 +1296,33 @@ fn parse_map_command(
     })
 }
 
+/// Split the keys of a map or abbreviation command from its right-hand
+/// side, as `do_map()` does: the keys end at the first space or tab that
+/// a Ctrl-V does not escape, and the right-hand side starts after the
+/// blanks and keeps those at its end.
+fn split_map_keys(text: &str) -> (&str, &str) {
+    let mut chars = text.char_indices();
+    let mut end = text.len();
+    while let Some((i, c)) = chars.next() {
+        if c == '\x16' {
+            chars.next();
+        } else if BLANKS.contains(&c) {
+            end = i;
+            break;
+        }
+    }
+    let (keys, rest) = text.split_at(end);
+    (keys, rest.trim_start_matches(BLANKS))
+}
+
+/// Parse `:unmap` and its mode forms. Every blank after the arguments
+/// belongs to the keys (`*map-trailing-white*`), so `:unmap x ` names
+/// `x` and a space.
 fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExCommand, VimError> {
-    let (map_args, rest) = parse_map_args(args);
-    if rest.is_empty() {
+    let (map_args, lhs) = parse_map_args(args);
+    if lhs.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
-    // lhs is the first token (unmap takes exactly one argument)
-    let lhs = rest.split_whitespace().next().unwrap_or(rest);
     Ok(ExCommand::Unmap {
         mode_prefix,
         lhs: CompactString::from(lhs),
@@ -1872,9 +1878,7 @@ fn parse_abbreviate_command(
     if map_args.buffer || map_args.flags.expr {
         return Err(abbreviation_not_available(name, args));
     }
-    let (trigger, replacement) = rest
-        .split_once(char::is_whitespace)
-        .map_or((rest, ""), |(trigger, rhs)| (trigger, rhs.trim_start()));
+    let (trigger, replacement) = split_map_keys(rest);
     Ok(ExCommand::Abbreviate {
         trigger: (!trigger.is_empty()).then(|| CompactString::from(trigger)),
         replacement: (!replacement.is_empty()).then(|| CompactString::from(replacement)),
@@ -1885,6 +1889,8 @@ fn parse_abbreviate_command(
 }
 
 /// Parse `:unabbreviate` / `:iunabbrev` / `:cunabbrev`, named `name`.
+/// The trigger is the whole argument; `do_map()` ignores blanks at its end
+/// because an abbreviation cannot end in one.
 fn parse_unabbreviate_command(
     name: &str,
     args: &str,
@@ -1894,11 +1900,10 @@ fn parse_unabbreviate_command(
     if map_args.buffer {
         return Err(abbreviation_not_available(name, args));
     }
-    if rest.is_empty() {
+    let trigger = rest.trim_end_matches(BLANKS);
+    if trigger.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
-    // Trigger is the first token.
-    let trigger = rest.split_whitespace().next().unwrap_or(rest);
     Ok(ExCommand::Unabbreviate {
         trigger: CompactString::from(trigger),
         mode,

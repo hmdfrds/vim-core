@@ -169,3 +169,45 @@ fn script_mappings_do_not_remap() {
     type_keys(&mut session, ":nnoremap l x<CR>:nmap q l<CR>q");
     assert_eq!(session.text(), "bc");
 }
+
+#[test]
+fn a_right_hand_side_keeps_its_trailing_blanks() {
+    // `nnoremap x l ` moves right twice: `l` and the space.
+    let mut session = HostSession::new("abcd");
+    type_keys(&mut session, ":nnoremap x l <CR>x");
+    assert_eq!(session.cursor_offset(), 2);
+
+    // The blank before a `|` belongs to the right-hand side.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("nnoremap x y | set ic\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert_eq!(normal_mappings(&engine), [mapping("x", "y<Space>", false)]);
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
+fn an_abbreviation_keeps_its_trailing_blanks() {
+    let mut session = HostSession::new("");
+    type_keys(&mut session, ":iabbrev teh the <CR>ateh <Esc>");
+    assert_eq!(session.text(), "the  ");
+}
+
+#[test]
+fn unmap_with_a_trailing_blank_names_other_keys() {
+    let mut engine = VimEngine::new();
+    run_ex(&mut engine, "nnoremap x y");
+    run_ex(&mut engine, "unmap x ");
+    assert_eq!(normal_mappings(&engine), [mapping("x", "y", false)]);
+    run_ex(&mut engine, "unmap x");
+    assert!(normal_mappings(&engine).is_empty());
+}
+
+#[test]
+fn unabbreviate_ignores_trailing_blanks() {
+    let mut session = HostSession::new("");
+    type_keys(
+        &mut session,
+        ":iabbrev teh the<CR>:iunabbrev teh <CR>ateh <Esc>",
+    );
+    assert_eq!(session.text(), "teh ");
+}

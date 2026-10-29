@@ -896,6 +896,70 @@ fn abbreviation_flags() {
 }
 
 #[test]
+fn a_right_hand_side_keeps_its_trailing_blanks() {
+    // `*:map*`: "Trailing spaces are included in the {rhs}".
+    let rhs = |line: &str| match parse_ex_command(line).unwrap() {
+        ExCommand::Map { lhs, rhs, .. } => (lhs.to_string(), rhs.map(|rhs| rhs.to_string())),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(rhs("nnoremap x l "), ("x".into(), Some("l ".into())));
+    assert_eq!(rhs("nnoremap x\t \tl\t"), ("x".into(), Some("l\t".into())));
+    assert_eq!(rhs("nnoremap x  "), ("x".into(), None));
+    // A Ctrl-V keeps a blank in the keys.
+    assert_eq!(
+        rhs("nnoremap a\x16 b c"),
+        ("a\x16 b".into(), Some("c".into()))
+    );
+    assert!(matches!(
+        parse_ex_command("iabbrev teh the ").unwrap(),
+        ExCommand::Abbreviate { replacement: Some(ref r), .. } if r.as_str() == "the "
+    ));
+}
+
+#[test]
+fn an_argument_may_follow_the_name_without_a_blank() {
+    // find_ex_command() ends the name at the first character that is not
+    // a letter.
+    assert!(matches!(
+        parse_ex_command("norm$").unwrap(),
+        ExCommand::Norm { ref keys, .. } if keys.as_str() == "$"
+    ));
+    assert!(matches!(
+        parse_ex_command("norm  x ").unwrap(),
+        ExCommand::Norm { ref keys, .. } if keys.as_str() == "x "
+    ));
+}
+
+#[test]
+fn unmap_takes_its_whole_argument_as_the_keys() {
+    // `*map-trailing-white*`
+    for (line, keys) in [
+        ("unmap x ", "x "),
+        ("nunmap x y", "x y"),
+        ("unmap <buffer> x", "x"),
+        ("nunmap<F1>", "<F1>"),
+    ] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Unmap { ref lhs, .. } if lhs.as_str() == keys),
+            "{line}"
+        );
+    }
+    // do_map() ignores blanks at the end of an abbreviation's trigger.
+    for (line, trigger) in [
+        ("iunabbrev foo  ", "foo"),
+        ("unabbreviate foo bar", "foo bar"),
+    ] {
+        assert!(
+            matches!(
+                parse_ex_command(line).unwrap(),
+                ExCommand::Unabbreviate { trigger: ref t, .. } if t.as_str() == trigger
+            ),
+            "{line}"
+        );
+    }
+}
+
+#[test]
 fn map_flags_are_read_in_exact_case() {
     // do_map() compares each flag with STRNCMP, so `<NOWAIT>` starts the
     // left-hand side.
