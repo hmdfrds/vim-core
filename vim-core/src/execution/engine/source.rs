@@ -1104,6 +1104,70 @@ mod tests {
         assert_eq!(session.text(), "x the ");
     }
 
+    // ── reset_config_state ────────────────────────────────────────
+
+    #[test]
+    fn reset_config_state_clears_what_a_config_defines() {
+        use crate::execution::HostMapping;
+        use crate::keymap::{KeyEvent, MappingMode, MappingOwner};
+        let mut engine = VimEngine::new();
+        engine.register_host_mappings(
+            "ext",
+            &[HostMapping {
+                modes: smallvec::smallvec![MappingMode::Normal],
+                lhs: "gd".into(),
+                rhs: "<Action>(goto)".into(),
+                recursive: false,
+                silent: false,
+                description: None,
+            }],
+        );
+        let config = "nnoremap a b\nxnoremap c d\nsnoremap e f\nonoremap g h\n\
+                      inoremap i j\ncnoremap k l\niabbrev m n\ncabbrev o p\n\
+                      abbreviate q r\nsethandler <C-a> n:ide\nlet mapleader = \",\"\n\
+                      let maplocalleader = \";\"\nset tw=33\n";
+        let response = engine.source_config_text(config);
+        assert_eq!(errors(&response), Vec::<String>::new());
+        assert!(!engine.handler_map().is_empty());
+
+        engine.reset_config_state();
+
+        for mm in MappingMode::ALL {
+            let owners: Vec<_> = engine
+                .keymap()
+                .list_mappings(mm)
+                .into_iter()
+                .map(|(_, entry, _)| entry.owner().clone())
+                .collect();
+            let host = MappingOwner::Host("ext".into());
+            let expected = if mm == MappingMode::Normal {
+                vec![host]
+            } else {
+                vec![]
+            };
+            assert_eq!(owners, expected, "{mm:?}");
+        }
+        assert!(engine.abbrev_table.is_empty());
+        assert!(engine.handler_map().is_empty());
+        assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
+        assert_eq!(engine.local_leader_keys(), [KeyEvent::char('\\')]);
+        let variables = engine.state().variable_store();
+        assert!(!variables.exists(crate::primitives::VarScope::Global, "mapleader"));
+        assert!(!variables.exists(crate::primitives::VarScope::Global, "maplocalleader"));
+        assert_eq!(engine.options().textwidth(), 33);
+    }
+
+    #[test]
+    fn reset_config_state_lets_a_config_run_again_from_nothing() {
+        let mut session = sourced("x", "let mapleader = \",\"\niabbrev teh the\n");
+        session.reset_config_state();
+        let _ = session.source_config("nnoremap <Leader>d dd\n");
+        type_keys(&mut session, "A teh <Esc>,d");
+        assert_eq!(session.text(), "x teh ");
+        type_keys(&mut session, "\\d");
+        assert_eq!(session.text(), "");
+    }
+
     #[test]
     fn source_config_runs_lines_written_with_a_colon() {
         let session = sourced("", ":set tw=33\n  : :set ic\n");

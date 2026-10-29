@@ -1243,6 +1243,14 @@ impl Keymap {
         total
     }
 
+    /// Remove the mappings owned by `owner` in every mode of the global
+    /// layer, leaving the buffer-local and filetype overlays.
+    pub(crate) fn remove_global_mappings_by_owner(&mut self, owner: &MappingOwner) {
+        for trie in &mut self.user {
+            trie.remove_by_owner(owner);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Buffer overlay swap (shell calls on buffer switch)
     // ═══════════════════════════════════════════════════════════════════

@@ -10,9 +10,10 @@ use super::VimEngine;
 use crate::execution::executor_ex::LeaderChange;
 use crate::execution::script_expr::Value;
 use crate::keymap::{
-    BufferMappings, KeyEvent, MappingEntry, MappingFlags, MappingKind, MappingMode, TrieLookup,
+    BufferMappings, KeyEvent, MappingEntry, MappingFlags, MappingKind, MappingMode, MappingOwner,
+    TrieLookup,
 };
-use crate::primitives::VarScope;
+use crate::primitives::{AbbrevMode, VarScope};
 
 /// The `g:` variable that holds the leader (`local`: the local leader).
 const fn leader_variable(local: bool) -> &'static str {
@@ -263,6 +264,32 @@ impl VimEngine {
     pub fn clear_mappings(&mut self) {
         self.typeahead.buffer.clear();
         self.keymap.clear_all_mappings();
+        self.key_interest_dirty = true;
+    }
+
+    /// Clear what a config can define, so the host can source it again
+    /// from a clean slate: the user's mappings in every mode, every
+    /// abbreviation, the [`handler_map`](Self::handler_map), and the leader
+    /// and local leader, which go back to `\` with `g:mapleader` and
+    /// `g:maplocalleader` removed.
+    ///
+    /// Mappings a host registered with
+    /// [`register_host_mappings`](Self::register_host_mappings), the
+    /// engine's own and buffer-local ones stay, as do options, other
+    /// variables, registers and marks. Vim has no such call: sourcing a
+    /// file again adds to what it defined.
+    pub fn reset_config_state(&mut self) {
+        self.typeahead.buffer.clear();
+        self.keymap
+            .remove_global_mappings_by_owner(&MappingOwner::User);
+        self.abbrev_table.clear(AbbrevMode::Both);
+        self.handler_map.clear();
+        for local in [false, true] {
+            self.state
+                .variable_store_mut()
+                .delete(VarScope::Global, leader_variable(local));
+            self.sync_leader(local);
+        }
         self.key_interest_dirty = true;
     }
 

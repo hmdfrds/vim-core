@@ -1843,6 +1843,13 @@ impl VimSession<SessionHost> {
         self.engine_mut().clear_mappings();
     }
 
+    /// Clear what a config can define before it is sourced again, as
+    /// [`VimEngine::reset_config_state`](crate::execution::VimEngine::reset_config_state)
+    /// does.
+    pub fn reset_config_state(&mut self) {
+        self.engine_mut().reset_config_state();
+    }
+
     /// Register a batch of key mappings contributed by a host extension.
     pub fn register_host_mappings(&mut self, name: &str, mappings: &[super::HostMapping]) {
         self.engine_mut().register_host_mappings(name, mappings);
