@@ -277,6 +277,14 @@ impl Blocks {
             .flatten()
     }
 
+    /// `do_finish()`: every block stops being active, as
+    /// `cleanup_conditionals()` leaves them; their ends still close them.
+    pub(super) fn finish(&mut self) {
+        for block in &mut self.open {
+            block.active = false;
+        }
+    }
+
     /// The error for the innermost open block at the end of a file, as
     /// `do_cmdline()` gives it.
     pub(super) fn missing_end(&self) -> Option<VimError> {
@@ -484,6 +492,19 @@ mod tests {
         assert_eq!(blocks.close_try(&mut error), Err(VimError::MissingEndif));
         assert!(!error, "ex_endtry() reports the error after another");
         assert!(blocks.is_empty());
+    }
+
+    #[test]
+    fn finish_leaves_no_block_active() {
+        let mut blocks = Blocks::default();
+        open_if(&mut blocks, Some(true));
+        open_if(&mut blocks, Some(true));
+        blocks.finish();
+        assert!(!blocks.active());
+        blocks.close_if().unwrap();
+        assert!(!blocks.active());
+        blocks.add_else(false).unwrap();
+        assert!(!blocks.active());
     }
 
     #[test]

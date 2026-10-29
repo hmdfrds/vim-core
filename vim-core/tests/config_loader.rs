@@ -416,3 +416,51 @@ fn blocks_nest_fifty_deep() {
         ["E579: :if nesting too deep", "E580: :endif without :if"]
     );
 }
+
+#[test]
+fn finish_ends_the_file_after_its_line() {
+    // ex_finish(): getsourceline() reads no line once the file is
+    // finished, and do_cmdline() runs the rest of the line first.
+    for (config, textwidth) in [
+        ("finish\nset tw=33\n", 0),
+        ("fini\nset tw=33\n", 0),
+        ("set tw=1 | finish | set tw=9\nset tw=33\n", 9),
+        ("if 0\nfinish\nendif\nset tw=33\n", 33),
+        ("set tw=abc | finish\nset tw=33\n", 33),
+    ] {
+        let (found, errors) = textwidth_after(config);
+        assert_eq!(found, textwidth, "{config:?}");
+        assert!(errors.len() <= 1, "{config:?}: {errors:?}");
+    }
+}
+
+#[test]
+fn finish_inside_a_block_skips_the_rest_of_its_line() {
+    // do_finish(): cleanup_conditionals() leaves no block active, and no
+    // E171 follows (source_finished()).
+    for config in [
+        "if 1 | finish | set tw=9 | endif\nset tw=33\n",
+        "if 1\nfinish\nendif\nset tw=33\n",
+        "if 1\nif 1 | finish | endif | else | set tw=9\n",
+        "if 0\nelse\nfinish | set tw=9\n",
+    ] {
+        assert_eq!(textwidth_after(config), (0, vec![]), "{config:?}");
+    }
+}
+
+#[test]
+fn finish_guards_a_config_sourced_twice() {
+    let config = "if exists('g:loaded') | finish | endif\nlet g:loaded = 1\nlet &tw += 1\n";
+    let mut engine = VimEngine::new();
+    engine.source_config_text(config);
+    let response = engine.source_config_text(config);
+    assert_eq!(engine.options().textwidth(), 1);
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+}
+
+#[test]
+fn finish_with_an_argument_is_an_error_and_the_file_goes_on() {
+    let (textwidth, errors) = textwidth_after("finish x\nset tw=33\n");
+    assert_eq!(textwidth, 33);
+    assert_eq!(errors, ["E488: Trailing characters: x"]);
+}

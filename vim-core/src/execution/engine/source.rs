@@ -27,6 +27,8 @@ struct Frame<'a> {
     /// Vim's `did_emsg`: an error was shown, so the commands after it do
     /// not run, up to the end of its line or of the outermost block.
     error: bool,
+    /// `:finish` ran: no line is read after the current one.
+    finished: bool,
 }
 
 impl Frame<'_> {
@@ -49,7 +51,8 @@ impl super::VimEngine {
     ///
     /// `:if`, `:elseif`, `:else` and `:endif` choose the lines that run, as
     /// in Vim. A `:while`, `:for` or `:try` block gives E319 and the lines
-    /// inside it never run.
+    /// inside it never run. `:finish` ends the file once the rest of its
+    /// line has run; inside a block, the rest of the line does not run.
     ///
     /// An error is shown and, as in Vim, the commands after it do not run,
     /// up to the end of its line or, inside a block, of the outermost
@@ -97,12 +100,17 @@ impl super::VimEngine {
             script: Script::new(text),
             blocks: Blocks::default(),
             error: false,
+            finished: false,
         };
         loop {
             // do_cmdline(): "stop skipping cmds for an error msg after all
             // endif/while/for".
             if frame.blocks.is_empty() {
                 frame.error = false;
+            }
+            // getsourceline() reads no line once the file is finished.
+            if frame.finished {
+                break;
             }
             let Some(line) = frame.script.next_line() else {
                 break;
@@ -113,7 +121,7 @@ impl super::VimEngine {
                 next = self.source_config_line(&mut frame, &line, &mut response);
             }
         }
-        if let Some(error) = frame.blocks.missing_end() {
+        if let Some(error) = frame.blocks.missing_end().filter(|_| !frame.finished) {
             response.extend_effects(ex_effects::show_error(error));
         }
         response.extend_effects(ex_effects::show_message(CompactString::from(
@@ -156,7 +164,7 @@ impl super::VimEngine {
                 }
             }
             if let Some(command) = script_command(&piece) {
-                self.source_config_control(frame, command, &piece, response);
+                self.source_config_control(frame, command, response);
                 continue;
             }
             if !skipping {
@@ -167,14 +175,14 @@ impl super::VimEngine {
         rest
     }
 
-    /// Run a command of a script block, `:break` or `:continue` as Vim's
-    /// `do_one_cmd()` and `ex_eval.c` run them. A block command runs even
-    /// while skipping, so that the blocks stay matched.
+    /// Run a command of a script block, `:finish`, `:break` or `:continue`
+    /// as Vim's `do_one_cmd()`, `ex_eval.c` and `ex_finish()` run them. A
+    /// block command runs even while skipping, so that the blocks stay
+    /// matched.
     fn source_config_control(
-        &mut self,
+        &self,
         frame: &mut Frame<'_>,
         command: ScriptCommand<'_>,
-        piece: &str,
         response: &mut Response,
     ) {
         let skipping = frame.skipping();
@@ -238,9 +246,8 @@ impl super::VimEngine {
             Control::Break if !skipping => blocks.leave_loop(VimError::BreakWithoutLoop),
             Control::Continue if !skipping => blocks.leave_loop(VimError::ContinueWithoutLoop),
             Control::Finish if !skipping => {
-                let from = response.effects().len();
-                self.source_config_piece(piece, response);
-                *error |= shows_error(response, from);
+                blocks.finish();
+                frame.finished = true;
                 Ok(())
             }
             Control::Break | Control::Continue | Control::Finish => Ok(()),
