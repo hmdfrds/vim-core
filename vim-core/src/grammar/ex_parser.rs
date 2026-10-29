@@ -391,7 +391,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         })
     // Mapping commands — recursive
     } else if name.eq_ignore_ascii_case("map") {
-        parse_map_command(raw_tail, MapModePrefix::All, false)
+        parse_map_command(raw_tail, all_or_insert_command(force), false)
     } else if matches_abbrev(name, "nm", "nmap") {
         parse_map_command(raw_tail, MapModePrefix::Normal, false)
     } else if matches_abbrev(name, "vm", "vmap") {
@@ -404,7 +404,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         parse_map_command(raw_tail, MapModePrefix::Command, false)
     // Mapping commands — non-recursive
     } else if matches_abbrev(name, "no", "noremap") {
-        parse_map_command(raw_tail, MapModePrefix::All, true)
+        parse_map_command(raw_tail, all_or_insert_command(force), true)
     } else if matches_abbrev(name, "nn", "nnoremap") {
         parse_map_command(raw_tail, MapModePrefix::Normal, true)
     } else if matches_abbrev(name, "vn", "vnoremap") {
@@ -417,7 +417,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         parse_map_command(raw_tail, MapModePrefix::Command, true)
     // Unmap commands
     } else if matches_abbrev(name, "unm", "unmap") {
-        parse_unmap_command(raw_tail, MapModePrefix::All)
+        parse_unmap_command(raw_tail, all_or_insert_command(force))
     } else if matches_abbrev(name, "nun", "nunmap") {
         parse_unmap_command(raw_tail, MapModePrefix::Normal)
     } else if matches_abbrev(name, "vu", "vunmap") {
@@ -444,7 +444,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
         parse_map_command(raw_tail, MapModePrefix::SelectOnly, false)
     // mapclear commands
     } else if name.eq_ignore_ascii_case("mapclear") {
-        parse_mapclear_command(tail, MapModePrefix::All, force)
+        parse_mapclear_command(tail, all_or_insert_command(force), force)
     } else if matches_abbrev(name, "nmapc", "nmapclear") {
         parse_mapclear_command(tail, MapModePrefix::Normal, force)
     } else if matches_abbrev(name, "vmapc", "vmapclear") {
@@ -1221,6 +1221,16 @@ fn parse_line_spec_prefix(input: &str) -> Result<Option<(LineSpec, usize)>, VimE
     }
 
     Ok(Some((base_spec, base_len)))
+}
+
+/// The modes of `:map`, `:noremap`, `:unmap` and `:mapclear`: with `!`,
+/// Insert and Command-line mode (`get_map_mode()`).
+const fn all_or_insert_command(force: bool) -> MapModePrefix {
+    if force {
+        MapModePrefix::InsertCommand
+    } else {
+        MapModePrefix::All
+    }
 }
 
 /// The arguments a map or abbreviation command takes before its keys.

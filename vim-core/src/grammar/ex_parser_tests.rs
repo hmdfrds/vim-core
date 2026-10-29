@@ -5452,8 +5452,33 @@ fn parses_mapclear_bang() {
     assert!(matches!(
         cmd,
         ExCommand::MapClear {
-            mode: MapModePrefix::All,
+            mode: MapModePrefix::InsertCommand,
             force: true,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn map_bang_is_insert_and_command_line() {
+    // get_map_mode(): "map!", "noremap!" and "unmap!" are MODE_INSERT |
+    // MODE_CMDLINE.
+    for line in ["map! x y", "noremap! x y", "no! x y"] {
+        assert!(
+            matches!(
+                parse_ex_command(line).unwrap(),
+                ExCommand::Map {
+                    mode_prefix: MapModePrefix::InsertCommand,
+                    ..
+                }
+            ),
+            "{line}"
+        );
+    }
+    assert!(matches!(
+        parse_ex_command("unmap! x").unwrap(),
+        ExCommand::Unmap {
+            mode_prefix: MapModePrefix::InsertCommand,
             ..
         }
     ));

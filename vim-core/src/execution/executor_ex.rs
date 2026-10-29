@@ -2064,6 +2064,9 @@ pub(crate) fn modes_for_prefix(
         MapModePrefix::Command => smallvec::smallvec![MappingMode::Command],
         MapModePrefix::VisualOnly => smallvec::smallvec![MappingMode::VisualOnly],
         MapModePrefix::SelectOnly => smallvec::smallvec![MappingMode::SelectOnly],
+        MapModePrefix::InsertCommand => {
+            smallvec::smallvec![MappingMode::Insert, MappingMode::Command]
+        }
     }
 }
 

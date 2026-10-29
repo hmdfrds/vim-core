@@ -354,3 +354,41 @@ fn unabbreviate_removes_an_abbreviation_to_its_argument() {
     );
     assert_eq!(session.text(), "foo ");
 }
+
+fn has_mapping(engine: &VimEngine, mode: MappingMode, lhs: &str) -> bool {
+    engine
+        .keymap()
+        .list_mappings(mode)
+        .iter()
+        .any(|(keys, _, _)| keys.iter().map(|k| k.to_vim_notation()).collect::<String>() == lhs)
+}
+
+#[test]
+fn map_bang_maps_insert_and_command_line_mode() {
+    // get_map_mode() gives the "!" forms MODE_INSERT | MODE_CMDLINE. A
+    // config, so that the command-line mappings leave its lines alone.
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("noremap! a b | map! c d | nnoremap a b\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    for mode in [MappingMode::Insert, MappingMode::Command] {
+        assert!(has_mapping(&engine, mode, "a") && has_mapping(&engine, mode, "c"));
+    }
+    assert!(!has_mapping(&engine, MappingMode::Visual, "a"));
+    assert!(!has_mapping(&engine, MappingMode::Normal, "c"));
+
+    let response = engine.source_config_text("unmap! a\nunmap! a\n");
+    assert_eq!(errors(&response), ["E31: No such mapping"]);
+    assert!(!has_mapping(&engine, MappingMode::Insert, "a"));
+    assert!(!has_mapping(&engine, MappingMode::Command, "a"));
+    assert!(has_mapping(&engine, MappingMode::Normal, "a"));
+
+    let response = engine.source_config_text("mapclear!\n");
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert!(!has_mapping(&engine, MappingMode::Insert, "c"));
+    assert!(!has_mapping(&engine, MappingMode::Command, "c"));
+    assert!(has_mapping(&engine, MappingMode::Normal, "a"));
+
+    let mut session = HostSession::new("");
+    type_keys(&mut session, ":noremap! jk <lt>Esc><CR>ajk");
+    assert_eq!(session.mode(), Mode::Normal);
+}
