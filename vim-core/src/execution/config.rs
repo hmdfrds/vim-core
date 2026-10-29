@@ -64,6 +64,58 @@ pub trait ConfigHost {
     fn has_feature(&self, _feature: &str) -> bool {
         false
     }
+
+    /// What to do with a `:source` in the config. By default it becomes a
+    /// [`HostRequest::ReadConfigFile`](crate::execution::HostRequest::ReadConfigFile)
+    /// request, as for a host that reads no file while a config runs.
+    fn source(&mut self, _request: &SourceRequest<'_>) -> SourceReply {
+        SourceReply::Defer
+    }
+}
+
+/// A `:source` in a config, for [`ConfigHost::source`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceRequest<'a> {
+    /// The file as typed, unexpanded; `None` for a bare `:source`. The host
+    /// expands `~`, `$VAR`, `%` and `<sfile>`, which names `from_file`.
+    pub path: Option<&'a str>,
+    /// The name of the config the `:source` is in.
+    pub from_file: &'a str,
+    /// The tag of that config.
+    pub from_trust: TrustTag,
+    /// The line of the `:source`.
+    pub line: u32,
+    /// How many files would be running with this one: the config the host
+    /// passed is 1, a file it sources 2. The file is refused with E169
+    /// before it would be 201, so the host is never asked for more than
+    /// 200.
+    pub depth: u32,
+}
+
+/// What [`ConfigHost::source`] answers.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceReply {
+    /// The text of the file, which runs now, before the commands after the
+    /// `:source`, named `name` in its errors and tagged `trust`.
+    Text {
+        /// The name its errors are reported under.
+        name: String,
+        /// The text of the file.
+        text: String,
+        /// Opaque to vim-core, handed back for the `:source` commands in it.
+        trust: TrustTag,
+    },
+    /// The host sourced the file itself; the message, if any, is shown.
+    Done(Option<String>),
+    /// The file is not sourced, and the text is shown as the error of the
+    /// `:source`, as written, such as `E484: Can't open file b.vim`.
+    Refuse(String),
+    /// The `:source` becomes a
+    /// [`HostRequest::ReadConfigFile`](crate::execution::HostRequest::ReadConfigFile)
+    /// request, answered once the config has run.
+    Defer,
 }
 
 /// A host that answers nothing.

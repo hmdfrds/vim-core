@@ -9,36 +9,130 @@ use crate::commands::ex::effects as ex_effects;
 use crate::document::Document;
 use crate::effects::{Effect, Effects, SourceContext};
 use crate::errors::VimError;
-use crate::execution::config::{ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, NoHost};
+use crate::execution::config::{
+    ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, NoHost, SourceReply, SourceRequest,
+    TrustTag,
+};
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
-use crate::execution::{ExecutionContext, InputContext};
+use crate::execution::{ExecutionContext, HostRequest, InputContext};
 use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
 use crate::grammar::script::{script_command, Control, Line, Script, ScriptCommand};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, SetAssignment};
 use crate::primitives::{Offset, OptionValue, Position, VarScope};
 use compact_str::CompactString;
+use std::borrow::Cow;
 
-/// A config being sourced, with what Vim's `do_cmdline()` keeps while it
-/// runs one.
+/// Most files that run at once: `do_cmdline()` refuses a level past 200.
+const MAX_DEPTH: u32 = 200;
+
+/// A config being sourced, with what Vim's `do_cmdline()` and the cookie of
+/// `do_source_ext()` keep while it runs.
 struct Frame<'a> {
-    /// The name its errors are reported under.
-    name: &'a str,
+    /// Its own name.
+    name: Cow<'a, str>,
+    /// The name its errors are reported under: `estack_sfile()`'s stack of
+    /// the files that run, as in `a.vim[12]..b.vim`.
+    file: String,
+    trust: TrustTag,
+    /// How many files run, this one included.
+    depth: u32,
+    /// The modifiers of the `:source` that runs it, which `apply_cmdmod()`
+    /// keeps in force for its commands.
+    modifiers: ModifierFlags,
     script: Script<'a>,
     blocks: Blocks,
     /// Vim's `did_emsg`: an error was shown, so the commands after it do
-    /// not run, up to the end of its line or of the outermost block.
+    /// not run, up to the end of its line or of the outermost block. All
+    /// files share it: a file starts with it cleared, and hands it back to
+    /// the file that sourced it.
     error: bool,
     /// `:finish` ran: no line is read after the current one.
     finished: bool,
+    /// The line running.
+    line: Line,
+    /// Its commands that have not run, the next one last.
+    pieces: Vec<String>,
+    /// The commands after the `|` of the line that ends a function, which
+    /// run as the rest of that line.
+    rest: Option<Line>,
 }
 
-impl Frame<'_> {
+/// The text of a file a `:source` gave.
+struct Sourced {
+    name: String,
+    text: String,
+    trust: TrustTag,
+    /// The modifiers of the `:source`.
+    modifiers: ModifierFlags,
+}
+
+impl<'a> Frame<'a> {
+    fn new(
+        name: Cow<'a, str>,
+        file: String,
+        text: Cow<'a, str>,
+        trust: TrustTag,
+        depth: u32,
+        modifiers: ModifierFlags,
+    ) -> Self {
+        Self {
+            name,
+            file,
+            trust,
+            depth,
+            modifiers,
+            script: Script::new(text),
+            blocks: Blocks::default(),
+            error: false,
+            finished: false,
+            line: Line::default(),
+            pieces: Vec::new(),
+            rest: None,
+        }
+    }
+
+    /// The frame of the file `sourced`, which the command running here
+    /// sources. A file without a name is left out of the stack.
+    fn nested(&self, sourced: Sourced) -> Self {
+        let mut file = if self.name.is_empty() {
+            self.file.clone()
+        } else {
+            format!("{}[{}]..", self.file, self.script.line_number())
+        };
+        file.push_str(&sourced.name);
+        Self::new(
+            Cow::Owned(sourced.name),
+            file,
+            Cow::Owned(sourced.text),
+            sourced.trust,
+            self.depth + 1,
+            sourced.modifiers,
+        )
+    }
+
     /// Whether a command does not run here (`do_one_cmd()`: `ea.skip`).
     fn skipping(&self) -> bool {
         self.error || !self.blocks.active()
     }
+
+    /// Run `line` next, one `|` command after another.
+    fn start(&mut self, line: Line) {
+        let pieces = split_ex_pipeline(&line.text);
+        self.pieces = pieces.into_iter().rev().map(Cow::into_owned).collect();
+        self.line = line;
+    }
+}
+
+/// What the runner does after a command.
+enum Then {
+    /// Runs the next command.
+    Next,
+    /// Reads no line after this one, as after `:vim9script`.
+    End,
+    /// Runs the file a `:source` gave before the next command.
+    Source(Sourced),
 }
 
 impl super::VimEngine {
@@ -85,6 +179,19 @@ impl super::VimEngine {
     /// also raised at the same line. A config without a name gets the line
     /// labels only.
     ///
+    /// `:source {file}` asks `host` for the file (see
+    /// [`ConfigHost::source`]). Its text runs in place, before the commands
+    /// after the `:source`, as Vim's `cmd_source()` runs it: its errors
+    /// name it in Vim's stack form, `a.vim[12]..b.vim` for an error in
+    /// `b.vim` sourced at line 12 of `a.vim`, the modifiers before the
+    /// `:source`, such as `:silent!`, stay in force inside it, and
+    /// `:finish` ends only that file. As in Vim, its errors do not skip
+    /// the commands after the `:source`, unless it ends with a block open.
+    /// A refused file does, and so does a `:source` inside 200 files that
+    /// run, which gives `E169: Command too recursive` without asking the
+    /// host. A file the host defers runs when it answers the request with
+    /// the text.
+    ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
     /// gives E523, and `:setlocal` and `:setglobal` act like `:set`.
@@ -119,7 +226,7 @@ impl super::VimEngine {
         text: ConfigText<'_>,
         host: &mut dyn ConfigHost,
     ) -> ConfigResponse {
-        let response = self.run_script(text, host);
+        let response = self.run_script(text, host, 1);
         let errors = response
             .effects()
             .iter()
@@ -144,9 +251,7 @@ impl super::VimEngine {
     /// named `name`, as when a host answers `:source {name}` with the
     /// file's text.
     pub(super) fn source_config_named(&mut self, name: &str, text: &str) -> Response {
-        let mut response = self
-            .source_script(ConfigText::new(name, text), &mut NoHost)
-            .response;
+        let mut response = self.run_script(ConfigText::new(name, text), &mut NoHost, 1);
         let from = response.effects().len();
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
@@ -155,8 +260,14 @@ impl super::VimEngine {
         response
     }
 
-    /// Run the config `text` for [`source_script`](Self::source_script).
-    fn run_script(&mut self, text: ConfigText<'_>, host: &dyn ConfigHost) -> Response {
+    /// Run the config `text` for [`source_script`](Self::source_script), as
+    /// the `depth`th of the files that run.
+    fn run_script(
+        &mut self,
+        text: ConfigText<'_>,
+        host: &mut dyn ConfigHost,
+        depth: u32,
+    ) -> Response {
         if self.options_dirty {
             self.rebuild_resolved_cache();
             self.rebuild_langmap_if_needed();
@@ -165,92 +276,121 @@ impl super::VimEngine {
         // after a config with errors.
         self.state.message_history_mut().forget_source();
         let mut response = Response::with_effects(Effects::new());
-        let mut frame = Frame {
-            name: text.name,
-            script: Script::new(text.text),
-            blocks: Blocks::default(),
-            error: false,
-            finished: false,
-        };
-        loop {
-            // do_cmdline(): "stop skipping cmds for an error msg after all
-            // endif/while/for".
-            if frame.blocks.is_empty() {
-                frame.error = false;
-            }
-            // getsourceline() reads no line once the file is finished.
-            if frame.finished {
-                break;
-            }
-            let Some(line) = frame.script.next_line() else {
-                break;
-            };
-            let from = response.effects().len();
-            show_warnings(&mut frame, &mut response);
-            self.settle(&mut response, from);
-            let mut next = Some(line);
-            while let Some(line) = next {
-                next = self.source_config_line(&mut frame, host, &line, &mut response);
-            }
-        }
-        if let Some(error) = frame.blocks.missing_end().filter(|_| !frame.finished) {
-            let from = response.effects().len();
-            response.extend_effects(ex_effects::show_error(error));
-            locate(&mut response, from, frame.name, frame.script.end_line());
-            self.settle(&mut response, from);
-        }
+        let top = Frame::new(
+            Cow::Borrowed(text.name),
+            text.name.to_owned(),
+            Cow::Borrowed(text.text),
+            text.trust,
+            depth,
+            ModifierFlags::empty(),
+        );
+        self.run_frames(top, host, &mut response);
         // Not register_pending_host_requests: its effect optimizer keeps only
         // the last of several messages, and a config can print many.
         self.track_host_requests(&mut response);
         response
     }
 
-    /// Run one config line: each of its `|` commands in turn, reading the
-    /// lines a command takes after the line from the frame's script.
-    /// Returns the rest of the line that ends a function, which runs next.
-    fn source_config_line(
+    /// Run the file `top` and the files it sources, each on top of the
+    /// file that sources it, as nested `do_cmdline()` calls run them, but
+    /// on the heap.
+    fn run_frames(&mut self, top: Frame<'_>, host: &mut dyn ConfigHost, response: &mut Response) {
+        let mut frames = vec![top];
+        while let Some(frame) = frames.last_mut() {
+            if let Some(piece) = frame.pieces.pop() {
+                if let Some(sourced) = self.source_config_command(frame, host, &piece, response) {
+                    let nested = frame.nested(sourced);
+                    frames.push(nested);
+                }
+                continue;
+            }
+            if let Some(rest) = frame.rest.take() {
+                frame.start(rest);
+                continue;
+            }
+            // do_cmdline(): "stop skipping cmds for an error msg after all
+            // endif/while/for".
+            if frame.blocks.is_empty() {
+                frame.error = false;
+            }
+            // getsourceline() reads no line once the file is finished.
+            let line = if frame.finished {
+                None
+            } else {
+                frame.script.next_line()
+            };
+            if let Some(line) = line {
+                let from = response.effects().len();
+                show_warnings(frame, response);
+                self.settle(response, from);
+                frame.start(line);
+                continue;
+            }
+            if let Some(error) = frame.blocks.missing_end().filter(|_| !frame.finished) {
+                let from = response.effects().len();
+                show_config_errors(frame.modifiers, [error], response);
+                frame.error |= shows_error(response, from);
+                locate(response, from, &frame.file, frame.script.end_line());
+                self.settle(response, from);
+            }
+            let error = frame.error;
+            frames.pop();
+            if let Some(outer) = frames.last_mut() {
+                outer.error = error;
+            }
+        }
+    }
+
+    /// Run the next command of the frame's line, reading the lines it takes
+    /// after the line from the frame's script. Returns the file a `:source`
+    /// gave, which runs before the next command.
+    fn source_config_command(
         &mut self,
         frame: &mut Frame<'_>,
-        host: &dyn ConfigHost,
-        line: &Line,
+        host: &mut dyn ConfigHost,
+        piece: &str,
         response: &mut Response,
-    ) -> Option<Line> {
-        let mut rest = None;
-        for piece in split_ex_pipeline(&line.text) {
-            // Vim's SOURCING_LNUM: after a command read lines as text, the
-            // commands after it are at the last of them.
-            let at = frame.script.line_number();
-            let start = response.effects().len();
-            let skipping = frame.skipping();
-            let body = frame.script.read_body(&piece, line, skipping);
-            show_warnings(frame, response);
-            let from = response.effects().len();
-            let mut fails = false;
-            if let Some(body) = body {
-                rest = body.tail;
-                fails = body.fails;
-                let (modifiers, _) = parse_ex_piece(&piece);
-                for (number, error) in body.errors {
-                    let at_error = response.effects().len();
-                    show_config_errors(modifiers, [error], response);
-                    locate(response, at_error, frame.name, number);
-                }
+    ) -> Option<Sourced> {
+        // Vim's SOURCING_LNUM: after a command read lines as text, the
+        // commands after it are at the last of them.
+        let at = frame.script.line_number();
+        let start = response.effects().len();
+        let skipping = frame.skipping();
+        let body = frame.script.read_body(piece, &frame.line, skipping);
+        show_warnings(frame, response);
+        let from = response.effects().len();
+        let mut fails = false;
+        let mut sourced = None;
+        if let Some(body) = body {
+            frame.rest = body.tail;
+            fails = body.fails;
+            let (modifiers, _) = parse_ex_piece(piece);
+            for (number, error) in body.errors {
+                let at_error = response.effects().len();
+                show_config_errors(modifiers | frame.modifiers, [error], response);
+                locate(response, at_error, &frame.file, number);
             }
-            if fails {
-                frame.error |= shows_error(response, from);
-            } else if let Some(command) = script_command(&piece) {
-                self.source_config_control(frame, host, command, response);
-            } else {
-                if !skipping && self.source_config_piece(host, &piece, response) {
-                    frame.blocks.finish();
-                    frame.finished = true;
-                }
-                frame.error |= shows_error(response, from);
-            }
-            locate(response, start, frame.name, at);
-            self.settle(response, start);
         }
-        rest
+        if fails {
+            frame.error |= shows_error(response, from);
+        } else if let Some(command) = script_command(piece) {
+            self.source_config_control(frame, host, command, response);
+        } else {
+            if !skipping {
+                match self.source_config_piece(frame, host, piece, response) {
+                    Then::Next => {}
+                    Then::End => {
+                        frame.blocks.finish();
+                        frame.finished = true;
+                    }
+                    Then::Source(file) => sourced = Some(file),
+                }
+            }
+            frame.error |= shows_error(response, from);
+        }
+        locate(response, start, &frame.file, at);
+        self.settle(response, start);
+        sourced
     }
 
     /// Keep in the engine's state what the response's effects after its
@@ -278,7 +418,7 @@ impl super::VimEngine {
         response: &mut Response,
     ) {
         let skipping = frame.skipping();
-        let modifiers = command.modifiers;
+        let modifiers = command.modifiers | frame.modifiers;
         let argument = command.argument;
         // do_one_cmd(): what it refuses before it calls the command.
         let refused = if command.range && !skipping {
@@ -377,36 +517,109 @@ impl super::VimEngine {
         result
     }
 
-    /// Run one command of a config line as the command line runs it.
-    /// Returns whether no line is read after this one, as after
-    /// `:vim9script`.
+    /// Run one command of a config line as the command line runs it,
+    /// with the modifiers in force in the frame.
     fn source_config_piece(
         &mut self,
-        host: &dyn ConfigHost,
+        frame: &Frame<'_>,
+        host: &mut dyn ConfigHost,
         piece: &str,
         response: &mut Response,
-    ) -> bool {
+    ) -> Then {
+        let inherited = frame.modifiers;
         match vim_command_parts(piece) {
             Some((modifiers, "echo", argument)) => {
-                self.source_config_echo(host, modifiers, argument, response);
+                self.source_config_echo(host, modifiers | inherited, argument, response);
             }
             Some((modifiers, "let", argument)) => {
-                self.source_config_let(host, modifiers, argument, response);
+                self.source_config_let(host, modifiers | inherited, argument, response);
             }
             Some((modifiers, "unlet", argument)) => {
-                self.source_config_unlet(modifiers, argument, response);
+                self.source_config_unlet(modifiers | inherited, argument, response);
             }
             _ => match parse_ex_piece(piece) {
+                (modifiers, Ok(ExCommand::Source { path })) => {
+                    let modifiers = modifiers | inherited;
+                    return self.source_config_source(
+                        frame,
+                        host,
+                        modifiers,
+                        path.as_deref(),
+                        response,
+                    );
+                }
                 (modifiers, Ok(parsed)) => {
+                    let modifiers = modifiers | inherited;
                     if let Some(name) = lacking_vim_command(&parsed) {
-                        return source_config_lacking(modifiers, name, piece, response);
+                        if source_config_lacking(modifiers, name, piece, response) {
+                            return Then::End;
+                        }
+                        return Then::Next;
                     }
                     self.run_config_command(modifiers, &parsed, piece, response);
                 }
-                (modifiers, Err(err)) => show_config_errors(modifiers, [err], response),
+                (modifiers, Err(err)) => {
+                    show_config_errors(modifiers | inherited, [err], response);
+                }
             },
         }
-        false
+        Then::Next
+    }
+
+    /// `:source {file}` in a config, as `cmd_source()` runs it: the host
+    /// gives the file's text, which runs before the next command, or
+    /// sources it itself, refuses it, or leaves it for later as a
+    /// `ReadConfigFile` request. Inside 200 files that run, E169, as
+    /// `do_cmdline()` gives it; the host is not asked.
+    fn source_config_source(
+        &mut self,
+        frame: &Frame<'_>,
+        host: &mut dyn ConfigHost,
+        modifiers: ModifierFlags,
+        path: Option<&str>,
+        response: &mut Response,
+    ) -> Then {
+        if frame.depth >= MAX_DEPTH {
+            show_config_errors(modifiers, [VimError::CommandTooRecursive], response);
+            return Then::Next;
+        }
+        let depth = frame.depth + 1;
+        let request = SourceRequest {
+            path,
+            from_file: &frame.name,
+            from_trust: frame.trust,
+            line: frame.script.line_number(),
+            depth,
+        };
+        match host.source(&request) {
+            SourceReply::Text { name, text, trust } => {
+                return Then::Source(Sourced {
+                    name,
+                    text,
+                    trust,
+                    modifiers,
+                });
+            }
+            SourceReply::Done(message) => {
+                let mut effects = Effects::new();
+                if let Some(message) = message {
+                    effects.extend(ex_effects::show_message(message.into()));
+                }
+                crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
+                response.extend_effects(effects);
+            }
+            SourceReply::Refuse(text) => {
+                let error = VimError::HostFailure(text.into());
+                show_config_errors(modifiers, [error], response);
+            }
+            SourceReply::Defer => {
+                response.host_requests.push(HostRequest::ReadConfigFile {
+                    meta: self.host.sequencer.next_meta(),
+                    path: path.map(CompactString::from),
+                });
+            }
+        }
+        Then::Next
     }
 
     /// Run a parsed config command, written as `command`.
@@ -759,8 +972,8 @@ fn shows_error(response: &Response, from: usize) -> bool {
 fn show_warnings(frame: &mut Frame<'_>, response: &mut Response) {
     for (line, warning) in frame.script.take_warnings() {
         let from = response.effects().len();
-        response.extend_effects(ex_effects::show_error(warning));
-        locate(response, from, frame.name, line);
+        show_config_errors(frame.modifiers, [warning], response);
+        locate(response, from, &frame.file, line);
     }
 }
 

@@ -11,10 +11,11 @@ use super::ex_split::{command_head, skip_range, vim_command_at};
 use super::vim_commands::EVENTS;
 use crate::errors::VimError;
 use crate::grammar::types::{BlockKind, ModifierFlags};
+use std::borrow::Cow;
 
 /// A line of a sourced file, with the number of the first line of the
 /// file it comes from.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Line {
     pub(crate) number: u32,
     pub(crate) text: String,
@@ -57,7 +58,7 @@ enum Format {
 /// A sourced file, read as Vim reads it.
 #[derive(Debug)]
 pub(crate) struct Script<'a> {
-    text: &'a str,
+    text: Cow<'a, str>,
     /// Where the next line starts.
     at: usize,
     /// How many lines of the file were read.
@@ -76,10 +77,15 @@ pub(crate) struct Script<'a> {
 impl<'a> Script<'a> {
     /// The file `text`. A byte order mark before it is dropped, as
     /// `do_source_ext()` drops it.
-    pub(crate) fn new(text: &'a str) -> Self {
+    pub(crate) fn new(text: impl Into<Cow<'a, str>>) -> Self {
+        let text = text.into();
         Self {
-            text: text.strip_prefix('\u{feff}').unwrap_or(text),
-            at: 0,
+            at: if text.starts_with('\u{feff}') {
+                '\u{feff}'.len_utf8()
+            } else {
+                0
+            },
+            text,
             lines_read: 0,
             current: 0,
             format: Format::Unknown,

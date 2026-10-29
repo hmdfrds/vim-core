@@ -2,7 +2,8 @@
 
 use vim_core::effects::{Effect, InfoMessage, SourceContext};
 use vim_core::execution::{
-    ConfigHost, ConfigText, HostRequest, HostSession, Response, TrustTag, VimEngine,
+    ConfigHost, ConfigText, HostRequest, HostSession, Response, SourceReply, SourceRequest,
+    TrustTag, VimEngine,
 };
 
 /// The text of each error the response shows.
@@ -942,4 +943,314 @@ fn errors_of_a_config_without_a_name_get_line_labels_only() {
             "Config file sourced"
         ]
     );
+}
+
+// ── nested :source ────────────────────────────────────────────────────
+
+/// A host that reads the files it has, and refuses any other with E484.
+struct Files {
+    files: Vec<(&'static str, &'static str)>,
+    /// Each `:source` asked about: the path, the file it is in, that
+    /// file's tag, its line and the depth.
+    asked: Vec<(Option<String>, String, u32, u32, u32)>,
+}
+
+impl Files {
+    fn new(files: &[(&'static str, &'static str)]) -> Self {
+        Self {
+            files: files.to_vec(),
+            asked: Vec::new(),
+        }
+    }
+
+    fn text(&self, name: &str) -> &'static str {
+        self.files
+            .iter()
+            .find(|(n, _)| *n == name)
+            .expect("a file")
+            .1
+    }
+}
+
+impl ConfigHost for Files {
+    fn source(&mut self, request: &SourceRequest<'_>) -> SourceReply {
+        assert!(self.asked.len() < 500, "sourced without end");
+        self.asked.push((
+            request.path.map(str::to_owned),
+            request.from_file.to_owned(),
+            request.from_trust.get(),
+            request.line,
+            request.depth,
+        ));
+        let path = request.path.unwrap_or_default();
+        match self.files.iter().find(|(name, _)| *name == path) {
+            Some((name, text)) => SourceReply::Text {
+                name: (*name).to_owned(),
+                text: (*text).to_owned(),
+                trust: TrustTag::new(request.depth),
+            },
+            None => SourceReply::Refuse(format!("E484: Can't open file {path}")),
+        }
+    }
+}
+
+/// A host that gives one answer to every `:source`, and keeps the paths.
+struct Reply(SourceReply, Vec<Option<String>>);
+
+impl ConfigHost for Reply {
+    fn source(&mut self, request: &SourceRequest<'_>) -> SourceReply {
+        self.1.push(request.path.map(str::to_owned));
+        self.0.clone()
+    }
+}
+
+/// Source the file `name` of `files` through them.
+fn source_file(engine: &mut VimEngine, files: &mut Files, name: &'static str) -> Response {
+    let text = ConfigText::new(name, files.text(name));
+    engine.source_script(text, files).response
+}
+
+/// Each error the response shows, with its file and line.
+fn places(response: &Response) -> Vec<(String, u32, String)> {
+    response
+        .effects()
+        .iter()
+        .filter_map(|e| match e {
+            Effect::ShowError { error, source } => {
+                let SourceContext { file, line } = source.clone().expect("a place");
+                Some((file.to_string(), line, error.to_string()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_sourced_file_runs_in_place() {
+    // cmd_source() runs the file before the line after the :source.
+    let mut files = Files::new(&[
+        ("a.vim", "set tw?\nsource b.vim\nset tw=11\n"),
+        ("b.vim", "set tw=22\nset tw?\n"),
+    ]);
+    let mut engine = VimEngine::new();
+    let response = source_file(&mut engine, &mut files, "a.vim");
+    assert_eq!(engine.options().textwidth(), 11);
+    assert_eq!(infos(&response), ["textwidth=0", "textwidth=22"]);
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+}
+
+#[test]
+fn a_sourced_file_runs_before_the_rest_of_its_line() {
+    let mut files = Files::new(&[
+        ("a.vim", "source b.vim | set ic\n"),
+        ("b.vim", "set sw=3\n"),
+    ]);
+    let mut engine = VimEngine::new();
+    let _ = source_file(&mut engine, &mut files, "a.vim");
+    assert_eq!(engine.options().shiftwidth(), 3);
+    assert!(engine.options().ignorecase());
+}
+
+#[test]
+fn an_error_in_a_sourced_file_skips_the_rest_of_the_line_only_at_its_end() {
+    // do_cmdline() clears did_emsg before it reads past the last line of
+    // a file, unless a block is open, and gives E171 after that.
+    let mut files = Files::new(&[
+        ("a.vim", "source b.vim | set ic\nsource c.vim | set tw=33\n"),
+        ("b.vim", "set nosuch\n"),
+        ("c.vim", "if 1\n"),
+    ]);
+    let mut engine = VimEngine::new();
+    let response = source_file(&mut engine, &mut files, "a.vim");
+    assert!(engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 0);
+    assert_eq!(
+        places(&response),
+        [
+            (
+                "a.vim[1]..b.vim".to_owned(),
+                1,
+                "E518: Unknown option: nosuch".to_owned()
+            ),
+            (
+                "a.vim[2]..c.vim".to_owned(),
+                2,
+                "E171: Missing :endif".to_owned()
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_file_that_sources_itself_stops_at_vim_s_depth() {
+    // do_cmdline() refuses a level past 200. The files run on the heap,
+    // so a small stack is enough.
+    let run = || {
+        let text = "set tw+=1\nsource a.vim | set ts+=1\nset sw+=1\n";
+        let mut files = Files::new(&[("a.vim", text)]);
+        let mut engine = VimEngine::new();
+        let (tabstop, shiftwidth) = (engine.options().tabstop(), engine.options().shiftwidth());
+        let response = source_file(&mut engine, &mut files, "a.vim");
+        assert_eq!(engine.options().textwidth(), 200);
+        // E169 ends its line; the next line of the file runs.
+        assert_eq!(engine.options().tabstop(), tabstop + 199);
+        assert_eq!(engine.options().shiftwidth(), shiftwidth + 200);
+        let innermost = format!("{}a.vim", "a.vim[2]..".repeat(199));
+        assert_eq!(
+            places(&response),
+            [(innermost, 2, "E169: Command too recursive".to_owned())]
+        );
+        assert_eq!(files.asked.len(), 199);
+        assert_eq!(files.asked.first().map(|asked| asked.4), Some(2));
+        assert_eq!(files.asked.last().map(|asked| asked.4), Some(200));
+    };
+    std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(run)
+        .expect("a thread")
+        .join()
+        .expect("no panic");
+}
+
+#[test]
+fn errors_in_a_sourced_file_name_the_files_that_run() {
+    // estack_sfile(): each file with the line of its :source, a file
+    // without a name left out.
+    let a = "\"\n\"\n\"\n\"\n\"\n\"\n\"\n\"\n\"\n\"\n\"\nsource b.vim\nset nosuch\n";
+    let mut files = Files::new(&[("a.vim", a), ("b.vim", "set ic\nset nosuch\n")]);
+    let mut engine = VimEngine::new();
+    let response = source_file(&mut engine, &mut files, "a.vim");
+    let nosuch = "E518: Unknown option: nosuch".to_owned();
+    assert_eq!(
+        places(&response),
+        [
+            ("a.vim[12]..b.vim".to_owned(), 2, nosuch.clone()),
+            ("a.vim".to_owned(), 13, nosuch.clone()),
+        ]
+    );
+    assert_eq!(
+        history(&engine),
+        [
+            "Error detected while processing a.vim[12]..b.vim:",
+            "line    2:",
+            "E518: Unknown option: nosuch",
+            "Error detected while processing a.vim:",
+            "line   13:",
+            "E518: Unknown option: nosuch",
+        ]
+    );
+
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("", "source b.vim\n");
+    let response = engine.source_script(text, &mut files).response;
+    assert_eq!(places(&response), [("b.vim".to_owned(), 2, nosuch)]);
+}
+
+#[test]
+fn finish_ends_only_its_own_file() {
+    // do_finish() marks the cookie of the file it is in.
+    let mut files = Files::new(&[
+        ("a.vim", "source b.vim | set ic\nset tw=33\n"),
+        ("b.vim", "set sw=3\nif 1 | finish | endif\nset sw=4\n"),
+    ]);
+    let mut engine = VimEngine::new();
+    let response = source_file(&mut engine, &mut files, "a.vim");
+    assert_eq!(engine.options().shiftwidth(), 3);
+    assert!(engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 33);
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+}
+
+#[test]
+fn the_host_is_told_where_each_source_is() {
+    let mut files = Files::new(&[
+        (
+            "a.vim",
+            "set ic\nsource b.vim\nif 0 | source d.vim | endif\n",
+        ),
+        ("b.vim", "source c.vim\n"),
+        ("c.vim", ""),
+    ]);
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", files.text("a.vim")).with_trust(TrustTag::new(7));
+    let _ = engine.source_script(text, &mut files);
+    assert_eq!(
+        files.asked,
+        [
+            (Some("b.vim".to_owned()), "a.vim".to_owned(), 7, 2, 2),
+            (Some("c.vim".to_owned()), "b.vim".to_owned(), 2, 1, 3),
+        ]
+    );
+}
+
+#[test]
+fn a_refused_source_is_an_error_at_its_line() {
+    // cmd_source() gives E484 in the file of the :source.
+    let mut files = Files::new(&[(
+        "a.vim",
+        "set tw=33\nsource b.vim | set ic\nsilent! source b.vim | set sw=3\n",
+    )]);
+    let mut engine = VimEngine::new();
+    let response = source_file(&mut engine, &mut files, "a.vim");
+    assert!(!engine.options().ignorecase());
+    assert_eq!(engine.options().shiftwidth(), 3);
+    assert_eq!(
+        places(&response),
+        [(
+            "a.vim".to_owned(),
+            2,
+            "E484: Can't open file b.vim".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn a_host_may_source_a_file_itself_or_leave_it_for_later() {
+    let mut engine = VimEngine::new();
+    let mut done = Reply(SourceReply::Done(Some("sourced".to_owned())), Vec::new());
+    let text = ConfigText::new("a.vim", "source b.vim | set ic\nsilent source\n");
+    let response = engine.source_script(text, &mut done).response;
+    assert_eq!(infos(&response), ["sourced"]);
+    assert!(engine.options().ignorecase());
+    assert_eq!(done.1, [Some("b.vim".to_owned()), None]);
+    assert!(response.host_requests().is_empty());
+
+    let mut later = Reply(SourceReply::Defer, Vec::new());
+    let text = ConfigText::new("a.vim", "source b.vim | set tw=33\n");
+    let response = engine.source_script(text, &mut later).response;
+    assert_eq!(engine.options().textwidth(), 33);
+    let [HostRequest::ReadConfigFile { path, .. }] = response.host_requests() else {
+        panic!("{:?}", response.host_requests());
+    };
+    assert_eq!(path.as_deref(), Some("b.vim"));
+    assert!(engine.has_pending_host_request(response.host_requests()[0].id()));
+}
+
+#[test]
+fn silent_before_source_holds_inside_the_file() {
+    // apply_cmdmod() keeps emsg_silent and msg_silent up while the file
+    // runs, so its errors neither show nor skip anything.
+    let mut files = Files::new(&[
+        (
+            "a.vim",
+            "silent! source b.vim | set ic\nsilent source c.vim\n",
+        ),
+        ("b.vim", "set nosuch\nset tw?\nset sw=3\nif 1\n"),
+        ("c.vim", "set tw?\nset nosuch\n"),
+    ]);
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", files.text("a.vim"));
+    let sourced = engine.source_script(text, &mut files);
+    assert_eq!(engine.options().shiftwidth(), 3);
+    assert!(engine.options().ignorecase());
+    assert!(infos(&sourced.response).is_empty());
+    assert_eq!(
+        places(&sourced.response),
+        [(
+            "a.vim[2]..c.vim".to_owned(),
+            2,
+            "E518: Unknown option: nosuch".to_owned()
+        )]
+    );
+    assert_eq!(sourced.outcome.errors, 1);
 }

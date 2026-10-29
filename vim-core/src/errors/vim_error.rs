@@ -224,6 +224,9 @@ pub enum VimError {
     /// E1171: the file ends inside a `{` block of a function body.
     MissingEndBlock,
 
+    /// E169: a `:source` inside 200 files that are running.
+    CommandTooRecursive,
+
     // ═══════════════════════════════════════════════════════════════════
     // Script block errors
     // ═══════════════════════════════════════════════════════════════════
@@ -548,6 +551,7 @@ impl fmt::Display for VimError {
                 write!(f, "E1145: Missing heredoc end marker: {marker}")
             }
             Self::MissingEndBlock => write!(f, "E1171: Missing }} after inline function"),
+            Self::CommandTooRecursive => write!(f, "E169: Command too recursive"),
 
             // Script blocks
             Self::MissingEndwhile => write!(f, "E170: Missing :endwhile"),
@@ -773,6 +777,7 @@ mod tests {
             VimError::FunctionNestingTooDeep,
             VimError::MissingHeredocEndMarker("END".into()),
             VimError::MissingEndBlock,
+            VimError::CommandTooRecursive,
             VimError::MissingEndif,
             VimError::EndifWithoutIf,
             VimError::InvalidExpression("x".into()),
@@ -970,6 +975,7 @@ mod tests {
                 VimError::MissingEndBlock,
                 "E1171: Missing } after inline function",
             ),
+            (VimError::CommandTooRecursive, "E169: Command too recursive"),
         ] {
             assert_eq!(error.to_string(), text);
         }
