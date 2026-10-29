@@ -1,6 +1,6 @@
 //! A config file read and run as Vim sources one.
 
-use vim_core::effects::{Effect, InfoMessage};
+use vim_core::effects::{Effect, InfoMessage, SourceContext};
 use vim_core::execution::{
     ConfigHost, ConfigText, HostRequest, HostSession, Response, TrustTag, VimEngine,
 };
@@ -26,6 +26,23 @@ fn infos(response: &Response) -> Vec<String> {
             Effect::ShowInfo {
                 info: InfoMessage::Text(text),
             } => Some(text.to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Each error the response shows, with the line it was raised at in the
+/// config `file`.
+fn located(response: &Response, file: &str) -> Vec<(u32, String)> {
+    response
+        .effects()
+        .iter()
+        .filter_map(|e| match e {
+            Effect::ShowError { error, source } => {
+                let SourceContext { file: name, line } = source.clone().expect("a place");
+                assert_eq!(name, file, "{error}");
+                Some((line, error.to_string()))
+            }
             _ => None,
         })
         .collect()
@@ -709,4 +726,120 @@ fn a_session_sources_a_script_through_its_host() {
         &mut Features(&["godot"]),
     );
     assert!(session.options().ignorecase());
+}
+
+// ── where errors are raised ───────────────────────────────────────────
+
+#[test]
+fn an_error_says_where_it_was_raised() {
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", "set ic\nset nosuch\n");
+    let sourced = engine.source_script(text, &mut Features(&[]));
+    assert_eq!(
+        sourced.response.effects(),
+        [Effect::ShowError {
+            error: vim_core::errors::VimError::UnknownOptionArgument("nosuch".into()),
+            source: Some(SourceContext {
+                file: "a.vim".into(),
+                line: 2
+            }),
+        }]
+    );
+    assert_eq!(sourced.outcome.errors, 1);
+}
+
+#[test]
+fn an_error_of_a_continued_line_is_at_its_first_line() {
+    // getsourceline(): SOURCING_LNUM is the line the joined lines start at.
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", "set ic\nset tw=1\nset\n  \\ nosuch\nset nosuch\n");
+    let response = engine.source_script(text, &mut Features(&[])).response;
+    assert_eq!(
+        located(&response, "a.vim"),
+        [
+            (3, "E518: Unknown option: nosuch".to_owned()),
+            (5, "E518: Unknown option: nosuch".to_owned())
+        ]
+    );
+}
+
+#[test]
+fn an_error_at_the_end_of_the_file_is_at_the_line_after_the_last() {
+    let mut engine = VimEngine::new();
+    let response = engine
+        .source_script(
+            ConfigText::new("a.vim", "if 1\nset ic\n"),
+            &mut Features(&[]),
+        )
+        .response;
+    assert_eq!(
+        located(&response, "a.vim"),
+        [(3, "E171: Missing :endif".to_owned())]
+    );
+    let response = engine
+        .source_script(
+            ConfigText::new("a.vim", "let x =<< END\na\n"),
+            &mut Features(&[]),
+        )
+        .response;
+    // The command's own error stays at its line.
+    assert_eq!(
+        located(&response, "a.vim"),
+        [
+            (3, "E990: Missing end marker 'END'".to_owned()),
+            (
+                1,
+                "E319: Sorry, the command is not available in this version: let x =<< END"
+                    .to_owned()
+            )
+        ]
+    );
+}
+
+#[test]
+fn an_error_after_lines_read_as_text_is_at_the_last_of_them() {
+    // get_function_body() leaves SOURCING_LNUM at :endfunction and
+    // ex_append() at the `.`; E126 is at the :function line.
+    let config = "silent! function! F()\n  set ic\nendfunction | set nosuch\n\
+                  silent! append | set nosuch\nx\n.\nfunction! G()\n";
+    let mut engine = VimEngine::new();
+    let response = engine
+        .source_script(ConfigText::new("a.vim", config), &mut Features(&[]))
+        .response;
+    assert_eq!(
+        located(&response, "a.vim"),
+        [
+            (3, "E518: Unknown option: nosuch".to_owned()),
+            (6, "E518: Unknown option: nosuch".to_owned()),
+            (7, "E126: Missing :endfunction".to_owned())
+        ]
+    );
+}
+
+#[test]
+fn a_warning_is_at_its_own_line() {
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", "set ic\r\nset tw=33\nset tw=44\r\n");
+    let response = engine.source_script(text, &mut Features(&[])).response;
+    assert_eq!(
+        located(&response, "a.vim"),
+        [
+            (
+                2,
+                "W15: Warning: Wrong line separator, ^M may be missing".to_owned()
+            ),
+            (3, "E521: Number required after =: tw=44^M".to_owned())
+        ]
+    );
+}
+
+#[test]
+fn a_config_without_a_name_places_its_errors_at_their_lines() {
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("set nosuch");
+    assert_eq!(
+        located(&response, ""),
+        [(1, "E518: Unknown option: nosuch".to_owned())]
+    );
+    assert_eq!(infos(&response), ["Config file sourced"]);
 }

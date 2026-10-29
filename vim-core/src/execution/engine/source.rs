@@ -7,14 +7,14 @@ use super::conditionals::{Blocks, Kind};
 use super::Response;
 use crate::commands::ex::effects as ex_effects;
 use crate::document::Document;
-use crate::effects::{Effect, Effects};
+use crate::effects::{Effect, Effects, SourceContext};
 use crate::errors::VimError;
 use crate::execution::config::{ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, NoHost};
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, InputContext};
 use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
-use crate::grammar::script::{script_command, Body, Control, Line, Script, ScriptCommand};
+use crate::grammar::script::{script_command, Control, Line, Script, ScriptCommand};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, SetAssignment};
 use crate::primitives::{Offset, OptionValue, Position, VarScope};
@@ -23,6 +23,8 @@ use compact_str::CompactString;
 /// A config being sourced, with what Vim's `do_cmdline()` keeps while it
 /// runs one.
 struct Frame<'a> {
+    /// The name its errors are reported under.
+    name: &'a str,
     script: Script<'a>,
     blocks: Blocks,
     /// Vim's `did_emsg`: an error was shown, so the commands after it do
@@ -71,6 +73,11 @@ impl super::VimEngine {
     /// up to the end of its line or, inside a block, of the outermost
     /// block. `:silent!` hides the error, and then they do. A condition
     /// that fails makes its block never run any branch.
+    ///
+    /// Each error says where it was raised: its `source` holds the name of
+    /// the config and the line Vim gives it at, the first of the lines a
+    /// continued line joins, or the line after the last for an error at
+    /// the end of the file.
     ///
     /// There is no buffer: a command that needs one (see
     /// [`ExCommand::needs_buffer`](crate::grammar::types::ExCommand::needs_buffer))
@@ -122,12 +129,17 @@ impl super::VimEngine {
 
     /// Run a config file's text as [`source_script`](Self::source_script)
     /// runs a config without a name, with a host that answers nothing.
-    ///
-    /// The engine calls it when a host answers `:source` with the file's
-    /// text. The response ends with "Config file sourced".
+    /// The response ends with "Config file sourced".
     pub fn source_config_text(&mut self, text: &str) -> Response {
+        self.source_config_named("", text)
+    }
+
+    /// [`source_config_text`](Self::source_config_text) for the config
+    /// named `name`, as when a host answers `:source {name}` with the
+    /// file's text.
+    pub(super) fn source_config_named(&mut self, name: &str, text: &str) -> Response {
         let mut response = self
-            .source_script(ConfigText::new("", text), &mut NoHost)
+            .source_script(ConfigText::new(name, text), &mut NoHost)
             .response;
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
@@ -143,6 +155,7 @@ impl super::VimEngine {
         }
         let mut response = Response::with_effects(Effects::new());
         let mut frame = Frame {
+            name: text.name,
             script: Script::new(text.text),
             blocks: Blocks::default(),
             error: false,
@@ -161,14 +174,16 @@ impl super::VimEngine {
             let Some(line) = frame.script.next_line() else {
                 break;
             };
-            show_warnings(&mut frame.script, &mut response);
+            show_warnings(&mut frame, &mut response);
             let mut next = Some(line);
             while let Some(line) = next {
                 next = self.source_config_line(&mut frame, host, &line, &mut response);
             }
         }
         if let Some(error) = frame.blocks.missing_end().filter(|_| !frame.finished) {
+            let from = response.effects().len();
             response.extend_effects(ex_effects::show_error(error));
+            locate(&mut response, from, frame.name, frame.script.end_line());
         }
         // Not register_pending_host_requests: its effect optimizer keeps only
         // the last of several messages, and a config can print many.
@@ -188,34 +203,37 @@ impl super::VimEngine {
     ) -> Option<Line> {
         let mut rest = None;
         for piece in split_ex_pipeline(&line.text) {
+            // Vim's SOURCING_LNUM: after a command read lines as text, the
+            // commands after it are at the last of them.
+            let at = frame.script.line_number();
+            let start = response.effects().len();
             let skipping = frame.skipping();
             let body = frame.script.read_body(&piece, line, skipping);
-            show_warnings(&mut frame.script, response);
+            show_warnings(frame, response);
             let from = response.effects().len();
-            if let Some(Body {
-                errors,
-                fails,
-                tail,
-            }) = body
-            {
-                rest = tail;
+            let mut fails = false;
+            if let Some(body) = body {
+                rest = body.tail;
+                fails = body.fails;
                 let (modifiers, _) = parse_ex_piece(&piece);
-                let errors = errors.into_iter().map(|(_, error)| error);
-                show_config_errors(modifiers, errors, response);
-                if fails {
-                    frame.error |= shows_error(response, from);
-                    continue;
+                for (number, error) in body.errors {
+                    let at_error = response.effects().len();
+                    show_config_errors(modifiers, [error], response);
+                    locate(response, at_error, frame.name, number);
                 }
             }
-            if let Some(command) = script_command(&piece) {
+            if fails {
+                frame.error |= shows_error(response, from);
+            } else if let Some(command) = script_command(&piece) {
                 self.source_config_control(frame, host, command, response);
-                continue;
+            } else {
+                if !skipping && self.source_config_piece(host, &piece, response) {
+                    frame.blocks.finish();
+                    frame.finished = true;
+                }
+                frame.error |= shows_error(response, from);
             }
-            if !skipping && self.source_config_piece(host, &piece, response) {
-                frame.blocks.finish();
-                frame.finished = true;
-            }
-            frame.error |= shows_error(response, from);
+            locate(response, start, frame.name, at);
         }
         rest
     }
@@ -713,10 +731,26 @@ fn shows_error(response: &Response, from: usize) -> bool {
         .is_some_and(|new| new.iter().any(|e| matches!(e, Effect::ShowError { .. })))
 }
 
-/// Show the warnings of the lines `script` read since the last call.
-fn show_warnings(script: &mut Script<'_>, response: &mut Response) {
-    for (_, warning) in script.take_warnings() {
+/// Show the warnings of the lines the frame's script read since the last
+/// call, each at its line.
+fn show_warnings(frame: &mut Frame<'_>, response: &mut Response) {
+    for (line, warning) in frame.script.take_warnings() {
+        let from = response.effects().len();
         response.extend_effects(ex_effects::show_error(warning));
+        locate(response, from, frame.name, line);
+    }
+}
+
+/// Place each error the response shows after its first `from` effects
+/// that has no place yet at `line` of the config `file`.
+fn locate(response: &mut Response, from: usize, file: &str, line: u32) {
+    for effect in response.effects.iter_mut().skip(from) {
+        if let Effect::ShowError { source, .. } = effect {
+            source.get_or_insert_with(|| SourceContext {
+                file: file.into(),
+                line,
+            });
+        }
     }
 }
 

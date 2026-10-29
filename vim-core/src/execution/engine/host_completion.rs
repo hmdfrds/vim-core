@@ -273,11 +273,11 @@ impl super::VimEngine {
         // ── :source with the file's text ────────────────────────────
         // The engine sources it; a host that sourced the file itself
         // answers Success instead and takes the generic path below.
-        if let (HostRequest::ReadConfigFile { .. }, HostResult::Data { data, .. }) =
+        if let (HostRequest::ReadConfigFile { path, .. }, HostResult::Data { data, .. }) =
             (&pending, result)
         {
             // Already tracked; the optimizer would keep one message of many.
-            return self.source_config_text(data);
+            return self.source_config_named(path.as_deref().unwrap_or_default(), data);
         }
 
         let mut response = completion_response(&pending, result);

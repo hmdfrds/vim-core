@@ -62,6 +62,8 @@ pub(crate) struct Script<'a> {
     at: usize,
     /// How many lines of the file were read.
     lines_read: u32,
+    /// The first line of the last line taken with the lines joined to it.
+    current: u32,
     format: Format,
     /// Whether W15 was given; Vim gives it once.
     warned: bool,
@@ -79,6 +81,7 @@ impl<'a> Script<'a> {
             text: text.strip_prefix('\u{feff}').unwrap_or(text),
             at: 0,
             lines_read: 0,
+            current: 0,
             format: Format::Unknown,
             warned: false,
             ahead: None,
@@ -366,9 +369,16 @@ impl<'a> Script<'a> {
         }
     }
 
+    /// The line Vim stands at while the last line taken runs, its
+    /// `SOURCING_LNUM`: the first of the lines joined to it. After a command
+    /// read lines as text, it is the last of those.
+    pub(crate) const fn line_number(&self) -> u32 {
+        self.current
+    }
+
     /// The line where Vim stands at the end of the file: the one after the
     /// last.
-    const fn end_line(&self) -> u32 {
+    pub(crate) const fn end_line(&self) -> u32 {
         self.lines_read.saturating_add(1)
     }
 
@@ -392,6 +402,7 @@ impl<'a> Script<'a> {
             }
             self.take();
         }
+        self.current = line.number;
         Some(line)
     }
 
@@ -405,6 +416,7 @@ impl<'a> Script<'a> {
             self.warnings
                 .push((line.number, VimError::WrongLineSeparator));
         }
+        self.current = line.number;
         Some(line)
     }
 

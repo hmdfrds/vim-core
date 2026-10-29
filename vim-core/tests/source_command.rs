@@ -1,6 +1,6 @@
 //! `:source` across the host boundary.
 
-use vim_core::effects::{Effect, InfoMessage};
+use vim_core::effects::{Effect, InfoMessage, SourceContext};
 use vim_core::execution::{
     HostCallbacks, HostRequest, HostResponse, HostResult, HostSession, InputContext, Response,
     VimEngine,
@@ -189,6 +189,36 @@ fn returned_text_shows_every_message() {
             "Config file sourced"
         ]
     );
+}
+
+#[test]
+fn returned_text_names_its_errors_after_the_path_as_typed() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    for (command, file) in [("source ~/x.vim", "~/x.vim"), ("source", "")] {
+        let req = request(&run(&mut engine, &doc, command));
+        let done = engine.complete_host_request(&HostResult::Data {
+            id: req.id(),
+            data: "set ic\nset nosuch".into(),
+            offset: None,
+        });
+        let places: Vec<_> = done
+            .effects()
+            .iter()
+            .filter_map(|e| match e {
+                Effect::ShowError { source, .. } => source.clone(),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            places,
+            [SourceContext {
+                file: file.into(),
+                line: 2
+            }],
+            "{command}"
+        );
+    }
 }
 
 #[test]
