@@ -2901,3 +2901,14 @@ fn a_non_ascii_command_line_runs() {
     process_keys(&mut session, "A café <Esc>");
     assert_eq!(session.text(), "x coffee ");
 }
+
+#[test]
+fn a_mark_that_is_a_multi_byte_character_is_an_error() {
+    for keys in ["Q", ":'é<CR>", ":1,'éd<CR>"] {
+        let mut session = HostSession::new("x\ny");
+        process_keys(&mut session, ":nnoremap Q <lt>Cmd>'é<lt>CR><CR>");
+        process_keys(&mut session, keys);
+        assert!(session.errmsg().is_some(), "{keys} gave no error");
+        assert_eq!(session.text(), "x\ny");
+    }
+}

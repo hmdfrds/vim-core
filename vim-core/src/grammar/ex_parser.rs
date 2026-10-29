@@ -1987,6 +1987,8 @@ const fn find_command_start(bytes: &[u8], segment_start: usize, current: usize) 
             b'\'' if j + 1 < bytes.len() => {
                 j += 2; // mark 'x
             }
+            // The rest of a mark that is a multi-byte character.
+            0x80..=0xBF => j += 1,
             _ => break,
         }
     }
@@ -2061,12 +2063,12 @@ fn is_bang_command(input: &str) -> bool {
                 rest = rest.trim_start_matches(|c: char| c.is_ascii_digit());
             }
             b'\'' => {
-                // Mark: skip 'x
-                if rest.len() >= 2 {
-                    rest = &rest[2..];
-                } else {
+                // Mark: skip 'x, where x can be a multi-byte character.
+                let mut chars = rest[1..].chars();
+                if chars.next().is_none() {
                     return false;
                 }
+                rest = chars.as_str();
             }
             b',' | b';' => {
                 // Range separator -- continue to parse the second address.
