@@ -132,6 +132,12 @@ pub enum VimError {
     /// E227: `<unique>` for keys that are mapped. Carries the keys.
     MappingExists(Box<str>),
 
+    /// E31: an unmap command found no mapping to remove.
+    NoSuchMapping,
+
+    /// E24: an unabbreviate command found no abbreviation to remove.
+    NoSuchAbbreviation,
+
     /// E34: No previous command.
     NoPreviousCommand,
 
@@ -492,6 +498,8 @@ impl fmt::Display for VimError {
                 write!(f, "E226: Abbreviation already exists for {trigger}")
             }
             Self::MappingExists(keys) => write!(f, "E227: Mapping already exists for {keys}"),
+            Self::NoSuchMapping => write!(f, "E31: No such mapping"),
+            Self::NoSuchAbbreviation => write!(f, "E24: No such abbreviation"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
@@ -651,6 +659,8 @@ mod tests {
                 VimError::MappingExists("x".into()),
                 "E227: Mapping already exists for x",
             ),
+            (VimError::NoSuchMapping, "E31: No such mapping"),
+            (VimError::NoSuchAbbreviation, "E24: No such abbreviation"),
         ] {
             assert_eq!(error.to_string(), text);
         }
@@ -726,6 +736,8 @@ mod tests {
             VimError::GlobalMappingExists("x".into()),
             VimError::AbbreviationExists("teh".into()),
             VimError::MappingExists("x".into()),
+            VimError::NoSuchMapping,
+            VimError::NoSuchAbbreviation,
             VimError::NoPreviousCommand,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },

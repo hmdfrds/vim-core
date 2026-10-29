@@ -81,18 +81,21 @@ pub fn abbreviate(
 ///
 /// # Errors
 ///
-/// Returns [`VimError::InvalidArgument`] carrying `trigger` when no
-/// abbreviation with that trigger is defined for `mode`, so nothing was
-/// removed — Vim's E24 "No such abbreviation".
+/// Returns [`VimError::NoSuchAbbreviation`] (E24) when no abbreviation of
+/// `mode` has `trigger` as its trigger or its replacement, so nothing was
+/// removed.
 pub fn unabbreviate(
     trigger: &str,
     mode: AbbrevMode,
     table: &mut AbbrevTable,
 ) -> Result<Effects, VimError> {
-    if table.remove(trigger, mode) {
+    // do_map(): when no trigger matches, a second round removes the
+    // abbreviations that expand to the argument, so ":unab foo" still
+    // works when typing it expanded "foo".
+    if table.remove(trigger, mode) || table.remove_expanding_to(trigger, mode) {
         Ok(Effects::new())
     } else {
-        Err(VimError::InvalidArgument(CompactString::from(trigger)))
+        Err(VimError::NoSuchAbbreviation)
     }
 }
 

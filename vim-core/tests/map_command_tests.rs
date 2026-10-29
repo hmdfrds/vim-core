@@ -197,9 +197,9 @@ fn an_abbreviation_keeps_its_trailing_blanks() {
 fn unmap_with_a_trailing_blank_names_other_keys() {
     let mut engine = VimEngine::new();
     run_ex(&mut engine, "nnoremap x y");
-    run_ex(&mut engine, "unmap x ");
+    assert_eq!(run_ex(&mut engine, "unmap x "), ["E31: No such mapping"]);
     assert_eq!(normal_mappings(&engine), [mapping("x", "y", false)]);
-    run_ex(&mut engine, "unmap x");
+    assert!(run_ex(&mut engine, "unmap x").is_empty());
     assert!(normal_mappings(&engine).is_empty());
 }
 
@@ -283,4 +283,74 @@ fn ctrl_v_makes_the_next_character_a_key() {
     let _ = session.source_config("nnoremap \x16 x l\n");
     type_keys(&mut session, " x");
     assert_eq!(session.cursor_offset(), 1);
+}
+
+#[test]
+fn unmap_reports_a_missing_mapping() {
+    // do_exmap() gives E31 when no mode of the command had the keys.
+    let mut engine = VimEngine::new();
+    assert_eq!(run_ex(&mut engine, "unmap x"), ["E31: No such mapping"]);
+    run_ex(&mut engine, "vnoremap x y");
+    assert_eq!(run_ex(&mut engine, "nunmap x"), ["E31: No such mapping"]);
+    assert!(run_ex(&mut engine, "unmap x").is_empty());
+    assert_eq!(run_ex(&mut engine, "vunmap x"), ["E31: No such mapping"]);
+
+    // `@:` repeats the error.
+    let doc = TestDocument::new("hello", (0, 0));
+    let _ = press(&mut engine, &doc, KeyEvent::char('@'));
+    assert_eq!(
+        errors(&press(&mut engine, &doc, KeyEvent::char(':'))),
+        ["E31: No such mapping"]
+    );
+}
+
+#[test]
+fn unmap_removes_a_mapping_to_its_argument() {
+    // do_map(): a second round matches the right-hand side.
+    let mut engine = VimEngine::new();
+    run_ex(&mut engine, "nmap x y");
+    run_ex(&mut engine, "nmap z y");
+    assert!(run_ex(&mut engine, "unmap y").is_empty());
+    assert!(normal_mappings(&engine).is_empty());
+
+    // Keys come first.
+    run_ex(&mut engine, "nmap x y");
+    run_ex(&mut engine, "nmap y w");
+    assert!(run_ex(&mut engine, "unmap y").is_empty());
+    assert_eq!(normal_mappings(&engine), [mapping("x", "y", false)]);
+}
+
+#[test]
+fn a_missing_mapping_ends_a_config_line() {
+    let mut engine = VimEngine::new();
+    let response = engine.source_config_text("unmap x | set ic\nsilent! unmap x | set tw=33\n");
+    assert_eq!(errors(&response), ["E31: No such mapping"]);
+    assert!(!engine.options().ignorecase());
+    assert_eq!(engine.options().textwidth(), 33);
+}
+
+#[test]
+fn unabbreviate_reports_a_missing_abbreviation() {
+    let mut engine = VimEngine::new();
+    assert_eq!(
+        run_ex(&mut engine, "iunabbrev foo"),
+        ["E24: No such abbreviation"]
+    );
+    run_ex(&mut engine, "iabbrev foo bar");
+    assert_eq!(
+        run_ex(&mut engine, "cunabbrev foo"),
+        ["E24: No such abbreviation"]
+    );
+    assert!(run_ex(&mut engine, "iunabbrev foo").is_empty());
+}
+
+#[test]
+fn unabbreviate_removes_an_abbreviation_to_its_argument() {
+    // do_map(): ":unab foo" after ":ab foo bar" may have been expanded.
+    let mut session = HostSession::new("");
+    type_keys(
+        &mut session,
+        ":iabbrev foo bar<CR>:iunabbrev bar<CR>afoo <Esc>",
+    );
+    assert_eq!(session.text(), "foo ");
 }

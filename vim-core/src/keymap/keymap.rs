@@ -766,6 +766,29 @@ impl Keymap {
         }
     }
 
+    /// The keys of the mappings whose right-hand side is `rhs`: in the
+    /// current buffer's mappings when `buffer`, in the global ones
+    /// otherwise.
+    pub(crate) fn keys_mapped_to(
+        &self,
+        mm: MappingMode,
+        rhs: &[KeyEvent],
+        buffer: bool,
+    ) -> Vec<Vec<KeyEvent>> {
+        let table = if buffer {
+            self.buf_table(mm)
+        } else {
+            Some(self.user_table(mm))
+        };
+        table.map_or_else(Vec::new, |trie| {
+            trie.entries()
+                .into_iter()
+                .filter(|(_, entry)| entry.sequence() == rhs)
+                .map(|(lhs, _)| lhs)
+                .collect()
+        })
+    }
+
     /// `keys` with `<Leader>` and `<LocalLeader>` replaced, as a mapping
     /// stores them.
     pub(crate) fn resolved_keys(&self, keys: &[KeyEvent]) -> smallvec::SmallVec<[KeyEvent; 8]> {

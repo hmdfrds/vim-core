@@ -96,6 +96,19 @@ impl AbbrevTable {
         false
     }
 
+    /// Remove the abbreviations that expand to `replacement`, matching
+    /// `mode` as [`remove`](Self::remove) does. Whether there was one.
+    pub(crate) fn remove_expanding_to(&mut self, replacement: &str, mode: AbbrevMode) -> bool {
+        let before = self.entries.len();
+        self.entries.retain(|_, entry| {
+            entry.replacement != replacement
+                || !(entry.mode == mode
+                    || entry.mode == AbbrevMode::Both
+                    || mode == AbbrevMode::Both)
+        });
+        self.entries.len() != before
+    }
+
     /// Remove all abbreviations that apply to the given mode.
     ///
     /// Entries with mode `Both` are also removed since they cover `mode`.

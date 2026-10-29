@@ -559,12 +559,21 @@ impl VimEngine {
                     lhs_raw,
                     Some(&mut self.keymap),
                 );
+                let mut removed = false;
                 for &mode in modes {
-                    if *buffer {
-                        self.unmap_buffer(mode, &lhs_seq);
-                    } else {
-                        self.unmap(mode, &lhs_seq);
+                    removed |= self.unmap_in(mode, &lhs_seq, *buffer);
+                }
+                // do_map(): when no keys match, a second round removes the
+                // mappings whose right-hand side is the argument.
+                if !removed {
+                    for &mode in modes {
+                        for lhs in self.keymap.keys_mapped_to(mode, &lhs_seq, *buffer) {
+                            removed |= self.unmap_in(mode, &lhs, *buffer);
+                        }
                     }
+                }
+                if !removed {
+                    return ex_effects::show_error(crate::errors::VimError::NoSuchMapping);
                 }
             }
             executor_ex::MappingChange::ClearAll { modes, buffer } => {
@@ -578,6 +587,21 @@ impl VimEngine {
             }
         }
         Effects::new()
+    }
+
+    /// Remove the mapping of `lhs` in `mode`, from the current buffer's
+    /// mappings when `buffer`. Whether there was one.
+    fn unmap_in(
+        &mut self,
+        mode: crate::keymap::MappingMode,
+        lhs: &[crate::keymap::KeyEvent],
+        buffer: bool,
+    ) -> bool {
+        if buffer {
+            self.unmap_buffer(mode, lhs).is_some()
+        } else {
+            self.unmap(mode, lhs).is_some()
+        }
     }
 
     /// The error `<unique>` gives for `lhs` in `modes`, as `do_map()`
@@ -642,7 +666,7 @@ impl VimEngine {
             }
             executor_ex::AbbrevChange::Remove { trigger, mode } => {
                 abbreviation::unabbreviate(trigger, *mode, &mut self.abbrev_table)
-                    .unwrap_or_default()
+                    .unwrap_or_else(ex_effects::show_error)
             }
             executor_ex::AbbrevChange::Clear { mode } => {
                 abbreviation::ab_clear(*mode, &mut self.abbrev_table)
