@@ -3449,6 +3449,14 @@ fn pipeline_splits_a_line_with_non_ascii_text() {
 }
 
 #[test]
+fn pipeline_skips_a_mark_that_is_a_multi_byte_character() {
+    // Skipping a mark stepped two bytes past the quote, into the character.
+    assert_eq!(split_ex_pipeline("'é"), vec!["'é"]);
+    assert_eq!(split_ex_pipeline("1,'éd"), vec!["1,'éd"]);
+    assert_eq!(split_ex_pipeline("'és/a|b/c/|w"), vec!["'és/a|b/c/", "w"]);
+}
+
+#[test]
 fn pipeline_trims_segments() {
     let cmds = split_ex_pipeline("w | q");
     assert_eq!(cmds, vec!["w", "q"]);

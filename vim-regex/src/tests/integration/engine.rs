@@ -820,7 +820,7 @@ fn lookaround_nesting_within_limit() {
 #[test]
 fn lookaround_nesting_at_limit_rejects() {
     let mut pattern = String::from("foo");
-    for _ in 0..33 {
+    for _ in 0..11 {
         pattern = format!(r"\%({}\)\@=", pattern);
     }
     let result = VimRegex::new(&pattern);
@@ -834,22 +834,23 @@ fn lookaround_nesting_at_limit_rejects() {
 
 #[test]
 fn lookaround_nesting_exact_boundary() {
+    // Each level is a group, so the group nesting limit is the boundary.
     let mut pattern = String::from("x");
-    for _ in 0..32 {
+    for _ in 0..10 {
         pattern = format!(r"\%({}\)\@=", pattern);
     }
     let result = VimRegex::new(&pattern);
     assert!(
         result.is_ok(),
-        "32-level nesting should succeed (at limit), got: {}",
+        "10-level nesting should succeed (at limit), got: {}",
         result.as_ref().unwrap_err()
     );
 
-    let pattern_33 = format!(r"\%({}\)\@=", pattern);
-    let result_33 = VimRegex::new(&pattern_33);
+    let pattern_11 = format!(r"\%({}\)\@=", pattern);
+    let result_11 = VimRegex::new(&pattern_11);
     assert!(
-        result_33.is_err(),
-        "33-level nesting should fail (over limit)"
+        result_11.is_err(),
+        "11-level nesting should fail (over limit)"
     );
 }
 

@@ -404,10 +404,18 @@ impl Parser {
         let open_pos = self.pos;
         self.advance(); // consume '(' (or the '(' after '\' which was already consumed)
 
+        if let Some(start) = self.optional_sequence_start {
+            return Err(VimRegexErrorKind::InvalidOptionalSequenceAtom {
+                span: self.span_from(start),
+            }
+            .into());
+        }
+
         if self.group_depth >= MAX_GROUP_NESTING {
             return Err(VimRegexErrorKind::PatternTooComplex {
                 span: Some(self.span_at(open_pos)),
-                detail: "group nesting too deep".into(),
+                detail: format!("group nesting too deep (maximum depth is {MAX_GROUP_NESTING})")
+                    .into(),
             }
             .into());
         }

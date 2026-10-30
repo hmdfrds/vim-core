@@ -11,13 +11,14 @@ use crate::engines::lazy_dfa::DfaSearchResult;
 /// Maximum number of capturing groups supported by Vim regex (`\1` through `\9`).
 pub(crate) const MAX_CAPTURE_GROUPS: usize = 9;
 
-/// Maximum nesting depth for `\(` groups, to prevent stack overflow on
-/// adversarial input like `\(\(\(\(...`.
-pub(crate) const MAX_GROUP_NESTING: u32 = 200;
+/// Maximum nesting depth for `\(` and `\%(` groups. Every compile pass
+/// recurses through each level, and the deepest pattern this allows, with
+/// every construct at every level, still fits a 1 MiB stack in a debug build.
+pub(crate) const MAX_GROUP_NESTING: u32 = 10;
 
 /// Maximum nesting depth for `[...]` collection constructs.
 ///
-/// Independent of the group nesting limit (`MAX_GROUP_NESTING = 200`)
+/// Independent of the group nesting limit (`MAX_GROUP_NESTING`)
 /// and the lookaround depth limit (32). Prevents stack overflow on
 /// adversarial patterns like `[[[[[[[[[...`.
 pub(crate) const MAX_COLLECTION_DEPTH: u32 = 8;

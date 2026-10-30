@@ -43,6 +43,8 @@ pub(crate) struct Parser {
     pub(super) at_branch_start: bool,
     /// Current collection nesting depth (for detecting deeply nested `[...]`).
     pub(super) collection_depth: u32,
+    /// Position of the `\%[` being parsed, if any: nothing nests inside one.
+    pub(super) optional_sequence_start: Option<usize>,
     /// Accumulated parse errors for multi-error recovery mode.
     ///
     /// When recovery is enabled, non-fatal errors are pushed here instead
@@ -105,6 +107,7 @@ pub(crate) fn parse_with_magic(
         group_depth: 0,
         at_branch_start: true,
         collection_depth: 0,
+        optional_sequence_start: None,
         errors: Vec::new(),
     };
 

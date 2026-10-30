@@ -64,15 +64,15 @@ fn nine_captures_partial_match() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAX_GROUP_NESTING (200) STRESS TEST
+// MAX_GROUP_NESTING (10)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn max_group_nesting_at_limit() {
-    // Build a pattern with exactly 200 levels of nesting.
+    // Build a pattern with exactly 10 levels of nesting.
     // Only first 9 are capturing — the rest are non-capturing.
     let mut pattern = String::new();
-    for i in 0..200 {
+    for i in 0..10 {
         if i < 9 {
             pattern.push_str("\\(");
         } else {
@@ -80,7 +80,7 @@ fn max_group_nesting_at_limit() {
         }
     }
     pattern.push('x');
-    for _ in 0..200 {
+    for _ in 0..10 {
         pattern.push_str("\\)");
     }
 
@@ -88,7 +88,7 @@ fn max_group_nesting_at_limit() {
     // Should compile successfully at the limit.
     assert!(
         result.is_ok(),
-        "Pattern with 200 nesting levels should compile: {:?}",
+        "Pattern with 10 nesting levels should compile: {:?}",
         result.err()
     );
 
@@ -100,9 +100,9 @@ fn max_group_nesting_at_limit() {
 
 #[test]
 fn max_group_nesting_exceeds_limit() {
-    // Build a pattern with 201 levels of nesting — should error.
+    // Build a pattern with 11 levels of nesting, which should error.
     let mut pattern = String::new();
-    for i in 0..201 {
+    for i in 0..11 {
         if i < 9 {
             pattern.push_str("\\(");
         } else {
@@ -110,14 +110,14 @@ fn max_group_nesting_exceeds_limit() {
         }
     }
     pattern.push('x');
-    for _ in 0..201 {
+    for _ in 0..11 {
         pattern.push_str("\\)");
     }
 
     let result = VimRegex::new(&pattern);
     assert!(
         result.is_err(),
-        "Pattern with 201 nesting levels should fail"
+        "Pattern with 11 nesting levels should fail"
     );
     match result.unwrap_err().kind {
         VimRegexErrorKind::PatternTooComplex { .. } => {}
