@@ -22,7 +22,7 @@
 #![allow(non_snake_case)]
 
 use vim_core::execution::{parse_keys_from_string, HostSession};
-use vim_core::primitives::Mode;
+use vim_core::primitives::{Mode, VimOptions};
 
 // =============================================================================
 // Helpers
@@ -1512,4 +1512,68 @@ fn undo_redo_dd_multi_cursor() {
 
     feed(&mut session, "<C-r>");
     assert_eq!(session.text(), after_dd, "Redo dd should re-apply");
+}
+
+// =============================================================================
+// INSERT WITH AUTOINDENT: EACH CURSOR AS IF ALONE
+// =============================================================================
+
+/// The text after `keys` with a cursor at each offset, 'autoindent' on.
+fn autoindent_run(text: &str, offsets: &[usize], keys: &str) -> String {
+    let mut session = session_with_cursors(text, offsets);
+    let mut options = VimOptions::default();
+    options.set_autoindent(true);
+    session.set_options(options);
+    feed(&mut session, keys);
+    session.text().to_owned()
+}
+
+/// Each cursor's run alone, put together: what a multi-cursor run must give
+/// when every cursor edits only its own line. `offsets` are on distinct
+/// lines, top to bottom.
+fn assert_matches_single_runs(text: &str, offsets: &[usize], keys: &str) {
+    let mut starts: Vec<usize> = offsets
+        .iter()
+        .map(|&o| text[..o].rfind('\n').map_or(0, |nl| nl + 1))
+        .collect();
+    starts[0] = 0;
+    let mut ends = starts[1..].to_vec();
+    ends.push(text.len());
+    let mut composite = String::new();
+    for (j, &offset) in offsets.iter().enumerate() {
+        let alone = autoindent_run(text, &[offset], keys);
+        let (before, after) = (&text[..starts[j]], &text[ends[j]..]);
+        assert!(
+            alone.len() >= before.len() + after.len()
+                && alone.starts_with(before)
+                && alone.ends_with(after),
+            "the cursor at {offset} alone changed other lines: {alone:?}",
+        );
+        composite.push_str(&alone[before.len()..alone.len() - after.len()]);
+    }
+    assert_eq!(
+        autoindent_run(text, offsets, keys),
+        composite,
+        "{keys:?} with cursors at {offsets:?} in {text:?}",
+    );
+}
+
+#[test]
+fn autoindent_enter_keeps_each_cursors_indent() {
+    assert_matches_single_runs("    a\n    b", &[4, 10], "i<CR><Esc>");
+}
+
+#[test]
+fn autoindent_enter_then_text_keeps_each_cursors_indent() {
+    assert_matches_single_runs("    a\n    b", &[4, 10], "i<CR>x<Esc>");
+}
+
+#[test]
+fn autoindent_enter_keeps_a_tab_indent_under_another_cursor() {
+    assert_matches_single_runs("    a\n\tb", &[4, 7], "i<CR><Esc>");
+}
+
+#[test]
+fn autoindent_two_enters_after_I_keep_each_cursors_indent() {
+    assert_matches_single_runs("    a\n    b", &[4, 10], "I<CR><CR><Esc>");
 }

@@ -497,6 +497,8 @@ neovim_test!(motions, para_backward_no_blank, "line1\nline2\nline3", cursor(2, 0
 neovim_test!(motions, para_backward_multiple, "l1\n\nl2\n\nl3", cursor(4, 0), "2{");
 neovim_test!(motions, para_backward_at_start, "l1\n\nl2", "{");
 neovim_test!(motions, para_backward_only_blanks, "\n\n\n", cursor(2, 0), "{");
+neovim_test!(motions, para_forward_count_reaches_end, "l1\n\nl2\nl3", "2}");
+neovim_test!(motions, para_backward_count_reaches_start, "l1\n\nl2\nl3", cursor(3, 1), "2{");
 // NEW: sentence edge cases
 neovim_test!(motions, sentence_forward_empty_buffer, "", ")");
 neovim_test!(motions, sentence_forward_single_word, "hello", ")");
@@ -644,3 +646,5 @@ neovim_test!(motions, h_no_wrap_at_bol, "abc\ndef", cursor(1, 0), "h");
 
 // l at end of line without whichwrap stays put
 neovim_test!(motions, l_no_wrap_at_eol, "abc\ndef", cursor(0, 2), "l");
+
+neovim_test!(motions, open_paren_count_over_empty_lines, "x\n\n\n\ny", cursor(4, 0), "2(");

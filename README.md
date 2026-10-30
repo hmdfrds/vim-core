@@ -60,7 +60,7 @@ They are red on purpose:
 - **`mc_ideal_*` (54 failures)** — written-first specifications for
   multi-cursor behaviour that is not implemented yet. The tests describe the
   intended semantics; the engine has not caught up.
-- **`fidelity_tests` (21)** — 6,241 pass. The 21 are known points where the
+- **`fidelity_tests` (21)**: 6,292 pass. The 21 are known points where the
   engine diverges from real Vim.
 - **`auto_pairs_tests` (3)** — dot-repeat drops the auto-paired closing
   delimiter. The test source carries an inline `// BUG:` comment naming it.

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.2",
+  "generated_at": "1791173438",
+  "input": {
+    "text": "  x\n\t\n  \ny\nz",
+    "cursor": [
+      2,
+      0
+    ],
+    "mode": "Normal",
+    "keys": "d)"
+  },
+  "expected": {
+    "text": "  x\n\t",
+    "cursor_offset": 4,
+    "cursor_line": 1,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "+": {
+        "text": "https://github.com/hmdfrds/godot-vim/issues/79",
+        "regtype": "v"
+      },
+      "\"": {
+        "text": "  \ny\nz\n",
+        "regtype": "V"
+      },
+      "1": {
+        "text": "  \ny\nz\n",
+        "regtype": "V"
+      },
+      "*": {
+        "text": "https://github.com/hmdfrds/godot-vim/issues/79",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      "]": 6,
+      ".": 6,
+      "[": 6
+    },
+    "window": {
+      "topline": 1,
+      "botline": 2,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 3,
+    "jumplist": [
+      6
+    ],
+    "jumplist_idx": 1,
+    "changelist": [
+      4,
+      6
+    ],
+    "changelist_idx": 2
+  }
+}

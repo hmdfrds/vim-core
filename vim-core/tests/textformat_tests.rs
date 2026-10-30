@@ -25,6 +25,9 @@
 //! where their range ends, text objects, the empty last line, and the
 //! repeats of an insert.
 //!
+//! Every fixture case runs twice: as recorded, and with an empty fold
+//! provider, as a host that supports folds has when nothing is folded.
+//!
 //! The other tests check the typing paths (repeats, undo, literal
 //! characters, abbreviations, multiple cursors) against Vim, and that typing
 //! never loses, adds or reorders a character.
@@ -148,6 +151,22 @@ fn session(text: &str, tw: usize, fo: &str) -> HostSession {
     session
 }
 
+fn fixture_session(text: &str, folds: bool) -> HostSession {
+    let mut session = HostSession::new(text);
+    if folds {
+        session.set_fold_state(Vec::new());
+    }
+    session
+}
+
+fn run_label(folds: bool) -> &'static str {
+    if folds {
+        " [empty fold provider]"
+    } else {
+        ""
+    }
+}
+
 fn show(lines: &[String]) -> String {
     lines
         .iter()
@@ -164,9 +183,9 @@ fn matches_vim_oracle() {
         serde_json::from_str(include_str!("fixtures/textformat_oracle.json")).unwrap();
     assert!(!fixture.cases.is_empty());
     let mut failures = Vec::new();
-    for case in &fixture.cases {
+    for (case, folds) in fixture.cases.iter().flat_map(|c| [(c, false), (c, true)]) {
         let text = case.lines.join("\n");
-        let mut session = HostSession::new(&text);
+        let mut session = fixture_session(&text, folds);
         session.set_options(options(&case.opts));
         session.set_cursor_offset(offset_of(&text, case.cursor));
         type_text(&mut session, &case.cmd);
@@ -176,8 +195,9 @@ fn matches_vim_oracle() {
         let lines: Vec<String> = session.text().split('\n').map(str::to_owned).collect();
         if lines != case.expected.lines || cursor != case.expected.cursor {
             failures.push(format!(
-                "{}\n  expected cursor {:?}:\n{}\n  actual cursor {:?}:\n{}",
+                "{}{}\n  expected cursor {:?}:\n{}\n  actual cursor {:?}:\n{}",
                 case.name,
+                run_label(folds),
                 case.expected.cursor,
                 show(&case.expected.lines),
                 cursor,
@@ -187,9 +207,9 @@ fn matches_vim_oracle() {
     }
     assert!(
         failures.is_empty(),
-        "{} of {} oracle cases differ from Vim:\n\n{}",
+        "{} of {} oracle runs differ from Vim:\n\n{}",
         failures.len(),
-        fixture.cases.len(),
+        2 * fixture.cases.len(),
         failures.join("\n\n")
     );
 }
@@ -210,9 +230,9 @@ fn check_format_fixture(json: &str) {
     let fixture: FormatFixture = serde_json::from_str(json).unwrap();
     assert!(!fixture.cases.is_empty());
     let mut failures = Vec::new();
-    for case in &fixture.cases {
+    for (case, folds) in fixture.cases.iter().flat_map(|c| [(c, false), (c, true)]) {
         let text = case.lines.join("\n");
-        let mut session = HostSession::new(&text);
+        let mut session = fixture_session(&text, folds);
         session.set_options(options(&case.opts));
         session.set_cursor_offset(offset_of(&text, case.cursor));
         feed(&mut session, &case.keys);
@@ -220,8 +240,9 @@ fn check_format_fixture(json: &str) {
         let lines: Vec<String> = session.text().split('\n').map(str::to_owned).collect();
         if lines != case.expected.lines || cursor != case.expected.cursor {
             failures.push(format!(
-                "{} ({})\n  expected cursor {:?}:\n{}\n  actual cursor {:?}:\n{}",
+                "{}{} ({})\n  expected cursor {:?}:\n{}\n  actual cursor {:?}:\n{}",
                 case.name,
+                run_label(folds),
                 case.keys,
                 case.expected.cursor,
                 show(&case.expected.lines),
@@ -232,9 +253,9 @@ fn check_format_fixture(json: &str) {
     }
     assert!(
         failures.is_empty(),
-        "{} of {} format operator cases differ from Vim:\n\n{}",
+        "{} of {} format operator runs differ from Vim:\n\n{}",
         failures.len(),
-        fixture.cases.len(),
+        2 * fixture.cases.len(),
         failures.join("\n\n")
     );
 }

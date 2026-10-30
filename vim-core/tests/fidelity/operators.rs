@@ -333,6 +333,8 @@ neovim_test!(operators, das_sentence, "Hello world. Goodbye world.", cursor(0, 5
 // i/a paragraph
 neovim_test!(operators, dip_paragraph, "line1\nline2\n\nline3", cursor(0, 0), "dip");
 neovim_test!(operators, dap_paragraph_full, "line1\nline2\n\nline3", cursor(0, 0), "dap");
+neovim_test!(operators, dip_blank_run_before_last_line, "aaa\n\n\nbbb", cursor(1, 0), "dip");
+neovim_test!(operators, d2ap_over_two_paragraphs, "aa\n\nbb\n\ncc", "d2ap");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EDGE CASES - COMPREHENSIVE
@@ -533,3 +535,39 @@ neovim_test!(operators, yank_2j_paste_at_end, "one\ntwo\nthree\nfour\n", "y2jGp"
 
 // Bug hunt: dG from line 1
 neovim_test!(operators, dG_from_line_1, "first\nsecond\nthird\nfourth\nfifth\n", cursor(1, 0), "dG");
+
+neovim_test!(operators, d_brace_last_paragraph_trailing_newline, "aaa\nbbb\n", cursor(1, 0), "d}");
+neovim_test!(operators, d_brace_last_paragraph_trailing_newline_undo, "aaa\nbbb\n", cursor(1, 0), "d}u");
+neovim_test!(operators, d_brace_after_blank_trailing_newline, "aaa\nbbb\n\nccc\nddd\n", cursor(3, 0), "d}");
+neovim_test!(operators, y_brace_after_blank_trailing_newline, "aaa\nbbb\n\nccc\nddd\n", cursor(3, 0), "y}");
+neovim_test!(operators, y_brace_after_blank_trailing_newline_paste, "aaa\nbbb\n\nccc\nddd\n", cursor(3, 0), "y}P");
+neovim_test!(operators, c_brace_after_blank_trailing_newline, "aaa\nbbb\n\nccc\nddd\n", cursor(3, 0), "c}x<Esc>");
+neovim_test!(operators, y_open_brace_from_empty_last_line, "\naaa\n\n\nbbb\n", cursor(5, 0), "y{");
+neovim_test!(operators, d_open_brace_from_empty_last_line, "\naaa\n\n\nbbb\n", cursor(5, 0), "d{");
+neovim_test!(operators, d_brace_three_lines_trailing_newline, "a\nb\nc\n", cursor(1, 0), "d}");
+neovim_test!(operators, d_brace_blank_lines_trailing_newline, "abc\n\n\n", cursor(2, 0), "d}");
+neovim_test!(operators, d_brace_from_blank_to_empty_last_line, "aaa\n\nccc\n", cursor(1, 0), "d}");
+neovim_test!(operators, d_brace_blank_space_lines, " \n \n", cursor(1, 0), "d}");
+neovim_test!(operators, d2_brace_blank_space_lines, " \n \n", cursor(1, 0), "d2}");
+neovim_test!(operators, count_d_brace_blank_space_lines, " \n \n", cursor(1, 0), "2d}");
+neovim_test!(operators, dd_on_empty_last_line, "a\nb\n", cursor(2, 0), "dd");
+neovim_test!(operators, yyp_above_empty_last_line, "a\nb\n", cursor(1, 0), "yyp");
+neovim_test!(operators, dG_to_empty_last_line, "a\nb\nc\n", cursor(1, 0), "dG");
+neovim_test!(operators, dj_to_empty_last_line, "a\nb\nc\n", cursor(2, 0), "dj");
+neovim_test!(operators, yG_to_empty_last_line, "a\nb\nc\n", cursor(1, 0), "yG");
+neovim_test!(operators, d_open_paren_midline_to_col0, "aa\nbb cc", cursor(1, 3), "d(");
+neovim_test!(operators, d_close_paren_over_blank_lines, "  x\n\t\n  \ny\nz", cursor(2, 0), "d)");
+neovim_test!(operators, d_close_paren_to_last_char_sentence, "a. b", "d)");
+neovim_test!(operators, d2_close_paren_trailing_empty_lines, "foo. bar\n\n", cursor(0, 5), "2d)");
+neovim_test!(operators, d3_close_paren_trailing_empty_lines, "foo. bar\n\n", cursor(0, 5), "3d)");
+neovim_test!(operators, c3_close_paren_trailing_empty_lines, "foo. bar\n\n", cursor(0, 5), "c3)X<Esc>");
+neovim_test!(operators, y3_close_paren_trailing_empty_lines_paste, "foo. bar\n\n", cursor(0, 5), "y3)P");
+neovim_test!(operators, d_force_charwise_close_paren_to_col0, "a b.\nd e f\n", cursor(0, 2), "dv)");
+neovim_test!(operators, d_force_charwise_open_paren_from_col0, "a b. c\nd e\n", cursor(1, 0), "dv(");
+neovim_test!(operators, c_force_charwise_close_paren_to_col0, "a b.\ne f.\ng\n", cursor(0, 2), "cv)X<Esc>");
+neovim_test!(operators, y_force_charwise_close_paren_to_col0_paste, "a b.\ne f.\ng\n", cursor(0, 2), "yv)P");
+neovim_test!(operators, d_force_charwise_close_paren_count, "a b.\ne f.\ng\n", cursor(0, 2), "dv2)");
+neovim_test!(operators, yj_blank_to_empty_last_line_paste, "a\n\n\n", cursor(2, 0), "yjP");
+neovim_test!(operators, dd2_blank_to_empty_last_line_paste, "a\n\n\n", cursor(2, 0), "2ddP");
+neovim_test!(operators, yG_blank_to_empty_last_line_paste, "a\n\n\n", cursor(2, 0), "yGP");
+neovim_test!(operators, dG_blank_to_empty_last_line_paste, "a\n\n\n", cursor(2, 0), "dGP");
