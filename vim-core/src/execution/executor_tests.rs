@@ -1616,3 +1616,83 @@ fn select_next_sibling_normalizes_duplicates() {
         "Two cursors navigating to same sibling should merge to 1"
     );
 }
+
+// ─── Shift after sneak and on a block ─────────────────────────────
+
+/// sw=2, ts=4 and noexpandtab, under which `>` on "\t  ab cd" gives two Tabs.
+fn indent_options() -> crate::primitives::VimOptions {
+    let mut options = crate::primitives::VimOptions::default();
+    options.set_shiftwidth(2);
+    options.set_tabstop(4);
+    options.set_expandtab(false);
+    options
+}
+
+fn apply_edits(text: &str, effects: &Effects) -> String {
+    let mut out = text.to_owned();
+    for effect in effects.as_slice() {
+        match effect {
+            Effect::Insert { offset, text } => out.insert_str(offset.get(), text),
+            Effect::Delete { range } => {
+                out.replace_range(range.start().get()..range.end().get(), "");
+            }
+            Effect::Replace { range, text } => {
+                out.replace_range(range.start().get()..range.end().get(), text);
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+#[test]
+fn shift_after_sneak_uses_the_indent_options() {
+    // A context left at its defaults (sw 4, ts 8, expandtab) gives 14
+    // spaces.
+    let options = indent_options();
+    let text = "\t  ab cd";
+    let doc = SimpleDocument::new(text);
+    let state = crate::state::VimState::default();
+    let input = InputContext::new(&doc, 3).validate().unwrap();
+    let ctx = ExecutionContext::new(input, &state, &options);
+
+    let effects = execute(
+        Command::Sneak {
+            count: NonZeroU32::MIN,
+            register: None,
+            operator: Some(crate::grammar::types::Operator::Indent),
+            c1: 'c',
+            c2: 'd',
+            forward: true,
+        },
+        &ctx,
+    )
+    .effects;
+    assert_eq!(apply_edits(text, &effects), "\t\tab cd");
+}
+
+#[test]
+fn block_shift_uses_the_indent_options() {
+    // A context left at its defaults (sw 4, ts 8, expandtab) gives 14
+    // spaces.
+    let options = indent_options();
+    let text = "\t  ab cd";
+    let doc = SimpleDocument::new(text);
+    let mut state = crate::state::VimState::default();
+    state.set_mode(Mode::Visual(VisualType::Block));
+    let input = InputContext::new(&doc, 3)
+        .validate()
+        .unwrap()
+        .with_selection(SelectionRange::new(Offset::new(3), Offset::new(4)));
+    let ctx = ExecutionContext::new(input, &state, &options);
+
+    let effects = execute(
+        Command::OperatorSelection {
+            operator: Operator::Indent,
+            register: None,
+        },
+        &ctx,
+    )
+    .effects;
+    assert_eq!(apply_edits(text, &effects), "\t\tab cd");
+}

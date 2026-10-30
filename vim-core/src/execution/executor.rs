@@ -373,6 +373,9 @@ fn execute_raw<D: Document>(command: Command, ctx: &ExecutionContext<'_, D>) -> 
                         Offset::new(cursor),
                     )
                     .with_motion_target(target)
+                    .with_shiftwidth(ctx.options.shiftwidth())
+                    .with_tabstop(ctx.options.tabstop())
+                    .with_expandtab(ctx.options.expandtab())
                     .with_textwidth(ctx.options.textwidth())
                     .with_format_options(ctx.options)
                     .with_commentstring(ctx.options.commentstring());
@@ -1577,6 +1580,7 @@ fn execute_block_visual<D: Document>(
     let mut op_ctx = OperatorContext::for_block(text, register, Offset::new(ctx.cursor_offset()))
         .with_shiftwidth(ctx.options.shiftwidth())
         .with_tabstop(ctx.options.tabstop())
+        .with_expandtab(ctx.options.expandtab())
         .with_textwidth(ctx.options.textwidth())
         .with_format_options(ctx.options)
         .with_commentstring(ctx.options.commentstring())

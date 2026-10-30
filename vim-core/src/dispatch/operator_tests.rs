@@ -556,3 +556,173 @@ mod ctrl_v_force_block {
         );
     }
 }
+
+// ── The indent options reach every built context ──────────────────
+
+mod indent_options {
+    use super::*;
+    use crate::commands::operators::{OperatorMotionInput, SelectionOperatorContext};
+    use crate::effects::Effect;
+    use crate::grammar::types::{
+        CharCommand, MarkType, Motion, TextObject, TextObjectKind, TextObjectScope,
+    };
+    use crate::primitives::{MotionType, Offset, Range, VimOptions};
+
+    /// With sw=2, ts=4 and noexpandtab, `>` on this line gives two Tabs. A
+    /// context left at its defaults (sw 4, ts 8, expandtab) gives 14 spaces.
+    const TEXT: &str = "\t  ab cd";
+    const SHIFTED: &str = "\t\tab cd";
+    const CURSOR: usize = 3;
+
+    fn options() -> VimOptions {
+        let mut options = VimOptions::default();
+        options.set_shiftwidth(2);
+        options.set_tabstop(4);
+        options.set_expandtab(false);
+        options
+    }
+
+    fn shifted(result: &CommandResult) -> String {
+        let mut out = TEXT.to_owned();
+        for effect in result.effects.as_slice() {
+            match effect {
+                Effect::Insert { offset, text } => out.insert_str(offset.get(), text),
+                Effect::Delete { range } => {
+                    out.replace_range(range.start().get()..range.end().get(), "")
+                }
+                Effect::Replace { range, text } => {
+                    out.replace_range(range.start().get()..range.end().get(), text);
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn with_motion() {
+        let opts = options();
+        let result = dispatch_operator_with_motion(&OperatorMotionInput {
+            operator: Operator::Indent,
+            motion: Motion::Right,
+            count: 1,
+            register: None,
+            text: TEXT,
+            cursor: Offset::new(CURSOR),
+            search: None,
+            last_find: None,
+            shiftwidth: opts.shiftwidth(),
+            textwidth: opts.textwidth(),
+            options: &opts,
+            force_type: None,
+            custom_operators: None,
+            viewport: None,
+            sticky_column: None,
+            fold_provider: None,
+        });
+        assert_eq!(shifted(&result), SHIFTED);
+    }
+
+    #[test]
+    fn line() {
+        let opts = options();
+        let result = dispatch_operator_line(&OperatorLineInput {
+            operator: Operator::Indent,
+            count: 1,
+            register: None,
+            text: TEXT,
+            cursor: CURSOR,
+            shiftwidth: opts.shiftwidth(),
+            tabstop: opts.tabstop(),
+            expandtab: opts.expandtab(),
+            textwidth: opts.textwidth(),
+            options: &opts,
+            commentstring: opts.commentstring(),
+            custom_operators: None,
+            sticky_column: None,
+        });
+        assert_eq!(shifted(&result), SHIFTED);
+    }
+
+    #[test]
+    fn find() {
+        let opts = options();
+        let result = dispatch_operator_find(&OperatorFindInput {
+            operator: Operator::Indent,
+            cmd: CharCommand::FindForward,
+            char: 'c',
+            count: 1,
+            register: None,
+            text: TEXT,
+            cursor: CURSOR,
+            options: &opts,
+            custom_operators: None,
+        });
+        assert_eq!(shifted(&result), SHIFTED);
+    }
+
+    #[test]
+    fn mark() {
+        let opts = options();
+        let result = dispatch_operator_mark(&OperatorMarkInput {
+            operator: Operator::Indent,
+            text: TEXT,
+            cursor: CURSOR,
+            mark_offset: 6,
+            mark_type: MarkType::JumpExact,
+            register: None,
+            options: &opts,
+            custom_operators: None,
+        });
+        assert_eq!(shifted(&result), SHIFTED);
+    }
+
+    #[test]
+    fn textobject() {
+        let opts = options();
+        let result = dispatch_operator_textobject(&OperatorTextObjectInput {
+            operator: Operator::Indent,
+            textobject: TextObject {
+                scope: TextObjectScope::Inner,
+                kind: TextObjectKind::Word,
+                seek: None,
+            },
+            count: 1,
+            register: None,
+            text: TEXT,
+            options: &opts,
+            cursor: CURSOR,
+            shiftwidth: opts.shiftwidth(),
+            tabstop: opts.tabstop(),
+            expandtab: opts.expandtab(),
+            textwidth: opts.textwidth(),
+            providers: crate::document::Providers::new(),
+            commentstring: opts.commentstring(),
+            custom_operators: None,
+        });
+        assert_eq!(shifted(&result), SHIFTED);
+    }
+
+    #[test]
+    fn selection() {
+        let opts = options();
+        let result = dispatch_operator_selection(&SelectionOperatorContext {
+            text: TEXT,
+            range: Range::from_raw(CURSOR, CURSOR + 2),
+            motion_type: MotionType::CharWise,
+            register: None,
+            cursor_pos: Offset::new(CURSOR),
+            operator: Operator::Indent,
+            visual_exit: None,
+            commentstring: opts.commentstring(),
+            custom_operators: None,
+            viewport: None,
+            shiftwidth: opts.shiftwidth(),
+            tabstop: opts.tabstop(),
+            expandtab: opts.expandtab(),
+            options: &opts,
+            sticky_column: None,
+        });
+        assert_eq!(shifted(&result), SHIFTED);
+    }
+}
