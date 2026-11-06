@@ -4,6 +4,7 @@
 //! Enter is pressed in `:` or `/`/`?` command-line mode, plus their
 //! helper functions.
 
+use super::ex_line::OnError;
 use super::{CommandLineSession, Response, VimEngine};
 use crate::commands::actions::effects as action_effects;
 use crate::commands::ex::effects as ex_effects;
@@ -11,7 +12,7 @@ use crate::commands::helpers::line_of;
 use crate::document::Document;
 use crate::effects::{Effect, Effects};
 use crate::execution::executor_ex;
-use crate::execution::{ExecutionContext, InputContext, Validated};
+use crate::execution::{InputContext, Validated};
 use crate::grammar::Command;
 use crate::primitives::Direction;
 use crate::primitives::{Mode, SearchDirection};
@@ -134,57 +135,38 @@ impl VimEngine {
         );
 
         let mut prefix_effects = visual_exit_effects(ctx.selection());
-        prefix_effects.extend(ex_effects::register_ex_command(register_command.into()));
         // Clear any inccommand preview before executing the real command
         if self.options.inccommand_enabled() {
             prefix_effects.extend(Effects::new().clear_substitute_preview());
         }
-
-        let doc_text = ctx.doc().text();
-        let exec_ctx = ExecutionContext::new(ctx, &self.state, &self.options);
-        match executor_ex::execute_ex_line(
+        crate::execution::effect_processor::sync_effects_with_text(
+            &mut self.state,
+            &mut self.parser,
+            prefix_effects.as_mut_slice(),
+            Some(ctx.doc().text()),
+        );
+        let output = self.run_ex_line(
             execute_command.as_str(),
-            &exec_ctx,
-            &mut self.host.sequencer,
-        ) {
-            Ok(mut output) => {
-                crate::execution::effect_processor::sync_effects_with_text(
-                    &mut self.state,
-                    &mut self.parser,
-                    prefix_effects.as_mut_slice(),
-                    Some(doc_text),
-                );
-                crate::execution::effect_processor::sync_effects_with_text(
-                    &mut self.state,
-                    &mut self.parser,
-                    output.effects.as_mut_slice(),
-                    Some(doc_text),
-                );
-                self.state.set_mode(Mode::Normal);
-                let applied = self.apply_ex_output(&mut output, doc_text);
-
-                let mut effects = prefix_effects;
-                effects.extend(output.effects);
-                effects.extend(applied);
-                effects.extend(action_effects::switch_mode(Mode::Normal));
-                let mut response = Response::with_effects(effects);
-                response.host_requests = output.host_requests.into_vec();
-                response
-            }
-            Err(err) => {
-                crate::execution::effect_processor::sync_effects_with_text(
-                    &mut self.state,
-                    &mut self.parser,
-                    prefix_effects.as_mut_slice(),
-                    Some(doc_text),
-                );
-                self.state.set_mode(Mode::Normal);
-                let mut effects = prefix_effects;
-                effects.extend(ex_effects::show_error(err));
-                effects.extend(action_effects::switch_mode(Mode::Normal));
-                Response::with_effects(effects)
-            }
-        }
+            ctx,
+            OnError::Stop,
+            false,
+            Some(Mode::Normal),
+        );
+        // The line becomes the last command line after it ran.
+        let mut register = ex_effects::register_ex_command(register_command.into());
+        crate::execution::effect_processor::sync_effects(
+            &mut self.state,
+            &mut self.parser,
+            register.as_mut_slice(),
+        );
+        self.state.set_mode(Mode::Normal);
+        let mut effects = prefix_effects;
+        effects.extend(register);
+        effects.extend(output.effects);
+        effects.extend(action_effects::switch_mode(Mode::Normal));
+        let mut response = Response::with_effects(effects);
+        response.host_requests = output.host_requests.into_vec();
+        response
     }
 
     /// Execute an ex command from a `<Cmd>…<CR>` mapping RHS.
@@ -197,25 +179,10 @@ impl VimEngine {
         cmd: &str,
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
-        let doc_text = ctx.doc().text();
-        let exec_ctx = ExecutionContext::new(ctx, &self.state, &self.options);
-        match executor_ex::execute_ex_line(cmd, &exec_ctx, &mut self.host.sequencer) {
-            Ok(mut output) => {
-                crate::execution::effect_processor::sync_effects(
-                    &mut self.state,
-                    &mut self.parser,
-                    output.effects.as_mut_slice(),
-                );
-
-                let applied = self.apply_ex_output(&mut output, doc_text);
-                let mut effects = output.effects;
-                effects.extend(applied);
-                let mut response = Response::with_effects(effects);
-                response.host_requests = output.host_requests.into_vec();
-                response
-            }
-            Err(err) => Response::with_effects(ex_effects::show_error(err)),
-        }
+        let output = self.run_ex_line(cmd, ctx, OnError::Continue, false, None);
+        let mut response = Response::with_effects(output.effects);
+        response.host_requests = output.host_requests.into_vec();
+        response
     }
 
     pub(super) fn execute_search_command_line<D: Document>(

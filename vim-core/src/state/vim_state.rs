@@ -240,6 +240,11 @@ pub struct VimState {
     #[default(true)]
     changelist_new_change: bool,
 
+    /// The next change of an undo group already open moves the last
+    /// changelist entry to it, as each command of a `|` line does.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    changelist_follow_next: bool,
+
     /// Sticky count for Ctrl-D/Ctrl-U half-page scroll.
     ///
     /// When a count is explicitly given to Ctrl-D or Ctrl-U, that count
@@ -952,6 +957,14 @@ impl VimState {
         self.changelist_new_change = val;
     }
 
+    pub(crate) const fn changelist_follow_next(&self) -> bool {
+        self.changelist_follow_next
+    }
+
+    pub(crate) const fn set_changelist_follow_next(&mut self, val: bool) {
+        self.changelist_follow_next = val;
+    }
+
     /// Sticky count for Ctrl-D/Ctrl-U.
     #[inline]
     #[must_use]
@@ -1563,6 +1576,7 @@ mod tests {
                 last_change_mark_set: _,
                 change_start_mark_set: _,
                 changelist_new_change: _,
+                changelist_follow_next: _,
                 undo_cursor_hint: _,
                 undo_timestamp_hint: _,
                 undo_auto_group_last_edit_ms: _,

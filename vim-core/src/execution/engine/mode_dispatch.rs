@@ -2876,92 +2876,15 @@ impl VimEngine {
             return Response::with_effects(ex_effects::show_error(VimError::NoPreviousCommand));
         };
 
-        let exec_ctx =
-            crate::execution::ExecutionContext::new(ctx, &self.state, &self.resolved_options);
-        // Capture doc text while exec_ctx is alive — needed later for multi-cursor
-        // commands that execute after exec_ctx's immutable borrow on self.state ends.
-        let mc_doc_text = exec_ctx.doc().text().to_owned();
-        let mut combined = Response::with_effects(crate::effects::Effects::new());
-        match crate::execution::executor_ex::execute_ex_line(
+        let output = self.run_ex_line(
             cmd_str.as_str(),
-            &exec_ctx,
-            &mut self.host.sequencer,
-        ) {
-            Ok(mut output) => {
-                crate::execution::effect_processor::sync_effects(
-                    &mut self.state,
-                    &mut self.parser,
-                    output.effects.as_mut_slice(),
-                );
-
-                if !output.set_commands.is_empty() {
-                    let set_efx = crate::execution::executor_ex::apply_set_commands(
-                        &mut self.options,
-                        &mut self.buffer_overrides,
-                        &mut self.window_overrides,
-                        &output.set_commands,
-                    );
-                    self.rebuild_resolved_cache();
-                    self.rebuild_langmap_if_needed();
-                    combined.extend_effects(set_efx);
-                }
-
-                for change in &output.mapping_changes {
-                    let mapping_efx = self.apply_mapping_change(change);
-                    combined.extend_effects(mapping_efx);
-                }
-                for change in &output.abbrev_changes {
-                    let abbrev_efx = self.apply_abbrev_change(change);
-                    combined.extend_effects(abbrev_efx);
-                }
-                for change in &output.handler_changes {
-                    self.apply_handler_change(change);
-                }
-                for change in &output.leader_changes {
-                    self.apply_leader_change(change);
-                }
-                if output.clear_message_history {
-                    self.state.message_history_mut().clear();
-                }
-                if let Some(nav) = &output.undo_navigation {
-                    let undo_efx = self.apply_undo_navigation(nav);
-                    combined.extend_effects(undo_efx);
-                }
-
-                if let Some(mc_cmd) = &output.multi_cursor_command {
-                    let search_pat = self.state.search().pattern().map(str::to_owned);
-                    let mc_ctx = crate::execution::multi_cursor_executor::MultiCursorContext {
-                        text: &mc_doc_text,
-                        search_pattern: search_pat.as_deref(),
-                        line_count: crate::commands::helpers::line_count(&mc_doc_text).max(1),
-                    };
-                    match crate::execution::multi_cursor_executor::execute_multi_cursor_command(
-                        &mut self.state,
-                        mc_cmd,
-                        &mc_ctx,
-                    ) {
-                        Ok(effects) => {
-                            let mut mc_efx = crate::effects::Effects::new();
-                            for effect in effects {
-                                mc_efx.push(effect);
-                            }
-                            combined.extend_effects(mc_efx);
-                        }
-                        Err(err) => {
-                            combined.extend_effects(ex_effects::show_error(err));
-                        }
-                    }
-                }
-
-                combined.extend_effects(output.effects);
-                for req in output.host_requests {
-                    combined.host_requests.push(req);
-                }
-            }
-            Err(err) => {
-                combined.extend_effects(ex_effects::show_error(err));
-            }
-        }
+            ctx,
+            super::ex_line::OnError::Stop,
+            true,
+            None,
+        );
+        let mut combined = Response::with_effects(output.effects);
+        combined.host_requests.extend(output.host_requests);
 
         // For count > 1, inject remaining repetitions into the typeahead buffer.
         // Each repetition is `:cmd<CR>` — the host applies effects between

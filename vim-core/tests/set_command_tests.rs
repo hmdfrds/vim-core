@@ -136,15 +136,18 @@ fn belloff_is_a_string_option() {
     assert!(engine.options().belloff());
 }
 
+/// A typed line ends at its first error, so the `:set` after the `|` does
+/// not run (ex_docmd.c `do_cmdline()`, the loop condition on `did_emsg`
+/// with `getexline`).
 #[test]
-fn each_set_of_a_typed_line_stops_on_its_own() {
+fn a_typed_line_ends_at_the_first_bad_set() {
     let mut engine = VimEngine::new();
     assert_eq!(
         error(&mut engine, "set nosuch ts=7 | set ic"),
         "E518: Unknown option: nosuch"
     );
     assert_eq!(engine.options().tabstop(), 4);
-    assert!(engine.options().ignorecase());
+    assert!(!engine.options().ignorecase());
 }
 
 #[test]
