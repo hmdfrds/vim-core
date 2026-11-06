@@ -809,6 +809,10 @@ fn emergency_reset_field_inventory() {
         .state
         .set_sticky_column(Some(crate::primitives::VirtualColumn::new(42)));
 
+    // Leave the file of a :source to the host.
+    let _ = engine.source_config_text("source x.vim\n");
+    assert!(!engine.host.source_depths.is_empty());
+
     // Set user data that should be PRESERVED.
     let reg_a = RegisterName::new_unchecked('a');
     engine
@@ -962,6 +966,10 @@ fn emergency_reset_field_inventory() {
     assert!(
         host.pending.is_empty(),
         "host pending requests must be empty after emergency_reset()",
+    );
+    assert!(
+        host.source_depths.is_empty(),
+        "host source depths must be empty after emergency_reset()",
     );
 
     // recording: buffer cleared.

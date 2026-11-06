@@ -21,6 +21,7 @@
 
 mod command_line;
 mod command_line_exec;
+mod conditionals;
 mod coordinators;
 mod external_edit;
 pub(crate) mod hooks;
@@ -635,7 +636,7 @@ impl VimEngine {
         // (Ready state in Normal/Visual/OP). Preserve the localized
         // key in literal-char contexts (f/t/r argument, Insert mode,
         // CommandLine text) so the user can type/find non-Latin chars.
-        let key = self.apply_langmap_and_normalize(key);
+        let key = self.apply_langmap_and_normalize(key, is_typed_key);
 
         // ── Sticky sub-mode interception ─────────────────────────
         // When a sticky session is active and we're in Normal mode,
@@ -750,6 +751,18 @@ impl VimEngine {
                 .resolve_key(current_key, current_flags, &self.keymap, mode)
             {
                 ResolveResult::Dispatch(k, flags) => {
+                    resolved_key = k;
+                    resolved_flags = flags;
+                    break;
+                }
+                ResolveResult::Mapped(k, flags) => {
+                    // A key a mapping gives is not typed: 'langmap'
+                    // applies to it only with 'langremap' on.
+                    let k = if self.should_apply_langmap(false) {
+                        self.langmap_table.remap_key_event(k)
+                    } else {
+                        k
+                    };
                     // If the dispatched key came from a recursive mapping expansion
                     // (REMAPPABLE flag, key changed), re-resolve to handle chains
                     // like <Plug>(name) → real keys.
@@ -766,6 +779,7 @@ impl VimEngine {
                     break;
                 }
                 ResolveResult::Pending => return Response::pending_response(),
+                ResolveResult::Consumed => return Response::consumed_empty(),
                 ResolveResult::ExprMapping {
                     expression,
                     kind,
@@ -1536,17 +1550,18 @@ impl VimEngine {
 
     /// Whether langmap should be applied to this key.
     ///
-    /// Returns `true` when the langmap table is non-empty and the engine is
+    /// Returns `true` when the langmap table is non-empty, the engine is
     /// in a command-key context (Normal/Visual/OP-pending, parser not
-    /// expecting a literal character argument).
-    const fn should_apply_langmap(&self) -> bool {
+    /// expecting a literal character argument), and the key was `typed`
+    /// or 'langremap' is on, as Vim's `LANGMAP_ADJUST()` decides.
+    const fn should_apply_langmap(&self, typed: bool) -> bool {
         if self.langmap_table.is_empty() {
             return false;
         }
         if !self.expects_command_key() {
             return false;
         }
-        true
+        typed || self.options.langremap()
     }
 
     /// Apply langmap (engine table) then normalize_for_layout (host fallback).
@@ -1554,8 +1569,8 @@ impl VimEngine {
     /// Langmap takes priority: if the engine's langmap table remaps the key,
     /// the remapped version is used. Otherwise, the host-driven `latin_key`
     /// fallback in `normalize_for_layout` kicks in.
-    fn apply_langmap_and_normalize(&self, key: KeyEvent) -> KeyEvent {
-        let key = if self.should_apply_langmap() {
+    fn apply_langmap_and_normalize(&self, key: KeyEvent, typed: bool) -> KeyEvent {
+        let key = if self.should_apply_langmap(typed) {
             self.langmap_table.remap_key_event(key)
         } else {
             key

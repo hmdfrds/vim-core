@@ -20,8 +20,7 @@ use crate::state::VimState;
 impl VimEngine {
     /// Execute a multi-cursor command from an ex command output, if present.
     ///
-    /// Shared by `execute_ex_command_line` and `execute_cmd_mapping` to avoid
-    /// duplicating the MC dispatch logic.
+    /// Part of [`Self::apply_ex_output`].
     fn dispatch_mc_from_ex(
         &mut self,
         mc_cmd: Option<&crate::state::MultiCursorCommand>,
@@ -50,6 +49,73 @@ impl VimEngine {
             }
             Err(err) => ex_effects::show_error(err),
         }
+    }
+
+    /// Apply what an Ex command asks of the engine besides its own effects:
+    /// options, mappings, abbreviations, handlers, the leader, cleared
+    /// histories, undo navigation and multi-cursor commands. Returns the
+    /// effects that produces, in the order they follow the command's own.
+    pub(super) fn apply_ex_output(
+        &mut self,
+        output: &mut executor_ex::ExExecutionOutput,
+        doc_text: &str,
+    ) -> Effects {
+        let mut effects = if output.set_commands.is_empty() {
+            Effects::new()
+        } else {
+            let effects = executor_ex::apply_set_commands(
+                &mut self.options,
+                &mut self.buffer_overrides,
+                &mut self.window_overrides,
+                &output.set_commands,
+            );
+            self.rebuild_resolved_cache();
+            self.rebuild_langmap_if_needed();
+            effects
+        };
+        for change in &output.mapping_changes {
+            effects.extend(self.apply_mapping_change(change));
+        }
+        for change in &output.abbrev_changes {
+            effects.extend(self.apply_abbrev_change(change));
+        }
+        for change in &output.handler_changes {
+            self.apply_handler_change(change);
+        }
+        for change in &output.leader_changes {
+            self.apply_leader_change(change);
+        }
+        if output.clear_message_history {
+            self.state.message_history_mut().clear();
+        }
+        if output.clear_jumplist {
+            self.state.jump_list_mut().clear();
+        }
+        // :undojoin merges the next undo group into the previous one.
+        if output.undo_join_pending {
+            self.state.undo_tree_mut().begin_merge();
+        }
+        if output.last_ex_for_dot.is_some() {
+            self.state
+                .set_last_ex_for_dot(output.last_ex_for_dot.take());
+        }
+
+        let mut undo_effects = match &output.undo_navigation {
+            Some(nav) => self.apply_undo_navigation(nav),
+            None => Effects::new(),
+        };
+        // Sync undo effects so that the engine's undo tree state is
+        // updated (Undo/Redo effects navigate the tree in the effect
+        // processor). Without this, `:later` after `:earlier` would
+        // not find any redo target because the tree never moved.
+        crate::execution::effect_processor::sync_effects(
+            &mut self.state,
+            &mut self.parser,
+            undo_effects.as_mut_slice(),
+        );
+        effects.extend(undo_effects);
+        effects.extend(self.dispatch_mc_from_ex(output.multi_cursor_command.as_ref(), doc_text));
+        effects
     }
 
     pub(super) fn execute_ex_command_line<D: Document>(
@@ -95,88 +161,11 @@ impl VimEngine {
                     Some(doc_text),
                 );
                 self.state.set_mode(Mode::Normal);
-
-                // Apply :set option mutations
-                let set_effects = if output.set_assignments.is_empty() {
-                    Effects::new()
-                } else {
-                    let effects = executor_ex::apply_set_assignments(
-                        output.set_scope,
-                        &mut self.options,
-                        &mut self.buffer_overrides,
-                        &mut self.window_overrides,
-                        &output.set_assignments,
-                    );
-                    self.rebuild_resolved_cache();
-                    self.rebuild_langmap_if_needed();
-                    effects
-                };
-
-                // Apply :map/:noremap/:unmap mutations
-                for change in &output.mapping_changes {
-                    self.apply_mapping_change(change);
-                }
-
-                // Apply :abbreviate/:unabbreviate/:abclear mutations
-                let mut abbrev_effects = Effects::new();
-                for change in &output.abbrev_changes {
-                    abbrev_effects.extend(self.apply_abbrev_change(change));
-                }
-
-                // Apply :sethandler mutations
-                for change in &output.handler_changes {
-                    self.apply_handler_change(change);
-                }
-
-                // Apply :let mapleader mutation
-                if let Some(leader) = output.leader_change {
-                    self.keymap
-                        .set_leader(crate::keymap::KeyEvent::char(leader));
-                }
-
-                // Apply :messages clear
-                if output.clear_message_history {
-                    self.state.message_history_mut().clear();
-                }
-                // Apply :clearjumps
-                if output.clear_jumplist {
-                    self.state.jump_list_mut().clear();
-                }
-
-                // Apply :undojoin — merge the next undo group into the previous one
-                if output.undo_join_pending {
-                    self.state.undo_tree_mut().begin_merge();
-                }
-
-                // Store last ex command for dot-repeat
-                if output.last_ex_for_dot.is_some() {
-                    self.state.set_last_ex_for_dot(output.last_ex_for_dot);
-                }
-
-                // Apply undo tree navigation
-                let mut undo_effects = match &output.undo_navigation {
-                    Some(nav) => self.apply_undo_navigation(nav),
-                    None => Effects::new(),
-                };
-                // Sync undo effects so that the engine's undo tree state is
-                // updated (Undo/Redo effects navigate the tree in the effect
-                // processor). Without this, `:later` after `:earlier` would
-                // not find any redo target because the tree never moved.
-                crate::execution::effect_processor::sync_effects(
-                    &mut self.state,
-                    &mut self.parser,
-                    undo_effects.as_mut_slice(),
-                );
-
-                let mc_effects =
-                    self.dispatch_mc_from_ex(output.multi_cursor_command.as_ref(), doc_text);
+                let applied = self.apply_ex_output(&mut output, doc_text);
 
                 let mut effects = prefix_effects;
                 effects.extend(output.effects);
-                effects.extend(set_effects);
-                effects.extend(abbrev_effects);
-                effects.extend(undo_effects);
-                effects.extend(mc_effects);
+                effects.extend(applied);
                 effects.extend(action_effects::switch_mode(Mode::Normal));
                 let mut response = Response::with_effects(effects);
                 response.host_requests = output.host_requests.into_vec();
@@ -218,71 +207,9 @@ impl VimEngine {
                     output.effects.as_mut_slice(),
                 );
 
-                // Apply :set option mutations
-                let set_effects = if output.set_assignments.is_empty() {
-                    Effects::new()
-                } else {
-                    let effects = executor_ex::apply_set_assignments(
-                        output.set_scope,
-                        &mut self.options,
-                        &mut self.buffer_overrides,
-                        &mut self.window_overrides,
-                        &output.set_assignments,
-                    );
-                    self.rebuild_resolved_cache();
-                    self.rebuild_langmap_if_needed();
-                    effects
-                };
-
-                for change in &output.mapping_changes {
-                    self.apply_mapping_change(change);
-                }
-                let mut abbrev_effects = Effects::new();
-                for change in &output.abbrev_changes {
-                    abbrev_effects.extend(self.apply_abbrev_change(change));
-                }
-                for change in &output.handler_changes {
-                    self.apply_handler_change(change);
-                }
-                if let Some(leader) = output.leader_change {
-                    self.keymap
-                        .set_leader(crate::keymap::KeyEvent::char(leader));
-                }
-                if output.clear_message_history {
-                    self.state.message_history_mut().clear();
-                }
-                if output.clear_jumplist {
-                    self.state.jump_list_mut().clear();
-                }
-
-                // Apply :undojoin — merge the next undo group into the previous one
-                if output.undo_join_pending {
-                    self.state.undo_tree_mut().begin_merge();
-                }
-
-                // Store last ex command for dot-repeat
-                if output.last_ex_for_dot.is_some() {
-                    self.state.set_last_ex_for_dot(output.last_ex_for_dot);
-                }
-
-                let mut undo_effects = match &output.undo_navigation {
-                    Some(nav) => self.apply_undo_navigation(nav),
-                    None => Effects::new(),
-                };
-                crate::execution::effect_processor::sync_effects(
-                    &mut self.state,
-                    &mut self.parser,
-                    undo_effects.as_mut_slice(),
-                );
-
-                let mc_effects =
-                    self.dispatch_mc_from_ex(output.multi_cursor_command.as_ref(), doc_text);
-
+                let applied = self.apply_ex_output(&mut output, doc_text);
                 let mut effects = output.effects;
-                effects.extend(set_effects);
-                effects.extend(abbrev_effects);
-                effects.extend(undo_effects);
-                effects.extend(mc_effects);
+                effects.extend(applied);
                 let mut response = Response::with_effects(effects);
                 response.host_requests = output.host_requests.into_vec();
                 response
@@ -572,8 +499,8 @@ impl VimEngine {
     ///
     /// Parses the raw notation strings with access to `self.keymap` so that
     /// `<Action>(name)` and `<Plug>(name)` can be resolved against the
-    /// keymap's name registries.
-    pub(super) fn apply_mapping_change(&mut self, change: &executor_ex::MappingChange) {
+    /// keymap's name registries. Returns the error the change gives.
+    pub(super) fn apply_mapping_change(&mut self, change: &executor_ex::MappingChange) -> Effects {
         match change {
             executor_ex::MappingChange::Define {
                 modes,
@@ -581,48 +508,141 @@ impl VimEngine {
                 rhs_raw,
                 kind,
                 flags,
+                buffer,
             } => {
-                let lhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
+                let lhs_seq = crate::execution::key_notation::parse_mapping_keys(
                     lhs_raw,
                     Some(&mut self.keymap),
                 );
-                if flags.expr {
-                    let expr_text = Some(rhs_raw.clone());
-                    for &mode in modes {
-                        self.map_with_expr(
-                            mode,
-                            lhs_seq.as_slice(),
-                            Vec::new(),
-                            *kind,
-                            *flags,
-                            expr_text.clone(),
-                        );
+                if flags.unique {
+                    if let Some(error) = self.unique_mapping_error(modes, &lhs_seq, *buffer) {
+                        return ex_effects::show_error(error);
                     }
+                }
+                let flags = crate::keymap::MappingFlags {
+                    unique: false,
+                    ..*flags
+                };
+                let (rhs_seq, expr_text) = if flags.expr {
+                    (Vec::new(), Some(rhs_raw.clone()))
                 } else {
-                    let rhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
+                    let rhs = executor_ex::parse_key_notation_sequence_with_keymap(
                         rhs_raw,
                         Some(&mut self.keymap),
                     );
-                    for &mode in modes {
-                        self.map(mode, lhs_seq.as_slice(), rhs_seq.clone(), *kind, *flags);
+                    (rhs, None)
+                };
+                for &mode in modes {
+                    self.keymap.take_visual_modes(mode, &lhs_seq, *buffer);
+                    if *buffer {
+                        self.typeahead.buffer.clear();
+                        self.keymap.map_buffer_with_expr(
+                            mode,
+                            &lhs_seq,
+                            rhs_seq.clone(),
+                            *kind,
+                            flags,
+                            expr_text.clone(),
+                        );
+                        self.key_interest_dirty = true;
+                    } else {
+                        let rhs = rhs_seq.clone();
+                        self.map_with_expr(mode, &lhs_seq, rhs, *kind, flags, expr_text.clone());
                     }
                 }
             }
-            executor_ex::MappingChange::Remove { modes, lhs_raw } => {
-                let lhs_seq = executor_ex::parse_key_notation_sequence_with_keymap(
+            executor_ex::MappingChange::Remove {
+                modes,
+                lhs_raw,
+                buffer,
+            } => {
+                let lhs_seq = crate::execution::key_notation::parse_mapping_keys(
                     lhs_raw,
                     Some(&mut self.keymap),
                 );
+                let mut removed = false;
                 for &mode in modes {
-                    self.unmap(mode, lhs_seq.as_slice());
+                    removed |= self.unmap_in(mode, &lhs_seq, *buffer);
+                    removed |= self.keymap.take_visual_modes(mode, &lhs_seq, *buffer);
+                }
+                // do_map(): when no keys match, a second round removes the
+                // mappings whose right-hand side is the argument.
+                if !removed {
+                    for &mode in modes {
+                        for lhs in self.keymap.keys_mapped_to(mode, &lhs_seq, *buffer) {
+                            removed |= self.unmap_in(mode, &lhs, *buffer);
+                        }
+                        for &other in mode.overlapping() {
+                            for lhs in self.keymap.keys_mapped_to(other, &lhs_seq, *buffer) {
+                                removed |= if mode == crate::keymap::MappingMode::Visual {
+                                    self.unmap_in(other, &lhs, *buffer)
+                                } else {
+                                    self.keymap.take_visual_modes(mode, &lhs, *buffer)
+                                };
+                            }
+                        }
+                    }
+                }
+                if !removed {
+                    return ex_effects::show_error(crate::errors::VimError::NoSuchMapping);
                 }
             }
-            executor_ex::MappingChange::ClearAll { modes } => {
+            executor_ex::MappingChange::ClearAll { modes, buffer } => {
                 for &mode in modes {
-                    self.clear_mappings_for(mode);
+                    self.keymap.clear_visual_modes(mode, *buffer);
+                    if *buffer {
+                        self.clear_buffer_mappings_for(mode);
+                    } else {
+                        self.clear_mappings_for(mode);
+                    }
                 }
             }
         }
+        Effects::new()
+    }
+
+    /// Remove the mapping of `lhs` in `mode`, from the current buffer's
+    /// mappings when `buffer`. Whether there was one.
+    fn unmap_in(
+        &mut self,
+        mode: crate::keymap::MappingMode,
+        lhs: &[crate::keymap::KeyEvent],
+        buffer: bool,
+    ) -> bool {
+        if buffer {
+            self.unmap_buffer(mode, lhs).is_some()
+        } else {
+            self.unmap(mode, lhs).is_some()
+        }
+    }
+
+    /// The error `<unique>` gives for `lhs` in `modes`, as `do_map()`
+    /// finds it: E225 for a buffer mapping whose keys are mapped in every
+    /// buffer, E227 for keys mapped in the same place.
+    fn unique_mapping_error(
+        &self,
+        modes: &[crate::keymap::MappingMode],
+        lhs: &[crate::keymap::KeyEvent],
+        buffer: bool,
+    ) -> Option<crate::errors::VimError> {
+        let mapped = |buffer| {
+            modes.iter().any(|&mode| {
+                std::iter::once(&mode)
+                    .chain(mode.overlapping())
+                    .any(|&mm| self.keymap.exact_mapping(mm, lhs, buffer).is_some())
+            })
+        };
+        let keys = || {
+            let keys = self.keymap.resolved_keys(lhs);
+            keys.iter()
+                .map(crate::keymap::KeyEvent::to_vim_notation)
+                .collect::<String>()
+                .into()
+        };
+        if buffer && mapped(false) {
+            return Some(crate::errors::VimError::GlobalMappingExists(keys()));
+        }
+        mapped(buffer).then(|| crate::errors::VimError::MappingExists(keys()))
     }
 
     /// Apply a single abbreviation change from `:abbreviate`/`:unabbreviate`/`:abclear`.
@@ -638,7 +658,15 @@ impl VimEngine {
                 replacement,
                 mode,
                 noremap,
+                unique,
             } => {
+                if let (true, Some(trigger), Some(_)) = (*unique, trigger, replacement) {
+                    if self.abbrev_table.defines(trigger, *mode) {
+                        let error =
+                            crate::errors::VimError::AbbreviationExists(trigger.as_str().into());
+                        return ex_effects::show_error(error);
+                    }
+                }
                 let is_keyword = |c: char| crate::primitives::is_word_char(c);
                 abbreviation::abbreviate(
                     trigger.as_deref(),
@@ -652,7 +680,7 @@ impl VimEngine {
             }
             executor_ex::AbbrevChange::Remove { trigger, mode } => {
                 abbreviation::unabbreviate(trigger, *mode, &mut self.abbrev_table)
-                    .unwrap_or_default()
+                    .unwrap_or_else(ex_effects::show_error)
             }
             executor_ex::AbbrevChange::Clear { mode } => {
                 abbreviation::ab_clear(*mode, &mut self.abbrev_table)

@@ -25,7 +25,7 @@ pub use action::Action;
 pub use char_command::CharCommand;
 pub use command_modifiers::ModifierFlags;
 pub use ex_command::{
-    ExCommand, MapModePrefix, SetAssignment, SortOptions, TimeAmount, ZWindowStyle,
+    BlockKind, ExCommand, MapModePrefix, SetAssignment, SortOptions, TimeAmount, ZWindowStyle,
 };
 pub use ex_range::{ExRange, LineSpec, RangeSeparator};
 pub use mark::MarkType;

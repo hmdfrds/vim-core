@@ -904,18 +904,43 @@ impl VimSession<SessionHost> {
         Ok(self.complete_request_host(result))
     }
 
-    /// Source a config string (sequence of ex commands).
+    /// Source a config string (sequence of ex commands), as
+    /// [`VimEngine::source_config_text`](crate::execution::VimEngine::source_config_text)
+    /// does. The response's `message` is its last, "Config file sourced".
     pub fn source_config(&mut self, text: &str) -> HostResponse {
         self.host_mut().frame_id += 1;
         self.host_mut().clipboard_dirty = false;
+        let response = self.engine_mut().source_config_text(text);
+        self.deliver_config(response)
+    }
 
-        let (consumed, requests) = {
-            let mut response = self.engine_mut().source_config_text(text);
-            let consumed = response.consumed();
-            let requests = response.take_host_requests();
-            self.deliver_effects(response.effects());
-            (consumed, requests)
-        };
+    /// Source a config the host has read, as
+    /// [`VimEngine::source_script`](crate::execution::VimEngine::source_script)
+    /// does, and say what it came to.
+    ///
+    /// The response's `message` is the last message or error the config
+    /// showed, as Vim says nothing once a file is sourced; when it showed
+    /// none, the message shown before it stays. A typed `:source` the
+    /// host answers with the file's text ends with "Config file sourced".
+    pub fn source_script(
+        &mut self,
+        text: crate::execution::ConfigText<'_>,
+        host: &mut dyn crate::execution::ConfigHost,
+    ) -> crate::execution::HostConfigResponse {
+        self.host_mut().frame_id += 1;
+        self.host_mut().clipboard_dirty = false;
+        let sourced = self.engine_mut().source_script(text, host);
+        crate::execution::HostConfigResponse {
+            response: self.deliver_config(sourced.response),
+            outcome: sourced.outcome,
+        }
+    }
+
+    /// Deliver what sourcing a config gave, and run its host requests.
+    fn deliver_config(&mut self, mut response: crate::execution::Response) -> HostResponse {
+        let consumed = response.consumed();
+        let requests = response.take_host_requests();
+        self.deliver_effects(response.effects());
 
         let mut host_requests = Vec::new();
         self.handle_sync_requests(&requests, &mut host_requests, 0);
@@ -1824,6 +1849,13 @@ impl VimSession<SessionHost> {
     /// Clear all key mappings.
     pub fn clear_mappings(&mut self) {
         self.engine_mut().clear_mappings();
+    }
+
+    /// Clear what a config can define before it is sourced again, as
+    /// [`VimEngine::reset_config_state`](crate::execution::VimEngine::reset_config_state)
+    /// does.
+    pub fn reset_config_state(&mut self) {
+        self.engine_mut().reset_config_state();
     }
 
     /// Register a batch of key mappings contributed by a host extension.

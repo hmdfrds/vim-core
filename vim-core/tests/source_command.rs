@@ -1,6 +1,6 @@
 //! `:source` across the host boundary.
 
-use vim_core::effects::{Effect, InfoMessage};
+use vim_core::effects::{Effect, InfoMessage, SourceContext};
 use vim_core::execution::{
     HostCallbacks, HostRequest, HostResponse, HostResult, HostSession, InputContext, Response,
     VimEngine,
@@ -32,6 +32,18 @@ fn shows_text(response: &Response, needle: &str) -> bool {
         .effects()
         .iter()
         .any(|e| matches!(e, Effect::ShowInfo { info: InfoMessage::Text(t) } if t.contains(needle)))
+}
+
+fn messages(response: &Response) -> Vec<String> {
+    response
+        .effects()
+        .iter()
+        .filter_map(|e| match e {
+            Effect::ShowInfo { info } => Some(info.to_string()),
+            Effect::ShowError { error, .. } => Some(error.to_string()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn deletes(response: &Response) -> bool {
@@ -93,6 +105,22 @@ fn source_passes_the_path_unexpanded() {
 }
 
 #[test]
+fn source_ends_at_a_bar() {
+    // separate_nextcmd() ends :source at the `|`, and del_trailing_spaces()
+    // drops the blanks before it.
+    let doc = SimpleDocument::new("alpha");
+    for command in ["source x | set ic", "source x  |set ic"] {
+        let mut engine = VimEngine::new();
+        let req = request(&run(&mut engine, &doc, command));
+        assert!(
+            matches!(req, HostRequest::ReadConfigFile { path: Some(ref p), .. } if p.as_str() == "x"),
+            "{command}: {req:?}"
+        );
+        assert!(engine.options().ignorecase(), "{command}");
+    }
+}
+
+#[test]
 fn host_session_has_no_default_config() {
     let mut session = HostSession::new("alpha");
     let mut host = OneFile("set tw=33");
@@ -143,6 +171,75 @@ fn returned_text_is_sourced_not_echoed() {
     let doc = SimpleDocument::new("one\ntwo");
     let r = process_key(&mut engine, &doc, KeyEvent::char('Q'));
     assert!(deletes(&r), "Q should run the sourced mapping: {r:?}");
+}
+
+#[test]
+fn returned_text_shows_every_message() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let req = request(&run(&mut engine, &doc, "source x.vim"));
+    let done = engine.complete_host_request(&HostResult::Data {
+        id: req.id(),
+        data: "set tw=33\nset tw?\nset ic?\nnormal x\nset tw?".into(),
+        offset: None,
+    });
+    assert_eq!(
+        messages(&done),
+        [
+            "textwidth=33",
+            "noignorecase",
+            "E523: Not allowed here: normal x",
+            "textwidth=33",
+            "Config file sourced"
+        ]
+    );
+}
+
+#[test]
+fn returned_text_names_its_errors_after_the_path_as_typed() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    for (command, file) in [("source ~/x.vim", "~/x.vim"), ("source", "")] {
+        let req = request(&run(&mut engine, &doc, command));
+        let done = engine.complete_host_request(&HostResult::Data {
+            id: req.id(),
+            data: "set ic\nset nosuch".into(),
+            offset: None,
+        });
+        let places: Vec<_> = done
+            .effects()
+            .iter()
+            .filter_map(|e| match e {
+                Effect::ShowError { source, .. } => source.clone(),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(places, [SourceContext::new(file, 2)], "{command}");
+    }
+}
+
+#[test]
+fn returned_text_keeps_its_messages_in_the_history() {
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let req = request(&run(&mut engine, &doc, "source x.vim"));
+    let _ = engine.complete_host_request(&HostResult::Data {
+        id: req.id(),
+        data: "set tw?\nset nosuch".into(),
+        offset: None,
+    });
+    let entries = engine.state().message_history().entries();
+    let texts: Vec<_> = entries.iter().map(|e| e.text.as_str()).collect();
+    assert_eq!(
+        texts,
+        [
+            "textwidth=0",
+            "Error detected while processing x.vim:",
+            "line    2:",
+            "E518: Unknown option: nosuch",
+            "Config file sourced"
+        ]
+    );
 }
 
 #[test]
@@ -215,4 +312,52 @@ fn host_session_sources_the_file_it_reads() {
 
     let _ = session.process_key_with_callbacks(KeyEvent::char('Q'), &mut host);
     assert_eq!(session.text(), "ne\ntwo");
+}
+
+/// Answer each `:source` of `response` with `text` until none is left,
+/// and count the answers. Stops at 500 answers.
+fn answer_every_source(
+    engine: &mut VimEngine,
+    mut response: Response,
+    text: &str,
+) -> (u32, Response) {
+    let mut answers = 0;
+    while let [request] = response.host_requests() {
+        assert!(answers < 500, "sourced without end");
+        answers += 1;
+        let id = request.id();
+        response = engine.complete_host_request(&HostResult::Data {
+            id,
+            data: text.into(),
+            offset: None,
+        });
+    }
+    (answers, response)
+}
+
+#[test]
+fn a_file_that_sources_itself_through_the_host_stops_at_vim_s_depth() {
+    // do_cmdline(): the command line is the first level, so a typed
+    // :source runs 199 files and the config the host passes 200.
+    let text = "set tw+=1\nsource a.vim\n";
+    let doc = SimpleDocument::new("alpha");
+    let mut engine = VimEngine::new();
+    let typed = run(&mut engine, &doc, "source a.vim");
+    let (answers, last) = answer_every_source(&mut engine, typed, text);
+    assert_eq!(answers, 199);
+    assert_eq!(engine.options().textwidth(), 199);
+    assert!(
+        messages(&last).contains(&"E169: Command too recursive".to_owned()),
+        "{last:?}"
+    );
+
+    let mut engine = VimEngine::new();
+    let first = engine.source_config_text(text);
+    let (answers, last) = answer_every_source(&mut engine, first, text);
+    assert_eq!(answers, 199);
+    assert_eq!(engine.options().textwidth(), 200);
+    assert!(
+        messages(&last).contains(&"E169: Command too recursive".to_owned()),
+        "{last:?}"
+    );
 }

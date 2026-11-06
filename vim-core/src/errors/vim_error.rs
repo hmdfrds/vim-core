@@ -84,6 +84,10 @@ pub enum VimError {
     /// E492: Not an editor command.
     NotEditorCommand(CompactString),
 
+    /// E523: Not allowed here, such as a command that needs a buffer in a
+    /// config file. Carries the command.
+    NotAllowedHere(CompactString),
+
     /// E14: Invalid address.
     InvalidAddress(CompactString),
 
@@ -108,6 +112,35 @@ pub enum VimError {
     /// Carries Vim's whole message, code and argument included, because the
     /// code depends on the option: `E539: Illegal character <Z>: fo=Z`.
     OptionValue(CompactString),
+
+    /// E518: `:set` names an option that does not exist. Carries the
+    /// argument as written, such as `nosuch=1`.
+    UnknownOptionArgument(Box<str>),
+
+    /// E519: `:set` asks for the value of an option this build lacks.
+    /// Carries the argument as written, such as `mouse?`.
+    OptionNotSupported(Box<str>),
+
+    /// E474: a map or abbreviation command with an argument it does not
+    /// take, such as `:mapclear x`.
+    InvalidMapArgument,
+
+    /// E225: `<buffer><unique>` for keys mapped in every buffer. Carries
+    /// the keys.
+    GlobalMappingExists(Box<str>),
+
+    /// E226: `<unique>` for an abbreviation that is defined. Carries its
+    /// trigger.
+    AbbreviationExists(Box<str>),
+
+    /// E227: `<unique>` for keys that are mapped. Carries the keys.
+    MappingExists(Box<str>),
+
+    /// E31: an unmap command found no mapping to remove.
+    NoSuchMapping,
+
+    /// E24: an unabbreviate command found no abbreviation to remove.
+    NoSuchAbbreviation,
 
     /// E34: No previous command.
     NoPreviousCommand,
@@ -144,6 +177,200 @@ pub enum VimError {
     /// Carries the form, such as `source!`, where Vim shows the typed
     /// command line.
     NotAvailable(CompactString),
+
+    /// E168: `:finish` used outside of a sourced file.
+    FinishOutsideSource,
+
+    /// E488: Trailing characters, such as text after the flags of `:s`.
+    /// Carries the text.
+    TrailingCharacters(Box<str>),
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Sourced file errors
+    // ═══════════════════════════════════════════════════════════════════
+    /// W15: a line of a file whose first line ends in CR LF ends in LF
+    /// alone. Vim gives this warning as an error.
+    WrongLineSeparator,
+
+    /// E126: a `:function` body has no `:endfunction` before the end of
+    /// the file.
+    MissingEndfunction,
+
+    /// E172: a `:let` heredoc has no marker.
+    MissingMarker,
+
+    /// E221: the marker of a `:let` heredoc starts with a lowercase
+    /// letter.
+    LowercaseMarker,
+
+    /// E990: a heredoc has no end marker before the end of the file.
+    /// Carries the marker.
+    MissingEndMarker(Box<str>),
+
+    /// E1026: a `{` block of `:command` or `:autocmd` has no `}` before
+    /// the end of the file.
+    MissingBrace,
+
+    /// E1057: a `:def` body has no `:enddef` before the end of the file.
+    MissingEnddef,
+
+    /// E1058: functions nest deeper than 50.
+    FunctionNestingTooDeep,
+
+    /// E1145: the file ends inside a heredoc or `:append` text of a
+    /// function body. Carries the marker.
+    MissingHeredocEndMarker(Box<str>),
+
+    /// E1171: the file ends inside a `{` block of a function body.
+    MissingEndBlock,
+
+    /// E169: a `:source` inside 200 files that are running.
+    CommandTooRecursive,
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Script block errors
+    // ═══════════════════════════════════════════════════════════════════
+    /// E170: a `:while` has no `:endwhile`.
+    MissingEndwhile,
+
+    /// E170: a `:for` has no `:endfor`.
+    MissingEndfor,
+
+    /// E171: an `:if` has no `:endif`.
+    MissingEndif,
+
+    /// E477: a `!` after a command that takes none.
+    NoBangAllowed,
+
+    /// E579: `:if` inside 50 open blocks.
+    IfNestingTooDeep,
+
+    /// E580: `:endif` without `:if`.
+    EndifWithoutIf,
+
+    /// E581: `:else` without `:if`.
+    ElseWithoutIf,
+
+    /// E582: `:elseif` without `:if`.
+    ElseifWithoutIf,
+
+    /// E583: a second `:else` for one `:if`.
+    MultipleElse,
+
+    /// E584: `:elseif` after `:else`.
+    ElseifAfterElse,
+
+    /// E585: `:while` or `:for` inside 50 open blocks.
+    LoopNestingTooDeep,
+
+    /// E586: `:continue` outside a loop.
+    ContinueWithoutLoop,
+
+    /// E587: `:break` outside a loop.
+    BreakWithoutLoop,
+
+    /// E588: `:endwhile` without `:while`.
+    EndwhileWithoutWhile,
+
+    /// E588: `:endfor` without `:for`.
+    EndforWithoutFor,
+
+    /// E600: a `:try` has no `:endtry`.
+    MissingEndtry,
+
+    /// E601: `:try` inside 50 open blocks.
+    TryNestingTooDeep,
+
+    /// E602: `:endtry` without `:try`.
+    EndtryWithoutTry,
+
+    /// E603: `:catch` without `:try`.
+    CatchWithoutTry,
+
+    /// E606: `:finally` without `:try`.
+    FinallyWithoutTry,
+
+    /// E732: `:endfor` ends a `:while`.
+    EndforWithWhile,
+
+    /// E733: `:endwhile` ends a `:for`.
+    EndwhileWithFor,
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Expression errors
+    // ═══════════════════════════════════════════════════════════════════
+    /// E15: Invalid expression. Carries the expression.
+    InvalidExpression(Box<str>),
+
+    /// E109: Missing ':' after '?'.
+    MissingColon,
+
+    /// E110: Missing ')'.
+    MissingParen,
+
+    /// E112: Option name missing. Carries the text from the `&`.
+    OptionNameMissing(Box<str>),
+
+    /// E113: Unknown option. Carries the option name.
+    UnknownOption(Box<str>),
+
+    /// E114: Missing double quote. Carries the text from the quote.
+    MissingDoubleQuote(Box<str>),
+
+    /// E115: Missing single quote. Carries the text from the quote.
+    MissingSingleQuote(Box<str>),
+
+    /// E116: Invalid arguments for function. Carries the function name.
+    InvalidArguments(Box<str>),
+
+    /// E117: Unknown function. Carries the function name.
+    UnknownFunction(Box<str>),
+
+    /// E118: Too many arguments for function. Carries the function name.
+    TooManyArguments(Box<str>),
+
+    /// E119: Not enough arguments for function. Carries the function name.
+    NotEnoughArguments(Box<str>),
+
+    /// E121: Undefined variable. Carries the variable name.
+    UndefinedVariable(Box<str>),
+
+    /// E362: Using a boolean value as a Float.
+    BoolAsFloat,
+
+    /// E740: a function call with more than 20 arguments. Carries the
+    /// function name.
+    ArgumentLimit(Box<str>),
+
+    /// E804: Cannot use '%' with Float.
+    PercentWithFloat,
+
+    /// E805: Using a Float as a Number.
+    FloatAsNumber,
+
+    /// E892: Using a String as a Float.
+    StringAsFloat,
+
+    /// E1169: Expression too recursive. Carries the rest of the
+    /// expression.
+    ExpressionTooRecursive(Box<str>),
+
+    /// A pattern that does not compile. Carries the message, which holds
+    /// its Vim error number.
+    InvalidPattern(Box<str>),
+
+    /// E108: `:unlet` of a variable that does not exist. Carries its name.
+    NoSuchVariable(Box<str>),
+
+    /// E355: `:let` of an option that does not exist. Carries its name.
+    UnknownOptionToSet(Box<str>),
+
+    /// E734: Wrong variable type for an operator such as `.=`. Carries the
+    /// operator before the `=`.
+    WrongVariableType(char),
+
+    /// E928: String required.
+    StringRequired,
 
     // ═══════════════════════════════════════════════════════════════════
     // Macro errors
@@ -259,6 +486,7 @@ impl fmt::Display for VimError {
 
             // Ex commands
             Self::NotEditorCommand(cmd) => write!(f, "E492: Not an editor command: {cmd}"),
+            Self::NotAllowedHere(cmd) => write!(f, "E523: Not allowed here: {cmd}"),
             Self::InvalidAddress(addr) => write!(f, "E14: Invalid address: {addr}"),
             Self::InvalidRange => write!(f, "E16: Invalid range"),
             Self::ArgumentRequired => write!(f, "E471: Argument required"),
@@ -268,6 +496,18 @@ impl fmt::Display for VimError {
             }
             Self::InvalidArgument(msg) => write!(f, "E521: {msg}"),
             Self::OptionValue(msg) => write!(f, "{msg}"),
+            Self::UnknownOptionArgument(arg) => write!(f, "E518: Unknown option: {arg}"),
+            Self::OptionNotSupported(arg) => write!(f, "E519: Option not supported: {arg}"),
+            Self::InvalidMapArgument => write!(f, "E474: Invalid argument"),
+            Self::GlobalMappingExists(keys) => {
+                write!(f, "E225: Global mapping already exists for {keys}")
+            }
+            Self::AbbreviationExists(trigger) => {
+                write!(f, "E226: Abbreviation already exists for {trigger}")
+            }
+            Self::MappingExists(keys) => write!(f, "E227: Mapping already exists for {keys}"),
+            Self::NoSuchMapping => write!(f, "E31: No such mapping"),
+            Self::NoSuchAbbreviation => write!(f, "E24: No such abbreviation"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
@@ -289,6 +529,88 @@ impl fmt::Display for VimError {
                 f,
                 "E319: Sorry, the command is not available in this version: {form}"
             ),
+            Self::FinishOutsideSource => {
+                write!(f, "E168: :finish used outside of a sourced file")
+            }
+            Self::TrailingCharacters(text) => write!(f, "E488: Trailing characters: {text}"),
+
+            // Sourced files
+            Self::WrongLineSeparator => {
+                write!(f, "W15: Warning: Wrong line separator, ^M may be missing")
+            }
+            Self::MissingEndfunction => write!(f, "E126: Missing :endfunction"),
+            Self::MissingMarker => write!(f, "E172: Missing marker"),
+            Self::LowercaseMarker => {
+                write!(f, "E221: Marker cannot start with lower case letter")
+            }
+            Self::MissingEndMarker(marker) => write!(f, "E990: Missing end marker '{marker}'"),
+            Self::MissingBrace => write!(f, "E1026: Missing }}"),
+            Self::MissingEnddef => write!(f, "E1057: Missing :enddef"),
+            Self::FunctionNestingTooDeep => write!(f, "E1058: Function nesting too deep"),
+            Self::MissingHeredocEndMarker(marker) => {
+                write!(f, "E1145: Missing heredoc end marker: {marker}")
+            }
+            Self::MissingEndBlock => write!(f, "E1171: Missing }} after inline function"),
+            Self::CommandTooRecursive => write!(f, "E169: Command too recursive"),
+
+            // Script blocks
+            Self::MissingEndwhile => write!(f, "E170: Missing :endwhile"),
+            Self::MissingEndfor => write!(f, "E170: Missing :endfor"),
+            Self::MissingEndif => write!(f, "E171: Missing :endif"),
+            Self::NoBangAllowed => write!(f, "E477: No ! allowed"),
+            Self::IfNestingTooDeep => write!(f, "E579: :if nesting too deep"),
+            Self::EndifWithoutIf => write!(f, "E580: :endif without :if"),
+            Self::ElseWithoutIf => write!(f, "E581: :else without :if"),
+            Self::ElseifWithoutIf => write!(f, "E582: :elseif without :if"),
+            Self::MultipleElse => write!(f, "E583: Multiple :else"),
+            Self::ElseifAfterElse => write!(f, "E584: :elseif after :else"),
+            Self::LoopNestingTooDeep => write!(f, "E585: :while/:for nesting too deep"),
+            Self::ContinueWithoutLoop => {
+                write!(f, "E586: :continue without :while or :for")
+            }
+            Self::BreakWithoutLoop => write!(f, "E587: :break without :while or :for"),
+            Self::EndwhileWithoutWhile => write!(f, "E588: :endwhile without :while"),
+            Self::EndforWithoutFor => write!(f, "E588: :endfor without :for"),
+            Self::MissingEndtry => write!(f, "E600: Missing :endtry"),
+            Self::TryNestingTooDeep => write!(f, "E601: :try nesting too deep"),
+            Self::EndtryWithoutTry => write!(f, "E602: :endtry without :try"),
+            Self::CatchWithoutTry => write!(f, "E603: :catch without :try"),
+            Self::FinallyWithoutTry => write!(f, "E606: :finally without :try"),
+            Self::EndforWithWhile => write!(f, "E732: Using :endfor with :while"),
+            Self::EndwhileWithFor => write!(f, "E733: Using :endwhile with :for"),
+
+            // Expressions
+            Self::InvalidExpression(expr) => write!(f, "E15: Invalid expression: \"{expr}\""),
+            Self::MissingColon => write!(f, "E109: Missing ':' after '?'"),
+            Self::MissingParen => write!(f, "E110: Missing ')'"),
+            Self::OptionNameMissing(text) => write!(f, "E112: Option name missing: {text}"),
+            Self::UnknownOption(name) => write!(f, "E113: Unknown option: {name}"),
+            Self::MissingDoubleQuote(text) => write!(f, "E114: Missing double quote: {text}"),
+            Self::MissingSingleQuote(text) => write!(f, "E115: Missing single quote: {text}"),
+            Self::InvalidArguments(name) => {
+                write!(f, "E116: Invalid arguments for function {name}")
+            }
+            Self::UnknownFunction(name) => write!(f, "E117: Unknown function: {name}"),
+            Self::TooManyArguments(name) => {
+                write!(f, "E118: Too many arguments for function: {name}")
+            }
+            Self::NotEnoughArguments(name) => {
+                write!(f, "E119: Not enough arguments for function: {name}")
+            }
+            Self::UndefinedVariable(name) => write!(f, "E121: Undefined variable: {name}"),
+            Self::BoolAsFloat => write!(f, "E362: Using a boolean value as a Float"),
+            Self::ArgumentLimit(name) => write!(f, "E740: Too many arguments for function {name}"),
+            Self::PercentWithFloat => write!(f, "E804: Cannot use '%' with Float"),
+            Self::FloatAsNumber => write!(f, "E805: Using a Float as a Number"),
+            Self::StringAsFloat => write!(f, "E892: Using a String as a Float"),
+            Self::ExpressionTooRecursive(rest) => {
+                write!(f, "E1169: Expression too recursive: {rest}")
+            }
+            Self::InvalidPattern(message) => write!(f, "{message}"),
+            Self::NoSuchVariable(name) => write!(f, "E108: No such variable: \"{name}\""),
+            Self::UnknownOptionToSet(name) => write!(f, "E355: Unknown option: {name}"),
+            Self::WrongVariableType(op) => write!(f, "E734: Wrong variable type for {op}="),
+            Self::StringRequired => write!(f, "E928: String required"),
 
             // Macros
             Self::RecursiveMacro { register, depth } => {
@@ -321,6 +643,45 @@ impl std::error::Error for VimError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_option_argument_keeps_the_argument() {
+        assert_eq!(
+            VimError::UnknownOptionArgument("nosuch=1".into()).to_string(),
+            "E518: Unknown option: nosuch=1"
+        );
+    }
+
+    #[test]
+    fn option_not_supported_keeps_the_argument() {
+        assert_eq!(
+            VimError::OptionNotSupported("mouse?".into()).to_string(),
+            "E519: Option not supported: mouse?"
+        );
+    }
+
+    #[test]
+    fn display_mapping_errors() {
+        for (error, text) in [
+            (VimError::InvalidMapArgument, "E474: Invalid argument"),
+            (
+                VimError::GlobalMappingExists("x".into()),
+                "E225: Global mapping already exists for x",
+            ),
+            (
+                VimError::AbbreviationExists("teh".into()),
+                "E226: Abbreviation already exists for teh",
+            ),
+            (
+                VimError::MappingExists("x".into()),
+                "E227: Mapping already exists for x",
+            ),
+            (VimError::NoSuchMapping, "E31: No such mapping"),
+            (VimError::NoSuchAbbreviation, "E24: No such abbreviation"),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
 
     #[test]
     fn option_value_displays_message_verbatim() {
@@ -379,6 +740,7 @@ mod tests {
             VimError::AtEndOfChangelist,
             VimError::ChangelistEmpty,
             VimError::NotEditorCommand("foo".into()),
+            VimError::NotAllowedHere("normal dd".into()),
             VimError::InvalidAddress("999".into()),
             VimError::InvalidRange,
             VimError::ArgumentRequired,
@@ -386,6 +748,14 @@ mod tests {
             VimError::MoveIntoItself,
             VimError::InvalidArgument("bad".into()),
             VimError::OptionValue("E539: Illegal character <Z>: fo=Z".into()),
+            VimError::UnknownOptionArgument("nosuch".into()),
+            VimError::OptionNotSupported("mouse?".into()),
+            VimError::InvalidMapArgument,
+            VimError::GlobalMappingExists("x".into()),
+            VimError::AbbreviationExists("teh".into()),
+            VimError::MappingExists("x".into()),
+            VimError::NoSuchMapping,
+            VimError::NoSuchAbbreviation,
             VimError::NoPreviousCommand,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },
@@ -395,6 +765,44 @@ mod tests {
             VimError::InvalidCommand,
             VimError::NoRangeAllowed,
             VimError::NotAvailable("source!".into()),
+            VimError::FinishOutsideSource,
+            VimError::TrailingCharacters("x".into()),
+            VimError::WrongLineSeparator,
+            VimError::MissingEndfunction,
+            VimError::MissingMarker,
+            VimError::LowercaseMarker,
+            VimError::MissingEndMarker("END".into()),
+            VimError::MissingBrace,
+            VimError::MissingEnddef,
+            VimError::FunctionNestingTooDeep,
+            VimError::MissingHeredocEndMarker("END".into()),
+            VimError::MissingEndBlock,
+            VimError::CommandTooRecursive,
+            VimError::MissingEndif,
+            VimError::EndifWithoutIf,
+            VimError::InvalidExpression("x".into()),
+            VimError::MissingColon,
+            VimError::MissingParen,
+            VimError::OptionNameMissing("&".into()),
+            VimError::UnknownOption("x".into()),
+            VimError::MissingDoubleQuote("\"x".into()),
+            VimError::MissingSingleQuote("'x".into()),
+            VimError::InvalidArguments("has".into()),
+            VimError::UnknownFunction("Foo".into()),
+            VimError::TooManyArguments("has".into()),
+            VimError::NotEnoughArguments("has".into()),
+            VimError::UndefinedVariable("x".into()),
+            VimError::BoolAsFloat,
+            VimError::ArgumentLimit("Foo".into()),
+            VimError::PercentWithFloat,
+            VimError::FloatAsNumber,
+            VimError::StringAsFloat,
+            VimError::ExpressionTooRecursive("1)".into()),
+            VimError::InvalidPattern("E54: Unmatched \\(".into()),
+            VimError::NoSuchVariable("x".into()),
+            VimError::UnknownOptionToSet("x".into()),
+            VimError::WrongVariableType('.'),
+            VimError::StringRequired,
             VimError::RecursiveMacro {
                 register: 'a',
                 depth: 1,
@@ -442,6 +850,12 @@ mod tests {
     fn display_not_editor_command() {
         let e = VimError::NotEditorCommand("foo".into());
         assert_eq!(e.to_string(), "E492: Not an editor command: foo");
+    }
+
+    #[test]
+    fn display_not_allowed_here() {
+        let e = VimError::NotAllowedHere("normal dd".into());
+        assert_eq!(e.to_string(), "E523: Not allowed here: normal dd");
     }
 
     #[test]
@@ -515,6 +929,198 @@ mod tests {
         assert_eq!(
             VimError::NotAvailable("source!".into()).to_string(),
             "E319: Sorry, the command is not available in this version: source!"
+        );
+    }
+
+    #[test]
+    fn display_trailing_characters() {
+        assert_eq!(
+            VimError::TrailingCharacters("x | set ic".into()).to_string(),
+            "E488: Trailing characters: x | set ic"
+        );
+    }
+
+    #[test]
+    fn display_wrong_line_separator() {
+        assert_eq!(
+            VimError::WrongLineSeparator.to_string(),
+            "W15: Warning: Wrong line separator, ^M may be missing"
+        );
+    }
+
+    #[test]
+    fn display_sourced_file_errors() {
+        for (error, text) in [
+            (VimError::MissingEndfunction, "E126: Missing :endfunction"),
+            (VimError::MissingMarker, "E172: Missing marker"),
+            (
+                VimError::LowercaseMarker,
+                "E221: Marker cannot start with lower case letter",
+            ),
+            (
+                VimError::MissingEndMarker("END".into()),
+                "E990: Missing end marker 'END'",
+            ),
+            (VimError::MissingBrace, "E1026: Missing }"),
+            (VimError::MissingEnddef, "E1057: Missing :enddef"),
+            (
+                VimError::FunctionNestingTooDeep,
+                "E1058: Function nesting too deep",
+            ),
+            (
+                VimError::MissingHeredocEndMarker(".".into()),
+                "E1145: Missing heredoc end marker: .",
+            ),
+            (
+                VimError::MissingEndBlock,
+                "E1171: Missing } after inline function",
+            ),
+            (VimError::CommandTooRecursive, "E169: Command too recursive"),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_script_block_errors() {
+        for (error, text) in [
+            (VimError::MissingEndwhile, "E170: Missing :endwhile"),
+            (VimError::MissingEndfor, "E170: Missing :endfor"),
+            (VimError::MissingEndif, "E171: Missing :endif"),
+            (VimError::NoBangAllowed, "E477: No ! allowed"),
+            (VimError::IfNestingTooDeep, "E579: :if nesting too deep"),
+            (VimError::EndifWithoutIf, "E580: :endif without :if"),
+            (VimError::ElseWithoutIf, "E581: :else without :if"),
+            (VimError::ElseifWithoutIf, "E582: :elseif without :if"),
+            (VimError::MultipleElse, "E583: Multiple :else"),
+            (VimError::ElseifAfterElse, "E584: :elseif after :else"),
+            (
+                VimError::LoopNestingTooDeep,
+                "E585: :while/:for nesting too deep",
+            ),
+            (
+                VimError::ContinueWithoutLoop,
+                "E586: :continue without :while or :for",
+            ),
+            (
+                VimError::BreakWithoutLoop,
+                "E587: :break without :while or :for",
+            ),
+            (
+                VimError::EndwhileWithoutWhile,
+                "E588: :endwhile without :while",
+            ),
+            (VimError::EndforWithoutFor, "E588: :endfor without :for"),
+            (VimError::MissingEndtry, "E600: Missing :endtry"),
+            (VimError::TryNestingTooDeep, "E601: :try nesting too deep"),
+            (VimError::EndtryWithoutTry, "E602: :endtry without :try"),
+            (VimError::CatchWithoutTry, "E603: :catch without :try"),
+            (VimError::FinallyWithoutTry, "E606: :finally without :try"),
+            (VimError::EndforWithWhile, "E732: Using :endfor with :while"),
+            (VimError::EndwhileWithFor, "E733: Using :endwhile with :for"),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_expression_errors() {
+        for (error, text) in [
+            (
+                VimError::InvalidExpression("1 +".into()),
+                "E15: Invalid expression: \"1 +\"",
+            ),
+            (VimError::MissingColon, "E109: Missing ':' after '?'"),
+            (VimError::MissingParen, "E110: Missing ')'"),
+            (
+                VimError::OptionNameMissing("&".into()),
+                "E112: Option name missing: &",
+            ),
+            (
+                VimError::UnknownOption("nosuch".into()),
+                "E113: Unknown option: nosuch",
+            ),
+            (
+                VimError::MissingDoubleQuote("\"abc".into()),
+                "E114: Missing double quote: \"abc",
+            ),
+            (
+                VimError::MissingSingleQuote("'abc".into()),
+                "E115: Missing single quote: 'abc",
+            ),
+            (
+                VimError::InvalidArguments("has".into()),
+                "E116: Invalid arguments for function has",
+            ),
+            (
+                VimError::UnknownFunction("Foo".into()),
+                "E117: Unknown function: Foo",
+            ),
+            (
+                VimError::TooManyArguments("has".into()),
+                "E118: Too many arguments for function: has",
+            ),
+            (
+                VimError::NotEnoughArguments("has".into()),
+                "E119: Not enough arguments for function: has",
+            ),
+            (
+                VimError::UndefinedVariable("g:x".into()),
+                "E121: Undefined variable: g:x",
+            ),
+            (
+                VimError::BoolAsFloat,
+                "E362: Using a boolean value as a Float",
+            ),
+            (
+                VimError::ArgumentLimit("Foo".into()),
+                "E740: Too many arguments for function Foo",
+            ),
+            (
+                VimError::PercentWithFloat,
+                "E804: Cannot use '%' with Float",
+            ),
+            (VimError::FloatAsNumber, "E805: Using a Float as a Number"),
+            (VimError::StringAsFloat, "E892: Using a String as a Float"),
+            (
+                VimError::ExpressionTooRecursive("1)".into()),
+                "E1169: Expression too recursive: 1)",
+            ),
+            (
+                VimError::InvalidPattern("E54: Unmatched \\(".into()),
+                "E54: Unmatched \\(",
+            ),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_assignment_errors() {
+        for (error, text) in [
+            (
+                VimError::NoSuchVariable("g:x".into()),
+                "E108: No such variable: \"g:x\"",
+            ),
+            (
+                VimError::UnknownOptionToSet("nosuch".into()),
+                "E355: Unknown option: nosuch",
+            ),
+            (
+                VimError::WrongVariableType('.'),
+                "E734: Wrong variable type for .=",
+            ),
+            (VimError::StringRequired, "E928: String required"),
+        ] {
+            assert_eq!(error.to_string(), text);
+        }
+    }
+
+    #[test]
+    fn display_finish_outside_source() {
+        assert_eq!(
+            VimError::FinishOutsideSource.to_string(),
+            "E168: :finish used outside of a sourced file"
         );
     }
 

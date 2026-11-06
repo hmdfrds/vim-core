@@ -64,8 +64,14 @@ pub use api_views::{
     RegisterView, StateView, TagMatch, VariableView,
 };
 pub use expr_engine::{ExprContext, ExprEngine, RuntimeError, SimpleExprEval};
+pub mod config;
+pub use config::{
+    ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, HostConfigResponse, SourceReply,
+    SourceRequest, TrustTag,
+};
 mod context;
 mod dirty_tracker;
+mod script_expr;
 pub use dirty_tracker::{DirtyFlags, DirtyInfo, DirtyRange, DirtyTracker};
 mod effect_processor;
 mod federation_extractor;

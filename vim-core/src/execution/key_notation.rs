@@ -30,9 +30,30 @@ struct Registries<'a> {
 ///
 /// When `keymap` is `None`, falls back to the non-registering behavior
 /// where `<Action>` and `<Plug>` produce sentinel id `u32::MAX`.
+///
+/// A Ctrl-V makes the next character a key of its own, so `^V<CR>` is the
+/// four keys `<CR>`, and a Ctrl-V at the end is dropped, as
+/// `replace_termcodes()` reads the right-hand side of a mapping.
 pub(crate) fn parse_key_notation_sequence(
     input: &str,
     keymap: Option<&mut crate::keymap::Keymap>,
+) -> Vec<KeyEvent> {
+    parse_with_keymap(input, keymap, false)
+}
+
+/// [`parse_key_notation_sequence`] for the keys of a mapping, where a
+/// Ctrl-V at the end is a key (`REPTERM_FROM_PART`).
+pub(crate) fn parse_mapping_keys(
+    input: &str,
+    keymap: Option<&mut crate::keymap::Keymap>,
+) -> Vec<KeyEvent> {
+    parse_with_keymap(input, keymap, true)
+}
+
+fn parse_with_keymap(
+    input: &str,
+    keymap: Option<&mut crate::keymap::Keymap>,
+    keys: bool,
 ) -> Vec<KeyEvent> {
     match keymap {
         Some(km) => {
@@ -43,18 +64,31 @@ pub(crate) fn parse_key_notation_sequence(
                     plug: plug_reg,
                     action: action_reg,
                 }),
+                keys,
             )
         }
-        None => parse_impl(input, None),
+        None => parse_impl(input, None, keys),
     }
 }
 
-/// Core implementation: parse Vim key notation with optional name registries.
-fn parse_impl(input: &str, mut registries: Option<Registries<'_>>) -> Vec<KeyEvent> {
+/// Core implementation: parse Vim key notation with optional name
+/// registries. `keys` keeps a Ctrl-V at the end.
+fn parse_impl(input: &str, mut registries: Option<Registries<'_>>, keys: bool) -> Vec<KeyEvent> {
     let mut seq = Vec::new();
     let mut remaining = input;
 
     while !remaining.is_empty() {
+        if let Some(after) = remaining.strip_prefix('\x16') {
+            let Some(ch) = after.chars().next() else {
+                if keys {
+                    seq.push(KeyEvent::ctrl('v'));
+                }
+                break;
+            };
+            seq.push(KeyEvent::char(ch));
+            remaining = &after[ch.len_utf8()..];
+            continue;
+        }
         if remaining.starts_with('<') {
             if let Some(end) = remaining.find('>') {
                 let notation = &remaining[..=end];

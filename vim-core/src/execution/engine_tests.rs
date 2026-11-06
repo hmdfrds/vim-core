@@ -2884,8 +2884,8 @@ fn engine_process_uses_buffer_local_mapping() {
     let response = engine.process(KeyEvent::char('q'), ctx);
 
     // The mapping should have been expanded:
-    // 'q' → ExactOnly('l') → Dispatch('l')
-    // Non-recursive single-key mapping: resolve_key() returns Dispatch('l'),
+    // 'q' → ExactOnly('l') → Mapped('l')
+    // Non-recursive single-key mapping: resolve_key() returns Mapped('l'),
     // so process() treats 'l' as the resolved key and executes it directly.
     // No drain needed — the 'l' motion is executed inline.
     assert!(
@@ -4769,6 +4769,18 @@ fn normalize_for_layout_preserves_modifiers() {
     let normalized = engine.normalize_for_layout(cyrillic_shift);
     assert_eq!(normalized.key(), Key::Char('J'));
     assert_eq!(normalized.modifiers(), Modifiers::NONE);
+}
+
+#[test]
+fn would_handle_key_applies_langmap_to_a_typed_key() {
+    // LANGMAP_ADJUST() translates a typed key whatever 'langremap' says,
+    // and the host asks about keys the user types.
+    let mut engine = VimEngine::new();
+    let cyrillic_o = KeyEvent::char('\u{043E}');
+    assert!(!engine.would_handle_key(cyrillic_o));
+    let _ = engine.source_config_text("set langmap=\u{043E}j nolangremap\n");
+    assert!(!engine.options().langremap());
+    assert!(engine.would_handle_key(cyrillic_o));
 }
 
 #[test]
@@ -9713,6 +9725,30 @@ fn undojoin_abbreviated_activates_undo_tree_merge() {
         engine.state.undo_tree().is_merging(),
         ":undoj (abbreviated) should activate undo tree merging"
     );
+}
+
+// ─── :split on the command line ───────────────────────────────────
+
+#[test]
+fn a_typed_split_takes_a_backslash_bar_as_a_file_and_a_quote_as_a_comment() {
+    use crate::execution::host::HostRequest;
+
+    // Vim's `:split` opens `|x` and has no argument before the comment;
+    // neither splits the cursors at a pattern.
+    for (line, path) in [("sp \\|x", Some("|x")), ("sp \"x\"", None)] {
+        let mut engine = VimEngine::new();
+        let doc = SimpleDocument::new("|x \"x\"");
+        type_command_line(&mut engine, &doc, line);
+        let response = process_key(&mut engine, &doc, KeyEvent::enter());
+        assert!(
+            has_host_request(&response, |r| matches!(
+                r,
+                HostRequest::SplitWindow { path: p, .. } if p.as_deref() == path
+            )),
+            ":{line}: {:?}",
+            response.host_requests()
+        );
+    }
 }
 
 // ─── last_ex_for_dot wiring ───────────────────────────────────────

@@ -58,7 +58,7 @@ impl VimEngine {
 
         // Layout normalization: apply the same normalization as process()
         // so the passthrough system routes normalized keys correctly.
-        let key = self.apply_langmap_and_normalize(key);
+        let key = self.apply_langmap_and_normalize(key, true);
 
         // 2. Non-ready parser state: the engine is mid-sequence (operator
         //    pending, awaiting char/mark/register/prefix/etc.). Any key

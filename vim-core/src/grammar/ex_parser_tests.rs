@@ -3,6 +3,13 @@ use crate::grammar::types::{ModifierFlags, ZWindowStyle};
 use crate::keymap::{MappingFlags, MappingKind};
 use crate::primitives::AbbrevMode;
 
+/// Parse `line`, which the splitter must leave as one command.
+fn parse_piece(line: &str) -> ExCommand {
+    let pieces = split_ex_pipeline(line);
+    assert_eq!(pieces.len(), 1, "{line:?} is {pieces:?}");
+    parse_ex_command(&pieces[0]).unwrap()
+}
+
 #[test]
 fn parses_write_and_quit() {
     let write = parse_ex_command("w! /tmp/x").unwrap();
@@ -33,6 +40,25 @@ fn parses_substitute() {
     match cmd {
         ExCommand::Substitute { flags, .. } => assert!(flags.global()),
         other => panic!("expected Substitute, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_substitute_flags_and_count_as_ex_substitute_does() {
+    let cmd = parse_ex_command("s/a/b/gi 3").unwrap();
+    assert!(matches!(cmd, ExCommand::Substitute { flags, .. } if flags.global()));
+    // Other text after the flags and count is E488.
+    for (line, rest) in [
+        ("s/o/0/x | set ic", "x | set ic"),
+        ("s/a/b/ g", "g"),
+        ("~x", "x"),
+        ("&& c", "c"),
+    ] {
+        assert_eq!(
+            parse_ex_command(line).unwrap_err(),
+            VimError::TrailingCharacters(rest.into()),
+            "{line}"
+        );
     }
 }
 
@@ -132,7 +158,7 @@ fn parses_source_command() {
 fn bare_source_leaves_the_file_to_the_host() {
     for input in ["source", "so", "so  ", "source \" comment"] {
         assert_eq!(
-            parse_ex_command(input).unwrap(),
+            parse_piece(input),
             ExCommand::Source { path: None },
             "{input:?}"
         );
@@ -148,7 +174,7 @@ fn source_trims_the_path_and_keeps_it_unexpanded() {
         }
     );
     assert_eq!(
-        parse_ex_command("source ~/x.vim \" comment").unwrap(),
+        parse_piece("source ~/x.vim \" comment"),
         ExCommand::Source {
             path: Some("~/x.vim".into())
         }
@@ -438,18 +464,37 @@ fn parses_echo() {
 }
 
 #[test]
-fn parses_let_mapleader() {
-    let cmd = parse_ex_command(r#"let mapleader = ",""#).unwrap();
-    assert!(matches!(cmd, ExCommand::LetMapleader { leader: ',' }));
-
-    let cmd2 = parse_ex_command("let g:mapleader = ' '").unwrap();
-    assert!(matches!(cmd2, ExCommand::LetMapleader { leader: ' ' }));
+fn parses_let_mapleader_with_its_expression() {
+    for (line, local, value) in [
+        (r#"let mapleader = ",""#, false, r#"",""#),
+        ("let g:mapleader = ' '", false, "' '"),
+        (r#"let mapleader="\<Space>""#, false, r#""\<Space>""#),
+        ("let maplocalleader = g:x . 'y'", true, "g:x . 'y'"),
+        ("let g:maplocalleader = ','", true, "','"),
+        // Evaluated when it runs, where `\` is E15.
+        (r"let mapleader = \", false, r"\"),
+    ] {
+        let cmd = parse_ex_command(line).unwrap();
+        assert!(
+            matches!(&cmd, ExCommand::LetLeader { local: l, value: v } if *l == local && &**v == value),
+            "{line}: {cmd:?}"
+        );
+    }
 }
 
 #[test]
-fn parses_let_mapleader_bare() {
-    let cmd = parse_ex_command(r"let mapleader = \").unwrap();
-    assert!(matches!(cmd, ExCommand::LetMapleader { leader: '\\' }));
+fn sends_any_other_let_to_the_host() {
+    for line in [
+        "let g:x = 1",
+        "let mapleader .= 'x'",
+        "let mapleaders = 1",
+        "let mapleader =<< END",
+    ] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Custom { .. }),
+            "{line}"
+        );
+    }
 }
 
 #[test]
@@ -784,18 +829,161 @@ fn parses_nmap_no_nowait_flag() {
 }
 
 #[test]
-fn parses_nowait_flag_case_insensitive() {
-    let cmd = parse_ex_command("nmap <NOWAIT> jk <Esc>").unwrap();
+fn map_flags_come_in_any_order_without_blanks() {
+    // do_map() reads <buffer>, <nowait>, <silent>, <special>, <script>,
+    // <expr> and <unique> in any order.
+    let cmd = parse_ex_command("nmap <silent><buffer><nowait> <special><script><unique><expr> x y")
+        .unwrap();
     assert!(
         matches!(
-            cmd,
+            &cmd,
             ExCommand::Map {
-                flags: MappingFlags { nowait: true, .. },
+                lhs,
+                rhs: Some(rhs),
+                kind: MappingKind::NonRecursive,
+                flags: MappingFlags {
+                    nowait: true,
+                    silent: true,
+                    expr: true,
+                    unique: true,
+                    script_local: false,
+                },
+                buffer: true,
                 ..
-            }
+            } if lhs.as_str() == "x" && rhs.as_str() == "y"
         ),
-        "expected nowait: true for case-variant `<NOWAIT>`, got: {cmd:?}"
+        "{cmd:?}"
     );
+}
+
+#[test]
+fn unmap_and_mapclear_take_buffer() {
+    assert!(matches!(
+        parse_ex_command("nunmap <buffer> x").unwrap(),
+        ExCommand::Unmap { ref lhs, buffer: true, .. } if lhs.as_str() == "x"
+    ));
+    assert!(matches!(
+        parse_ex_command("mapclear <buffer>").unwrap(),
+        ExCommand::MapClear { buffer: true, .. }
+    ));
+    assert_eq!(
+        parse_ex_command("imapclear x"),
+        Err(VimError::InvalidMapArgument)
+    );
+}
+
+#[test]
+fn abbreviation_flags() {
+    assert!(matches!(
+        parse_ex_command("iabbrev <unique><script> teh the").unwrap(),
+        ExCommand::Abbreviate {
+            trigger: Some(ref trigger),
+            noremap: true,
+            unique: true,
+            ..
+        } if trigger.as_str() == "teh"
+    ));
+    for line in [
+        "iabbrev <buffer> teh the",
+        "abbreviate <expr> x y",
+        "iunabbrev <buffer> teh",
+    ] {
+        assert!(
+            matches!(parse_ex_command(line), Err(VimError::NotAvailable(_))),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn a_right_hand_side_keeps_its_trailing_blanks() {
+    // `*:map*`: "Trailing spaces are included in the {rhs}".
+    let rhs = |line: &str| match parse_ex_command(line).unwrap() {
+        ExCommand::Map { lhs, rhs, .. } => (lhs.to_string(), rhs.map(|rhs| rhs.to_string())),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(rhs("nnoremap x l "), ("x".into(), Some("l ".into())));
+    assert_eq!(rhs("nnoremap x\t \tl\t"), ("x".into(), Some("l\t".into())));
+    assert_eq!(rhs("nnoremap x  "), ("x".into(), None));
+    // A Ctrl-V keeps a blank in the keys.
+    assert_eq!(
+        rhs("nnoremap a\x16 b c"),
+        ("a\x16 b".into(), Some("c".into()))
+    );
+    assert!(matches!(
+        parse_ex_command("iabbrev teh the ").unwrap(),
+        ExCommand::Abbreviate { replacement: Some(ref r), .. } if r.as_str() == "the "
+    ));
+}
+
+#[test]
+fn an_argument_may_follow_the_name_without_a_blank() {
+    // find_ex_command() ends the name at the first character that is not
+    // a letter.
+    assert!(matches!(
+        parse_ex_command("norm$").unwrap(),
+        ExCommand::Norm { ref keys, .. } if keys.as_str() == "$"
+    ));
+    assert!(matches!(
+        parse_ex_command("norm  x ").unwrap(),
+        ExCommand::Norm { ref keys, .. } if keys.as_str() == "x "
+    ));
+}
+
+#[test]
+fn unmap_takes_its_whole_argument_as_the_keys() {
+    // `*map-trailing-white*`
+    for (line, keys) in [
+        ("unmap x ", "x "),
+        ("nunmap x y", "x y"),
+        ("unmap <buffer> x", "x"),
+        ("nunmap<F1>", "<F1>"),
+    ] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Unmap { ref lhs, .. } if lhs.as_str() == keys),
+            "{line}"
+        );
+    }
+    // do_map() ignores blanks at the end of an abbreviation's trigger.
+    for (line, trigger) in [
+        ("iunabbrev foo  ", "foo"),
+        ("unabbreviate foo bar", "foo bar"),
+    ] {
+        assert!(
+            matches!(
+                parse_ex_command(line).unwrap(),
+                ExCommand::Unabbreviate { trigger: ref t, .. } if t.as_str() == trigger
+            ),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn map_flags_are_read_in_exact_case() {
+    // do_map() compares each flag with STRNCMP, so `<NOWAIT>` starts the
+    // left-hand side.
+    for (line, lhs, rhs) in [
+        ("nmap <NOWAIT> jk <Esc>", "<NOWAIT>", "jk <Esc>"),
+        ("nmap <EXPR> j <Esc>", "<EXPR>", "j <Esc>"),
+        ("nmap <Silent> j gj", "<Silent>", "j gj"),
+        ("nmap <Buffer> j gj", "<Buffer>", "j gj"),
+    ] {
+        let cmd = parse_ex_command(line).unwrap();
+        assert!(
+            matches!(
+                &cmd,
+                ExCommand::Map {
+                    lhs: l,
+                    rhs: Some(r),
+                    flags: MappingFlags::NONE,
+                    buffer: false,
+                    ..
+                } if l.as_str() == lhs && r.as_str() == rhs
+            ),
+            "{line}: {cmd:?}"
+        );
+    }
 }
 
 // ─── <expr> mapping flag ─────────────────────────────────────────
@@ -810,6 +998,7 @@ fn parses_nnoremap_expr_flag() {
             flags,
             lhs,
             rhs,
+            ..
         } => {
             assert_eq!(mode_prefix, MapModePrefix::Normal);
             assert!(matches!(kind, MappingKind::NonRecursive));
@@ -833,33 +1022,6 @@ fn parses_nmap_expr_flag() {
         }
         other => panic!("expected Map, got {other:?}"),
     }
-}
-
-#[test]
-fn parses_expr_flag_case_insensitive() {
-    let cmd = parse_ex_command("nmap <EXPR> j <Esc>").unwrap();
-    assert!(
-        matches!(
-            cmd,
-            ExCommand::Map {
-                flags: MappingFlags { expr: true, .. },
-                ..
-            }
-        ),
-        "expected expr: true for case-variant `<EXPR>`, got: {cmd:?}"
-    );
-
-    let cmd2 = parse_ex_command("nmap <Expr> j <Esc>").unwrap();
-    assert!(
-        matches!(
-            cmd2,
-            ExCommand::Map {
-                flags: MappingFlags { expr: true, .. },
-                ..
-            }
-        ),
-        "expected expr: true for case-variant `<Expr>`, got: {cmd2:?}"
-    );
 }
 
 #[test]
@@ -1044,6 +1206,7 @@ fn parses_nnoremap_silent_flag() {
             flags,
             lhs,
             rhs,
+            ..
         } => {
             assert_eq!(mode_prefix, MapModePrefix::Normal);
             assert!(matches!(kind, MappingKind::NonRecursive));
@@ -1067,33 +1230,6 @@ fn parses_nmap_silent_flag() {
         }
         other => panic!("expected Map, got {other:?}"),
     }
-}
-
-#[test]
-fn parses_silent_flag_case_insensitive() {
-    let cmd = parse_ex_command("nmap <SILENT> j gj").unwrap();
-    assert!(
-        matches!(
-            cmd,
-            ExCommand::Map {
-                flags: MappingFlags { silent: true, .. },
-                ..
-            }
-        ),
-        "expected silent: true for <SILENT>, got: {cmd:?}"
-    );
-
-    let cmd2 = parse_ex_command("nmap <Silent> j gj").unwrap();
-    assert!(
-        matches!(
-            cmd2,
-            ExCommand::Map {
-                flags: MappingFlags { silent: true, .. },
-                ..
-            }
-        ),
-        "expected silent: true for <Silent>, got: {cmd2:?}"
-    );
 }
 
 #[test]
@@ -2236,6 +2372,7 @@ fn parses_abbreviate_define() {
             replacement: Some(ref r),
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         } if t.as_str() == "teh" && r.as_str() == "the"
     ));
 }
@@ -2250,6 +2387,7 @@ fn parses_abbreviate_full_name() {
             replacement: Some(ref r),
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         } if t.as_str() == "teh" && r.as_str() == "the"
     ));
 }
@@ -2264,6 +2402,7 @@ fn parses_abbreviate_list() {
             replacement: None,
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         }
     ));
 }
@@ -2278,6 +2417,7 @@ fn parses_abbreviate_show_single() {
             replacement: None,
             mode: AbbrevMode::Both,
             noremap: false,
+            ..
         } if t.as_str() == "teh"
     ));
 }
@@ -2446,7 +2586,8 @@ fn parses_abclear() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::Both
+            mode: AbbrevMode::Both,
+            buffer: false
         }
     ));
 }
@@ -2457,7 +2598,8 @@ fn parses_abclear_full_name() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::Both
+            mode: AbbrevMode::Both,
+            buffer: false
         }
     ));
 }
@@ -2468,7 +2610,8 @@ fn parses_iabclear() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::Insert
+            mode: AbbrevMode::Insert,
+            buffer: false
         }
     ));
 }
@@ -2479,7 +2622,8 @@ fn parses_cabclear() {
     assert!(matches!(
         cmd,
         ExCommand::AbClear {
-            mode: AbbrevMode::CommandLine
+            mode: AbbrevMode::CommandLine,
+            buffer: false
         }
     ));
 }
@@ -2491,6 +2635,7 @@ fn abbreviate_does_not_mutate_text() {
         replacement: Some("the".into()),
         mode: AbbrevMode::Both,
         noremap: false,
+        unique: false,
     };
     assert!(!cmd.mutates_text());
 }
@@ -2508,8 +2653,28 @@ fn unabbreviate_does_not_mutate_text() {
 fn abclear_does_not_mutate_text() {
     let cmd = ExCommand::AbClear {
         mode: AbbrevMode::Both,
+        buffer: false,
     };
     assert!(!cmd.mutates_text());
+}
+
+#[test]
+fn abclear_takes_buffer_and_no_other_argument() {
+    // map_clear(): `<buffer>` exactly, anything else is E474.
+    assert_eq!(
+        parse_ex_command("iabclear <buffer>"),
+        Ok(ExCommand::AbClear {
+            mode: AbbrevMode::Insert,
+            buffer: true
+        })
+    );
+    for line in ["abclear junk", "abclear <Buffer>", "cabclear <buffer> x"] {
+        assert_eq!(
+            parse_ex_command(line),
+            Err(VimError::InvalidMapArgument),
+            "{line}"
+        );
+    }
 }
 
 #[test]
@@ -2675,6 +2840,16 @@ mod multi_cursor_ex {
     fn parses_sp_no_pattern_as_window_split() {
         let cmd = parse_ex_command("sp").unwrap();
         assert!(matches!(cmd, ExCommand::Split { path: None }));
+    }
+
+    #[test]
+    fn parses_sp_bar_as_a_file_not_a_delimiter() {
+        // What `:sp \|x` leaves: Vim's `:split` opens the file `|x`.
+        let cmd = parse_ex_command("sp |x").unwrap();
+        assert!(matches!(
+            cmd,
+            ExCommand::Split { path: Some(p) } if p.as_str() == "|x"
+        ));
     }
 
     #[test]
@@ -3406,6 +3581,24 @@ mod multi_cursor_ex {
     }
 }
 
+// ── Leading colons ───────────────────────────────────────────────────────
+
+#[test]
+fn colons_before_a_command_are_skipped() {
+    // A vimrc may write `:set et`; Vim skips the colons.
+    assert_eq!(
+        parse_ex_command(":set et").unwrap(),
+        parse_ex_command("set et").unwrap()
+    );
+    assert_eq!(
+        parse_ex_command(" : :set et").unwrap(),
+        parse_ex_command("set et").unwrap()
+    );
+    let (flags, cmd) = parse_ex_command_with_modifiers(":silent! :nnoremap x y").unwrap();
+    assert!(flags.contains(ModifierFlags::SILENT_BANG));
+    assert_eq!(cmd, parse_ex_command("nnoremap x y").unwrap());
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Pipeline splitting (split_ex_pipeline)
 // ═══════════════════════════════════════════════════════════════════════
@@ -3495,9 +3688,543 @@ fn pipeline_skips_empty_segments() {
 }
 
 #[test]
+fn pipeline_backslash_bar_is_a_literal_bar() {
+    let cmds = split_ex_pipeline("nnoremap x :echo 1 \\| echo 2<CR>");
+    assert_eq!(cmds, vec!["nnoremap x :echo 1 | echo 2<CR>"]);
+    // A mapping keeps the blank before the bar (`EX_NOTRLCOM`).
+    let cmds = split_ex_pipeline("nnoremap x a\\|b | set et");
+    assert_eq!(cmds, vec!["nnoremap x a|b ", "set et"]);
+}
+
+#[test]
+fn pipeline_keeps_backslash_bar_inside_a_pattern() {
+    let cmds = split_ex_pipeline("s/a\\|b/c/ | w");
+    assert_eq!(cmds, vec!["s/a\\|b/c/", "w"]);
+}
+
+#[test]
+fn pipeline_bar_is_an_argument_after_these_commands() {
+    for line in [
+        "normal ihello|world",
+        "windo set et | set sw=2",
+        "autocmd FileType gd setlocal et | setlocal sw=4",
+        "r !ls | sort",
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    let cmds = split_ex_pipeline("w | !ls | grep foo");
+    assert_eq!(cmds, vec!["w", "!ls | grep foo"]);
+}
+
+#[test]
+fn pipeline_splits_after_a_command_that_rejects_the_rest_of_the_line() {
+    // Only the head decides: the whole line `t. | d` is no valid `:t`
+    // address and would read as an unknown command.
+    for (line, head, tail) in [
+        ("t. | d", "t.", "d"),
+        ("m0 | d", "m0", "d"),
+        ("2 | d", "2", "d"),
+        ("$ | d", "$", "d"),
+        ("'a | d", "'a", "d"),
+        ("@a | w", "@a", "w"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![head, tail], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_splits_after_a_short_modifier() {
+    assert_eq!(split_ex_pipeline("sil 1 | d"), vec!["sil 1", "d"]);
+    assert_eq!(split_ex_pipeline("conf w | q"), vec!["conf w", "q"]);
+    assert_eq!(split_ex_pipeline("sil! norm x|y"), vec!["sil! norm x|y"]);
+}
+
+#[test]
+fn pipeline_keeps_a_bar_inside_a_pattern_before_another_command() {
+    for (line, head) in [
+        ("s/a|b/c/ | w", "s/a|b/c/"),
+        ("s#a|b#c# | w", "s#a|b#c#"),
+        ("g/a|b/d | w", "g/a|b/d"),
+        ("v/a|b/d | w", "v/a|b/d"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![head, "w"], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_finds_the_pattern_after_modifiers_and_colons() {
+    for line in [
+        "silent! s/a|b/c/",
+        "keepp s/a|b/c/",
+        ":2s/a|b/c/",
+        "sil g/a|b/d",
+    ] {
+        let with_tail = format!("{line} | w");
+        assert_eq!(split_ex_pipeline(&with_tail), vec![line, "w"], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_keeps_a_bar_inside_a_trailing_comment() {
+    // The comment, `|` included, is gone, as separate_nextcmd() ends the
+    // command at it.
+    for (line, command) in [
+        ("set tw=80  \" wrap | set ic", "set tw=80"),
+        ("sil noh \" a | b", "sil noh"),
+        ("w \"| q", "w"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![command], "{line}");
+    }
+    // `"` is part of a mapping, so the bar still ends it.
+    let cmds = split_ex_pipeline("nnoremap x y \" z | set ic");
+    assert_eq!(cmds, vec!["nnoremap x y \" z ", "set ic"]);
+}
+
+#[test]
+fn pipeline_ends_trlbar_commands_at_a_bar_as_ex_cmds_h_says() {
+    // `EX_TRLBAR` commands the parser leaves to the host.
+    for (line, first) in [
+        ("filetype on | set ic", "filetype on"),
+        ("pwd | set ic", "pwd"),
+        ("syntax on|set ic", "syntax on"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_ends_an_expression_after_it_as_eval0_retarg_does() {
+    for line in [
+        "echo \"a|b\"",
+        "let mapleader = \"|\"",
+        "let x = 1 \" c | set ic",
+        // `ex_echo()`: a second `"` opens another string.
+        "echo \"a\" \" c | x",
+        "echo 'it''s|' 'x'",
+    ] {
+        assert_eq!(split_ex_pipeline(line).len(), 1, "{line}");
+    }
+    for (line, first) in [
+        ("echo \"a\" \"b|c\" | set ic", "echo \"a\" \"b|c\""),
+        ("call F('|') | set ic", "call F('|')"),
+        ("if a || b | set ic", "if a || b"),
+        ("if a && \"|\" | set ic", "if a && \"|\""),
+        ("if a && &ic | set ic", "if a && &ic"),
+        ("let x = [1, '|'] | set ic", "let x = [1, '|']"),
+        ("echo @\" | set ic", "echo @\""),
+        ("if &ic | set ic", "if &ic"),
+        ("for x in range(3) | set ic", "for x in range(3)"),
+        ("unlet g:x | set ic", "unlet g:x"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+    assert_eq!(
+        split_ex_pipeline("let x = 1 \" c | set ic"),
+        vec!["let x = 1"]
+    );
+}
+
+#[test]
+fn pipeline_gives_a_let_heredoc_the_rest_of_the_line_as_ex_let_does() {
+    for line in [
+        "let x =<< END | set ic",
+        "const x =<< trim END | set ic",
+        "let [a, b] =<< END | set ic",
+        "let g:x=<<END|set ic",
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    for (line, first) in [
+        ("let x .= 1 | set ic", "let x .= 1"),
+        ("let x = y << 1 | set ic", "let x = y << 1"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_keeps_a_ctrl_v_bar_as_separate_nextcmd_does() {
+    // Kept with the bar for a mapping (`EX_CTRLV`), dropped for `:set`.
+    assert_eq!(
+        split_ex_pipeline("nnoremap x a\u{16}|b"),
+        vec!["nnoremap x a\u{16}|b"]
+    );
+    assert_eq!(split_ex_pipeline("set ic\u{16}|x"), vec!["set ic|x"]);
+}
+
+#[test]
+fn pipeline_comment_needs_no_blank_before_it() {
+    for line in ["set tw=20 \" c | set ic", "set tw=20\" c | set ic"] {
+        assert_eq!(split_ex_pipeline(line), vec!["set tw=20"], "{line}");
+    }
+    // A backslash makes it part of the argument.
+    assert_eq!(split_ex_pipeline("set tw=20\\\" c"), vec!["set tw=20\" c"]);
+}
+
+#[test]
+fn pipeline_trims_trailing_blanks_unless_the_command_keeps_them() {
+    assert_eq!(
+        split_ex_pipeline("nnoremap x y | set ic"),
+        vec!["nnoremap x y ", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("set tw=1 | set ic"),
+        vec!["set tw=1", "set ic"]
+    );
+    // `del_trailing_spaces()` keeps a blank after a backslash.
+    assert_eq!(split_ex_pipeline("e foo\\  "), vec!["e foo\\ "]);
+    assert_eq!(split_ex_pipeline("normal ihi  "), vec!["normal ihi  "]);
+}
+
+#[test]
+fn pipeline_two_backslashes_leave_one_before_the_bar() {
+    assert_eq!(
+        split_ex_pipeline("nnoremap x a\\\\|b"),
+        vec!["nnoremap x a\\|b"]
+    );
+}
+
+#[test]
+fn pipeline_leaves_out_empty_commands_and_comments() {
+    assert_eq!(split_ex_pipeline("set ic |"), vec!["set ic"]);
+    assert_eq!(split_ex_pipeline("set ic | \" note"), vec!["set ic"]);
+    assert!(split_ex_pipeline("#!/usr/bin/vim").is_empty());
+    assert!(split_ex_pipeline("\" a | b").is_empty());
+    // "#!" is a comment only at the very start of a command.
+    assert_eq!(split_ex_pipeline("set ic |#!x | set et"), vec!["set ic"]);
+    // A comment after modifiers ends at a newline.
+    assert_eq!(split_ex_pipeline("sil \" a\nset ic"), vec!["set ic"]);
+}
+
+#[test]
+fn pipeline_gives_these_commands_the_rest_of_the_line() {
+    for line in [
+        "normal ihello|world",
+        "autocmd FileType x setlocal et | setlocal sw=4",
+        "!ls | wc",
+        "r !ls | wc",
+        "r!ls | wc",
+        "w !sort | uniq",
+        "Foo a | set ic",
+        "windo set ic | set sw=2",
+        "function! F() | set ic",
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+    // A newline still ends a shell command.
+    assert_eq!(split_ex_pipeline("!ls\nset ic"), vec!["!ls", "set ic"]);
+}
+
+#[test]
+fn pipeline_skips_a_pattern_in_the_range() {
+    assert_eq!(
+        split_ex_pipeline("/a|b/d | set ic"),
+        vec!["/a|b/d", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("?a|b?,/c|d/d | set ic"),
+        vec!["?a|b?,/c|d/d", "set ic"]
+    );
+}
+
+#[test]
+fn pipeline_ends_the_engine_s_own_commands_at_a_bar() {
+    assert_eq!(
+        split_ex_pipeline("sethandler <C-a> n:vim | set ic"),
+        vec!["sethandler <C-a> n:vim", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("select /a|b/ | set ic"),
+        vec!["select /a|b/", "set ic"]
+    );
+    assert_eq!(
+        split_ex_pipeline("sx/a|b/d | set ic"),
+        vec!["sx/a|b/d", "set ic"]
+    );
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(4000))]
+
+    /// Any line splits, and each of its commands parses, without a panic.
+    #[test]
+    fn pipeline_takes_any_line(
+        line in "[a-gsvnwk0-9 |\"\\\\'/?!:%&~@#.$\u{16}\né\u{a0}()\\[\\]{}<>=+,;*`-]{0,40}",
+    ) {
+        for piece in split_ex_pipeline(&line) {
+            let _ = parse_ex_command_with_modifiers(&piece);
+        }
+    }
+}
+
+#[test]
+fn pipeline_ends_a_catch_after_its_pattern_as_ex_catch_does() {
+    assert_eq!(
+        split_ex_pipeline("catch /a|b/ | set ic"),
+        vec!["catch /a|b/", "set ic"]
+    );
+}
+
+#[test]
+fn pipeline_ends_a_command_that_reads_its_own_argument_where_vim_does() {
+    // No backslash is dropped: each of these finds its own end in Vim.
+    for (line, pieces) in [
+        // `ex_match()`: the first `|` after the pattern.
+        (
+            "match Foo /a\\|b/ | set ic",
+            &["match Foo /a\\|b/", "set ic"][..],
+        ),
+        ("2match Foo /a|b/|set ic", &["2match Foo /a|b/", "set ic"]),
+        ("match none | set ic", &["match none", "set ic"]),
+        // `ex_findpat()`: a `|` only after a `/pattern/`.
+        ("ilist /a\\|b/ | set ic", &["ilist /a\\|b/", "set ic"]),
+        ("dsearch 2 /a|b/ \" c | set ic", &["dsearch 2 /a|b/"]),
+        ("ilist a | set ic", &["ilist a | set ic"]),
+        // `ex_help()`: a `|` with text after it.
+        ("help a\\|b", &["help a\\", "b"]),
+        ("help /\\|", &["help /\\|"]),
+        ("help || set ic", &["help |", "set ic"]),
+        // `ex_wincmd()`: one character, or two after `g`.
+        ("wincmd |", &["wincmd |"]),
+        ("wincmd | | set ic", &["wincmd |", "set ic"]),
+        ("winc gt|set ic", &["winc gt", "set ic"]),
+        // `ex_sort()`: a pattern, letters and a `"` comment.
+        ("sort /a|b/ n | set ic", &["sort /a|b/ n", "set ic"]),
+        ("sort /a\\|b/", &["sort /a\\|b/"]),
+        ("sort n \" sorted | set ic", &["sort n"]),
+        // `ex_delfunction()` and a listing `ex_function()`.
+        ("delfunction F | set ic", &["delfunction F", "set ic"]),
+        ("delf F \" c | set ic", &["delf F"]),
+        ("function /a|b/ | set ic", &["function /a|b/", "set ic"]),
+        ("function | set ic", &["function", "set ic"]),
+        ("function F | call G()", &["function F | call G()"]),
+        // `ex_syntax()`: a `|` at the start of a word, outside a pattern.
+        (
+            "syntax match Foo /a\\|b/ | set ic",
+            &["syntax match Foo /a\\|b/", "set ic"],
+        ),
+        (
+            "syn match Foo \"|\" | set ic",
+            &["syn match Foo \"|\"", "set ic"],
+        ),
+        (
+            "syntax region Foo start=/a|b/ end=/c/ | set ic",
+            &["syntax region Foo start=/a|b/ end=/c/", "set ic"],
+        ),
+        (
+            "syntax keyword Foo a|b | set ic",
+            &["syntax keyword Foo a|b", "set ic"],
+        ),
+        (
+            "syntax keyword Foo a \" c | set ic",
+            &["syntax keyword Foo a"],
+        ),
+    ] {
+        assert_eq!(split_ex_pipeline(line), pieces, "{line}");
+    }
+}
+
+#[test]
+fn pipeline_reads_past_a_modifier_the_engine_lacks() {
+    // `parse_command_modifiers()` skips every modifier, so the command after
+    // it decides where the piece ends.
+    for (line, pieces) in [
+        (
+            "verbose echo \"a|b\" | set ic",
+            &["verbose echo \"a|b\"", "set ic"][..],
+        ),
+        ("3verb set tw=1 \" c | set ic", &["3verb set tw=1"]),
+        ("noautocmd normal x|y", &["noautocmd normal x|y"]),
+        ("filter /a|b/ ls | set ic", &["filter /a|b/ ls", "set ic"]),
+        (
+            "unsilent keepmarks s/a|b/c/ | set ic",
+            &["unsilent keepmarks s/a|b/c/", "set ic"],
+        ),
+        ("hide normal x|y", &["hide normal x|y"]),
+        // `:hide` alone is the command.
+        ("hide | set ic", &["hide", "set ic"]),
+        ("verbose", &[]),
+    ] {
+        assert_eq!(split_ex_pipeline(line), pieces, "{line}");
+    }
+}
+
+#[test]
+fn pipeline_skips_a_vimgrep_pattern_and_a_backtick_expression() {
+    // `skip_vimgrep_pat()` and the `` `=expr` `` rule of separate_nextcmd().
+    assert_eq!(
+        split_ex_pipeline("vimgrep /a|b/g % | cw"),
+        vec!["vimgrep /a|b/g % ", "cw"]
+    );
+    assert_eq!(
+        split_ex_pipeline("e `=expand('a|b')` | set ic"),
+        vec!["e `=expand('a|b')`", "set ic"]
+    );
+}
+
+#[test]
+fn pipeline_reads_a_register_quote_as_no_comment() {
+    // separate_nextcmd(): `:@"` and `:redir @"` name the unnamed register.
+    for (line, first) in [
+        ("@\" | set ic", "@\""),
+        ("redir @\" | set ic", "redir @\""),
+        ("redir @\">> | set ic", "redir @\">>"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+    // Anywhere else in their argument a `"` starts a comment.
+    assert_eq!(split_ex_pipeline("@a \" c | set ic"), vec!["@a"]);
+    assert_eq!(
+        split_ex_pipeline("redir @a \" c | set ic"),
+        vec!["redir @a"]
+    );
+    // `:*` is the Visual range, as 'cpoptions' has no `*`, so `"` is a comment.
+    assert_eq!(split_ex_pipeline("*\" c | set ic"), vec!["*"]);
+}
+
+#[test]
+fn pipeline_skips_plus_cmd_and_plus_plus_opt_as_do_one_cmd_does() {
+    // getargcmd(): `+cmd` runs to a blank, so its `|` ends nothing.
+    for (line, first) in [
+        ("e +/a|b/ f | set ic", "e +/a|b/ f"),
+        ("e ++ff=dos +/a|b/ f | set ic", "e ++ff=dos +/a|b/ f"),
+        ("w ++ff=unix | set ic", "w ++ff=unix"),
+    ] {
+        assert_eq!(split_ex_pipeline(line), vec![first, "set ic"], "{line}");
+    }
+    // A `!` after `++opt` makes `:w` and `:r` a filter, which takes the rest
+    // of the line.
+    for line in ["w ++ff=unix !cat | wc", "r ++enc=utf8 !cmd | wc"] {
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
+    }
+}
+
+#[test]
+fn pipeline_ends_split_where_vim_s_split_ends() {
+    // `:split` has `EX_TRLBAR`: `\|` is a `|` in the file name and `"`
+    // starts a comment, and neither is the delimiter of a pattern.
+    assert_eq!(
+        split_ex_pipeline("sp \\|x | set ic"),
+        vec!["sp |x", "set ic"]
+    );
+    assert_eq!(
+        parse_piece("sp \\|x"),
+        ExCommand::Split {
+            path: Some("|x".into())
+        }
+    );
+    assert_eq!(split_ex_pipeline("sp \"x\" | set ic"), vec!["sp"]);
+    assert_eq!(parse_piece("sp \"x\""), ExCommand::Split { path: None });
+}
+
+#[test]
+fn pipeline_ends_a_substitute_after_its_flags_as_ex_substitute_does() {
+    assert_eq!(split_ex_pipeline("s/a/b/g \" x | w"), vec!["s/a/b/g"]);
+    assert_eq!(split_ex_pipeline("s/a/b/g 3 | w"), vec!["s/a/b/g 3", "w"]);
+    assert_eq!(split_ex_pipeline("&& | w"), vec!["&&", "w"]);
+    // The replacement keeps its trailing blank.
+    assert_eq!(split_ex_pipeline("s/a/b "), vec!["s/a/b "]);
+}
+
+#[test]
+fn pipeline_ends_a_global_after_its_command() {
+    for (line, first) in [
+        ("g/x/s/a|b/c/ | w", "g/x/s/a|b/c/"),
+        ("g/x/set ic \" c | w", "g/x/set ic"),
+        ("g!/x/d | w", "g!/x/d"),
+    ] {
+        let pieces = split_ex_pipeline(line);
+        assert_eq!(pieces.first().map(AsRef::as_ref), Some(first), "{line}");
+    }
+    assert_eq!(
+        split_ex_pipeline("g/x/normal a|b | w"),
+        vec!["g/x/normal a|b | w"]
+    );
+}
+
+#[test]
 fn pipeline_question_mark_regex_preserved() {
     let cmds = split_ex_pipeline("g?foo|bar?d|w");
     assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
+}
+
+// ── Blanks before a command ────────────────────────────────────────────
+
+#[test]
+fn only_spaces_and_tabs_come_before_a_command() {
+    // `parse_command_modifiers()` and `skipwhite()` skip ` ` and `\t`.
+    assert_eq!(
+        parse_ex_command(" \t: set ic").unwrap(),
+        parse_ex_command("set ic").unwrap()
+    );
+    assert_eq!(
+        parse_ex_command("sil\t2 ,\t3d").unwrap(),
+        parse_ex_command("2,3d").unwrap()
+    );
+    // A no-break space starts no command, as Vim's E492 for "<a0>set" says.
+    assert!(matches!(
+        parse_ex_command("\u{a0}set ic").unwrap(),
+        ExCommand::Custom { .. }
+    ));
+    assert_eq!(
+        split_ex_pipeline("\u{a0}set ic | set et"),
+        vec!["\u{a0}set ic | set et"]
+    );
+}
+
+// ── Script blocks ──────────────────────────────────────────────────────
+
+#[test]
+fn parses_block_commands_by_vim_s_table() {
+    use crate::grammar::types::BlockKind;
+    for (line, kind, argument) in [
+        ("if a || b", BlockKind::If, "a || b"),
+        ("elsei x", BlockKind::ElseIf, "x"),
+        ("el", BlockKind::Else, ""),
+        ("en", BlockKind::EndIf, ""),
+        ("wh 1", BlockKind::While, "1"),
+        ("endw", BlockKind::EndWhile, ""),
+        ("for x in [1, 2]", BlockKind::For, "x in [1, 2]"),
+        ("endfo", BlockKind::EndFor, ""),
+        ("try", BlockKind::Try, ""),
+        ("cat /E1/", BlockKind::Catch, "/E1/"),
+        ("fina", BlockKind::Finally, ""),
+        ("endt", BlockKind::EndTry, ""),
+        (":sil! if 1", BlockKind::If, "1"),
+    ] {
+        assert_eq!(
+            parse_ex_command(line).unwrap(),
+            ExCommand::Block {
+                kind,
+                argument: argument.into()
+            },
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn parses_break_and_continue_as_host_commands() {
+    // No loop runs on the command line, and a host may define `:cont`.
+    for line in ["brea", "break", "con", "cont", "continue"] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Custom { .. }),
+            "{line}"
+        );
+    }
+}
+
+#[test]
+fn parses_finish_but_not_find() {
+    assert_eq!(parse_ex_command("fini").unwrap(), ExCommand::Finish);
+    assert_eq!(parse_ex_command("finish").unwrap(), ExCommand::Finish);
+    // `:fin` is `:find` and `:final` a Vim9 declaration, as in Vim's table.
+    for line in ["fin x", "final x = 1"] {
+        assert!(
+            matches!(parse_ex_command(line).unwrap(), ExCommand::Custom { .. }),
+            "{line}"
+        );
+    }
 }
 
 // ── Diagnostic navigation (:cn, :cp, :cl, :cc) ─────────────────────────
@@ -4279,6 +5006,42 @@ fn modifier_does_not_eat_similar_command_names() {
 }
 
 #[test]
+fn modifiers_accept_vims_short_forms() {
+    for (line, flags) in [
+        ("sil echo hi", ModifierFlags::SILENT),
+        ("silen echo hi", ModifierFlags::SILENT),
+        (
+            "sil! echo hi",
+            ModifierFlags::SILENT | ModifierFlags::SILENT_BANG,
+        ),
+        ("keepj d", ModifierFlags::KEEPJUMPS),
+        ("keepp s/a/b/", ModifierFlags::KEEPPATTERNS),
+        ("loc d", ModifierFlags::LOCKMARKS),
+        ("keepa e x", ModifierFlags::KEEPALT),
+        ("conf w", ModifierFlags::CONFIRM),
+        ("bro e x", ModifierFlags::BROWSE),
+        ("to sp", ModifierFlags::TOPLEFT),
+        ("bo sp", ModifierFlags::BOTRIGHT),
+        ("abo sp", ModifierFlags::ABOVELEFT),
+        ("bel sp", ModifierFlags::BELOWRIGHT),
+        ("hor sp", ModifierFlags::HORIZONTAL),
+        ("vert sp", ModifierFlags::VERTICAL),
+    ] {
+        let (mods, _) = parse_ex_command_with_modifiers(line).unwrap();
+        assert_eq!(mods, flags, "{line}");
+    }
+}
+
+#[test]
+fn modifier_short_forms_leave_commands_alone() {
+    // Too short for a modifier, or another command.
+    for line in ["si", "keep /x/", "ta", "tabnew", "keepjumpsx d"] {
+        let (mods, _) = parse_ex_command_with_modifiers(line).unwrap();
+        assert!(mods.is_empty(), "{line}");
+    }
+}
+
+#[test]
 fn modifier_with_range() {
     let (mods, cmd) = parse_ex_command_with_modifiers("silent 5,10d").unwrap();
     assert_eq!(mods, ModifierFlags::SILENT);
@@ -4418,7 +5181,7 @@ fn task_8_7_silent_chains_with_other_modifiers() {
 fn task_9_set_strips_trailing_comment() {
     // `:set number " enable line numbers` — the `" enable...` is a comment
     // because :set has TRLBAR without NOTRLCOM.
-    let cmd = parse_ex_command("set number \" enable line numbers").unwrap();
+    let cmd = parse_piece("set number \" enable line numbers");
     match cmd {
         ExCommand::Set { assignments } => {
             assert_eq!(
@@ -4450,7 +5213,7 @@ fn task_9_echo_preserves_quote_in_argument() {
 #[test]
 fn task_9_delete_strips_trailing_comment() {
     // `:delete " remove this line` — :delete has TRLBAR without NOTRLCOM.
-    let cmd = parse_ex_command("delete \" remove this line").unwrap();
+    let cmd = parse_piece("delete \" remove this line");
     match cmd {
         ExCommand::Delete { register, .. } => {
             // The `"` followed by space+text is a comment, not a register arg.
@@ -4702,6 +5465,7 @@ fn parses_mapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::All,
             force: false,
+            ..
         }
     ));
 }
@@ -4712,8 +5476,34 @@ fn parses_mapclear_bang() {
     assert!(matches!(
         cmd,
         ExCommand::MapClear {
-            mode: MapModePrefix::All,
+            mode: MapModePrefix::InsertCommand,
             force: true,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn map_bang_is_insert_and_command_line() {
+    // get_map_mode(): "map!", "noremap!" and "unmap!" are MODE_INSERT |
+    // MODE_CMDLINE.
+    for line in ["map! x y", "noremap! x y", "no! x y"] {
+        assert!(
+            matches!(
+                parse_ex_command(line).unwrap(),
+                ExCommand::Map {
+                    mode_prefix: MapModePrefix::InsertCommand,
+                    ..
+                }
+            ),
+            "{line}"
+        );
+    }
+    assert!(matches!(
+        parse_ex_command("unmap! x").unwrap(),
+        ExCommand::Unmap {
+            mode_prefix: MapModePrefix::InsertCommand,
+            ..
         }
     ));
 }
@@ -4726,6 +5516,7 @@ fn parses_nmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Normal,
             force: false,
+            ..
         }
     ));
 }
@@ -4738,6 +5529,7 @@ fn parses_nmapclear_abbreviation() {
         ExCommand::MapClear {
             mode: MapModePrefix::Normal,
             force: false,
+            ..
         }
     ));
 }
@@ -4750,6 +5542,7 @@ fn parses_vmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Visual,
             force: false,
+            ..
         }
     ));
 }
@@ -4762,6 +5555,7 @@ fn parses_imapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Insert,
             force: false,
+            ..
         }
     ));
 }
@@ -4774,6 +5568,7 @@ fn parses_omapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Operator,
             force: false,
+            ..
         }
     ));
 }
@@ -4786,6 +5581,7 @@ fn parses_cmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::Command,
             force: false,
+            ..
         }
     ));
 }
@@ -4798,6 +5594,7 @@ fn parses_xmapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::VisualOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -4810,6 +5607,7 @@ fn parses_smapclear() {
         ExCommand::MapClear {
             mode: MapModePrefix::SelectOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -4822,6 +5620,7 @@ fn parses_xmapclear_abbreviation() {
         ExCommand::MapClear {
             mode: MapModePrefix::VisualOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -4834,6 +5633,7 @@ fn parses_smapclear_abbreviation() {
         ExCommand::MapClear {
             mode: MapModePrefix::SelectOnly,
             force: false,
+            ..
         }
     ));
 }
@@ -4941,9 +5741,9 @@ fn set_colon_assignment() {
 }
 
 #[test]
-fn set_arguments_split_and_values_as_before_operators() {
-    // The operators did not change how other arguments split or how values
-    // read: white space separates arguments and a backslash is kept.
+fn set_values_are_kept_as_written() {
+    // stropt_copy_value() drops the backslashes of a string value; the
+    // parser keeps them, and a number value such as `\2` stays refused.
     assert_eq!(
         set_args(r"set sw=\2 cms=a\\ ts=4"),
         vec![
@@ -4952,67 +5752,77 @@ fn set_arguments_split_and_values_as_before_operators() {
             SetAssignment::Assign(cs("ts"), cs("4")),
         ]
     );
+}
+
+#[test]
+fn set_blanks_may_come_before_what_follows_the_name() {
+    // do_set_option(): "allow ':set ai  ?', ':set hlsearch  !'".
     assert_eq!(
-        set_args("set sw =2"),
+        set_args("set sw =2 tw  ? ic ! fo +=t ai sw"),
         vec![
+            SetAssignment::Assign(cs("sw"), cs("2")),
+            SetAssignment::Query(cs("tw")),
+            SetAssignment::ToggleBool(cs("ic")),
+            SetAssignment::Append(cs("fo"), cs("t")),
+            SetAssignment::SetBool(cs("ai")),
             SetAssignment::SetBool(cs("sw")),
-            SetAssignment::Assign(cs(""), cs("2")),
         ]
     );
 }
 
 #[test]
-fn set_backslash_before_white_space_keeps_it_in_the_value() {
-    // `:help option-backslash`: Vim 9.1 gives "# %s" and "<!-- %s -->".
+fn set_backslash_before_a_blank_keeps_it_in_the_value() {
+    // `:help option-backslash`
     assert_eq!(
         set_args(r"setlocal commentstring=#\ %s"),
-        vec![SetAssignment::Assign(cs("commentstring"), cs("# %s"))]
+        vec![SetAssignment::Assign(cs("commentstring"), cs(r"#\ %s"))]
     );
     assert_eq!(
         set_args(r"setlocal comments=fb:* commentstring=<!--\ %s\ -->"),
         vec![
             SetAssignment::Assign(cs("comments"), cs("fb:*")),
-            SetAssignment::Assign(cs("commentstring"), cs("<!-- %s -->")),
+            SetAssignment::Assign(cs("commentstring"), cs(r"<!--\ %s\ -->")),
         ]
     );
 }
 
 #[test]
-fn set_backslash_space_splits_other_options_as_before() {
-    // Only commentstring, comments and formatoptions take a backslash
-    // before white space into the value. Any other argument ends at white
-    // space as before the operators, keeping a trailing backslash.
+fn set_backslash_space_joins_any_argument() {
+    // do_set() skips an escaped blank whatever the option.
     assert_eq!(
         set_args(r"set sw=2\ ts=4"),
-        vec![
-            SetAssignment::Assign(cs("sw"), cs("2\\")),
-            SetAssignment::Assign(cs("ts"), cs("4")),
-        ]
-    );
-    assert_eq!(
-        set_args(r"set so=1\ commentstring=#\ %s"),
-        vec![
-            SetAssignment::Assign(cs("so"), cs("1\\")),
-            SetAssignment::Assign(cs("commentstring"), cs("# %s")),
-        ]
+        vec![SetAssignment::Assign(cs("sw"), cs(r"2\ ts=4"))]
     );
     assert_eq!(
         set_args(r"setlocal comments=sO:*\ -,mO:*\ \ ,exO:*/ fo+=a\ b"),
         vec![
-            SetAssignment::Assign(cs("comments"), cs("sO:* -,mO:*  ,exO:*/")),
-            SetAssignment::Append(cs("fo"), cs("a b")),
+            SetAssignment::Assign(cs("comments"), cs(r"sO:*\ -,mO:*\ \ ,exO:*/")),
+            SetAssignment::Append(cs("fo"), cs(r"a\ b")),
         ]
     );
 }
 
 #[test]
-fn set_bool_forms_unchanged() {
+fn set_arguments_end_at_a_space_or_tab_only() {
     assert_eq!(
-        set_args("set ic noai et! ts? all"),
+        set_args("set ic\tai fo=t\u{a0}c"),
+        vec![
+            SetAssignment::SetBool(cs("ic")),
+            SetAssignment::SetBool(cs("ai")),
+            SetAssignment::Assign(cs("fo"), cs("t\u{a0}c")),
+        ]
+    );
+}
+
+#[test]
+fn set_bool_forms() {
+    assert_eq!(
+        set_args("set ic noai et! invhls ts? all"),
         vec![
             SetAssignment::SetBool(cs("ic")),
             SetAssignment::UnsetBool(cs("ai")),
             SetAssignment::ToggleBool(cs("et")),
+            SetAssignment::InvertBool("hls".into()),
             SetAssignment::Query(cs("ts")),
             SetAssignment::ShowAll,
         ]
@@ -5020,11 +5830,66 @@ fn set_bool_forms_unchanged() {
 }
 
 #[test]
-fn set_colon_after_a_sign_is_a_plain_assignment() {
-    // `tw+:7` is not an operator; it reaches the executor as an assignment
-    // to an unknown option `tw+`, as before the operators.
+fn set_prefix_stays_before_a_query_a_bang_and_a_value() {
     assert_eq!(
-        set_args("set tw+:7"),
-        vec![SetAssignment::Assign(cs("tw+"), cs("7"))]
+        set_args("set noic? invic! notw=5 nofo+=t novice no"),
+        vec![
+            SetAssignment::Query(cs("noic")),
+            SetAssignment::ToggleBool(cs("invic")),
+            SetAssignment::Assign(cs("notw"), cs("5")),
+            SetAssignment::Append(cs("nofo"), cs("t")),
+            SetAssignment::SetBool(cs("novice")),
+            SetAssignment::SetBool(cs("no")),
+        ]
+    );
+}
+
+#[test]
+fn set_text_after_the_name_is_invalid() {
+    let invalid = |name: &str, argument: &str| SetAssignment::Invalid {
+        name: name.into(),
+        argument: argument.into(),
+    };
+    assert_eq!(
+        set_args("set tw?x ic!x nosuch, tw+:7 ,"),
+        vec![
+            invalid("tw", "tw?x"),
+            invalid("ic", "ic!x"),
+            invalid("such", "nosuch,"),
+            invalid("tw", "tw+:7"),
+            invalid("", ","),
+        ]
+    );
+}
+
+#[test]
+fn set_reset_forms() {
+    let reset = |name: &str, argument: &str| SetAssignment::Reset {
+        name: name.into(),
+        argument: argument.into(),
+    };
+    assert_eq!(
+        set_args("set fo& fo&vim fo&vi fo< all& all"),
+        vec![
+            reset("fo", "fo&"),
+            reset("fo", "fo&vim"),
+            reset("fo", "fo&vi"),
+            reset("fo", "fo<"),
+            reset("all", "all&"),
+            SetAssignment::ShowAll,
+        ]
+    );
+}
+
+#[test]
+fn set_term_code_names_take_two_characters() {
+    // parse_option_name(): "The two characters after "t_" may not be
+    // alphanumeric."
+    assert_eq!(
+        set_args("set t_#4=x t_Co"),
+        vec![
+            SetAssignment::Assign(cs("t_#4"), cs("x")),
+            SetAssignment::SetBool(cs("t_Co")),
+        ]
     );
 }

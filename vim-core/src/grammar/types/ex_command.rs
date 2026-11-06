@@ -121,6 +121,78 @@ impl SortOptions {
     }
 }
 
+/// A command of Vim's script blocks: `:if`, `:while`, `:for`, `:try` and
+/// the commands that continue or end them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum BlockKind {
+    /// `:if {expr}`
+    If,
+    /// `:elsei[f] {expr}`
+    ElseIf,
+    /// `:el[se]`
+    Else,
+    /// `:en[dif]`
+    EndIf,
+    /// `:wh[ile] {expr}`
+    While,
+    /// `:endw[hile]`
+    EndWhile,
+    /// `:for {var} in {object}`
+    For,
+    /// `:endfo[r]`
+    EndFor,
+    /// `:try`
+    Try,
+    /// `:cat[ch] [/{pattern}/]`
+    Catch,
+    /// `:fina[lly]`
+    Finally,
+    /// `:endt[ry]`
+    EndTry,
+}
+
+impl BlockKind {
+    /// The kind of the Vim command `name`, given in full.
+    #[must_use]
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "if" => Self::If,
+            "elseif" => Self::ElseIf,
+            "else" => Self::Else,
+            "endif" => Self::EndIf,
+            "while" => Self::While,
+            "endwhile" => Self::EndWhile,
+            "for" => Self::For,
+            "endfor" => Self::EndFor,
+            "try" => Self::Try,
+            "catch" => Self::Catch,
+            "finally" => Self::Finally,
+            "endtry" => Self::EndTry,
+            _ => return None,
+        })
+    }
+
+    /// The command's full name, such as `endif`.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::If => "if",
+            Self::ElseIf => "elseif",
+            Self::Else => "else",
+            Self::EndIf => "endif",
+            Self::While => "while",
+            Self::EndWhile => "endwhile",
+            Self::For => "for",
+            Self::EndFor => "endfor",
+            Self::Try => "try",
+            Self::Catch => "catch",
+            Self::Finally => "finally",
+            Self::EndTry => "endtry",
+        }
+    }
+}
+
 /// Display style for the `:z` window command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -282,8 +354,11 @@ pub enum ExCommand {
         rhs: Option<CompactString>,
         /// Recursive (`:map`) vs non-recursive (`:noremap`).
         kind: crate::keymap::MappingKind,
-        /// Consolidated boolean attribute flags (`<nowait>`, `<silent>`, `<expr>`).
+        /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`. `<unique>` is
+        /// checked when the mapping is defined and is not kept with it.
         flags: crate::keymap::MappingFlags,
+        /// `<buffer>`: a mapping of the current buffer.
+        buffer: bool,
     },
     /// Remove mapping: `:unmap`, `:nunmap`, etc.
     Unmap {
@@ -291,13 +366,17 @@ pub enum ExCommand {
         mode_prefix: MapModePrefix,
         /// Left-hand side to remove.
         lhs: CompactString,
+        /// `<buffer>`: a mapping of the current buffer.
+        buffer: bool,
     },
     /// Clear all mappings for a mode: `:mapclear`, `:nmapclear`, etc.
     MapClear {
         /// Which mode(s) to clear.
         mode: MapModePrefix,
-        /// Whether the command was invoked with `!` (`:mapclear!` clears local mappings).
+        /// Whether the command was invoked with `!`.
         force: bool,
+        /// `:mapclear <buffer>`: the mappings of the current buffer.
+        buffer: bool,
     },
 
     // === UI (core emits effects) ===
@@ -403,8 +482,11 @@ pub enum ExCommand {
         replacement: Option<CompactString>,
         /// Which mode(s) the abbreviation applies to.
         mode: AbbrevMode,
-        /// Whether remapping is suppressed (noremap variant).
+        /// Whether remapping is suppressed (noremap variant, or
+        /// `<script>`).
         noremap: bool,
+        /// `<unique>`: E226 when the trigger is already defined.
+        unique: bool,
     },
     /// Remove abbreviation: `:unabbreviate`, `:iunabbrev`, `:cunabbrev`.
     Unabbreviate {
@@ -417,6 +499,9 @@ pub enum ExCommand {
     AbClear {
         /// Which mode(s) to clear.
         mode: AbbrevMode,
+        /// `:abclear <buffer>`: the abbreviations of the current buffer,
+        /// which vim-core never has, so it clears nothing.
+        buffer: bool,
     },
 
     /// Fallback custom ex command forwarded to host.
@@ -538,10 +623,13 @@ pub enum ExCommand {
         /// Message text to display.
         message: CompactString,
     },
-    /// Set the mapleader variable: `:let mapleader = "{char}"`
-    LetMapleader {
-        /// Leader key character.
-        leader: char,
+    /// Set the leader: `:let mapleader = {expr}`, or the local leader:
+    /// `:let maplocalleader = {expr}`, with `g:` or without.
+    LetLeader {
+        /// `maplocalleader`.
+        local: bool,
+        /// The expression, which the executor evaluates.
+        value: Box<str>,
     },
     /// Display lines: `:[range]print`, `:[range]number`, `:[range]list`, `:[range]#`
     ///
@@ -818,6 +906,21 @@ pub enum ExCommand {
         /// Force overwrite if file already exists.
         force: bool,
     },
+
+    /// A command of Vim's script blocks, such as `:if` or `:endif`.
+    ///
+    /// Only a sourced file can hold a block, so on the command line it
+    /// gives E319.
+    Block {
+        /// Which block command.
+        kind: BlockKind,
+        /// The text after the command name, such as the condition of `:if`.
+        argument: Box<str>,
+    },
+
+    /// `:fini[sh]`: stop sourcing a file. On the command line it gives
+    /// E168.
+    Finish,
 }
 
 /// Amount for `:earlier` / `:later` navigation.
@@ -880,11 +983,17 @@ pub enum SetAssignment {
     SetBool(CompactString),
     /// Set boolean off: `:set noexpandtab`
     UnsetBool(CompactString),
-    /// Toggle boolean: `:set expandtab!`
+    /// Toggle boolean: `:set expandtab!`. A `no` or `inv` prefix stays on
+    /// the name.
     ToggleBool(CompactString),
+    /// Invert a boolean with the `inv` prefix: `:set invexpandtab`. The
+    /// name is without the prefix.
+    InvertBool(Box<str>),
     /// Query option value: `:set expandtab?`
     Query(CompactString),
-    /// Assign numeric/string value: `:set tabstop=8`
+    /// Assign a number or string: `:set tabstop=8`. The value is as
+    /// written; a string option takes it without the backslash before
+    /// each character, so `#\ %s` is `# %s`.
     Assign(CompactString, CompactString),
     /// Add to a number, append to a string, or add a flag or list item:
     /// `:set tw+=4`, `:set fo+=c`, `:set com+=b:##`
@@ -896,6 +1005,23 @@ pub enum SetAssignment {
     Prepend(CompactString, CompactString),
     /// Show all options: `:set all`
     ShowAll,
+    /// Reset an option to its default or global value: `:set fo&`,
+    /// `:set fo&vim`, `:set fo<` and `:set all&`, which vim-core does not
+    /// run (E319).
+    Reset {
+        /// The option name, without a `no` or `inv` prefix.
+        name: Box<str>,
+        /// The argument as written.
+        argument: Box<str>,
+    },
+    /// An argument with text after the option name that `:set` does not
+    /// take, such as `tw?x` (E488, or E518 for a name it does not know).
+    Invalid {
+        /// The option name, without a `no` or `inv` prefix.
+        name: Box<str>,
+        /// The argument as written.
+        argument: Box<str>,
+    },
 }
 
 impl ExCommand {
@@ -934,10 +1060,169 @@ impl ExCommand {
     }
 }
 
+impl ExCommand {
+    /// Returns `true` if this command reads or changes the buffer, its
+    /// cursor, selections, marks, folds or undo history, so it cannot run
+    /// without one, as when a config file is sourced.
+    ///
+    /// Commands the host runs return `false`: the host decides what they
+    /// mean without a buffer.
+    #[must_use]
+    pub const fn needs_buffer(&self) -> bool {
+        match self {
+            Self::Substitute { .. }
+            | Self::Global { .. }
+            | Self::Delete { .. }
+            | Self::Yank { .. }
+            | Self::Move { .. }
+            | Self::Copy { .. }
+            | Self::Join { .. }
+            | Self::Sort { .. }
+            | Self::Marks { .. }
+            | Self::Jumps
+            | Self::Changes
+            | Self::Put { .. }
+            | Self::Retab { .. }
+            | Self::Left { .. }
+            | Self::Right { .. }
+            | Self::Center { .. }
+            | Self::Read { .. }
+            | Self::Filter { .. }
+            | Self::Earlier { .. }
+            | Self::Later { .. }
+            | Self::UndoList
+            | Self::UndoTree
+            | Self::UndoSequence { .. }
+            | Self::PrintLines { .. }
+            | Self::ZWindow { .. }
+            | Self::Norm { .. }
+            | Self::GotoLine { .. }
+            | Self::StructuralExtract { .. }
+            | Self::StructuralComplement { .. }
+            | Self::SelectMatches { .. }
+            | Self::SplitMatches { .. }
+            | Self::KeepMatches { .. }
+            | Self::RemoveMatches { .. }
+            | Self::TrimSelections
+            | Self::AlignSelections
+            | Self::RotateContents
+            | Self::RotateContentsDir { .. }
+            | Self::AddNext { .. }
+            | Self::AddPrev { .. }
+            | Self::SkipMatch
+            | Self::AddCursorDir { .. }
+            | Self::SelectAll
+            | Self::CursorCollapse
+            | Self::CursorRemove
+            | Self::CursorPrimary { .. }
+            | Self::CursorSplitBlock
+            | Self::CursorFlip
+            | Self::CursorForward
+            | Self::CursorMerge
+            | Self::RepeatSubstitute { .. }
+            | Self::SubTilde { .. }
+            | Self::DelMarks { .. }
+            | Self::Redo
+            | Self::Fold { .. }
+            | Self::FoldOpen { .. }
+            | Self::FoldClose { .. }
+            | Self::ExecuteRegister { .. }
+            | Self::UndoJoin
+            | Self::Map { buffer: true, .. }
+            | Self::Unmap { buffer: true, .. }
+            | Self::MapClear { buffer: true, .. } => true,
+            Self::Registers { .. }
+            | Self::Messages { .. }
+            | Self::Map { .. }
+            | Self::Unmap { .. }
+            | Self::MapClear { .. }
+            | Self::NoHighlight
+            | Self::Write { .. }
+            | Self::Quit { .. }
+            | Self::WriteQuit { .. }
+            | Self::Edit { .. }
+            | Self::External { .. }
+            | Self::Split { .. }
+            | Self::VSplit { .. }
+            | Self::Close { .. }
+            | Self::Only { .. }
+            | Self::New
+            | Self::VNew
+            | Self::WriteAll
+            | Self::QuitAll { .. }
+            | Self::WriteQuitAll
+            | Self::BufferDelete { .. }
+            | Self::BufferWipeout { .. }
+            | Self::Abbreviate { .. }
+            | Self::Unabbreviate { .. }
+            | Self::AbClear { .. }
+            | Self::Custom { .. }
+            | Self::Action { .. }
+            | Self::ActionList { .. }
+            | Self::Source { .. }
+            | Self::CNext { .. }
+            | Self::CPrev { .. }
+            | Self::CList
+            | Self::CC { .. }
+            | Self::Buffer { .. }
+            | Self::BufferNext { .. }
+            | Self::BufferPrev { .. }
+            | Self::BufferFirst
+            | Self::BufferLast
+            | Self::BufferList
+            | Self::TabNew { .. }
+            | Self::TabNext { .. }
+            | Self::TabPrev { .. }
+            | Self::TabClose { .. }
+            | Self::Echo { .. }
+            | Self::LetLeader { .. }
+            | Self::Set { .. }
+            | Self::SetLocal { .. }
+            | Self::SetGlobal { .. }
+            | Self::SetHandler { .. }
+            | Self::CQuit { .. }
+            | Self::Update { .. }
+            | Self::ClearJumps
+            | Self::WinDo { .. }
+            | Self::BufDo { .. }
+            | Self::TabDo { .. }
+            | Self::MkVimrc { .. }
+            | Self::Block { .. }
+            | Self::Finish => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::primitives::CaseSensitivity;
+
+    #[test]
+    fn test_needs_buffer() {
+        use crate::grammar::parse_ex_command;
+        for line in [
+            "d",
+            "%s/a/b/",
+            "normal x",
+            "5",
+            "marks",
+            "undolist",
+            "selectall",
+        ] {
+            assert!(parse_ex_command(line).unwrap().needs_buffer(), "{line}");
+        }
+        for line in [
+            "set et",
+            "nnoremap x y",
+            "iabbrev a b",
+            "echo hi",
+            "w",
+            "foo",
+        ] {
+            assert!(!parse_ex_command(line).unwrap().needs_buffer(), "{line}");
+        }
+    }
 
     #[test]
     fn test_sub_flags_parse() {

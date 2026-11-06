@@ -61,10 +61,16 @@ pub(in crate::execution::engine) enum ResolveResult {
     /// Key resolved — dispatch it to the parser. Carries the resolved key
     /// and the flags indicating its origin/remapping eligibility.
     Dispatch(KeyEvent, TypeaheadFlags),
+    /// A mapping matched: dispatch the first key of its right-hand side,
+    /// which 'langmap' has not seen yet. The rest wait in the buffer.
+    Mapped(KeyEvent, TypeaheadFlags),
     /// Multi-key LHS prefix detected — wait for more input (or timeout).
     /// The engine should return `Response::pending_response()` to the shell,
     /// which starts the mapping timeout timer.
     Pending,
+    /// A mapping with an empty right-hand side, such as `<Nop>`, took the
+    /// keys: there is nothing to dispatch.
+    Consumed,
     /// Mapping recursion overflow (depth > `MAX_RECURSION_DEPTH`).
     /// Indicates a circular mapping like `:map a b` + `:map b a`.
     /// The engine should abort expansion and report an error.
@@ -509,6 +515,8 @@ impl TypeaheadBuffer {
     /// keymap trie, and returns what the engine should do next:
     ///
     /// - `Dispatch(key, flags)`: process this key through mode dispatch.
+    /// - `Mapped(key, flags)`: a mapping matched; process the first key of
+    ///   its right-hand side.
     /// - `Pending`: waiting for more keys to complete a multi-key mapping LHS.
     /// - `RecursionOverflow`: circular mapping detected; abort and report error.
     ///
@@ -678,9 +686,8 @@ impl TypeaheadBuffer {
     /// injected keys' flags, causing `ShowMessage` effects to be suppressed
     /// during the mapping's execution.
     ///
-    /// Returns `Dispatch(first_rhs_key, flags)` for immediate processing.
-    /// If RHS is empty, dispatches an Escape (degenerate case, matches
-    /// `the legacy expander::expand_entry` behavior).
+    /// Returns `Mapped(first_rhs_key, flags)` for immediate processing,
+    /// or `Consumed` for an empty RHS.
     fn inject_mapping_rhs(
         &mut self,
         sequence: &[KeyEvent],
@@ -688,11 +695,9 @@ impl TypeaheadBuffer {
         kind: MappingKind,
         silent: bool,
     ) -> ResolveResult {
-        if sequence.is_empty() {
-            // Degenerate: empty RHS (e.g., `:map x <Nop>`).
-            // Match the legacy expander behavior: dispatch Escape.
-            return ResolveResult::Dispatch(KeyEvent::escape(), TypeaheadFlags::NOREMAP);
-        }
+        let Some(&first) = sequence.first() else {
+            return ResolveResult::Consumed;
+        };
 
         let is_recursive = kind.is_recursive();
 
@@ -749,13 +754,6 @@ impl TypeaheadBuffer {
             self.inject_front(remaining);
         }
 
-        // Return the first RHS key for immediate dispatch.
-        // Safety: we checked sequence.is_empty() above, so first() is Some.
-        let first = match sequence.first().copied() {
-            Some(k) => k,
-            None => return ResolveResult::Dispatch(KeyEvent::escape(), TypeaheadFlags::NOREMAP),
-        };
-
         // First key: if within REMAP_SKIP prefix, dispatch as NOREMAP.
         let first_flags = if skip_len > 0 {
             let mut f = TypeaheadFlags::noremap_rhs();
@@ -766,7 +764,7 @@ impl TypeaheadBuffer {
         } else {
             rhs_flags
         };
-        ResolveResult::Dispatch(first, first_flags)
+        ResolveResult::Mapped(first, first_flags)
     }
 
     /// Compute the length of the common prefix between two key sequences.
@@ -1488,6 +1486,21 @@ mod tests {
         }
     }
 
+    /// Assert a ResolveResult is Mapped with the expected key and flags.
+    fn assert_mapped(
+        result: &ResolveResult,
+        expected_key: KeyEvent,
+        expected_flags: TypeaheadFlags,
+    ) {
+        match result {
+            ResolveResult::Mapped(k, f) => {
+                assert_eq!(*k, expected_key, "mapped key mismatch");
+                assert_eq!(*f, expected_flags, "mapped flags mismatch");
+            }
+            other => panic!("expected Mapped({expected_key:?}, {expected_flags:?}), got {other:?}"),
+        }
+    }
+
     /// Assert a ResolveResult is Pending.
     fn assert_pending(result: &ResolveResult) {
         assert!(
@@ -1540,7 +1553,7 @@ mod tests {
             Mode::Normal,
         );
         // First RHS key dispatched with NOREMAP flags (non-recursive).
-        assert_dispatch(&result, KeyEvent::char('c'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('c'), TypeaheadFlags::noremap_rhs());
         // Remaining RHS key ('l') should be in the buffer with NOREMAP.
         assert_eq!(buf.len(), 1);
         let l_entry = buf.pop_front().unwrap();
@@ -1565,7 +1578,7 @@ mod tests {
             Mode::Normal,
         );
         // Recursive: dispatched with REMAPPABLE flags.
-        assert_dispatch(
+        assert_mapped(
             &result,
             KeyEvent::char('b'),
             TypeaheadFlags::recursive_rhs(),
@@ -1597,14 +1610,14 @@ mod tests {
         assert!(buf.has_pending());
         assert_eq!(buf.pending_len(), 1);
 
-        // Feed 'k' — completes 'jk' → Dispatch(Escape, NOREMAP).
+        // Feed 'k', which completes 'jk' → Mapped(Escape, NOREMAP).
         let r2 = buf.resolve_key(
             KeyEvent::char('k'),
             TypeaheadFlags::user_typed(),
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r2, KeyEvent::escape(), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::escape(), TypeaheadFlags::noremap_rhs());
         assert!(!buf.has_pending());
         assert!(buf.is_empty()); // single-key RHS
     }
@@ -1786,7 +1799,7 @@ mod tests {
             Mode::Normal,
         );
         // First key 'd' dispatched with REMAPPABLE.
-        assert_dispatch(
+        assert_mapped(
             &result,
             KeyEvent::char('d'),
             TypeaheadFlags::recursive_rhs(),
@@ -1825,7 +1838,7 @@ mod tests {
             Mode::Normal,
         );
         // First key 'd' dispatched with NOREMAP.
-        assert_dispatch(&result, KeyEvent::char('d'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('d'), TypeaheadFlags::noremap_rhs());
 
         // Remaining 'i', 'w' in buffer with NOREMAP flags.
         assert_eq!(buf.len(), 2);
@@ -1865,7 +1878,7 @@ mod tests {
         for _ in 0..200 {
             let result = buf.resolve_key(key, TypeaheadFlags::recursive_rhs(), &km, Mode::Normal);
             match result {
-                ResolveResult::Dispatch(k, flags) => {
+                ResolveResult::Dispatch(k, flags) | ResolveResult::Mapped(k, flags) => {
                     // REMAPPABLE: continue the recursive chain.
                     if flags.contains(TypeaheadFlags::REMAPPABLE) {
                         key = k;
@@ -1878,6 +1891,7 @@ mod tests {
                     break;
                 }
                 ResolveResult::Pending => panic!("unexpected Pending"),
+                ResolveResult::Consumed => panic!("unexpected Consumed"),
                 ResolveResult::ExprMapping { .. } => panic!("unexpected ExprMapping"),
             }
         }
@@ -1888,10 +1902,10 @@ mod tests {
         assert!(buf.is_empty());
     }
 
-    // ─── resolve_key: empty RHS (follows current the legacy expander behavior) ──
+    // ─── resolve_key: empty RHS ─────────────────────────────────────────
 
     #[test]
-    fn resolve_empty_rhs_dispatches_escape() {
+    fn resolve_empty_rhs_consumes_the_keys() {
         let mut buf = TypeaheadBuffer::new();
         let km = km_with(&[(
             &[KeyEvent::char('x')],
@@ -1905,8 +1919,10 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        // Empty RHS → degenerate case: dispatch Escape (matches the legacy expander).
-        assert_dispatch(&result, KeyEvent::escape(), TypeaheadFlags::NOREMAP);
+        // A `<Nop>` mapping inserts nothing (handle_mapping()).
+        assert!(matches!(result, ResolveResult::Consumed), "{result:?}");
+        assert!(!buf.has_pending());
+        assert!(buf.is_empty());
     }
 
     // ─── resolve_key: buffer state after inject_mapping_rhs ─────────────
@@ -1929,7 +1945,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&result, KeyEvent::char('a'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('a'), TypeaheadFlags::noremap_rhs());
 
         // Buffer: [b(NOREMAP), z(user)] — RHS remainder injected at front.
         assert_eq!(buf.len(), 2);
@@ -1976,7 +1992,7 @@ mod tests {
         // Force resolve → should use the exact match 'j' → 'x'.
         let r2 = buf.force_resolve(&km, Mode::Normal);
         let r2 = r2.expect("force_resolve should return Some when pending is non-empty");
-        assert_dispatch(&r2, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
         assert!(!buf.has_pending());
     }
 
@@ -2088,14 +2104,14 @@ mod tests {
         );
         assert_pending(&r1);
 
-        // Second 'j' → ExactOnly match → Dispatch(Escape, NOREMAP).
+        // Second 'j' → ExactOnly match → Mapped(Escape, NOREMAP).
         let r2 = buf.resolve_key(
             KeyEvent::char('j'),
             TypeaheadFlags::user_typed(),
             &km,
             Mode::Insert,
         );
-        assert_dispatch(&r2, KeyEvent::escape(), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::escape(), TypeaheadFlags::noremap_rhs());
         assert!(!buf.has_pending());
     }
 
@@ -2227,7 +2243,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r1, KeyEvent::char('b'), TypeaheadFlags::recursive_rhs());
+        assert_mapped(&r1, KeyEvent::char('b'), TypeaheadFlags::recursive_rhs());
         assert_eq!(buf.mapping_recursion_depth(), 1);
 
         // Feed 'b' with REMAPPABLE (simulating engine re-feeding the dispatched key).
@@ -2237,7 +2253,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r2, KeyEvent::char('c'), TypeaheadFlags::recursive_rhs());
+        assert_mapped(&r2, KeyEvent::char('c'), TypeaheadFlags::recursive_rhs());
         assert_eq!(buf.mapping_recursion_depth(), 2);
     }
 
@@ -2270,7 +2286,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r1, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r1, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
 
         // Feed 'b' with NOREMAP (from noremap expansion) → should bypass mapping.
         let r2 = buf.resolve_key(
@@ -2302,7 +2318,7 @@ mod tests {
             &km,
             Mode::Insert,
         );
-        assert_dispatch(&result, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
         assert_eq!(buf.len(), 1);
         let c_entry = buf.pop_front().unwrap();
         assert_eq!(c_entry.key, KeyEvent::char('c'));
@@ -2343,7 +2359,7 @@ mod tests {
         // Force resolve → exact match 'j' → recursive expand to 'xy'.
         let r2 = buf.force_resolve(&km, Mode::Normal);
         let r2 = r2.expect("should resolve");
-        assert_dispatch(&r2, KeyEvent::char('x'), TypeaheadFlags::recursive_rhs());
+        assert_mapped(&r2, KeyEvent::char('x'), TypeaheadFlags::recursive_rhs());
         assert_eq!(buf.mapping_recursion_depth(), 1);
 
         // 'y' should be in buffer with REMAPPABLE.
@@ -2400,7 +2416,7 @@ mod tests {
             &km,
             Mode::Visual(crate::primitives::VisualType::Char),
         );
-        assert_dispatch(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
     }
 
     // ─── resolve_key: macro key flags are remappable ────────────────────
@@ -2421,7 +2437,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
     }
 
     // ─── resolve_key: single-key RHS noremap resets correctly ───────────
@@ -2442,7 +2458,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r1, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r1, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
         assert!(buf.is_empty()); // single-key RHS, nothing queued
         assert!(!buf.has_pending());
 
@@ -2453,7 +2469,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r2, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::char('b'), TypeaheadFlags::noremap_rhs());
     }
 
     // ─── force_resolve: ExactOnly case (defensive) ──────────────────────
@@ -2474,7 +2490,7 @@ mod tests {
 
         let result = buf.force_resolve(&km, Mode::Normal);
         let result = result.expect("should resolve");
-        assert_dispatch(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
         assert!(!buf.has_pending());
     }
 
@@ -2523,7 +2539,7 @@ mod tests {
             Mode::Normal,
         );
         // Buffer-local should win.
-        assert_dispatch(&result, KeyEvent::char('y'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('y'), TypeaheadFlags::noremap_rhs());
     }
 
     // ═════════════════════════════════════════════════════════════════════
@@ -2873,14 +2889,14 @@ mod tests {
 
         // Dispatched key should have SILENT flag set.
         match result {
-            ResolveResult::Dispatch(k, flags) => {
+            ResolveResult::Mapped(k, flags) => {
                 assert_eq!(k, KeyEvent::char('x'));
                 assert!(
                     flags.contains(TypeaheadFlags::SILENT),
                     "Dispatched key from silent noremap should have SILENT flag, got: {flags:?}"
                 );
             }
-            other => panic!("expected Dispatch, got {other:?}"),
+            other => panic!("expected Mapped, got {other:?}"),
         }
     }
 
@@ -2901,14 +2917,14 @@ mod tests {
         );
 
         match result {
-            ResolveResult::Dispatch(k, flags) => {
+            ResolveResult::Mapped(k, flags) => {
                 assert_eq!(k, KeyEvent::char('b'));
                 assert!(
                     flags.contains(TypeaheadFlags::SILENT),
                     "Dispatched key from silent recursive map should have SILENT flag"
                 );
             }
-            other => panic!("expected Dispatch, got {other:?}"),
+            other => panic!("expected Mapped, got {other:?}"),
         }
     }
 
@@ -2934,10 +2950,10 @@ mod tests {
 
         // First key dispatched with SILENT
         match result {
-            ResolveResult::Dispatch(_, flags) => {
+            ResolveResult::Mapped(_, flags) => {
                 assert!(flags.contains(TypeaheadFlags::SILENT));
             }
-            other => panic!("expected Dispatch, got {other:?}"),
+            other => panic!("expected Mapped, got {other:?}"),
         }
 
         // Remaining buffered keys should also have SILENT
@@ -2970,13 +2986,13 @@ mod tests {
         );
 
         match result {
-            ResolveResult::Dispatch(_, flags) => {
+            ResolveResult::Mapped(_, flags) => {
                 assert!(
                     !flags.contains(TypeaheadFlags::SILENT),
                     "Non-silent mapping should not have SILENT flag"
                 );
             }
-            other => panic!("expected Dispatch, got {other:?}"),
+            other => panic!("expected Mapped, got {other:?}"),
         }
     }
 
@@ -3109,7 +3125,7 @@ mod tests {
         );
 
         // First RHS key 'x' dispatched with NOREMAP (REMAP_SKIP).
-        assert_dispatch(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
         assert_eq!(buf.mapping_recursion_depth(), 1);
 
         // Remaining keys: 'f','o','o' should all be REMAPPABLE.
@@ -3149,7 +3165,7 @@ mod tests {
         );
 
         // All keys should be REMAPPABLE (no REMAP_SKIP triggered).
-        assert_dispatch(
+        assert_mapped(
             &result,
             KeyEvent::char('y'),
             TypeaheadFlags::recursive_rhs(),
@@ -3197,7 +3213,7 @@ mod tests {
         );
 
         // First RHS key 'a' dispatched with NOREMAP (REMAP_SKIP).
-        assert_dispatch(&r2, KeyEvent::char('a'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::char('a'), TypeaheadFlags::noremap_rhs());
 
         // Remaining: 'b' (NOREMAP), 'c' (REMAPPABLE), 'd' (REMAPPABLE).
         assert_eq!(buf.len(), 3);
@@ -3235,7 +3251,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
         // All remaining are NOREMAP too (standard noremap behavior).
         let f_entry = buf.pop_front().unwrap();
         assert_eq!(f_entry.flags, TypeaheadFlags::noremap_rhs());
@@ -3273,7 +3289,7 @@ mod tests {
             Mode::Normal,
         );
         // Both keys should be NOREMAP.
-        assert_dispatch(&r2, KeyEvent::char('a'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::char('a'), TypeaheadFlags::noremap_rhs());
         let b_entry = buf.pop_front().unwrap();
         assert_eq!(b_entry.key, KeyEvent::char('b'));
         assert_eq!(b_entry.flags, TypeaheadFlags::noremap_rhs());
@@ -3306,7 +3322,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&r1, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r1, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
 
         // Re-feed the dispatched 'x' with NOREMAP — should bypass mapping.
         let r2 = buf.resolve_key(
@@ -3346,13 +3362,13 @@ mod tests {
 
         // First key 'x' should have NOREMAP + SILENT.
         match result {
-            ResolveResult::Dispatch(k, flags) => {
+            ResolveResult::Mapped(k, flags) => {
                 assert_eq!(k, KeyEvent::char('x'));
                 assert!(flags.contains(TypeaheadFlags::NOREMAP));
                 assert!(flags.contains(TypeaheadFlags::SILENT));
                 assert!(!flags.contains(TypeaheadFlags::REMAPPABLE));
             }
-            other => panic!("expected Dispatch, got {other:?}"),
+            other => panic!("expected Mapped, got {other:?}"),
         }
 
         // Remaining 'f','o' should have REMAPPABLE + SILENT.
@@ -3406,7 +3422,7 @@ mod tests {
         let r2 = r2.expect("force_resolve should return Some");
 
         // First key 'j' dispatched with NOREMAP (REMAP_SKIP).
-        assert_dispatch(&r2, KeyEvent::char('j'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&r2, KeyEvent::char('j'), TypeaheadFlags::noremap_rhs());
         assert_eq!(buf.mapping_recursion_depth(), 1);
 
         // Remaining 'x' should be REMAPPABLE.
@@ -3435,7 +3451,7 @@ mod tests {
             &km,
             Mode::Normal,
         );
-        assert_dispatch(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
+        assert_mapped(&result, KeyEvent::char('x'), TypeaheadFlags::noremap_rhs());
         assert!(buf.is_empty()); // single-key RHS, nothing queued
     }
 }

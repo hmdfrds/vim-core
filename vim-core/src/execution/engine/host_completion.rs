@@ -15,17 +15,21 @@ use crate::primitives::Offset;
 impl super::VimEngine {
     /// Track host requests from a response for later completion.
     pub(super) fn register_pending_host_requests(&mut self, mut response: Response) -> Response {
-        // Convert effect-based host commands to HostRequests before tracking.
-        self.route_effects_to_host_requests(&mut response);
-
-        for request in &response.host_requests {
-            self.host.pending.insert(request.id(), request.clone());
-        }
+        self.track_host_requests(&mut response);
         // Optimize effects before returning to the shell.
         crate::effects::Effects::<crate::effects::undo_state::Closed>::optimize_vec(
             &mut response.effects,
         );
         response
+    }
+
+    /// Turn effect-based host commands into host requests and track every
+    /// host request of the response as pending. The effects stay as they are.
+    pub(super) fn track_host_requests(&mut self, response: &mut Response) {
+        self.route_effects_to_host_requests(response);
+        for request in &response.host_requests {
+            self.host.pending.insert(request.id(), request.clone());
+        }
     }
 
     /// Convert effect variants that represent host commands into HostRequests.
@@ -249,6 +253,7 @@ impl super::VimEngine {
             return Response::ignored()
                 .with_message(format!("unexpected host result id {}", id.get()));
         };
+        let depth = self.host.source_depths.remove(&id);
 
         // ── <expr> mapping completion ────────────────────────────────
         // EvaluateMapping returns keys as a string. Parse them and inject
@@ -269,11 +274,13 @@ impl super::VimEngine {
         // ── :source with the file's text ────────────────────────────
         // The engine sources it; a host that sourced the file itself
         // answers Success instead and takes the generic path below.
-        if let (HostRequest::ReadConfigFile { .. }, HostResult::Data { data, .. }) =
+        if let (HostRequest::ReadConfigFile { path, .. }, HostResult::Data { data, .. }) =
             (&pending, result)
         {
-            let response = self.source_config_text(data);
-            return self.register_pending_host_requests(response);
+            let name = path.as_deref().unwrap_or_default();
+            let depth = depth.unwrap_or(super::source::TYPED_SOURCE_DEPTH);
+            // Already tracked; the optimizer would keep one message of many.
+            return self.source_config_named(name, data, depth);
         }
 
         let mut response = completion_response(&pending, result);

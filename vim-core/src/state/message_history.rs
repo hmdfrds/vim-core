@@ -70,6 +70,11 @@ pub struct MessageHistory {
     entries: VecDeque<MessageEntry>,
     /// Monotonically increasing counter assigned to each entry.
     next_sequence: u64,
+    /// The file of the last error raised in one, as Vim's `msg_source()`
+    /// remembers it.
+    last_file: Option<CompactString>,
+    /// The line of the last line label.
+    last_line: u32,
 }
 
 impl MessageHistory {
@@ -80,6 +85,8 @@ impl MessageHistory {
         Self {
             entries: VecDeque::new(),
             next_sequence: 0,
+            last_file: None,
+            last_line: 0,
         }
     }
 
@@ -96,6 +103,46 @@ impl MessageHistory {
     /// Push an error message into the history.
     pub fn push_error(&mut self, text: impl Into<CompactString>) {
         self.push(text.into(), MessageKind::Error);
+    }
+
+    /// Push an error raised at `line` of the file `file`, after the entries
+    /// Vim's `msg_source()` heads it with: `Error detected while processing
+    /// {file}:` when the file is not the last error's, and `line {line}:`
+    /// when the file or the line is not the last label's. `None` for an
+    /// error raised outside a file, which makes the next one in a file be
+    /// headed again. For a nested file in the stack form `a.vim[12]..b.vim`
+    /// only the innermost file, `b.vim`, is compared, as
+    /// `other_sourcing_name()` compares it.
+    ///
+    /// Deviation: a file without a name (`""`) gets the line labels, where
+    /// Vim gives neither.
+    pub(crate) fn push_error_at(&mut self, text: &str, place: Option<(&str, u32)>) {
+        match place {
+            Some((file, line)) => {
+                let name = innermost_file(file);
+                let other = self.last_file.as_deref() != Some(name);
+                if other && !name.is_empty() {
+                    let header = format!("Error detected while processing {file}:");
+                    self.push(header.into(), MessageKind::Error);
+                }
+                if (other || line != self.last_line) && line != 0 {
+                    self.push(format!("line {line:4}:").into(), MessageKind::Info);
+                    self.last_line = line;
+                }
+                if other {
+                    self.last_file = Some(name.into());
+                }
+            }
+            None => self.last_file = None,
+        }
+        self.push(text.into(), MessageKind::Error);
+    }
+
+    /// Forget where the last error was raised, so that the next one is
+    /// headed in full, as after Vim's hit-enter prompt.
+    pub(crate) fn forget_source(&mut self) {
+        self.last_file = None;
+        self.last_line = 0;
     }
 
     /// Internal push: appends an entry, evicting the oldest if at capacity.
@@ -151,6 +198,21 @@ impl MessageHistory {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+}
+
+/// The innermost file of `file` in Vim's stack form: the text after the
+/// last `[N]..`. Deviation: a name that holds `[N]..` itself is cut there.
+fn innermost_file(file: &str) -> &str {
+    let mut end = file.len();
+    while let Some(at) = file[..end].rfind("]..") {
+        let head = &file[..at];
+        let number = head.trim_end_matches(|c: char| c.is_ascii_digit());
+        if number.len() < head.len() && number.ends_with('[') {
+            return &file[at + 3..];
+        }
+        end = at;
+    }
+    file
 }
 
 #[cfg(test)]
@@ -305,6 +367,101 @@ mod tests {
             kinds,
             vec![MessageKind::Info, MessageKind::Warning, MessageKind::Error]
         );
+    }
+
+    // ── Errors raised in a file ───────────────────────────────────────────────
+
+    fn texts(h: &MessageHistory) -> Vec<&str> {
+        h.entries().iter().map(|e| e.text.as_str()).collect()
+    }
+
+    #[test]
+    fn errors_in_a_file_are_headed_as_msg_source_heads_them() {
+        let mut h = MessageHistory::new();
+        h.push_error_at("E1", Some(("a.vim", 2)));
+        h.push_error_at("E2", Some(("a.vim", 2)));
+        h.push_error_at("E3", Some(("a.vim", 12)));
+        h.push_error_at("E4", Some(("b.vim", 12)));
+        assert_eq!(
+            texts(&h),
+            [
+                "Error detected while processing a.vim:",
+                "line    2:",
+                "E1",
+                "E2",
+                "line   12:",
+                "E3",
+                "Error detected while processing b.vim:",
+                "line   12:",
+                "E4",
+            ]
+        );
+        assert_eq!(h.entries()[0].kind, MessageKind::Error);
+        assert_eq!(h.entries()[1].kind, MessageKind::Info);
+    }
+
+    #[test]
+    fn an_error_outside_a_file_makes_the_next_one_headed_again() {
+        // msg_source(): the name is forgotten, the line is not.
+        let mut h = MessageHistory::new();
+        h.push_error_at("E1", Some(("a.vim", 2)));
+        h.push_error_at("E2", None);
+        h.push_error_at("E3", Some(("a.vim", 2)));
+        h.forget_source();
+        h.push_error_at("E4", Some(("a.vim", 2)));
+        let header = "Error detected while processing a.vim:";
+        assert_eq!(
+            texts(&h),
+            [
+                header,
+                "line    2:",
+                "E1",
+                "E2",
+                header,
+                "line    2:",
+                "E3",
+                header,
+                "line    2:",
+                "E4"
+            ]
+        );
+    }
+
+    #[test]
+    fn errors_in_a_text_without_a_name_get_line_labels_only() {
+        let mut h = MessageHistory::new();
+        h.push_error_at("E1", Some(("", 1)));
+        h.push_error_at("E2", Some(("", 1)));
+        h.push_error_at("E3", Some(("", 3)));
+        assert_eq!(texts(&h), ["line    1:", "E1", "E2", "line    3:", "E3"]);
+    }
+
+    #[test]
+    fn a_nested_file_is_compared_by_its_innermost_name() {
+        // other_sourcing_name() compares SOURCING_NAME, the innermost file.
+        let mut h = MessageHistory::new();
+        h.push_error_at("E1", Some(("a.vim[1]..b.vim", 2)));
+        h.push_error_at("E2", Some(("a.vim[2]..b.vim", 2)));
+        h.push_error_at("E3", Some(("a.vim", 3)));
+        h.push_error_at("E4", Some(("a.vim[3]..c[d]..e", 1)));
+        assert_eq!(
+            texts(&h),
+            [
+                "Error detected while processing a.vim[1]..b.vim:",
+                "line    2:",
+                "E1",
+                "E2",
+                "Error detected while processing a.vim:",
+                "line    3:",
+                "E3",
+                "Error detected while processing a.vim[3]..c[d]..e:",
+                "line    1:",
+                "E4",
+            ]
+        );
+        assert_eq!(innermost_file("a.vim[12]..../b.vim"), "../b.vim");
+        assert_eq!(innermost_file("a.vim[3]..c[d]..e"), "c[d]..e");
+        assert_eq!(innermost_file("a[]..b"), "a[]..b");
     }
 
     // ── Empty to_vec ──────────────────────────────────────────────────────────

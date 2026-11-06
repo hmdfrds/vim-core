@@ -340,7 +340,7 @@ pub struct VimOptions {
     /// Raw langmap string from `:set langmap=...`. Parsed into LangmapTable on the engine.
     langmap: CompactString,
     /// Whether langmap applies to characters from mapping expansion.
-    /// Default: false (Neovim convention — safer, prevents double-translation).
+    /// Default: true, as in Vim.
     langremap: bool,
 
     // ── Subword motions ─────────────────────────────────────────────────
@@ -1030,8 +1030,9 @@ impl VimOptions {
         self.langmap = value.into();
     }
 
-    /// Whether langmap applies to characters produced by mapping expansion.
-    /// Default: `false` (Neovim convention — safer, prevents double-translation).
+    /// Whether langmap applies to characters produced by mapping expansion,
+    /// or by anything else the user did not type. Default: `true`, as in
+    /// Vim.
     #[inline]
     #[must_use]
     pub const fn langremap(&self) -> bool {
@@ -1820,7 +1821,7 @@ impl Default for VimOptions {
             quoteescape: CompactString::new_inline("\\"),
             auto_pairs: None,
             langmap: CompactString::default(),
-            langremap: false,
+            langremap: true,
             subword_config: SubwordConfig::default(),
             use_system_clipboard: UseSystemClipboard::Never,
             max_macro_effects: 100_000,
@@ -1888,7 +1889,7 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             quoteescape: CompactString,
             #[serde(default)]
             langmap: CompactString,
-            #[serde(default)]
+            #[serde(default = "default_langremap")]
             langremap: bool,
             #[serde(default)]
             subword_config: SubwordConfig,
@@ -1950,6 +1951,9 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
         }
         fn default_quoteescape() -> CompactString {
             CompactString::new_inline("\\")
+        }
+        fn default_langremap() -> bool {
+            true
         }
         fn default_matchtime() -> u8 {
             5
@@ -2032,6 +2036,25 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
 mod tests {
     use super::super::option_scope::{OptionId, OptionOverrides, OptionValue};
     use super::*;
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn options_saved_without_langremap_load_with_it_on() {
+        // optiondefs.h: 'langremap' is on by default; a saved value stays.
+        let mut json = serde_json::to_value(VimOptions::default()).expect("serialize");
+        let fields = json.as_object_mut().expect("an object");
+        assert_eq!(
+            fields.remove("langremap"),
+            Some(serde_json::Value::Bool(true))
+        );
+        let options: VimOptions = serde_json::from_value(json.clone()).expect("deserialize");
+        assert!(options.langremap());
+
+        let fields = json.as_object_mut().expect("an object");
+        fields.insert("langremap".into(), serde_json::Value::Bool(false));
+        let options: VimOptions = serde_json::from_value(json).expect("deserialize");
+        assert!(!options.langremap());
+    }
 
     #[test]
     fn test_defaults() {

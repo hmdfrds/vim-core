@@ -903,11 +903,10 @@ fn process_one_effect(
             state.set_message(crate::state::StatusMessage::Info(text.clone()));
             EffectDisposition::Keep
         }
-        Effect::ShowError { error, .. } => {
+        Effect::ShowError { error, source } => {
             let text = compact_str::CompactString::from(error.to_string());
-            // push_error accepts &str, so pass a borrow and move the owned
-            // copy into set_message — one allocation total instead of two.
-            state.message_history_mut().push_error(text.as_str());
+            let place = source.as_ref().map(|s| (s.file.as_str(), s.line));
+            state.message_history_mut().push_error_at(&text, place);
             state.set_message(crate::state::StatusMessage::Error(text));
             EffectDisposition::Keep
         }
@@ -1623,9 +1622,10 @@ fn sync_one_effect_readonly(
             state.message_history_mut().push_warning(msg_text.as_str());
             state.set_message(crate::state::StatusMessage::Info(msg_text.clone()));
         }
-        Effect::ShowError { error, .. } => {
+        Effect::ShowError { error, source } => {
             let err_text = compact_str::CompactString::from(error.to_string());
-            state.message_history_mut().push_error(err_text.as_str());
+            let place = source.as_ref().map(|s| (s.file.as_str(), s.line));
+            state.message_history_mut().push_error_at(&err_text, place);
             state.set_message(crate::state::StatusMessage::Error(err_text));
         }
         Effect::ClearMessage => {

@@ -5,11 +5,12 @@
 
 use crate::errors::VimError;
 use crate::grammar::types::{
-    ExCommand, ExRange, LineSpec, MapModePrefix, ModifierFlags, RangeSeparator, SetAssignment,
-    SortOptions, TimeAmount,
+    BlockKind, ExCommand, ExRange, LineSpec, MapModePrefix, ModifierFlags, RangeSeparator,
+    SetAssignment, SortOptions, TimeAmount,
 };
 use crate::primitives::{AbbrevMode, MarkName, SubFlags};
 use compact_str::CompactString;
+use std::borrow::Cow;
 
 use super::command_meta;
 
@@ -34,104 +35,81 @@ pub fn parse_ex_command(input: &str) -> Result<ExCommand, VimError> {
 pub fn parse_ex_command_with_modifiers(
     input: &str,
 ) -> Result<(ModifierFlags, ExCommand), VimError> {
+    let (modifiers, cmd) = parse_ex_piece(input);
+    Ok((modifiers, cmd?))
+}
+
+/// Parse one command of an Ex line, keeping its modifiers when the command
+/// does not parse, so that `:silent!` can hide the error.
+pub(crate) fn parse_ex_piece(input: &str) -> (ModifierFlags, Result<ExCommand, VimError>) {
     let (modifiers, rest) = parse_modifier_prefixes(input);
-    let cmd = parse_ex_command_inner(rest)?;
-    Ok((modifiers, cmd))
+    (modifiers, parse_ex_command_inner(rest))
+}
+
+/// The blanks Vim skips around a command name and a range: space and tab
+/// (`skipwhite()`), not other white space such as a no-break space.
+const BLANKS: [char; 2] = [' ', '\t'];
+
+/// Vim's command modifiers that the engine knows. Their shortest forms
+/// (`sil[ent]`, `keepj[umps]`, ...) are those of Vim's `cmdmods[]`.
+const COMMAND_MODIFIERS: &[(&str, ModifierFlags)] = &[
+    ("aboveleft", ModifierFlags::ABOVELEFT),
+    ("belowright", ModifierFlags::BELOWRIGHT),
+    ("botright", ModifierFlags::BOTRIGHT),
+    ("browse", ModifierFlags::BROWSE),
+    ("confirm", ModifierFlags::CONFIRM),
+    ("horizontal", ModifierFlags::HORIZONTAL),
+    ("keepalt", ModifierFlags::KEEPALT),
+    ("keepjumps", ModifierFlags::KEEPJUMPS),
+    ("keeppatterns", ModifierFlags::KEEPPATTERNS),
+    ("lockmarks", ModifierFlags::LOCKMARKS),
+    ("silent", ModifierFlags::SILENT),
+    ("tab", ModifierFlags::TAB),
+    ("topleft", ModifierFlags::TOPLEFT),
+    ("vertical", ModifierFlags::VERTICAL),
+];
+
+/// The shortest form of the Vim modifier `full`.
+fn modifier_min_len(full: &str) -> usize {
+    super::vim_commands::MODIFIERS
+        .iter()
+        .find(|(name, _, _)| *name == full)
+        .map_or(full.len(), |&(_, min, _)| min)
 }
 
 /// Strip modifier keyword prefixes from the input, returning accumulated
 /// flags and the remaining unparsed input.
-fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
+pub(super) fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
     let mut flags = ModifierFlags::empty();
     let mut rest = input;
 
     loop {
-        let trimmed = rest.trim_start();
-        // Try to match a modifier keyword at the start. Modifiers must be
-        // followed by whitespace or end-of-input to avoid misparsing
-        // commands that happen to start with the same prefix (e.g.,
-        // `:silently` is not `:silent` + `ly`).
-        if let Some(after) = strip_modifier_prefix(trimmed, "silent") {
-            // `:silent!` — check for bang immediately after "silent"
-            if let Some(after_bang) = after.strip_prefix('!') {
+        // Vim skips colons before a command and before each modifier.
+        let trimmed = rest.trim_start_matches([' ', '\t', ':']);
+        let word_len = trimmed
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(trimmed.len());
+        let (word, after) = trimmed.split_at(word_len);
+        let modifier = COMMAND_MODIFIERS
+            .iter()
+            .find(|(full, _)| word.len() >= modifier_min_len(full) && full.starts_with(word));
+        // A modifier is a whole word: `:silently` is not `:silent` + `ly`.
+        match (modifier, after.as_bytes().first()) {
+            (Some(&("silent", _)), Some(b'!')) => {
                 flags |= ModifierFlags::SILENT | ModifierFlags::SILENT_BANG;
-                rest = after_bang;
-            } else {
-                flags |= ModifierFlags::SILENT;
+                rest = &after[1..];
+            }
+            (Some(&(_, flag)), None | Some(b' ' | b'\t')) => {
+                flags |= flag;
                 rest = after;
             }
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "keepjumps") {
-            flags |= ModifierFlags::KEEPJUMPS;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "keeppatterns") {
-            flags |= ModifierFlags::KEEPPATTERNS;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "lockmarks") {
-            flags |= ModifierFlags::LOCKMARKS;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "keepalt") {
-            flags |= ModifierFlags::KEEPALT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "tab") {
-            flags |= ModifierFlags::TAB;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "vertical") {
-            flags |= ModifierFlags::VERTICAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "vert") {
-            flags |= ModifierFlags::VERTICAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "horizontal") {
-            flags |= ModifierFlags::HORIZONTAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "hor") {
-            flags |= ModifierFlags::HORIZONTAL;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "topleft") {
-            flags |= ModifierFlags::TOPLEFT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "botright") {
-            flags |= ModifierFlags::BOTRIGHT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "aboveleft") {
-            flags |= ModifierFlags::ABOVELEFT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "belowright") {
-            flags |= ModifierFlags::BELOWRIGHT;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "browse") {
-            flags |= ModifierFlags::BROWSE;
-            rest = after;
-        } else if let Some(after) = strip_modifier_prefix(trimmed, "confirm") {
-            flags |= ModifierFlags::CONFIRM;
-            rest = after;
-        } else {
-            break;
+            _ => return (flags, trimmed),
         }
-    }
-
-    (flags, rest)
-}
-
-/// Try to strip a modifier keyword from the start of input.
-///
-/// Returns `Some(remaining)` if `input` starts with `keyword` followed by
-/// whitespace (or end-of-input). The returned slice starts at the first
-/// non-keyword character (the whitespace or empty tail).
-fn strip_modifier_prefix<'a>(input: &'a str, keyword: &str) -> Option<&'a str> {
-    let stripped = input.strip_prefix(keyword)?;
-    // Must be followed by whitespace, '!', or end-of-input to be a real modifier.
-    // This prevents `:silently` from matching as `:silent` + `ly`.
-    match stripped.as_bytes().first() {
-        None => Some(stripped),               // modifier with no command after
-        Some(b' ' | b'\t') => Some(stripped), // normal separator
-        Some(b'!') if keyword == "silent" => Some(stripped), // `:silent!`
-        _ => None,                            // part of a longer word
     }
 }
 
 fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
-    let trimmed = input.trim_start();
+    let trimmed = input.trim_start_matches(BLANKS);
     if trimmed.is_empty() {
         // Empty or whitespace-only command is a no-op in Vim (no error).
         // Return GotoLine with current line range so the executor treats it
@@ -142,7 +120,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     }
 
     let (range, rest) = parse_optional_range(trimmed)?;
-    let rest = rest.trim_start();
+    let rest = rest.trim_start_matches(BLANKS);
     if rest.is_empty() {
         // Bare line address (`:3`, `:$`, etc.) — go to that line
         if let Some(range) = range {
@@ -166,18 +144,13 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
 
     // Repeat-substitute commands: `:&` and `:&&`.
     // Must be checked before the named-command path since `&` is not alphabetic.
-    if rest.starts_with("&&") {
-        // `:&&` — repeat last substitute keeping same flags.
+    if let Some(after) = rest.strip_prefix('&') {
+        // `:&&` keeps the flags of the last substitute, `:&` drops them.
+        let after = after.trim_start_matches(BLANKS);
+        substitute_flags(after)?;
         return Ok(ExCommand::RepeatSubstitute {
             range,
-            use_previous_flags: true,
-        });
-    }
-    if rest.starts_with('&') {
-        // `:&` — repeat last substitute with no flags.
-        return Ok(ExCommand::RepeatSubstitute {
-            range,
-            use_previous_flags: false,
+            use_previous_flags: after.starts_with('&'),
         });
     }
 
@@ -185,7 +158,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     if let Some(flags_str) = rest.strip_prefix('~') {
         return Ok(ExCommand::SubTilde {
             range: range.unwrap_or_else(ExRange::current_line),
-            flags: SubFlags::parse(flags_str.trim()),
+            flags: substitute_flags(flags_str.trim_start_matches(BLANKS))?,
         });
     }
 
@@ -268,21 +241,15 @@ fn matches_abbrev(name: &str, min: &str, full: &str) -> bool {
 }
 
 fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, VimError> {
+    if let Some(cmd) = parse_script_command(rest) {
+        return Ok(cmd);
+    }
     let (head, tail) = split_head(rest);
     let force = head.ends_with('!');
     let name = head.trim_end_matches('!');
-
-    // Strip trailing comments for commands that allow them.
-    // Commands with TRLBAR (but not NOTRLCOM) treat `" ...` as a comment.
-    let tail = if let Some(meta) = command_meta::meta_for_command(name) {
-        if meta.allows_trailing_comment() {
-            command_meta::strip_trailing_comment(tail)
-        } else {
-            tail
-        }
-    } else {
-        tail
-    };
+    // The map and abbreviation commands and `:normal` keep the blanks at
+    // the end of their argument.
+    let raw_tail = rest.trim_start_matches(BLANKS)[head.len()..].trim_start_matches(BLANKS);
 
     let has_range = range.is_some();
     // Pre-compute read's after_line before consuming range (borrows only).
@@ -393,129 +360,99 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     // "ino"/"inoremap", "cnorea" before "cno"/"cnoremap", "iuna" before
     // "iu"/"iunmap", "cuna" before "cu"/"cunmap").
     } else if matches_abbrev(name, "ab", "abbreviate") {
-        parse_abbreviate_command(tail, AbbrevMode::Both, false)
+        parse_abbreviate_command("abbreviate", raw_tail, AbbrevMode::Both, false)
     } else if matches_abbrev(name, "ia", "iabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::Insert, false)
+        parse_abbreviate_command("iabbrev", raw_tail, AbbrevMode::Insert, false)
     } else if matches_abbrev(name, "ca", "cabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::CommandLine, false)
+        parse_abbreviate_command("cabbrev", raw_tail, AbbrevMode::CommandLine, false)
     } else if matches_abbrev(name, "norea", "noreabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::Both, true)
+        parse_abbreviate_command("noreabbrev", raw_tail, AbbrevMode::Both, true)
     } else if matches_abbrev(name, "inorea", "inoreabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::Insert, true)
+        parse_abbreviate_command("inoreabbrev", raw_tail, AbbrevMode::Insert, true)
     } else if matches_abbrev(name, "cnorea", "cnoreabbrev") {
-        parse_abbreviate_command(tail, AbbrevMode::CommandLine, true)
+        parse_abbreviate_command("cnoreabbrev", raw_tail, AbbrevMode::CommandLine, true)
     } else if matches_abbrev(name, "una", "unabbreviate") {
-        parse_unabbreviate_command(tail, AbbrevMode::Both)
+        parse_unabbreviate_command("unabbreviate", raw_tail, AbbrevMode::Both)
     } else if matches_abbrev(name, "iuna", "iunabbrev") {
-        parse_unabbreviate_command(tail, AbbrevMode::Insert)
+        parse_unabbreviate_command("iunabbrev", raw_tail, AbbrevMode::Insert)
     } else if matches_abbrev(name, "cuna", "cunabbrev") {
-        parse_unabbreviate_command(tail, AbbrevMode::CommandLine)
+        parse_unabbreviate_command("cunabbrev", raw_tail, AbbrevMode::CommandLine)
     } else if matches_abbrev(name, "abc", "abclear") {
-        Ok(ExCommand::AbClear {
-            mode: AbbrevMode::Both,
-        })
+        parse_abclear_command(tail, AbbrevMode::Both)
     } else if matches_abbrev(name, "iabc", "iabclear") {
-        Ok(ExCommand::AbClear {
-            mode: AbbrevMode::Insert,
-        })
+        parse_abclear_command(tail, AbbrevMode::Insert)
     } else if matches_abbrev(name, "cabc", "cabclear") {
-        Ok(ExCommand::AbClear {
-            mode: AbbrevMode::CommandLine,
-        })
+        parse_abclear_command(tail, AbbrevMode::CommandLine)
     // Mapping commands — recursive
     } else if name.eq_ignore_ascii_case("map") {
-        parse_map_command(tail, MapModePrefix::All, false)
+        parse_map_command(raw_tail, all_or_insert_command(force), false)
     } else if matches_abbrev(name, "nm", "nmap") {
-        parse_map_command(tail, MapModePrefix::Normal, false)
+        parse_map_command(raw_tail, MapModePrefix::Normal, false)
     } else if matches_abbrev(name, "vm", "vmap") {
-        parse_map_command(tail, MapModePrefix::Visual, false)
+        parse_map_command(raw_tail, MapModePrefix::Visual, false)
     } else if matches_abbrev(name, "im", "imap") {
-        parse_map_command(tail, MapModePrefix::Insert, false)
+        parse_map_command(raw_tail, MapModePrefix::Insert, false)
     } else if matches_abbrev(name, "om", "omap") {
-        parse_map_command(tail, MapModePrefix::Operator, false)
+        parse_map_command(raw_tail, MapModePrefix::Operator, false)
     } else if matches_abbrev(name, "cm", "cmap") {
-        parse_map_command(tail, MapModePrefix::Command, false)
+        parse_map_command(raw_tail, MapModePrefix::Command, false)
     // Mapping commands — non-recursive
     } else if matches_abbrev(name, "no", "noremap") {
-        parse_map_command(tail, MapModePrefix::All, true)
+        parse_map_command(raw_tail, all_or_insert_command(force), true)
     } else if matches_abbrev(name, "nn", "nnoremap") {
-        parse_map_command(tail, MapModePrefix::Normal, true)
+        parse_map_command(raw_tail, MapModePrefix::Normal, true)
     } else if matches_abbrev(name, "vn", "vnoremap") {
-        parse_map_command(tail, MapModePrefix::Visual, true)
+        parse_map_command(raw_tail, MapModePrefix::Visual, true)
     } else if matches_abbrev(name, "ino", "inoremap") {
-        parse_map_command(tail, MapModePrefix::Insert, true)
+        parse_map_command(raw_tail, MapModePrefix::Insert, true)
     } else if matches_abbrev(name, "ono", "onoremap") {
-        parse_map_command(tail, MapModePrefix::Operator, true)
+        parse_map_command(raw_tail, MapModePrefix::Operator, true)
     } else if matches_abbrev(name, "cno", "cnoremap") {
-        parse_map_command(tail, MapModePrefix::Command, true)
+        parse_map_command(raw_tail, MapModePrefix::Command, true)
     // Unmap commands
     } else if matches_abbrev(name, "unm", "unmap") {
-        parse_unmap_command(tail, MapModePrefix::All)
+        parse_unmap_command(raw_tail, all_or_insert_command(force))
     } else if matches_abbrev(name, "nun", "nunmap") {
-        parse_unmap_command(tail, MapModePrefix::Normal)
+        parse_unmap_command(raw_tail, MapModePrefix::Normal)
     } else if matches_abbrev(name, "vu", "vunmap") {
-        parse_unmap_command(tail, MapModePrefix::Visual)
+        parse_unmap_command(raw_tail, MapModePrefix::Visual)
     } else if matches_abbrev(name, "iu", "iunmap") {
-        parse_unmap_command(tail, MapModePrefix::Insert)
+        parse_unmap_command(raw_tail, MapModePrefix::Insert)
     } else if matches_abbrev(name, "ou", "ounmap") {
-        parse_unmap_command(tail, MapModePrefix::Operator)
+        parse_unmap_command(raw_tail, MapModePrefix::Operator)
     } else if matches_abbrev(name, "cu", "cunmap") {
-        parse_unmap_command(tail, MapModePrefix::Command)
+        parse_unmap_command(raw_tail, MapModePrefix::Command)
     // xmap/xnoremap/xunmap (visual-only)
     } else if matches_abbrev(name, "xm", "xmap") {
-        parse_map_command(tail, MapModePrefix::VisualOnly, false)
+        parse_map_command(raw_tail, MapModePrefix::VisualOnly, false)
     } else if matches_abbrev(name, "xn", "xnoremap") {
-        parse_map_command(tail, MapModePrefix::VisualOnly, true)
+        parse_map_command(raw_tail, MapModePrefix::VisualOnly, true)
     } else if matches_abbrev(name, "xu", "xunmap") {
-        parse_unmap_command(tail, MapModePrefix::VisualOnly)
+        parse_unmap_command(raw_tail, MapModePrefix::VisualOnly)
     // smap/snoremap/sunmap (select-only)
     } else if matches_abbrev(name, "sn", "snoremap") {
-        parse_map_command(tail, MapModePrefix::SelectOnly, true)
+        parse_map_command(raw_tail, MapModePrefix::SelectOnly, true)
     } else if matches_abbrev(name, "su", "sunmap") {
-        parse_unmap_command(tail, MapModePrefix::SelectOnly)
+        parse_unmap_command(raw_tail, MapModePrefix::SelectOnly)
     } else if matches_abbrev(name, "sm", "smap") {
-        parse_map_command(tail, MapModePrefix::SelectOnly, false)
+        parse_map_command(raw_tail, MapModePrefix::SelectOnly, false)
     // mapclear commands
     } else if name.eq_ignore_ascii_case("mapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::All,
-            force,
-        })
+        parse_mapclear_command(tail, all_or_insert_command(force), force)
     } else if matches_abbrev(name, "nmapc", "nmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Normal,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Normal, force)
     } else if matches_abbrev(name, "vmapc", "vmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Visual,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Visual, force)
     } else if matches_abbrev(name, "imapc", "imapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Insert,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Insert, force)
     } else if matches_abbrev(name, "omapc", "omapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Operator,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Operator, force)
     } else if matches_abbrev(name, "cmapc", "cmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::Command,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::Command, force)
     } else if matches_abbrev(name, "xmapc", "xmapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::VisualOnly,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::VisualOnly, force)
     } else if matches_abbrev(name, "smapc", "smapclear") {
-        Ok(ExCommand::MapClear {
-            mode: MapModePrefix::SelectOnly,
-            force,
-        })
+        parse_mapclear_command(tail, MapModePrefix::SelectOnly, force)
     // Options — more specific prefixes must come before general ones.
     // sethandler (seth) > setlocal (setl) > setglobal (setg) > set (se).
     } else if matches_abbrev(name, "seth", "sethandler") {
@@ -553,7 +490,6 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             after_line: read_after_line,
         })
     } else if matches_abbrev(name, "norm", "normal") {
-        let (_, raw_tail) = split_head_raw(rest);
         let remap = !force;
         if raw_tail.is_empty() {
             return Err(VimError::ArgumentRequired);
@@ -645,7 +581,7 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             message: CompactString::from(tail),
         })
     } else if name.eq_ignore_ascii_case("let") {
-        parse_let_command(tail)
+        Ok(parse_let_command(tail))
     } else if matches_abbrev(name, "p", "print") {
         Ok(ExCommand::PrintLines {
             range: line_range,
@@ -783,30 +719,21 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     // ── Iterator commands (:windo, :bufdo, :tabdo) ───────────────────
     } else if matches_abbrev(name, "windo", "windo") {
         let nested = tail.trim();
-        if nested.is_empty() {
-            return Err(VimError::ArgumentRequired);
-        }
-        let command = parse_ex_command(nested)?;
+        let command = parse_first_command(nested)?;
         Ok(ExCommand::WinDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
         })
     } else if matches_abbrev(name, "bufdo", "bufdo") {
         let nested = tail.trim();
-        if nested.is_empty() {
-            return Err(VimError::ArgumentRequired);
-        }
-        let command = parse_ex_command(nested)?;
+        let command = parse_first_command(nested)?;
         Ok(ExCommand::BufDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
         })
     } else if matches_abbrev(name, "tabdo", "tabdo") {
         let nested = tail.trim();
-        if nested.is_empty() {
-            return Err(VimError::ArgumentRequired);
-        }
-        let command = parse_ex_command(nested)?;
+        let command = parse_first_command(nested)?;
         Ok(ExCommand::TabDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
@@ -822,6 +749,45 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
             command: CompactString::from(rest),
         })
     }
+}
+
+/// `:if`, `:endif`, `:finish` and the other commands of a sourced script,
+/// found in Vim's command table.
+fn parse_script_command(rest: &str) -> Option<ExCommand> {
+    let (command_meta::FoundCommand::Vim(row), len) = command_meta::find_command(rest)? else {
+        return None;
+    };
+    if row.name == "finish" {
+        return Some(ExCommand::Finish);
+    }
+    let kind = BlockKind::from_name(row.name)?;
+    let after = rest.get(len..)?;
+    let argument = after.strip_prefix('!').unwrap_or(after);
+    Some(ExCommand::Block {
+        kind,
+        argument: argument.trim_matches([' ', '\t']).into(),
+    })
+}
+
+/// The modifiers of `piece`, the name of the Vim command after them and the
+/// text after that name, for a command without a range.
+pub(crate) fn vim_command_parts(piece: &str) -> Option<(ModifierFlags, &'static str, &str)> {
+    let (modifiers, rest) = parse_modifier_prefixes(piece);
+    let rest = rest.trim_start_matches(BLANKS);
+    let (command_meta::FoundCommand::Vim(row), len) = command_meta::find_command(rest)? else {
+        return None;
+    };
+    Some((modifiers, row.name, rest.get(len..)?))
+}
+
+/// The first command of `text`, the argument of `:windo`, `:bufdo` or
+/// `:tabdo`, which the host runs as a whole command line.
+fn parse_first_command(text: &str) -> Result<ExCommand, VimError> {
+    let first = split_ex_pipeline(text)
+        .into_iter()
+        .next()
+        .ok_or(VimError::ArgumentRequired)?;
+    parse_ex_command(&first)
 }
 
 fn read_after_line(range: Option<&ExRange>) -> Option<u32> {
@@ -935,49 +901,42 @@ fn parse_count_or_default(tail: &str) -> u32 {
     trimmed.parse::<u32>().unwrap_or(1)
 }
 
-/// Parse `:let mapleader = "X"` (only supports mapleader assignment).
-fn parse_let_command(tail: &str) -> Result<ExCommand, VimError> {
-    let tail = tail.trim();
-
-    // Match: mapleader = "X" or mapleader = 'X' or mapleader = X
-    if let Some(rest) = tail
-        .strip_prefix("mapleader")
-        .or_else(|| tail.strip_prefix("g:mapleader"))
-    {
-        let rest = rest.trim();
-        let Some(rest) = rest.strip_prefix('=') else {
-            return Err(VimError::InvalidArgument(CompactString::from(tail)));
-        };
-        let rest = rest.trim();
-
-        // Strip optional quotes
-        let value = rest
-            .strip_prefix('"')
-            .and_then(|s| s.strip_suffix('"'))
-            .or_else(|| rest.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))
-            .unwrap_or(rest);
-
-        let mut chars = value.chars();
-        match (chars.next(), chars.next()) {
-            (Some(ch), None) => Ok(ExCommand::LetMapleader { leader: ch }),
-            _ => Err(VimError::InvalidArgument(CompactString::from(
-                "mapleader must be a single character",
-            ))),
+/// Parse `:let`: an assignment to `mapleader` or `maplocalleader`, with
+/// `g:` or without, takes an expression; any other `:let` goes to the host.
+fn parse_let_command(tail: &str) -> ExCommand {
+    let tail = tail.trim_matches(BLANKS);
+    let leader = |name: &str| {
+        let rest = tail.strip_prefix("g:").unwrap_or(tail).strip_prefix(name)?;
+        let rest = rest.trim_start_matches(BLANKS).strip_prefix('=')?;
+        // Not `==`, `=~` or a heredoc.
+        if rest.starts_with(['=', '~', '<']) {
+            return None;
         }
-    } else {
-        // Unsupported :let variant — forward as custom
-        let mut cmd = CompactString::from("let ");
-        cmd.push_str(tail);
-        Ok(ExCommand::Custom { command: cmd })
+        Some(rest.trim_start_matches(BLANKS))
+    };
+    if let Some(value) = leader("mapleader") {
+        return ExCommand::LetLeader {
+            local: false,
+            value: value.into(),
+        };
     }
+    if let Some(value) = leader("maplocalleader") {
+        return ExCommand::LetLeader {
+            local: true,
+            value: value.into(),
+        };
+    }
+    let mut cmd = CompactString::from("let ");
+    cmd.push_str(tail);
+    ExCommand::Custom { command: cmd }
 }
 
 fn split_head(input: &str) -> (&str, &str) {
-    let trimmed = input.trim_start();
-    // First try splitting on whitespace
-    if let Some((idx, _)) = trimmed.char_indices().find(|(_, c)| c.is_whitespace()) {
+    let trimmed = input.trim_start_matches(BLANKS);
+    // First try splitting on a blank
+    if let Some(idx) = trimmed.find(BLANKS) {
         let (head, tail) = trimmed.split_at(idx);
-        (head, tail.trim())
+        (head, tail.trim_matches(BLANKS))
     } else {
         // No whitespace found — try splitting at alpha/non-alpha boundary
         // This handles Vim's compact syntax like "co3" → ("co", "3"), "m$" → ("m", "$")
@@ -986,24 +945,10 @@ fn split_head(input: &str) -> (&str, &str) {
             .find(|(i, c)| *i > 0 && !c.is_alphabetic() && (*c != '!'))
         {
             let (head, tail) = trimmed.split_at(idx);
-            (head, tail.trim())
+            (head, tail.trim_matches(BLANKS))
         } else {
             (trimmed, "")
         }
-    }
-}
-
-/// Like `split_head` but preserves trailing whitespace in the tail.
-///
-/// Used by commands where the tail is raw content and trailing spaces are
-/// significant (e.g., `:norm` keystroke arguments).
-fn split_head_raw(input: &str) -> (&str, &str) {
-    let trimmed = input.trim_start();
-    if let Some((idx, _)) = trimmed.char_indices().find(|(_, c)| c.is_whitespace()) {
-        let (head, tail) = trimmed.split_at(idx);
-        (head, tail.trim_start()) // only trim leading whitespace, preserve trailing
-    } else {
-        (trimmed, "")
     }
 }
 
@@ -1031,8 +976,26 @@ fn parse_substitute(input: &str, range: ExRange) -> Result<ExCommand, VimError> 
         range,
         pattern: CompactString::from(pattern),
         replacement: CompactString::from(replacement),
-        flags: SubFlags::parse(flags.trim()),
+        flags: substitute_flags(flags)?,
     })
+}
+
+/// The flags and count after the pattern and replacement of `:s`, `:&` or
+/// `:~`, as `ex_substitute()` reads them: other text after them, except a
+/// `"` comment or a `|`, is E488.
+fn substitute_flags(text: &str) -> Result<SubFlags, VimError> {
+    let first = usize::from(text.starts_with('&'));
+    let flags_end = text[first..]
+        .find(|c: char| !"gcneriI#lp".contains(c))
+        .map_or(text.len(), |at| first + at);
+    let rest = text[flags_end..]
+        .trim_start_matches(BLANKS)
+        .trim_start_matches(|c: char| c.is_ascii_digit())
+        .trim_start_matches(BLANKS);
+    if !rest.is_empty() && !rest.starts_with(['"', '|', '\n']) {
+        return Err(VimError::TrailingCharacters(rest.into()));
+    }
+    Ok(SubFlags::parse(&text[..flags_end]))
 }
 
 fn parse_global(input: &str, invert: bool, range: ExRange) -> Result<ExCommand, VimError> {
@@ -1108,7 +1071,7 @@ fn take_delimited(input: &str, delim: char) -> Result<(&str, &str), VimError> {
 }
 
 fn parse_optional_range(input: &str) -> Result<(Option<ExRange>, &str), VimError> {
-    let trimmed = input.trim_start();
+    let trimmed = input.trim_start_matches(BLANKS);
 
     if let Some(rest) = trimmed.strip_prefix('%') {
         return Ok((Some(ExRange::entire_file()), rest));
@@ -1123,7 +1086,7 @@ fn parse_optional_range(input: &str) -> Result<(Option<ExRange>, &str), VimError
     };
 
     let rest = &trimmed[consumed..];
-    let rest = rest.trim_start();
+    let rest = rest.trim_start_matches(BLANKS);
     let (separator, after_sep) = if let Some(rest) = rest.strip_prefix(';') {
         (RangeSeparator::Semicolon, rest)
     } else if let Some(rest) = rest.strip_prefix(',') {
@@ -1138,7 +1101,7 @@ fn parse_optional_range(input: &str) -> Result<(Option<ExRange>, &str), VimError
             rest,
         ));
     };
-    let after_sep = after_sep.trim_start();
+    let after_sep = after_sep.trim_start_matches(BLANKS);
     let (end, end_len) = parse_line_spec_prefix(after_sep)?.ok_or(VimError::InvalidRange)?;
     let rest = &after_sep[end_len..];
     Ok((
@@ -1254,31 +1217,58 @@ fn parse_line_spec_prefix(input: &str) -> Result<Option<(LineSpec, usize)>, VimE
     Ok(Some((base_spec, base_len)))
 }
 
-/// Strip mapping flag tokens from the start of args, returning flags and remainder.
-fn strip_map_flags(input: &str) -> (crate::keymap::MappingFlags, &str) {
-    let mut flags = crate::keymap::MappingFlags::default();
-    let mut rest = input;
-    loop {
-        let candidate = rest.trim_start();
-        if candidate.starts_with('<') {
-            if let Some(end) = candidate.find('>') {
-                let token = &candidate[..=end];
-                if token.eq_ignore_ascii_case("<nowait>") {
-                    flags.nowait = true;
-                } else if token.eq_ignore_ascii_case("<expr>") {
-                    flags.expr = true;
-                } else if token.eq_ignore_ascii_case("<silent>") {
-                    flags.silent = true;
-                } else {
-                    break;
-                }
-                rest = &candidate[end + 1..];
-                continue;
-            }
-        }
-        break;
+/// The modes of `:map`, `:noremap`, `:unmap` and `:mapclear`: with `!`,
+/// Insert and Command-line mode (`get_map_mode()`).
+const fn all_or_insert_command(force: bool) -> MapModePrefix {
+    if force {
+        MapModePrefix::InsertCommand
+    } else {
+        MapModePrefix::All
     }
-    (flags, rest.trim_start())
+}
+
+/// The arguments a map or abbreviation command takes before its keys.
+#[derive(Debug, Default, Clone, Copy)]
+struct MapArgs {
+    buffer: bool,
+    script: bool,
+    /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`.
+    flags: crate::keymap::MappingFlags,
+}
+
+/// Read `<buffer>`, `<nowait>`, `<silent>`, `<special>`, `<script>`,
+/// `<expr>` and `<unique>` from the start of `input`, as `do_map()` does:
+/// in any order, in this exact case, each with any blanks after it.
+/// Returns them and the rest of `input`.
+fn parse_map_args(input: &str) -> (MapArgs, &str) {
+    const NAMES: [&str; 7] = [
+        "<buffer>",
+        "<nowait>",
+        "<silent>",
+        "<special>",
+        "<script>",
+        "<expr>",
+        "<unique>",
+    ];
+    let mut args = MapArgs::default();
+    let mut rest = input.trim_start_matches(BLANKS);
+    while let Some(name) = NAMES.into_iter().find(|name| rest.starts_with(name)) {
+        match name {
+            "<buffer>" => args.buffer = true,
+            "<nowait>" => args.flags.nowait = true,
+            "<silent>" => args.flags.silent = true,
+            "<script>" => args.script = true,
+            "<expr>" => args.flags.expr = true,
+            "<unique>" => args.flags.unique = true,
+            // vim-core always reads `<>` notation.
+            _ => {}
+        }
+        rest = rest
+            .get(name.len()..)
+            .unwrap_or_default()
+            .trim_start_matches(BLANKS);
+    }
+    (args, rest)
 }
 
 #[allow(
@@ -1292,218 +1282,239 @@ fn parse_map_command(
 ) -> Result<ExCommand, VimError> {
     use crate::keymap::MappingKind;
 
-    let kind = if noremap {
+    let (map_args, rest) = parse_map_args(args);
+    // `<script>` remaps only script-local mappings, and vim-core has none.
+    let kind = if noremap || map_args.script {
         MappingKind::NonRecursive
     } else {
         MappingKind::Recursive
     };
-
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
-        return Ok(ExCommand::Map {
-            mode_prefix,
-            lhs: CompactString::new(""),
-            rhs: None,
-            kind,
-            flags: crate::keymap::MappingFlags::default(),
-        });
-    }
-
-    let (flags, rest) = strip_map_flags(trimmed);
-
-    // Split into lhs (first token) and rhs (rest)
-    let (lhs, rhs) = match rest.find(char::is_whitespace) {
-        Some(idx) => (&rest[..idx], rest[idx..].trim_start()),
-        None => (rest, ""),
-    };
-    let rhs = if rhs.is_empty() {
-        None
-    } else {
-        Some(CompactString::from(rhs))
-    };
+    let (lhs, rhs) = split_map_keys(rest);
     Ok(ExCommand::Map {
         mode_prefix,
         lhs: CompactString::from(lhs),
-        rhs,
+        rhs: (!rhs.is_empty()).then(|| CompactString::from(rhs)),
         kind,
-        flags,
+        flags: map_args.flags,
+        buffer: map_args.buffer,
     })
 }
 
+/// Split the keys of a map or abbreviation command from its right-hand
+/// side, as `do_map()` does: the keys end at the first space or tab that
+/// a Ctrl-V does not escape, and the right-hand side starts after the
+/// blanks and keeps those at its end.
+fn split_map_keys(text: &str) -> (&str, &str) {
+    let mut chars = text.char_indices();
+    let mut end = text.len();
+    while let Some((i, c)) = chars.next() {
+        if c == '\x16' {
+            chars.next();
+        } else if BLANKS.contains(&c) {
+            end = i;
+            break;
+        }
+    }
+    let (keys, rest) = text.split_at(end);
+    (keys, rest.trim_start_matches(BLANKS))
+}
+
+/// Parse `:unmap` and its mode forms. Every blank after the arguments
+/// belongs to the keys (`*map-trailing-white*`), so `:unmap x ` names
+/// `x` and a space.
 fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExCommand, VimError> {
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
+    let (map_args, lhs) = parse_map_args(args);
+    if lhs.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
-    // lhs is the first token (unmap takes exactly one argument)
-    let lhs = trimmed.split_whitespace().next().unwrap_or(trimmed);
     Ok(ExCommand::Unmap {
         mode_prefix,
         lhs: CompactString::from(lhs),
+        buffer: map_args.buffer,
     })
 }
 
-/// Parse `:set` assignments from the argument string.
+/// Parse `:mapclear` and its mode forms: `<buffer>` clears the current
+/// buffer's mappings, and any other argument is E474 (`map_clear()`).
+fn parse_mapclear_command(
+    args: &str,
+    mode: MapModePrefix,
+    force: bool,
+) -> Result<ExCommand, VimError> {
+    let buffer = match args {
+        "" => false,
+        "<buffer>" => true,
+        _ => return Err(VimError::InvalidMapArgument),
+    };
+    Ok(ExCommand::MapClear {
+        mode,
+        force,
+        buffer,
+    })
+}
+
+/// Parse the arguments of `:set` as Vim's `do_set()` and
+/// `do_set_option()` read them.
 ///
-/// Supports:
-/// - `:set all` → `ShowAll`
+/// - `:set` alone or `:set all` → `ShowAll`; `:set all&` → `Reset`
 /// - `:set expandtab` → `SetBool("expandtab")`
 /// - `:set noexpandtab` → `UnsetBool("expandtab")`
 /// - `:set expandtab!` → `ToggleBool("expandtab")`
+/// - `:set invexpandtab` → `InvertBool("expandtab")`
 /// - `:set expandtab?` → `Query("expandtab")`
-/// - `:set tabstop=8` → `Assign("tabstop", "8")`
+/// - `:set tabstop=8` and `:set tabstop:8` → `Assign("tabstop", "8")`
 /// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
 ///   `Prepend`
+/// - `:set fo&`, `:set fo&vim` and `:set fo<` → `Reset`
+/// - text after the name that is none of these, as in `:set tw?x` →
+///   `Invalid`
 ///
-/// Arguments are separated by white space. In a value of `commentstring`,
-/// `comments` or `formatoptions` a backslash before white space makes it
-/// part of the value (`commentstring=#\ %s` gives `# %s`); every other
-/// backslash is kept as typed.
+/// Blanks may come between the name and what follows it (`:set sw =2`).
+/// A value runs to the first space or tab that a backslash does not
+/// escape and is kept as written. A `no` or `inv` prefix stays on the
+/// name before `?`, `!`, `=` and the operators.
 fn parse_set_assignments(args: &str) -> smallvec::SmallVec<[SetAssignment; 2]> {
     let mut assignments = smallvec::SmallVec::new();
-
-    if args.is_empty() {
+    let mut rest = args.trim_start_matches(BLANKS);
+    if rest.is_empty() {
         assignments.push(SetAssignment::ShowAll);
-        return assignments;
     }
-
-    for token in split_set_args(args) {
-        let token = token.as_str();
-        if token == "all" {
-            assignments.push(SetAssignment::ShowAll);
-            continue;
-        }
-
-        // `:set name?` — query
-        if let Some(name) = token.strip_suffix('?') {
-            assignments.push(SetAssignment::Query(CompactString::from(name)));
-            continue;
-        }
-
-        // `:set name!` — toggle
-        if let Some(name) = token.strip_suffix('!') {
-            assignments.push(SetAssignment::ToggleBool(CompactString::from(name)));
-            continue;
-        }
-
-        // `:set name+=value`, `-=` and `^=`. These are checked before the
-        // plain `=`, so `fo-=t` is a removal from `fo` and not an assignment
-        // to an option `fo-`.
-        if let Some(op) = parse_set_operator(token) {
-            assignments.push(op);
-            continue;
-        }
-
-        // `:set name=value` — assignment
-        if let Some((name, value)) = token.split_once('=') {
-            assignments.push(SetAssignment::Assign(
-                CompactString::from(name),
-                CompactString::from(value),
-            ));
-            continue;
-        }
-
-        // `:set name:value` — alternate assignment syntax
-        if let Some((name, value)) = token.split_once(':') {
-            assignments.push(SetAssignment::Assign(
-                CompactString::from(name),
-                CompactString::from(value),
-            ));
-            continue;
-        }
-
-        // `:set noname` → UnsetBool("name"), `:set name` → SetBool("name").
-        // The "no" prefix is stripped here so the grammar layer emits the
-        // semantically correct variant.
-        if let Some(stripped) = token.strip_prefix("no") {
-            if stripped.is_empty() {
-                assignments.push(SetAssignment::SetBool(CompactString::from(token)));
-            } else {
-                assignments.push(SetAssignment::UnsetBool(CompactString::from(stripped)));
-            }
-        } else {
-            assignments.push(SetAssignment::SetBool(CompactString::from(token)));
-        }
+    while !rest.is_empty() {
+        let (assignment, len) = parse_set_argument(rest);
+        assignments.push(assignment);
+        rest = rest
+            .get(len..)
+            .unwrap_or_default()
+            .trim_start_matches(BLANKS);
     }
-
     assignments
 }
 
-/// Split `:set` arguments on white space.
-///
-/// An argument that sets `commentstring`, `comments` or `formatoptions`
-/// takes a backslash followed by white space as that white space inside
-/// the value (`commentstring=#\ %s` gives `# %s`); a backslash followed by
-/// anything else is kept with that character, so `\\ ` still ends the
-/// argument. Every other argument ends at the first white space, with its
-/// backslashes as typed.
-fn split_set_args(args: &str) -> smallvec::SmallVec<[String; 2]> {
-    let mut tokens = smallvec::SmallVec::new();
-    let mut rest = args.trim_start();
-    while !rest.is_empty() {
-        let mut current = String::new();
-        let mut chars = rest.char_indices();
-        let mut end = rest.len();
-        if takes_escaped_white_space(rest) {
-            while let Some((i, c)) = chars.next() {
-                if c == '\\' {
-                    match chars.next() {
-                        Some((_, next)) if next.is_whitespace() => current.push(next),
-                        Some((_, next)) => {
-                            current.push(c);
-                            current.push(next);
-                        }
-                        None => current.push(c),
-                    }
-                } else if c.is_whitespace() {
-                    end = i;
-                    break;
-                } else {
-                    current.push(c);
-                }
+/// Parse the `:set` argument at the start of `arg`, returning it and its
+/// length.
+fn parse_set_argument(arg: &str) -> (SetAssignment, usize) {
+    // do_set(): "all" and "all&" come before any option name.
+    if let Some(after) = arg.strip_prefix("all") {
+        if !after.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            if after.starts_with('&') {
+                return set_reset(arg, "all", 4);
             }
-        } else {
-            end = rest.find(char::is_whitespace).unwrap_or(rest.len());
-            current.push_str(&rest[..end]);
+            return (SetAssignment::ShowAll, 3);
         }
-        tokens.push(current);
-        rest = rest[end..].trim_start();
     }
-    tokens
-}
-
-/// Whether the argument at the start of `arg` sets `commentstring`,
-/// `comments` or `formatoptions` (with `=`, `:`, `+=`, `-=` or `^=`).
-fn takes_escaped_white_space(arg: &str) -> bool {
-    let name_len = arg
-        .find(|c: char| !c.is_ascii_alphabetic())
-        .unwrap_or(arg.len());
-    let (name, rest) = arg.split_at(name_len);
-    matches!(
-        name,
-        "commentstring" | "comments" | "com" | "formatoptions" | "fo"
-    ) && ["=", ":", "+=", "-=", "^="]
-        .iter()
-        .any(|op| rest.starts_with(op))
-}
-
-/// Parse `name+=value`, `name-=value` or `name^=value`, where `name` is a
-/// bare option name. Any other token gives `None`.
-fn parse_set_operator(token: &str) -> Option<SetAssignment> {
-    let name_len = token.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))?;
-    let (name, rest) = token.split_at(name_len);
-    if name.is_empty() {
-        return None;
-    }
-    let name = CompactString::from(name);
-    if let Some(value) = rest.strip_prefix("+=") {
-        Some(SetAssignment::Append(name, CompactString::from(value)))
-    } else if let Some(value) = rest.strip_prefix("-=") {
-        Some(SetAssignment::Remove(name, CompactString::from(value)))
+    // get_option_prefix(), parse_option_name()
+    let prefix_len = if arg.starts_with("no") && !arg.starts_with("novice") {
+        2
+    } else if arg.starts_with("inv") {
+        3
     } else {
-        rest.strip_prefix("^=")
-            .map(|value| SetAssignment::Prepend(name, CompactString::from(value)))
+        0
+    };
+    let (prefix, rest) = arg.split_at(prefix_len);
+    let (name, after_name) = rest.split_at(set_name_len(rest));
+    let name_end = prefix_len + name.len();
+    let written = CompactString::from(format!("{prefix}{name}"));
+    // do_set_option(): blanks may come before what follows the name.
+    let after = after_name.trim_start_matches(BLANKS);
+    let next = arg.len() - after.len();
+    if let Some(op) = ["+=", "-=", "^=", "=", ":"]
+        .into_iter()
+        .find(|op| after.starts_with(op))
+    {
+        let value = after.get(op.len()..).unwrap_or_default();
+        let (value, _) = value.split_at(set_value_len(value));
+        let end = next + op.len() + value.len();
+        let value = CompactString::from(value);
+        let assignment = match op {
+            "+=" => SetAssignment::Append(written, value),
+            "-=" => SetAssignment::Remove(written, value),
+            "^=" => SetAssignment::Prepend(written, value),
+            _ => SetAssignment::Assign(written, value),
+        };
+        return (assignment, end);
     }
+    let Some(form) = after.chars().next().filter(|c| "?!&<".contains(*c)) else {
+        // A bare name, unless text other than a blank follows it.
+        if next > name_end || after.is_empty() {
+            return (set_bare(prefix, name), name_end);
+        }
+        return set_invalid(arg, name, name_end);
+    };
+    let mut tail = after.get(1..).unwrap_or_default();
+    if form == '&' {
+        tail = tail
+            .strip_prefix("vim")
+            .or_else(|| tail.strip_prefix("vi"))
+            .unwrap_or(tail);
+    }
+    let end = arg.len() - tail.len();
+    if tail.starts_with(|c: char| !BLANKS.contains(&c)) {
+        return set_invalid(arg, name, end);
+    }
+    match form {
+        '?' => (SetAssignment::Query(written), end),
+        '!' => (SetAssignment::ToggleBool(written), end),
+        _ => set_reset(arg, name, end),
+    }
+}
+
+/// The length of the option name at the start of `text`: `t_` and two
+/// characters, or letters, digits and `_` (`parse_option_name()`).
+fn set_name_len(text: &str) -> usize {
+    if text.starts_with("t_") && text.chars().nth(3).is_some() {
+        return text
+            .char_indices()
+            .nth(4)
+            .map_or(text.len(), |(end, _)| end);
+    }
+    text.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .unwrap_or(text.len())
+}
+
+/// The length of the value at the start of `text`: up to the first space
+/// or tab that a backslash does not escape.
+fn set_value_len(text: &str) -> usize {
+    let mut chars = text.char_indices();
+    while let Some((i, c)) = chars.next() {
+        if c == '\\' {
+            chars.next();
+        } else if BLANKS.contains(&c) {
+            return i;
+        }
+    }
+    text.len()
+}
+
+/// A bare option name with its `no` or `inv` prefix.
+fn set_bare(prefix: &str, name: &str) -> SetAssignment {
+    if name.is_empty() {
+        return SetAssignment::SetBool(CompactString::from(prefix));
+    }
+    match prefix {
+        "no" => SetAssignment::UnsetBool(name.into()),
+        "inv" => SetAssignment::InvertBool(name.into()),
+        _ => SetAssignment::SetBool(name.into()),
+    }
+}
+
+/// An argument with text Vim does not take after `name`: from the start of
+/// `arg` to the first blank from `from`.
+fn set_invalid(arg: &str, name: &str, from: usize) -> (SetAssignment, usize) {
+    let end = from + set_value_len(arg.get(from..).unwrap_or_default());
+    let assignment = SetAssignment::Invalid {
+        name: name.into(),
+        argument: arg.get(..end).unwrap_or_default().into(),
+    };
+    (assignment, end)
+}
+
+/// A `&` or `<` argument of `name` that ends at `end`.
+fn set_reset(arg: &str, name: &str, end: usize) -> (SetAssignment, usize) {
+    let assignment = SetAssignment::Reset {
+        name: name.into(),
+        argument: arg.get(..end).unwrap_or_default().into(),
+    };
+    (assignment, end)
 }
 
 /// Parse `:sethandler` arguments.
@@ -1620,9 +1631,8 @@ fn parse_multi_cursor_ex(
     // (without delimiter → falls through to window Split via parse_named_command)
     if matches_abbrev(name, "sp", "split") {
         let trimmed = tail.trim_start();
-        // If tail starts with a non-alphanumeric, non-space char → treat as pattern delimiter
         if let Some(first) = trimmed.chars().next() {
-            if !first.is_alphanumeric() && !first.is_whitespace() && first != '!' {
+            if command_meta::is_split_pattern_delimiter(first) {
                 let pattern = parse_pattern_arg(tail)?;
                 return Ok(Some(ExCommand::SplitMatches { range, pattern }));
             }
@@ -1858,230 +1868,87 @@ fn parse_z_command(
     })
 }
 
-/// Parse `:abbreviate` / `:iabbrev` / `:cabbrev` / `:noreabbrev` etc.
-///
-/// Arguments are whitespace-separated: `[trigger] [replacement ...]`.
-#[allow(
-    clippy::unnecessary_wraps,
-    reason = "returns Result to match parse_named_command dispatch"
-)]
+/// Parse `:abbreviate` / `:iabbrev` / `:cabbrev` / `:noreabbrev` etc.,
+/// named `name`: `[trigger] [replacement ...]` after the arguments that
+/// `do_map()` reads. vim-core has no buffer or expression abbreviations,
+/// so `<buffer>` and `<expr>` give E319.
 fn parse_abbreviate_command(
+    name: &str,
     args: &str,
     mode: AbbrevMode,
     noremap: bool,
 ) -> Result<ExCommand, VimError> {
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
-        return Ok(ExCommand::Abbreviate {
-            trigger: None,
-            replacement: None,
-            mode,
-            noremap,
-        });
+    let (map_args, rest) = parse_map_args(args);
+    if map_args.buffer || map_args.flags.expr {
+        return Err(abbreviation_not_available(name, args));
     }
-
-    // Split into trigger (first token) and replacement (rest).
-    let (trigger, rhs) = match trimmed.find(char::is_whitespace) {
-        Some(idx) => (&trimmed[..idx], trimmed[idx..].trim_start()),
-        None => (trimmed, ""),
-    };
-
-    let replacement = if rhs.is_empty() {
-        None
-    } else {
-        Some(CompactString::from(rhs))
-    };
-
+    let (trigger, replacement) = split_map_keys(rest);
     Ok(ExCommand::Abbreviate {
-        trigger: Some(CompactString::from(trigger)),
-        replacement,
+        trigger: (!trigger.is_empty()).then(|| CompactString::from(trigger)),
+        replacement: (!replacement.is_empty()).then(|| CompactString::from(replacement)),
         mode,
-        noremap,
+        noremap: noremap || map_args.script,
+        unique: map_args.flags.unique,
     })
 }
 
-/// Parse `:unabbreviate` / `:iunabbrev` / `:cunabbrev`.
-fn parse_unabbreviate_command(args: &str, mode: AbbrevMode) -> Result<ExCommand, VimError> {
-    let trimmed = args.trim();
-    if trimmed.is_empty() {
+/// Parse `:unabbreviate` / `:iunabbrev` / `:cunabbrev`, named `name`.
+/// The trigger is the whole argument; `do_map()` ignores blanks at its end
+/// because an abbreviation cannot end in one.
+fn parse_unabbreviate_command(
+    name: &str,
+    args: &str,
+    mode: AbbrevMode,
+) -> Result<ExCommand, VimError> {
+    let (map_args, rest) = parse_map_args(args);
+    if map_args.buffer {
+        return Err(abbreviation_not_available(name, args));
+    }
+    let trigger = rest.trim_end_matches(BLANKS);
+    if trigger.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
-    // Trigger is the first token.
-    let trigger = trimmed.split_whitespace().next().unwrap_or(trimmed);
     Ok(ExCommand::Unabbreviate {
         trigger: CompactString::from(trigger),
         mode,
     })
 }
 
-/// Split an ex command line into individual commands separated by unescaped `|`.
-///
-/// The `|` character does NOT split inside:
-/// - Regex patterns delimited by `/` or `?`
-/// - `:!` shell commands (everything after `!` is one command)
-///
-/// Returns a `Vec` of individual command strings (trimmed).
-#[must_use]
-pub fn split_ex_pipeline(input: &str) -> Vec<&str> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return Vec::new();
-    }
-
-    // If the (non-range) command part starts with `!`, don't split at all --
-    // the entire line is a shell command where `|` is meaningful.
-    if is_bang_command(trimmed) {
-        return vec![trimmed];
-    }
-
-    let mut commands = Vec::new();
-    let mut start = 0;
-    let bytes = input.as_bytes();
-    let mut i = 0;
-
-    while i < bytes.len() {
-        let c = bytes[i] as char;
-        match c {
-            '|' => {
-                let segment = input[start..i].trim();
-                if !segment.is_empty() {
-                    commands.push(segment);
-                }
-                start = i + 1;
-            }
-            _ => {
-                // Check if we're at the start of a command that uses
-                // delimited arguments (s, g, v followed by a non-alnum).
-                // If so, skip past all its delimiters to avoid splitting
-                // on `|` embedded inside patterns/replacements.
-                let cmd_start = find_command_start(bytes, start, i);
-                if let Some(new_i) = skip_delimited_command(bytes, cmd_start, i) {
-                    i = new_i;
-                }
-            }
-        }
-        i += 1;
-    }
-
-    // Last command
-    let last = input[start..].trim();
-    if !last.is_empty() {
-        commands.push(last);
-    }
-
-    commands
-}
-
-/// Find the position of the command name relative to the current segment.
-///
-/// Skips past optional range prefixes (digits, `.`, `$`, `%`, marks,
-/// `+`, `-`, `,`, `;`, whitespace) to locate the first command character.
-const fn find_command_start(bytes: &[u8], segment_start: usize, current: usize) -> usize {
-    // Bytes, not str slices: `current` can be inside a multi-byte character.
-    let mut j = segment_start;
-    while j <= current {
-        match bytes[j] {
-            b'0'..=b'9' | b'.' | b'$' | b'%' | b',' | b';' | b'+' | b'-' | b' ' | b'\t' => {
-                j += 1;
-            }
-            b'\'' if j + 1 < bytes.len() => {
-                j += 2; // mark 'x
-            }
-            // The rest of a mark that is a multi-byte character.
-            0x80..=0xBF => j += 1,
-            _ => break,
-        }
-    }
-    j
-}
-
-/// If position `i` is the command letter of `s`, `g`, or `v` followed by a
-/// delimiter, skip past all the delimited fields. Returns the new scan
-/// position (pointing at the last consumed character), or `None` if this
-/// is not a delimited command.
-fn skip_delimited_command(bytes: &[u8], cmd_start: usize, i: usize) -> Option<usize> {
-    if i != cmd_start {
-        return None;
-    }
-
-    let cmd = bytes[i];
-    // s/g/v must be followed by a non-alphanumeric, non-underscore delimiter.
-    let next = bytes.get(i + 1)?;
-    if next.is_ascii_alphanumeric() || *next == b'_' {
-        return None;
-    }
-
-    let delim = *next;
-    let delim_count = match cmd {
-        b's' => 3,        // s{d}pattern{d}replacement{d}
-        b'g' | b'v' => 2, // g{d}pattern{d}  (the nested command follows)
-        _ => return None,
+/// Parse `:abclear` / `:iabclear` / `:cabclear`, which take `<buffer>`
+/// and no other argument, as Vim's `map_clear()`.
+fn parse_abclear_command(args: &str, mode: AbbrevMode) -> Result<ExCommand, VimError> {
+    let buffer = match args {
+        "" => false,
+        "<buffer>" => true,
+        _ => return Err(VimError::InvalidMapArgument),
     };
-
-    // Skip past `delim_count` unescaped delimiters starting from the first one.
-    let mut pos = i + 1; // at the first delimiter
-    let mut seen = 0;
-    while pos < bytes.len() && seen < delim_count {
-        if bytes[pos] == delim {
-            seen += 1;
-        } else if bytes[pos] == b'\\' && pos + 1 < bytes.len() {
-            pos += 1; // skip escaped char
-        }
-        pos += 1;
-    }
-
-    if seen >= delim_count {
-        // pos is now just past the last delimiter. Back up by 1 because
-        // the outer loop will do i += 1.
-        Some(pos - 1)
-    } else {
-        // Fewer delimiters than expected -- consume to where we got.
-        Some(pos.saturating_sub(1))
-    }
+    Ok(ExCommand::AbClear { mode, buffer })
 }
 
-/// Check whether the command portion (after optional range) starts with `!`.
-fn is_bang_command(input: &str) -> bool {
-    let trimmed = input.trim_start();
-    // Skip past an optional range prefix to find the actual command.
-    // Ranges start with digits, `.`, `$`, `%`, `'`, `+`, `-`, `/`, `?`.
-    let mut rest = trimmed;
-    loop {
-        let ch = match rest.bytes().next() {
-            Some(c) => c,
-            None => return false,
-        };
-        match ch {
-            b'0'..=b'9' => {
-                rest = rest.trim_start_matches(|c: char| c.is_ascii_digit());
-            }
-            b'.' | b'$' | b'%' => {
-                rest = &rest[1..];
-            }
-            b'+' | b'-' => {
-                rest = &rest[1..];
-                rest = rest.trim_start_matches(|c: char| c.is_ascii_digit());
-            }
-            b'\'' => {
-                // Mark: skip 'x, where x can be a multi-byte character.
-                let mut chars = rest[1..].chars();
-                if chars.next().is_none() {
-                    return false;
-                }
-                rest = chars.as_str();
-            }
-            b',' | b';' => {
-                // Range separator -- continue to parse the second address.
-                rest = &rest[1..];
-                rest = rest.trim_start();
-            }
-            b' ' | b'\t' => {
-                rest = rest.trim_start();
-            }
-            _ => break,
-        }
-    }
-    rest.starts_with('!')
+fn abbreviation_not_available(name: &str, args: &str) -> VimError {
+    let args = args.trim_matches(BLANKS);
+    VimError::NotAvailable(CompactString::from(format!("{name} {args}")))
+}
+
+/// Split an Ex command line into its commands, as Vim does.
+///
+/// Where a command ends follows Vim's command table (`ex_cmds.h`): most
+/// commands end at a `|` or at a `"` comment, an expression command such as
+/// `:echo` or `:let` after its expression (`:echo "a|b"` is one command),
+/// `:s` and `:g` after their pattern, and commands such as `:normal`,
+/// `:windo`, `:!` and unknown ones take the rest of the line, `|` included.
+///
+/// Each command comes back with its text as Vim leaves it: a comment is
+/// gone, a backslash before `|` or `"` is dropped (`\\|` leaves `\|`), a
+/// Ctrl-V is dropped except for mappings and file names, and trailing blanks
+/// go unless the command keeps them, as a mapping does. An empty command,
+/// as after `set ic |`, is left out.
+///
+/// [`parse_ex_command`] and [`parse_ex_command_with_modifiers`] take one of
+/// these commands; they do not split or strip comments themselves.
+#[must_use]
+pub fn split_ex_pipeline(input: &str) -> Vec<Cow<'_, str>> {
+    super::ex_split::split(input)
 }
 
 #[cfg(test)]

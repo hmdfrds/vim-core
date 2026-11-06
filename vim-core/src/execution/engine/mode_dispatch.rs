@@ -2764,13 +2764,12 @@ impl VimEngine {
                     output.effects.as_mut_slice(),
                 );
 
-                if !output.set_assignments.is_empty() {
-                    let set_efx = crate::execution::executor_ex::apply_set_assignments(
-                        output.set_scope,
+                if !output.set_commands.is_empty() {
+                    let set_efx = crate::execution::executor_ex::apply_set_commands(
                         &mut self.options,
                         &mut self.buffer_overrides,
                         &mut self.window_overrides,
-                        &output.set_assignments,
+                        &output.set_commands,
                     );
                     self.rebuild_resolved_cache();
                     self.rebuild_langmap_if_needed();
@@ -2778,7 +2777,8 @@ impl VimEngine {
                 }
 
                 for change in &output.mapping_changes {
-                    self.apply_mapping_change(change);
+                    let mapping_efx = self.apply_mapping_change(change);
+                    combined.extend_effects(mapping_efx);
                 }
                 for change in &output.abbrev_changes {
                     let abbrev_efx = self.apply_abbrev_change(change);
@@ -2787,9 +2787,8 @@ impl VimEngine {
                 for change in &output.handler_changes {
                     self.apply_handler_change(change);
                 }
-                if let Some(leader) = output.leader_change {
-                    self.keymap
-                        .set_leader(crate::keymap::KeyEvent::char(leader));
+                for change in &output.leader_changes {
+                    self.apply_leader_change(change);
                 }
                 if output.clear_message_history {
                     self.state.message_history_mut().clear();

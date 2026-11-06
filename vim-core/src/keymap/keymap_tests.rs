@@ -310,6 +310,54 @@ fn map_with_leader_resolves_placeholder() {
     assert!(matches!(result, TrieLookup::NoMatch));
 }
 
+#[test]
+fn a_leader_of_several_keys_resolves_to_all_of_them() {
+    // replace_termcodes() copies the whole value of g:mapleader.
+    let mut km = Keymap::default();
+    km.set_leader_text(false, ",,");
+    assert_eq!(km.leader_keys(), [KeyEvent::char(','), KeyEvent::char(',')]);
+    assert_eq!(km.leader(), KeyEvent::char(','));
+    km.map(
+        MappingMode::Normal,
+        &[KeyEvent::leader(), KeyEvent::char('w')],
+        key_sequence(&[KeyEvent::char('x')]),
+        MappingKind::NonRecursive,
+        MappingFlags::default(),
+    );
+    let result = km.lookup(
+        MappingMode::Normal,
+        &[
+            KeyEvent::char(','),
+            KeyEvent::char(','),
+            KeyEvent::char('w'),
+        ],
+    );
+    assert!(matches!(result, TrieLookup::ExactOnly(_)));
+}
+
+#[test]
+fn a_leader_text_follows_vim() {
+    let mut km = Keymap::default();
+    km.set_leader_text(true, "\x17\t\r\x1b");
+    assert_eq!(
+        km.local_leader_keys(),
+        [
+            KeyEvent::ctrl('w'),
+            KeyEvent::tab(),
+            KeyEvent::enter(),
+            KeyEvent::escape()
+        ]
+    );
+    assert_eq!(km.leader_keys(), [KeyEvent::char('\\')]);
+    // Empty, or more than 48 bytes: a backslash.
+    km.set_leader_text(true, "");
+    assert_eq!(km.local_leader_keys(), [KeyEvent::char('\\')]);
+    km.set_leader_text(true, &"é".repeat(24));
+    assert_eq!(km.local_leader_keys().len(), 24);
+    km.set_leader_text(true, &"é".repeat(25));
+    assert_eq!(km.local_leader_keys(), [KeyEvent::char('\\')]);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Buffer-local mapping tests
 // ═══════════════════════════════════════════════════════════════════

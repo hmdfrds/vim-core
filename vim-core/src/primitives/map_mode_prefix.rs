@@ -18,11 +18,13 @@ pub enum MapModePrefix {
     VisualOnly,
     /// `:smap` — select-only mode (not visual).
     SelectOnly,
+    /// `:map!`: insert and command-line mode.
+    InsertCommand,
 }
 
 impl MapModePrefix {
     /// All variants, in declaration order.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::All,
         Self::Normal,
         Self::Visual,
@@ -31,6 +33,7 @@ impl MapModePrefix {
         Self::Command,
         Self::VisualOnly,
         Self::SelectOnly,
+        Self::InsertCommand,
     ];
 }
 

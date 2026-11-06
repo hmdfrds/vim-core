@@ -21,6 +21,10 @@ pub(super) struct HostCoordinator {
     /// Outstanding host requests awaiting shell completion, keyed by ID
     /// for out-of-order completion.
     pub(in crate::execution::engine) pending: ahash::AHashMap<HostRequestId, HostRequest>,
+    /// How many files run when the file of each `:source` a config left
+    /// to the host runs, so that a file which sources itself through the
+    /// host stops at Vim's depth.
+    pub(in crate::execution::engine) source_depths: ahash::AHashMap<HostRequestId, u32>,
 }
 
 impl HostCoordinator {
@@ -28,6 +32,7 @@ impl HostCoordinator {
         Self {
             sequencer: HostRequestSequencer::default(),
             pending: ahash::AHashMap::new(),
+            source_depths: ahash::AHashMap::new(),
         }
     }
 }

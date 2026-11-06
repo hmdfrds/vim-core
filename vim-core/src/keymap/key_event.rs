@@ -139,6 +139,26 @@ impl KeyEvent {
         }
     }
 
+    /// The key typed for the character `c`: a control character is the
+    /// key that types it (Tab, Enter, Escape, Ctrl-W), any other character
+    /// itself.
+    #[must_use]
+    pub(crate) fn typed(c: char) -> Self {
+        let code = u32::from(c);
+        match c {
+            '\t' => Self::tab(),
+            '\r' => Self::enter(),
+            '\x1b' => Self::escape(),
+            '\x01'..='\x1a' => {
+                char::from_u32(code + 0x60).map_or_else(|| Self::char(c), Self::ctrl)
+            }
+            '\x1c'..='\x1f' => {
+                char::from_u32(code + 0x40).map_or_else(|| Self::char(c), Self::ctrl)
+            }
+            _ => Self::char(c),
+        }
+    }
+
     /// Create a Leader placeholder key event.
     ///
     /// This sentinel is resolved to the actual leader key at mapping

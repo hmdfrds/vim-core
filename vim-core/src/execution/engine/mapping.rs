@@ -7,9 +7,22 @@
 //! Extracted from `engine.rs` for single-responsibility decomposition.
 
 use super::VimEngine;
+use crate::execution::executor_ex::LeaderChange;
+use crate::execution::script_expr::Value;
 use crate::keymap::{
-    BufferMappings, KeyEvent, MappingEntry, MappingFlags, MappingKind, MappingMode, TrieLookup,
+    BufferMappings, KeyEvent, MappingEntry, MappingFlags, MappingKind, MappingMode, MappingOwner,
+    TrieLookup,
 };
+use crate::primitives::{AbbrevMode, VarScope};
+
+/// The `g:` variable that holds the leader (`local`: the local leader).
+const fn leader_variable(local: bool) -> &'static str {
+    if local {
+        "maplocalleader"
+    } else {
+        "mapleader"
+    }
+}
 
 impl VimEngine {
     // ═══════════════════════════════════════════════════════════════════════
@@ -95,7 +108,7 @@ impl VimEngine {
         let mode = self.state.mode();
         debug!(target: "vim::engine::mapping", "mapping lookup resolved (mode={mode:?})");
         match self.typeahead.buffer.force_resolve(&self.keymap, mode) {
-            Some(ResolveResult::Dispatch(key, flags)) => {
+            Some(ResolveResult::Dispatch(key, flags) | ResolveResult::Mapped(key, flags)) => {
                 // Inject back into the buffer so drain_next_key() picks it up.
                 // The flags (typically NOREMAP for flushed literals, or
                 // noremap_rhs for expanded mappings) are preserved, and
@@ -123,7 +136,7 @@ impl VimEngine {
             Some(ResolveResult::RecursionOverflow) => {
                 self.typeahead.buffer.clear();
             }
-            Some(ResolveResult::Pending) | None => {}
+            Some(ResolveResult::Pending | ResolveResult::Consumed) | None => {}
         }
     }
 
@@ -144,11 +157,50 @@ impl VimEngine {
         self.options.set_timeoutlen_ms(ms);
     }
 
-    /// Get the current leader key.
+    /// Get the current leader key: the first one when the leader has
+    /// several (see [`leader_keys`](Self::leader_keys)).
     #[inline]
     #[must_use]
     pub const fn leader(&self) -> KeyEvent {
         self.keymap.leader()
+    }
+
+    /// Get every key of the current leader, which `:let mapleader` can
+    /// make several.
+    #[inline]
+    #[must_use]
+    pub fn leader_keys(&self) -> &[KeyEvent] {
+        self.keymap.leader_keys()
+    }
+
+    /// Get every key of the current local leader (`:let maplocalleader`).
+    #[inline]
+    #[must_use]
+    pub fn local_leader_keys(&self) -> &[KeyEvent] {
+        self.keymap.local_leader_keys()
+    }
+
+    /// Apply `:let mapleader` or `:let maplocalleader`: the value goes to
+    /// the `g:` variable, as in Vim, and the leader comes from it.
+    pub(super) fn apply_leader_change(&mut self, change: &LeaderChange) {
+        let name = leader_variable(change.local);
+        self.state
+            .variable_store_mut()
+            .set(VarScope::Global, name, change.value.clone());
+        self.sync_leader(change.local);
+    }
+
+    /// Take the leader (`local`: the local leader) from `g:mapleader`
+    /// (`g:maplocalleader`) as it is now.
+    pub(super) fn sync_leader(&mut self, local: bool) {
+        let text = self
+            .state
+            .variable_store()
+            .get(VarScope::Global, leader_variable(local))
+            .and_then(Value::from_variable)
+            .map(|value| value.text().into_owned())
+            .unwrap_or_default();
+        self.keymap.set_leader_text(local, &text);
     }
 
     /// Set the leader key.
@@ -212,6 +264,32 @@ impl VimEngine {
     pub fn clear_mappings(&mut self) {
         self.typeahead.buffer.clear();
         self.keymap.clear_all_mappings();
+        self.key_interest_dirty = true;
+    }
+
+    /// Clear what a config can define, so the host can source it again
+    /// from a clean slate: the user's mappings in every mode, every
+    /// abbreviation, the [`handler_map`](Self::handler_map), and the leader
+    /// and local leader, which go back to `\` with `g:mapleader` and
+    /// `g:maplocalleader` removed.
+    ///
+    /// Mappings a host registered with
+    /// [`register_host_mappings`](Self::register_host_mappings), the
+    /// engine's own and buffer-local ones stay, as do options, other
+    /// variables, registers and marks. Vim has no such call: sourcing a
+    /// file again adds to what it defined.
+    pub fn reset_config_state(&mut self) {
+        self.typeahead.buffer.clear();
+        self.keymap
+            .remove_global_mappings_by_owner(&MappingOwner::User);
+        self.abbrev_table.clear(AbbrevMode::Both);
+        self.handler_map.clear();
+        for local in [false, true] {
+            self.state
+                .variable_store_mut()
+                .delete(VarScope::Global, leader_variable(local));
+            self.sync_leader(local);
+        }
         self.key_interest_dirty = true;
     }
 

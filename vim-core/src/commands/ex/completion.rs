@@ -325,6 +325,7 @@ const OPTION_NAMES: &[&str] = &[
     "bs",
     "cb",
     "clipboard",
+    "cms",
     "com",
     "comments",
     "commentstring",
@@ -345,8 +346,10 @@ const OPTION_NAMES: &[&str] = &[
     "isk",
     "iskeyword",
     "langmap",
+    "langnoremap",
     "langremap",
     "lmap",
+    "lnr",
     "lrm",
     "mlf",
     "mlfr",
@@ -410,6 +413,7 @@ const OPTION_DESCRIPTIONS: &[(&str, &str)] = &[
     ("incsearch", "Show matches incrementally while typing"),
     ("iskeyword", "Characters that form keywords"),
     ("langmap", "Keyboard layout translation map"),
+    ("langnoremap", "Do not apply langmap to mapping output"),
     ("langremap", "Apply langmap to mapping output"),
     ("multilinefind", "Allow f/F/t/T to cross line boundaries"),
     (
@@ -454,6 +458,7 @@ fn canonical_option_name(name: &str) -> &str {
         "bo" => "belloff",
         "bs" => "backspace",
         "cb" => "clipboard",
+        "cms" => "commentstring",
         "com" => "comments",
         "et" => "expandtab",
         "fo" => "formatoptions",
@@ -464,6 +469,7 @@ fn canonical_option_name(name: &str) -> &str {
         "is" => "incsearch",
         "isk" => "iskeyword",
         "lmap" => "langmap",
+        "lnr" => "langnoremap",
         "lrm" => "langremap",
         "mlf" => "multilinefind",
         "mlfr" => "multilinefindrange",
@@ -509,6 +515,7 @@ const BOOL_OPTIONS: &[&str] = &[
     "hlsearch",
     "ignorecase",
     "incsearch",
+    "langnoremap",
     "langremap",
     "multilinefind",
     "number",
@@ -578,6 +585,7 @@ fn get_bool_value(canonical: &str, options: &VimOptions) -> bool {
         "hlsearch" => options.hlsearch(),
         "ignorecase" => options.ignorecase(),
         "incsearch" => options.incsearch(),
+        "langnoremap" => !options.langremap(),
         "langremap" => options.langremap(),
         "number" => options.number(),
         "relativenumber" => options.relativenumber(),
@@ -1386,18 +1394,15 @@ mod tests {
     }
 
     #[test]
-    fn commentstring_has_no_short_name() {
-        // `:set` knows 'commentstring' by its full name only, so completion
-        // offers no `cms`.
+    fn commentstring_completes_by_both_names() {
+        // `:set` knows 'commentstring' as `cms` too.
         let names: Vec<_> = complete_setting_name("c", &VimOptions::default())
             .into_iter()
             .map(|c| c.text)
             .collect();
-        assert!(!names.iter().any(|n| n.as_str() == "cms"), "{names:?}");
-        assert!(
-            names.iter().any(|n| n.as_str() == "commentstring"),
-            "{names:?}"
-        );
+        for name in ["cms", "commentstring"] {
+            assert!(names.iter().any(|n| n.as_str() == name), "{names:?}");
+        }
     }
 
     #[test]

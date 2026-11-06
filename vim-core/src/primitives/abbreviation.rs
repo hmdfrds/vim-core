@@ -4,6 +4,7 @@
 //! mode applicability, and the table used for O(1) exact-match lookup.
 
 use compact_str::CompactString;
+use smallvec::SmallVec;
 use std::collections::HashMap;
 
 /// Where an abbreviation applies.
@@ -67,57 +68,126 @@ pub struct AbbrevEntry {
     pub noremap: bool,
 }
 
+impl AbbrevMode {
+    const fn bits(self) -> u8 {
+        match self {
+            Self::Insert => 1,
+            Self::CommandLine => 2,
+            Self::Both => 3,
+        }
+    }
+
+    const fn from_bits(bits: u8) -> Option<Self> {
+        match bits & 3 {
+            1 => Some(Self::Insert),
+            2 => Some(Self::CommandLine),
+            3 => Some(Self::Both),
+            _ => None,
+        }
+    }
+
+    const fn overlaps(self, other: Self) -> bool {
+        self.bits() & other.bits() != 0
+    }
+
+    /// `self` without the modes of `other`; `None` when nothing is left.
+    const fn without(self, other: Self) -> Option<Self> {
+        Self::from_bits(self.bits() & !other.bits())
+    }
+}
+
 /// The abbreviation table. HashMap for O(1) exact-match lookup.
+///
+/// A trigger has one entry per mode, as in Vim, where each abbreviation has
+/// mode bits: `:iabbrev a b` and `:cabbrev a c` keep both, and
+/// `:iunabbrev` on an `:abbreviate` entry leaves its command-line part.
 #[derive(Debug, Clone, Default)]
 pub struct AbbrevTable {
-    entries: HashMap<CompactString, AbbrevEntry>,
+    entries: HashMap<CompactString, SmallVec<[AbbrevEntry; 1]>>,
 }
 
 impl AbbrevTable {
-    /// Add or replace an abbreviation entry.
+    /// Add an abbreviation. An entry with the same trigger loses the modes
+    /// of the new one, and goes when it has none left, as in Vim's
+    /// `do_map()`.
     pub fn add(&mut self, entry: AbbrevEntry) {
-        self.entries.insert(entry.trigger.clone(), entry);
+        let mode = entry.mode;
+        let same = self.entries.entry(entry.trigger.clone()).or_default();
+        same.retain(|old| narrow(old, mode));
+        same.push(entry);
     }
 
-    /// Remove an abbreviation by trigger and mode.
+    /// Take the modes of `mode` off the abbreviations of `trigger`; one
+    /// left with no mode is removed, as in Vim's `do_map()`.
     ///
-    /// Returns `true` if an entry was removed.
-    /// Matches if the stored mode equals `mode`, or either side is `Both`.
+    /// Returns `true` if an abbreviation had one of those modes.
     pub fn remove(&mut self, trigger: &str, mode: AbbrevMode) -> bool {
-        if let Some(existing) = self.entries.get(trigger) {
-            if existing.mode == mode
-                || existing.mode == AbbrevMode::Both
-                || mode == AbbrevMode::Both
-            {
-                self.entries.remove(trigger);
-                return true;
-            }
+        let Some(same) = self.entries.get_mut(trigger) else {
+            return false;
+        };
+        let found = same.iter().any(|entry| entry.mode.overlaps(mode));
+        same.retain(|entry| narrow(entry, mode));
+        if same.is_empty() {
+            self.entries.remove(trigger);
         }
-        false
+        found
     }
 
-    /// Remove all abbreviations that apply to the given mode.
-    ///
-    /// Entries with mode `Both` are also removed since they cover `mode`.
+    /// Remove the abbreviations that expand to `replacement`, by mode as
+    /// [`remove`](Self::remove) does. Whether there was one.
+    pub(crate) fn remove_expanding_to(&mut self, replacement: &str, mode: AbbrevMode) -> bool {
+        self.narrow_where(mode, |entry| entry.replacement == replacement)
+    }
+
+    /// Take the modes of `mode` off every abbreviation, as Vim's
+    /// `map_clear_mode()` does: `Both` removes them all.
     pub fn clear(&mut self, mode: AbbrevMode) {
-        self.entries
-            .retain(|_, entry| entry.mode != mode && entry.mode != AbbrevMode::Both);
+        self.narrow_where(mode, |_| true);
     }
 
-    /// Look up an abbreviation by exact trigger text.
+    fn narrow_where(&mut self, mode: AbbrevMode, pick: impl Fn(&AbbrevEntry) -> bool) -> bool {
+        let mut found = false;
+        self.entries.retain(|_, same| {
+            same.retain(|entry| {
+                if !pick(entry) || !entry.mode.overlaps(mode) {
+                    return true;
+                }
+                found = true;
+                narrow(entry, mode)
+            });
+            !same.is_empty()
+        });
+        found
+    }
+
+    /// Whether `trigger` is an abbreviation in one of the modes of `mode`.
+    #[must_use]
+    pub fn defines(&self, trigger: &str, mode: AbbrevMode) -> bool {
+        self.find(trigger, mode).is_some()
+    }
+
+    /// Look up an abbreviation by exact trigger text, in any mode.
     #[must_use]
     pub fn get(&self, trigger: &str) -> Option<&AbbrevEntry> {
-        self.entries.get(trigger)
+        self.entries.get(trigger).and_then(|same| same.first())
     }
 
-    /// List all abbreviations that apply to the given mode.
-    ///
-    /// Includes entries whose mode is `Both`.
+    /// The abbreviation of `trigger` in one of the modes of `mode`.
+    pub(crate) fn find(&self, trigger: &str, mode: AbbrevMode) -> Option<&AbbrevEntry> {
+        self.entries
+            .get(trigger)?
+            .iter()
+            .find(|entry| entry.mode.overlaps(mode))
+    }
+
+    /// List the abbreviations that apply in one of the modes of `mode`,
+    /// as Vim lists them: `Both` lists every one.
     #[must_use]
     pub fn list(&self, mode: AbbrevMode) -> Vec<&AbbrevEntry> {
         self.entries
             .values()
-            .filter(|e| e.mode == mode || e.mode == AbbrevMode::Both)
+            .flatten()
+            .filter(|e| e.mode.overlaps(mode))
             .collect()
     }
 
@@ -256,12 +326,7 @@ impl AbbrevTable {
             return None;
         }
 
-        let entry = self.entries.get(candidate)?;
-
-        // Check mode applicability
-        if entry.mode != mode && entry.mode != AbbrevMode::Both && mode != AbbrevMode::Both {
-            return None;
-        }
+        let entry = self.find(candidate, mode)?;
 
         // Verify boundary conditions per kind
         match entry.kind {
@@ -294,6 +359,17 @@ impl AbbrevTable {
         }
 
         Some((candidate.len(), entry.replacement.clone()))
+    }
+}
+
+/// Take the modes of `mode` off `entry`; whether it keeps one.
+const fn narrow(entry: &mut AbbrevEntry, mode: AbbrevMode) -> bool {
+    match entry.mode.without(mode) {
+        Some(rest) => {
+            entry.mode = rest;
+            true
+        }
+        None => false,
     }
 }
 
@@ -394,6 +470,110 @@ mod tests {
         assert_eq!(insert_list.len(), 2); // "a" (Insert) + "c" (Both)
         let cmdline_list = table.list(AbbrevMode::CommandLine);
         assert_eq!(cmdline_list.len(), 1); // only "c" (Both)
+    }
+
+    fn entry(trigger: &str, replacement: &str, mode: AbbrevMode) -> AbbrevEntry {
+        AbbrevEntry {
+            trigger: trigger.into(),
+            replacement: replacement.into(),
+            mode,
+            kind: AbbrevKind::FullId,
+            noremap: false,
+        }
+    }
+
+    fn replacement(table: &AbbrevTable, trigger: &str, mode: AbbrevMode) -> Option<String> {
+        table
+            .find(trigger, mode)
+            .map(|entry| entry.replacement.to_string())
+    }
+
+    #[test]
+    fn each_mode_keeps_its_own_entry() {
+        // do_map() adds an entry when no entry of the trigger has the mode.
+        let mut table = AbbrevTable::default();
+        table.add(entry("a", "b", AbbrevMode::Insert));
+        table.add(entry("a", "c", AbbrevMode::CommandLine));
+        assert_eq!(
+            replacement(&table, "a", AbbrevMode::Insert).as_deref(),
+            Some("b")
+        );
+        assert_eq!(
+            replacement(&table, "a", AbbrevMode::CommandLine).as_deref(),
+            Some("c")
+        );
+        assert_eq!(table.list(AbbrevMode::Both).len(), 2);
+        assert_eq!(
+            table.try_expand(' ', "a", AbbrevMode::Insert, &is_kw),
+            Some((1, "b".into()))
+        );
+    }
+
+    #[test]
+    fn defining_one_mode_narrows_an_entry_of_both() {
+        // do_map() takes the new mode bits off the old entry.
+        let mut table = AbbrevTable::default();
+        table.add(entry("a", "b", AbbrevMode::Both));
+        table.add(entry("a", "x", AbbrevMode::Insert));
+        assert_eq!(
+            replacement(&table, "a", AbbrevMode::Insert).as_deref(),
+            Some("x")
+        );
+        assert_eq!(
+            replacement(&table, "a", AbbrevMode::CommandLine).as_deref(),
+            Some("b")
+        );
+
+        table.add(entry("a", "y", AbbrevMode::Both));
+        assert_eq!(table.list(AbbrevMode::Both).len(), 1);
+        assert_eq!(
+            replacement(&table, "a", AbbrevMode::CommandLine).as_deref(),
+            Some("y")
+        );
+    }
+
+    #[test]
+    fn remove_takes_off_only_the_modes_named() {
+        let mut table = AbbrevTable::default();
+        table.add(entry("e", "f", AbbrevMode::Both));
+        assert!(table.remove("e", AbbrevMode::Insert));
+        assert!(!table.defines("e", AbbrevMode::Insert));
+        assert!(table.defines("e", AbbrevMode::CommandLine));
+        assert!(!table.remove("e", AbbrevMode::Insert));
+        assert!(table.remove("e", AbbrevMode::Both));
+        assert!(table.is_empty());
+    }
+
+    #[test]
+    fn remove_expanding_to_takes_off_only_the_modes_named() {
+        let mut table = AbbrevTable::default();
+        table.add(entry("e", "f", AbbrevMode::Both));
+        assert!(table.remove_expanding_to("f", AbbrevMode::CommandLine));
+        assert_eq!(
+            replacement(&table, "e", AbbrevMode::Insert).as_deref(),
+            Some("f")
+        );
+        assert!(!table.defines("e", AbbrevMode::CommandLine));
+    }
+
+    #[test]
+    fn clear_both_removes_every_entry() {
+        // map_clear_mode() with INSERT and CMDLINE frees each entry.
+        let mut table = AbbrevTable::default();
+        table.add(entry("a", "b", AbbrevMode::Insert));
+        table.add(entry("c", "d", AbbrevMode::CommandLine));
+        table.add(entry("e", "f", AbbrevMode::Both));
+        table.clear(AbbrevMode::Both);
+        assert!(table.is_empty());
+    }
+
+    #[test]
+    fn clear_one_mode_keeps_the_other_part_of_both() {
+        let mut table = AbbrevTable::default();
+        table.add(entry("e", "f", AbbrevMode::Both));
+        table.clear(AbbrevMode::Insert);
+        assert!(!table.defines("e", AbbrevMode::Insert));
+        assert!(table.defines("e", AbbrevMode::CommandLine));
     }
 
     // ═══════════════════════════════════════════════════════════════════════

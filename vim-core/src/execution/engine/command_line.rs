@@ -7,7 +7,7 @@ use crate::document::Document;
 use crate::effects::{Effect, Effects};
 use crate::execution::host::CmdlineCompletionKind;
 use crate::execution::HostRequest;
-use crate::grammar::ex_parser::parse_ex_command;
+use crate::grammar::ex_parser::{parse_ex_command, split_ex_pipeline};
 use crate::grammar::types::{ExCommand, LineSpec};
 use crate::primitives::byte_delta;
 use crate::primitives::{Direction, Range, RegisterName};
@@ -656,10 +656,8 @@ fn parse_substitute_input(
     CompactString,
     crate::primitives::SubFlags,
 )> {
-    if input.is_empty() {
-        return None;
-    }
-    let ex_cmd = parse_ex_command(input).ok()?;
+    let first = split_ex_pipeline(input).into_iter().next()?;
+    let ex_cmd = parse_ex_command(&first).ok()?;
     if let ExCommand::Substitute {
         range,
         pattern,
@@ -902,6 +900,23 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Effect::ClearSubstitutePreview));
         assert!(has_clear, "empty input should clear preview");
+    }
+
+    #[test]
+    fn preview_reads_the_substitute_before_a_bar() {
+        // Split as the line runs: the pattern keeps its `|`, and the
+        // command after the bar is not part of the flags.
+        let (_, pattern, replacement, flags) =
+            parse_substitute_input("s/a|b/c/g | set ic").expect("a substitute");
+        assert_eq!(pattern, "a|b");
+        assert_eq!(replacement, "c");
+        assert!(flags.global());
+        assert!(!flags.confirm());
+        let effects =
+            live_substitute_preview_effects_impl("s/foo/baz/ | set ic", "foo bar", 0, false, false);
+        assert!(effects
+            .iter()
+            .any(|e| matches!(e, Effect::SubstitutePreview { matches } if matches.len() == 1)));
     }
 
     #[test]

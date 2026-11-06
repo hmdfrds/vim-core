@@ -22,22 +22,10 @@ pub(crate) enum SetOperator {
     Prepend,
 }
 
-impl SetOperator {
-    /// The operator as typed, for error messages.
-    pub(crate) const fn symbol(self) -> &'static str {
-        match self {
-            Self::Append => "+=",
-            Self::Remove => "-=",
-            Self::Prepend => "^=",
-        }
-    }
-}
-
-/// Parse an operand of `+=`, `-=` and `^=` the way Vim does: decimal,
-/// `0x` hex, `0b` binary, `0o` or leading-zero octal, with an optional
-/// minus sign. The whole string must be the number. A plain `=` does not
-/// use this.
-fn parse_vim_number(s: &str) -> Option<i64> {
+/// Parse a number of `:set` the way Vim's `vim_str2nr()` does with
+/// `STR2NR_ALL`: decimal, `0x` hex, `0b` binary, `0o` or leading-zero
+/// octal, with an optional minus sign. The whole string must be the number.
+pub(crate) fn parse_vim_number(s: &str) -> Option<i64> {
     let (negative, digits) = match s.strip_prefix('-') {
         Some(rest) => (true, rest),
         None => (false, s),
@@ -322,8 +310,7 @@ mod tests {
             assert_eq!(
                 apply_id(id, &tw, op, value),
                 Ok(OptionValue::Unsigned(want)),
-                "tw{}{value}",
-                op.symbol()
+                "tw{op:?}{value}"
             );
         }
         assert_eq!(
@@ -381,12 +368,7 @@ mod tests {
             (Prepend, "q", "tcq"),
             (Prepend, "ct", "tcq"),
         ] {
-            assert_eq!(
-                apply_str(fo, "tcq", op, value),
-                want,
-                "fo{}{value}",
-                op.symbol()
-            );
+            assert_eq!(apply_str(fo, "tcq", op, value), want, "fo{op:?}{value}");
         }
         assert_eq!(apply_str(fo, "", Append, "c"), "c");
         assert_eq!(apply_str(fo, "", Prepend, "c"), "c");
@@ -422,8 +404,7 @@ mod tests {
             assert_eq!(
                 apply_str(com, ":a,:b,:c", op, value),
                 want,
-                "com{}{value}",
-                op.symbol()
+                "com{op:?}{value}"
             );
         }
         assert_eq!(apply_str(com, ":ab,:b", Remove, ":b"), ":ab");

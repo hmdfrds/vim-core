@@ -2930,3 +2930,305 @@ fn a_deeply_nested_pattern_is_an_error_on_a_small_stack() {
         .join()
         .unwrap();
 }
+
+// ── `|` in Ex command lines ──────────────────────────────────────────────
+
+#[test]
+fn normal_takes_a_bar_as_part_of_its_keys() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":normal ihello|world<CR>");
+    assert_eq!(session.text(), "hello|worldx");
+}
+
+#[test]
+fn backslash_bar_puts_a_bar_in_a_mapping() {
+    // The whole `:s/c/d/ | set ic` is the right-hand side; nothing runs
+    // until `x` is pressed.
+    let mut session = HostSession::new("ac");
+    process_keys(&mut session, ":nnoremap x :s/c/d/ \\| set ic<lt>CR><CR>");
+    assert!(!session.options().ignorecase());
+    process_keys(&mut session, "x");
+    assert_eq!(session.text(), "ad");
+    assert!(session.options().ignorecase());
+}
+
+#[test]
+fn a_bar_after_a_copy_runs_the_next_command() {
+    let mut session = HostSession::new("a");
+    process_keys(&mut session, ":t. | set ic<CR>");
+    assert!(session.text().starts_with("a\na"));
+    assert!(session.options().ignorecase());
+}
+
+#[test]
+fn a_bar_after_a_line_number_runs_the_next_command() {
+    for (line, offset) in [(":2 | set ic<CR>", 2), (":$ | set ic<CR>", 4)] {
+        let mut session = HostSession::new("1\n2\n3");
+        process_keys(&mut session, line);
+        assert_eq!(session.cursor_offset(), offset, "{line}");
+        assert!(session.options().ignorecase(), "{line}");
+    }
+}
+
+#[test]
+fn a_bar_after_a_host_command_runs_the_next_command() {
+    // `:filetype` and `:pwd` end at `|` (`EX_TRLBAR`), `:let` after its
+    // expression and `:syntax` at the first `|`.
+    for (line, command) in [
+        (":filetype on | set ic<CR>", "filetype on"),
+        (":pwd | set ic<CR>", "pwd"),
+        (":let g:x = 1 | set ic<CR>", "let g:x = 1"),
+        (":syntax on | set ic<CR>", "syntax on"),
+    ] {
+        let mut session = HostSession::new("x");
+        let response = process_keys(&mut session, line);
+        assert!(
+            matches!(
+                response.host_requests.as_slice(),
+                [HostRequest::CustomExCommand { command: c, .. }] if c.as_str() == command
+            ),
+            "{line}: {:?}",
+            response.host_requests
+        );
+        assert!(session.options().ignorecase(), "{line}");
+    }
+}
+
+#[test]
+fn a_let_heredoc_takes_the_rest_of_the_line() {
+    // `ex_let()` hands `heredoc_get()` the rest of the line.
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":let x =<< END | set ic<CR>");
+    assert!(
+        matches!(
+            response.host_requests.as_slice(),
+            [HostRequest::CustomExCommand { command, .. }] if command.as_str() == "let x =<< END | set ic"
+        ),
+        "{:?}",
+        response.host_requests
+    );
+    assert!(!session.options().ignorecase());
+}
+
+#[test]
+fn a_bar_inside_an_echo_string_is_text() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":echo \"a|b\"<CR>");
+    assert_eq!(session.errmsg(), None);
+}
+
+#[test]
+fn a_comment_after_set_ends_the_line_without_a_blank() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":set tw=20\" c | set ic<CR>");
+    assert_eq!(session.options().textwidth(), 20);
+    assert!(!session.options().ignorecase());
+}
+
+#[test]
+fn a_bar_at_the_end_of_a_command_line_is_nothing() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":set ic |<CR>");
+    assert!(session.options().ignorecase());
+    assert_eq!(session.errmsg(), None);
+    let response = process_keys(&mut session, ":w |<CR>");
+    assert!(
+        matches!(
+            response.host_requests.as_slice(),
+            [HostRequest::WriteFile { path: None, .. }]
+        ),
+        "{:?}",
+        response.host_requests
+    );
+}
+
+/// Whether `response` asks the host to edit `path` and nothing else; the
+/// session answers a split itself.
+fn edits_only(response: &HostResponse, path: &str) -> bool {
+    matches!(
+        response.host_requests.as_slice(),
+        [HostRequest::EditFile { path: p, .. }] if p.as_str() == path
+    )
+}
+
+#[test]
+fn a_bar_after_split_runs_the_next_command() {
+    // `|` ends Vim's `:split`; it is no delimiter of the engine's
+    // `:split /pattern/`.
+    for line in [
+        ":sp | set ic | e foo<CR>",
+        ":vert sp | set ic | e foo<CR>",
+        ":sp!|set ic|e foo<CR>",
+    ] {
+        let mut session = HostSession::new("x");
+        let response = process_keys(&mut session, line);
+        assert!(
+            edits_only(&response, "foo"),
+            "{line}: {:?}",
+            response.host_requests
+        );
+        assert!(session.options().ignorecase(), "{line}");
+    }
+}
+
+#[test]
+fn a_cmd_mapping_and_at_colon_split_a_line_as_typed() {
+    let mut session = HostSession::new("x");
+    process_keys(
+        &mut session,
+        ":nnoremap x <lt>Cmd>sp \\| set tw+=1 \\| e foo<lt>CR><CR>",
+    );
+    let response = process_keys(&mut session, "x");
+    assert!(edits_only(&response, "foo"), "{:?}", response.host_requests);
+    assert_eq!(session.options().textwidth(), 1);
+    process_keys(&mut session, ":sp | set tw+=1<CR>");
+    process_keys(&mut session, "@:");
+    assert_eq!(session.options().textwidth(), 3);
+}
+
+#[test]
+fn windo_gives_the_host_the_rest_of_the_line() {
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":windo set ic | set sw=2<CR>");
+    assert!(
+        matches!(
+            response.host_requests.as_slice(),
+            [HostRequest::ForEachWindow { command, .. }] if command.as_str() == "set ic | set sw=2"
+        ),
+        "{:?}",
+        response.host_requests
+    );
+    assert!(!session.options().ignorecase());
+}
+
+#[test]
+fn a_host_command_that_reads_its_own_argument_keeps_its_text() {
+    // `ex_match()`, `ex_wincmd()`, and `:verbose`, which leaves the end to
+    // the command after it.
+    for (line, command) in [
+        (":match Foo /a\\|b/ | set ic<CR>", "match Foo /a\\|b/"),
+        (":wincmd | | set ic<CR>", "wincmd |"),
+        (":verbose echo \"a|b\" | set ic<CR>", "verbose echo \"a|b\""),
+    ] {
+        let mut session = HostSession::new("x");
+        let response = process_keys(&mut session, line);
+        assert!(
+            matches!(
+                response.host_requests.as_slice(),
+                [HostRequest::CustomExCommand { command: c, .. }] if c.as_str() == command
+            ),
+            "{line}: {:?}",
+            response.host_requests
+        );
+        assert!(session.options().ignorecase(), "{line}");
+    }
+}
+
+#[test]
+fn a_comment_after_a_host_command_is_not_sent() {
+    // `:runtime` has `EX_TRLBAR`, so `"` starts a comment.
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":run \"foo bar\"<CR>");
+    assert!(
+        matches!(
+            response.host_requests.as_slice(),
+            [HostRequest::CustomExCommand { command, .. }] if command.as_str() == "run"
+        ),
+        "{:?}",
+        response.host_requests
+    );
+}
+
+#[test]
+fn an_empty_command_line_does_nothing() {
+    // `parse_command_modifiers()` runs nothing for an empty command.
+    for line in [":<CR>", ":   <CR>", ":silent<CR>"] {
+        let mut session = HostSession::new("  abc");
+        process_keys(&mut session, "$");
+        let response = process_keys(&mut session, line);
+        assert_eq!(session.cursor_offset(), 4, "{line}");
+        assert!(response.host_requests.is_empty(), "{line}");
+        assert_eq!(session.errmsg(), None, "{line}");
+    }
+}
+
+#[test]
+fn text_after_substitute_flags_gives_e488() {
+    let mut session = HostSession::new("foo");
+    process_keys(&mut session, ":s/o/0/x | set ic<CR>");
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E488: Trailing characters: x | set ic")
+    );
+    assert_eq!(session.text(), "foo");
+    assert_eq!(session.mode(), Mode::Normal);
+    assert!(!session.options().ignorecase());
+}
+
+#[test]
+fn a_typed_comment_runs_nothing() {
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":\" just a note<CR>");
+    assert!(response.host_requests.is_empty());
+    assert_eq!(session.errmsg(), None);
+}
+
+#[test]
+fn a_no_break_space_starts_no_command() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":\u{a0}set ic<CR>");
+    assert!(!session.options().ignorecase());
+}
+
+// ── Script blocks on the command line ────────────────────────────────────
+
+#[test]
+fn a_typed_if_gives_e319_and_ends_the_line() {
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":if 0 | set ic | endif<CR>");
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E319: Sorry, the command is not available in this version: if 0")
+    );
+    assert!(!session.options().ignorecase());
+    assert!(response.host_requests.is_empty());
+}
+
+#[test]
+fn a_block_command_after_a_bar_gives_e319() {
+    let mut session = HostSession::new("x");
+    process_keys(&mut session, ":set ic | en<CR>");
+    assert!(session.options().ignorecase());
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E319: Sorry, the command is not available in this version: endif")
+    );
+}
+
+#[test]
+fn a_typed_finish_gives_e168_as_ex_finish_does() {
+    let mut session = HostSession::new("x");
+    let response = process_keys(&mut session, ":finish<CR>");
+    assert_eq!(
+        session.errmsg().as_deref(),
+        Some("E168: :finish used outside of a sourced file")
+    );
+    assert!(response.host_requests.is_empty());
+}
+
+#[test]
+fn a_typed_break_or_continue_goes_to_the_host() {
+    for (line, command) in [(":brea<CR>", "brea"), (":cont<CR>", "cont")] {
+        let mut session = HostSession::new("x");
+        let response = process_keys(&mut session, line);
+        assert!(
+            matches!(
+                response.host_requests.as_slice(),
+                [HostRequest::CustomExCommand { command: c, .. }] if c.as_str() == command
+            ),
+            "{line}: {:?}",
+            response.host_requests
+        );
+        assert_eq!(session.errmsg(), None, "{line}");
+    }
+}
