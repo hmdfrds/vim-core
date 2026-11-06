@@ -1172,6 +1172,21 @@ mod tests {
     }
 
     #[test]
+    fn reset_config_state_drops_pending_keys_and_marks_key_interest() {
+        // A key waiting as the start of a mapping would be matched against
+        // mappings that are gone, and the host's key interest held them.
+        let mut session = sourced("abc", "nnoremap ab x\n");
+        type_keys(&mut session, "a");
+        assert!(session.engine().has_pending_mapping());
+        session.engine_mut().key_interest_dirty = false;
+        session.reset_config_state();
+        assert!(!session.engine().has_pending_keys());
+        assert!(session.engine().key_interest_dirty);
+        type_keys(&mut session, "b");
+        assert_eq!(session.text(), "abc");
+    }
+
+    #[test]
     fn reset_config_state_lets_a_config_run_again_from_nothing() {
         let mut session = sourced("x", "let mapleader = \",\"\niabbrev teh the\n");
         session.reset_config_state();
