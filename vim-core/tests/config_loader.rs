@@ -1411,6 +1411,32 @@ fn source_ends_at_a_bar() {
 }
 
 #[test]
+fn source_forms_vim_core_lacks_are_errors_in_a_config() {
+    // cmd_source(): a range with a file name is E481; :source! and a range
+    // alone, which vim-core does not run, are E319. The host is not asked.
+    let mut engine = VimEngine::new();
+    let mut done = Reply(SourceReply::Done(None), Vec::new());
+    let text = ConfigText::new("a.vim", "source! x\n1source x\n1source\n");
+    let response = engine.source_script(text, &mut done).response;
+    let place = |line: u32, error: &str| ("a.vim".to_owned(), line, error.to_owned());
+    assert_eq!(
+        places(&response),
+        [
+            place(
+                1,
+                "E319: Sorry, the command is not available in this version: source!"
+            ),
+            place(2, "E481: No range allowed"),
+            place(
+                3,
+                "E319: Sorry, the command is not available in this version: [range]source"
+            ),
+        ]
+    );
+    assert!(done.1.is_empty());
+}
+
+#[test]
 fn silent_before_source_holds_inside_the_file() {
     // apply_cmdmod() keeps emsg_silent and msg_silent up while the file
     // runs, so its errors neither show nor skip anything.
