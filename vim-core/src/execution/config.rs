@@ -60,7 +60,8 @@ impl TrustTag {
 /// What the host answers while a config runs.
 pub trait ConfigHost {
     /// Whether `has({feature})` is 1 for a feature vim-core does not
-    /// answer itself, such as one the host names after itself.
+    /// answer itself, such as one the host names after itself. The name
+    /// comes in lowercase, as Vim compares feature names without case.
     fn has_feature(&self, _feature: &str) -> bool {
         false
     }

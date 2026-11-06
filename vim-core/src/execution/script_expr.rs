@@ -947,7 +947,8 @@ impl<'a> Parser<'a> {
     fn has(&mut self, name: &str, check: Option<&Value>) -> i64 {
         let (known, present) = match feature(name) {
             (false, _) => {
-                let present = self.env.host.has_feature(name);
+                // f_has() compares feature names without case.
+                let present = self.env.host.has_feature(&name.to_ascii_lowercase());
                 (present, present)
             }
             known => known,

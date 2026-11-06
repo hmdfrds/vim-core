@@ -744,6 +744,17 @@ fn has_asks_the_host_for_a_feature_vim_core_does_not_know() {
 }
 
 #[test]
+fn has_ignores_the_case_of_a_feature() {
+    // f_has() compares with STRICMP() and STRNICMP(); the host is asked
+    // in lowercase.
+    let config =
+        "echo has('GoDot') has('EVAL') has('Patch-9.1.0') has('PATCH0') has('VIM9SCRIPT', 1)\n";
+    let mut engine = VimEngine::new();
+    let sourced = engine.source_script(ConfigText::new("", config), &mut Features(&["godot"]));
+    assert_eq!(infos(&sourced.response), ["1 1 1 1 1"]);
+}
+
+#[test]
 fn a_session_sources_a_script_through_its_host() {
     let mut session = HostSession::new("a");
     let _ = session.source_script(
