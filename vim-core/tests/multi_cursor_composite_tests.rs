@@ -1,0 +1,267 @@
+//! Multi-cursor Insert against the composite of single-cursor runs.
+//!
+//! Each cursor sits on its own line. Running the keys with all cursors must
+//! give the text that splicing together the single-cursor runs gives, each
+//! run contributing only its own segment (no 'textwidth', so no formatting
+//! reaches across segments). A case whose single run edits outside its
+//! segment is NONLOCAL and not compared.
+
+use std::cell::{Cell, RefCell};
+use std::io::Write as _;
+use std::sync::Once;
+
+use vim_core::execution::{parse_keys_from_string, HostSession};
+use vim_core::primitives::VimOptions;
+
+thread_local! {
+    static CAPTURING: Cell<bool> = const { Cell::new(false) };
+    static LAST_PANIC: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+/// Records panics raised inside `check` instead of printing them; the
+/// test's own assertion failures still print.
+fn install_panic_recorder() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let default = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if CAPTURING.with(Cell::get) {
+                LAST_PANIC.with(|m| *m.borrow_mut() = info.to_string());
+            } else {
+                default(info);
+            }
+        }));
+    });
+}
+
+struct Rng(u64);
+
+impl Rng {
+    // xorshift64
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n as u64) as usize
+    }
+    fn chance(&mut self, p: f64) -> bool {
+        (self.next() % 10000) as f64 / 10000.0 < p
+    }
+    fn pick<'a>(&mut self, v: &[&'a str]) -> &'a str {
+        v[self.below(v.len())]
+    }
+}
+
+const LINES: &[&str] = &[
+    "The quick brown fox",
+    "    indented line one",
+    "\tTabbed line two",
+    "        deep indent here",
+    "# hash comment",
+    "short",
+    "",
+    "  two spaces",
+    "héllo wörld 日本語",
+];
+const WORDS: &[&str] = &["foo", "bar", "x", "if {", "}", "é", "a b", "end."];
+const SEED: u64 = 0x9e37_79b9_7f4a_7c15;
+const FULL_CASES: usize = 5000;
+
+#[derive(Debug, Clone)]
+struct Case {
+    lines: Vec<String>,
+    rows: Vec<usize>,
+    cols: Vec<usize>,
+    keys: String,
+    ai: bool,
+    et: bool,
+    ts: usize,
+}
+
+fn gen(r: &mut Rng) -> Case {
+    let k = 2 + r.below(2);
+    let sep = r.chance(0.5);
+    let (mut lines, mut rows, mut cols) = (vec![], vec![], vec![]);
+    for i in 0..k {
+        if sep && i > 0 {
+            lines.push(String::new());
+        }
+        rows.push(lines.len());
+        let l = r.pick(LINES).to_owned();
+        let starts: Vec<usize> = (0..l.len()).filter(|&b| l.is_char_boundary(b)).collect();
+        cols.push(if starts.is_empty() {
+            0
+        } else {
+            starts[r.below(starts.len())]
+        });
+        lines.push(l);
+    }
+    let mut keys = String::new();
+    let n = 1 + r.below(3);
+    for i in 0..n {
+        if i > 0 && r.chance(0.25) {
+            if r.chance(0.2) {
+                keys.push('2');
+            }
+            keys.push('.');
+            continue;
+        }
+        if r.chance(0.15) {
+            keys.push_str(r.pick(&["2", "3"]));
+        }
+        keys.push_str(r.pick(&["i", "a", "A", "I", "o", "O", "cc", "S", "R"]));
+        for _ in 0..(1 + r.below(6)) {
+            let x = r.below(100);
+            if x < 50 {
+                keys.push_str(r.pick(WORDS));
+                if r.chance(0.6) {
+                    keys.push(' ');
+                }
+            } else if x < 70 {
+                keys.push_str("<CR>");
+            } else if x < 82 {
+                keys.push_str("<BS>");
+            } else if x < 92 {
+                keys.push_str("<Tab>");
+            } else {
+                keys.push_str("  ");
+            }
+        }
+        keys.push_str("<Esc>");
+    }
+    Case {
+        lines,
+        rows,
+        cols,
+        keys,
+        ai: r.chance(0.6),
+        et: r.chance(0.5),
+        ts: if r.chance(0.5) { 4 } else { 8 },
+    }
+}
+
+fn cases() -> Vec<Case> {
+    let mut r = Rng(SEED);
+    (0..FULL_CASES).map(|_| gen(&mut r)).collect()
+}
+
+fn offset(lines: &[String], row: usize, col: usize) -> usize {
+    lines[..row].iter().map(|l| l.len() + 1).sum::<usize>() + col
+}
+
+fn run(case: &Case, which: &[usize]) -> String {
+    let mut s = HostSession::new(&case.lines.join("\n"));
+    let mut o = VimOptions::default();
+    o.set_autoindent(case.ai);
+    o.set_expandtab(case.et);
+    o.set_tabstop(case.ts);
+    o.set_shiftwidth(4);
+    o.set_smartindent(false);
+    o.set_auto_pairs(None);
+    s.set_options(o);
+    s.set_cursor_offset(offset(
+        &case.lines,
+        case.rows[which[0]],
+        case.cols[which[0]],
+    ));
+    for &j in &which[1..] {
+        s.add_cursor(offset(&case.lines, case.rows[j], case.cols[j]))
+            .unwrap();
+    }
+    for k in parse_keys_from_string(&case.keys) {
+        s.process_key_host(k);
+    }
+    s.text().to_owned()
+}
+
+/// Splices each single-cursor run's own segment; `None` when a run edits
+/// outside its segment.
+fn composite(case: &Case, singles: &[String]) -> Option<String> {
+    let d = case.lines.join("\n");
+    let starts: Vec<usize> = std::iter::once(0)
+        .chain(
+            case.rows[1..]
+                .iter()
+                .map(|&row| offset(&case.lines, row, 0)),
+        )
+        .collect();
+    let mut ends = starts[1..].to_vec();
+    ends.push(d.len());
+    let mut exp = String::new();
+    for (j, t) in singles.iter().enumerate() {
+        let (pre, suf) = (&d[..starts[j]], &d[ends[j]..]);
+        if t.len() < pre.len() + suf.len() || !t.starts_with(pre) || !t.ends_with(suf) {
+            return None;
+        }
+        exp.push_str(&t[pre.len()..t.len() - suf.len()]);
+    }
+    Some(exp)
+}
+
+enum Outcome {
+    Ok,
+    Text { expected: String, multi: String },
+    NonLocal,
+    Panic(String),
+}
+
+fn check(case: &Case) -> Outcome {
+    let k = case.rows.len();
+    let all: Vec<usize> = (0..k).collect();
+    CAPTURING.with(|c| c.set(true));
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let multi = run(case, &all);
+        let singles: Vec<String> = (0..k).map(|j| run(case, &[j])).collect();
+        (multi, singles)
+    }));
+    CAPTURING.with(|c| c.set(false));
+    let Ok((multi, singles)) = res else {
+        return Outcome::Panic(LAST_PANIC.with(|m| m.borrow().clone()));
+    };
+    match composite(case, &singles) {
+        None => Outcome::NonLocal,
+        Some(expected) if expected == multi => Outcome::Ok,
+        Some(expected) => Outcome::Text { expected, multi },
+    }
+}
+
+/// The whole generated set. Prints the tally; set `MC_COMPOSITE_OUT` to a
+/// file path to get one line per non-OK case.
+#[test]
+#[ignore = "5000 cases, run on demand"]
+fn multicursor_insert_full_composite() {
+    install_panic_recorder();
+    let mut out = std::env::var_os("MC_COMPOSITE_OUT").map(|p| std::fs::File::create(p).unwrap());
+    let (mut ok, mut text, mut nonlocal, mut panics) = (0, 0, 0, 0);
+    for (i, case) in cases().iter().enumerate() {
+        let line = match check(case) {
+            Outcome::Ok => {
+                ok += 1;
+                continue;
+            }
+            Outcome::NonLocal => {
+                nonlocal += 1;
+                format!("{i} NONLOCAL {case:?}")
+            }
+            Outcome::Text { expected, multi } => {
+                text += 1;
+                format!("{i} TEXT {case:?}\n  expected {expected:?}\n  multi    {multi:?}")
+            }
+            Outcome::Panic(msg) => {
+                panics += 1;
+                format!("{i} PANIC {case:?}\n  {msg}")
+            }
+        };
+        if let Some(f) = out.as_mut() {
+            writeln!(f, "{line}").unwrap();
+        }
+    }
+    println!("OK {ok} TEXT {text} NONLOCAL {nonlocal} PANIC {panics}");
+    assert_eq!(
+        panics, 0,
+        "OK {ok} TEXT {text} NONLOCAL {nonlocal} PANIC {panics}"
+    );
+}
