@@ -7,6 +7,7 @@
 //! segment is NONLOCAL and not compared.
 
 use std::cell::{Cell, RefCell};
+use std::fmt::Write as _;
 use std::io::Write as _;
 use std::sync::Once;
 
@@ -69,6 +70,7 @@ const LINES: &[&str] = &[
 const WORDS: &[&str] = &["foo", "bar", "x", "if {", "}", "é", "a b", "end."];
 const SEED: u64 = 0x9e37_79b9_7f4a_7c15;
 const FULL_CASES: usize = 5000;
+const SAMPLE_STRIDE: usize = 25;
 
 #[derive(Debug, Clone)]
 struct Case {
@@ -226,6 +228,18 @@ fn check(case: &Case) -> Outcome {
         Some(expected) if expected == multi => Outcome::Ok,
         Some(expected) => Outcome::Text { expected, multi },
     }
+}
+
+#[test]
+fn multicursor_insert_sample_never_panics() {
+    install_panic_recorder();
+    let mut report = String::new();
+    for (i, case) in cases().iter().enumerate().step_by(SAMPLE_STRIDE) {
+        if let Outcome::Panic(msg) = check(case) {
+            writeln!(report, "case {i}: {case:?}\n  {msg}").unwrap();
+        }
+    }
+    assert!(report.is_empty(), "panics:\n{report}");
 }
 
 /// The whole generated set. Prints the tally; set `MC_COMPOSITE_OUT` to a
