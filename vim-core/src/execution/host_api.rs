@@ -125,11 +125,7 @@ pub trait VimHost: Document {
     ///
     /// Default: 0x0 (forces hosts to set viewport explicitly).
     fn viewport(&self) -> crate::dispatch::ViewportInfo {
-        crate::dispatch::ViewportInfo {
-            first_line: 0,
-            height: 0,
-            width: 0,
-        }
+        crate::dispatch::ViewportInfo::new(0, 0, 0)
     }
 
     /// Visual selection range, if the host tracks selections externally.

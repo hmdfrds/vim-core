@@ -53,6 +53,7 @@ pub enum MotionResult {
 
 /// Viewport information for screen-relative motions (H/M/L/gm).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ViewportInfo {
     /// First visible line (0-indexed).
     pub first_line: usize,
@@ -60,6 +61,19 @@ pub struct ViewportInfo {
     pub height: usize,
     /// Screen width in columns (for gm motion).
     pub width: usize,
+}
+
+impl ViewportInfo {
+    /// A viewport from its first visible line (0-indexed), its height in
+    /// lines and its width in columns.
+    #[must_use]
+    pub const fn new(first_line: usize, height: usize, width: usize) -> Self {
+        Self {
+            first_line,
+            height,
+            width,
+        }
+    }
 }
 
 /// Context for motion computation.

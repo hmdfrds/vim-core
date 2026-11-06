@@ -25,6 +25,7 @@ use compact_str::CompactString;
 ///
 /// Contains all information an operator needs to perform its task.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct OperatorContext<'text> {
     /// The full document text.
     pub text: &'text str,

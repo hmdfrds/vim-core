@@ -20,6 +20,7 @@ use super::range_helpers::{
 
 /// Result of range computation.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RangeResult {
     /// The computed range.
     pub range: Range,

@@ -98,8 +98,10 @@ fn assert_textobj(
         GrammarResult::Execute(Command::OperatorTextObject {
             operator,
             textobject,
+            force_type,
             ..
         }) => {
+            assert_eq!(force_type, None, "the parser sets no force type");
             assert_eq!(operator, expected_op, "operator mismatch");
             assert_eq!(
                 textobject.scope.is_inner(),

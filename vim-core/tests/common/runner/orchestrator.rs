@@ -277,13 +277,8 @@ pub fn run_vim_commands(
     // Use height/width from golden file but start with topline=0 (initial state).
     // The golden file's topline is the *expected* post-scroll state, not the initial.
     // This is mutable because scroll commands (Ctrl-E/Y) update the viewport.
-    let mut viewport_info = window.map(|w| {
-        vim_core::commands::motions::types::ViewportInfo {
-            first_line: 0, // Initial viewport always starts at top
-            height: w.height,
-            width: w.width,
-        }
-    });
+    let mut viewport_info =
+        window.map(|w| vim_core::commands::motions::types::ViewportInfo::new(0, w.height, w.width));
 
     // 3. Parse and process each key
     let keys = parse_keys(&input.keys);

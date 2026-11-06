@@ -132,6 +132,7 @@ pub fn capture_intent(command: &Command, visual_type: Option<VisualType>) -> Opt
             textobject,
             count,
             register,
+            ..
         } => Some(CommandIntent::OperatorTextObject {
             operator: *operator,
             text_object: *textobject,
@@ -249,6 +250,7 @@ mod tests {
             register: None,
             operator: Operator::Change,
             textobject: inner_word,
+            force_type: None,
         };
         let intent = capture_intent(&cmd, None).unwrap();
         match intent {

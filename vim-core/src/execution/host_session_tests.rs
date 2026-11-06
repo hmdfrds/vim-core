@@ -383,12 +383,12 @@ fn visual_type_reported() {
 #[test]
 fn set_viewport_works() {
     let mut session = HostSession::new("hello");
-    session.set_viewport(crate::dispatch::ViewportInfo {
-        first_line: 0,
-        height: 50,
-        width: 120,
-    });
-    // Just verify it doesn't panic — viewport is internal
+    session.set_viewport(crate::dispatch::ViewportInfo::new(3, 50, 120));
+    let viewport = session.viewport();
+    assert_eq!(
+        (viewport.first_line, viewport.height, viewport.width),
+        (3, 50, 120)
+    );
 }
 
 #[test]
@@ -676,11 +676,7 @@ fn cursor_movement_produces_no_edit_ops() {
 #[test]
 fn search_match_info_after_search() {
     let mut session = HostSession::new("foo bar foo baz foo");
-    session.set_viewport(ViewportInfo {
-        first_line: 0,
-        height: 24,
-        width: 80,
-    });
+    session.set_viewport(ViewportInfo::new(0, 24, 80));
     let _ = process_keys(&mut session, "/foo\n");
     let info = session.search_match_info();
     assert!(info.is_some(), "should have search match info after /foo");
@@ -695,11 +691,7 @@ fn search_match_info_after_search() {
 #[test]
 fn search_highlights_returns_match_positions() {
     let mut session = HostSession::new("foo bar foo baz foo");
-    session.set_viewport(ViewportInfo {
-        first_line: 0,
-        height: 24,
-        width: 80,
-    });
+    session.set_viewport(ViewportInfo::new(0, 24, 80));
     let _ = process_keys(&mut session, "/foo\n");
     let highlights = session.search_highlights();
     assert_eq!(highlights.len(), 3, "should have 3 matches");
@@ -723,11 +715,7 @@ fn search_highlights_empty_without_search() {
 #[test]
 fn search_highlights_cleared_by_nohlsearch() {
     let mut session = HostSession::new("foo bar foo baz foo");
-    session.set_viewport(ViewportInfo {
-        first_line: 0,
-        height: 24,
-        width: 80,
-    });
+    session.set_viewport(ViewportInfo::new(0, 24, 80));
     let _ = process_keys(&mut session, "/foo\n");
     assert!(
         !session.search_highlights().is_empty(),
