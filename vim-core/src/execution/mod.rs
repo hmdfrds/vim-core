@@ -66,8 +66,9 @@ pub use api_views::{
 pub use expr_engine::{ExprContext, ExprEngine, RuntimeError, SimpleExprEval};
 pub mod config;
 pub use config::{
-    ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, HostConfigResponse, SourceReply,
-    SourceRequest, TrustTag,
+    ConfigAction, ConfigCommand, ConfigHost, ConfigOutcome, ConfigResponse, ConfigText,
+    HostConfigResponse, MapDefinition, OptionTarget, Reach, SourceReply, SourceRequest, TrustAll,
+    TrustTag, Verdict,
 };
 mod context;
 mod dirty_tracker;

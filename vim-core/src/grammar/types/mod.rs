@@ -31,6 +31,7 @@ pub use ex_command::{
 pub use ex_range::{ExRange, LineSpec, RangeSeparator};
 pub use mark::MarkType;
 pub use motion::Motion;
+pub(crate) use reach::option_target;
 pub use reach::Reach;
 pub use textobject::{SeekDirection, TextObject, TextObjectKind, TextObjectScope};
 

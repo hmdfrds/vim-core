@@ -1584,7 +1584,7 @@ fn let_leader<D: Document>(
         variables: ctx.state.variable_store(),
         options: ctx.options,
         global_options: ctx.options,
-        host: &super::config::NoHost,
+        host: &super::config::TrustAll,
     };
     let evaluated = script_expr::evaluate(expr, &env);
     let mut errors = evaluated.errors.into_iter();
