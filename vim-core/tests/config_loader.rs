@@ -41,7 +41,9 @@ fn located(response: &Response, file: &str) -> Vec<(u32, String)> {
         .iter()
         .filter_map(|e| match e {
             Effect::ShowError { error, source } => {
-                let SourceContext { file: name, line } = source.clone().expect("a place");
+                let SourceContext {
+                    file: name, line, ..
+                } = source.clone().expect("a place");
                 assert_eq!(name, file, "{error}");
                 Some((line, error.to_string()))
             }
@@ -830,10 +832,7 @@ fn an_error_says_where_it_was_raised() {
         sourced.response.effects(),
         [Effect::ShowError {
             error: vim_core::errors::VimError::UnknownOptionArgument("nosuch".into()),
-            source: Some(SourceContext {
-                file: "a.vim".into(),
-                line: 2
-            }),
+            source: Some(SourceContext::new("a.vim", 2)),
         }]
     );
     assert_eq!(sourced.outcome.errors, 1);
@@ -1101,7 +1100,7 @@ fn places(response: &Response) -> Vec<(String, u32, String)> {
         .iter()
         .filter_map(|e| match e {
             Effect::ShowError { error, source } => {
-                let SourceContext { file, line } = source.clone().expect("a place");
+                let SourceContext { file, line, .. } = source.clone().expect("a place");
                 Some((file.to_string(), line, error.to_string()))
             }
             _ => None,

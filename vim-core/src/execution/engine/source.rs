@@ -1005,10 +1005,7 @@ fn show_warnings(frame: &mut Frame<'_>, response: &mut Response) {
 fn locate(response: &mut Response, from: usize, file: &str, line: u32) {
     for effect in response.effects.iter_mut().skip(from) {
         if let Effect::ShowError { source, .. } = effect {
-            source.get_or_insert_with(|| SourceContext {
-                file: file.into(),
-                line,
-            });
+            source.get_or_insert_with(|| SourceContext::new(file, line));
         }
     }
 }

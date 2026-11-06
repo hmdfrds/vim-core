@@ -210,14 +210,7 @@ fn returned_text_names_its_errors_after_the_path_as_typed() {
                 _ => None,
             })
             .collect();
-        assert_eq!(
-            places,
-            [SourceContext {
-                file: file.into(),
-                line: 2
-            }],
-            "{command}"
-        );
+        assert_eq!(places, [SourceContext::new(file, 2)], "{command}");
     }
 }
 

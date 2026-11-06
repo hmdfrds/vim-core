@@ -70,12 +70,24 @@ pub enum SelectionTag {
 
 /// Context for where an error originated (for `:source` script errors).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SourceContext {
     /// The file path being sourced (e.g. `"init.vim"`).
     pub file: CompactString,
     /// The line number within the file where the error occurred.
     pub line: u32,
+}
+
+impl SourceContext {
+    /// The place `line` of the file `file`.
+    #[must_use]
+    pub fn new(file: &str, line: u32) -> Self {
+        Self {
+            file: file.into(),
+            line,
+        }
+    }
 }
 
 use crate::primitives::{

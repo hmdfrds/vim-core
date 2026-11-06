@@ -784,10 +784,7 @@ fn show_error_with_source_context() {
     use crate::effects::effect::SourceContext;
     let effects = Effects::new().show_error_with_source(
         crate::errors::VimError::PatternNotFound("x".into()),
-        SourceContext {
-            file: "init.vim".into(),
-            line: 42,
-        },
+        SourceContext::new("init.vim", 42),
     );
     match &effects.as_slice()[0] {
         Effect::ShowError { error, source } => {
