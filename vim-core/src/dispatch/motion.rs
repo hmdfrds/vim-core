@@ -379,7 +379,8 @@ pub fn dispatch_motion_with_effects(
                     crate::commands::helpers::next_char_boundary(ctx.motion_ctx.text, end);
                 let selected = ctx.motion_ctx.text.get(start..end_inclusive).unwrap_or("");
                 if !selected.is_empty() {
-                    visual_star_pattern = Some(format!("\\V{selected}"));
+                    visual_star_pattern =
+                        Some(action_effects::visual_star_pattern(selected).into());
                 }
 
                 action_effects::star_search_visual(
@@ -1262,6 +1263,39 @@ mod tests {
             Some(0),
             "Visual # should jump backward to 'foo' at offset 0"
         );
+    }
+
+    /// A selection holding `\\` and `/` is searched literally, escaped as
+    /// normal.c `nv_ident()` escapes them for Normal `*`.
+    #[test]
+    fn visual_star_and_hash_search_backslash_and_slash_literally() {
+        // `a\/b` at 0 and 7.
+        let text = "a\\/b x a\\/b";
+        let mut opts = crate::primitives::VimOptions::default();
+        opts.set_visualstar(true);
+        let result = run_visual_star(text, 3, 0, 3, Motion::WordSearchForward, &opts);
+        assert_eq!(
+            extract_search_pattern(&result).as_deref(),
+            Some("\\Va\\\\\\/b")
+        );
+        assert_eq!(extract_cursor_move(&result), Some(7));
+        let result = run_visual_star(text, 10, 7, 10, Motion::WordSearchBackward, &opts);
+        assert_eq!(extract_cursor_move(&result), Some(0));
+    }
+
+    /// Lines join with `\n` as in Neovim's `_visual_search()`; a stored `?`
+    /// stays unescaped, since `\?` is a multi.
+    #[test]
+    fn visual_star_pattern_joins_lines_and_keeps_question_mark() {
+        let text = "a?\nb x a?\nb";
+        let mut opts = crate::primitives::VimOptions::default();
+        opts.set_visualstar(true);
+        let result = run_visual_star(text, 3, 0, 3, Motion::WordSearchForward, &opts);
+        assert_eq!(
+            extract_search_pattern(&result).as_deref(),
+            Some("\\Va?\\nb")
+        );
+        assert_eq!(extract_cursor_move(&result), Some(7));
     }
 
     #[test]
