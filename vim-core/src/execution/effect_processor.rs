@@ -688,6 +688,15 @@ fn process_one_effect(
                 warn!("EndUndoGroup without matching BeginUndoGroup — skipping orphaned close");
                 return EffectDisposition::Consume;
             }
+            // Vim saves for undo only when Insert changes text (edit.c
+            // stop_arrow()), so an unchanged Insert or Replace leaves no node.
+            let mode = state.mode();
+            if (mode.is_insert() || mode.is_replace())
+                && state.undo_tree_mut().discard_pending_if_unchanged()
+            {
+                *node_id = None;
+                return EffectDisposition::Keep;
+            }
             // Undo tree: commit the pending group with current cursor and timestamp.
             // Pass `text` (the pre-edit document) so the tree can compute
             // line-start offsets for undo change marks (`'[`, `']`, `'.`).
@@ -2032,6 +2041,7 @@ fn handle_set_mode(state: &mut VimState, mode: Mode) {
 
 /// Handle BeginInsert effect: create InsertState with count, auto-indent, and entry offset.
 fn sync_begin_insert(state: &mut VimState, effect: &Effect) {
+    use crate::primitives::InsertEntryType;
     use crate::state::InsertState;
     let Effect::BeginInsert {
         entry_type,
@@ -2042,6 +2052,15 @@ fn sync_begin_insert(state: &mut VimState, effect: &Effect) {
     else {
         return;
     };
+    // ops.c op_change(): `c` saves for undo even on an empty region.
+    if matches!(
+        entry_type,
+        InsertEntryType::ChangeOperator
+            | InsertEntryType::SubstituteChar
+            | InsertEntryType::SubstituteLine
+    ) {
+        state.undo_tree_mut().mark_edit();
+    }
     let insert_count = std::num::NonZeroU32::new(*count).unwrap_or(std::num::NonZeroU32::MIN);
     let mut insert_state = InsertState::with_count(*entry_type, insert_count);
     insert_state.set_auto_indent_len(*auto_indent_len);

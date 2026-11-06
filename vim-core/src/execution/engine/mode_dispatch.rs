@@ -688,6 +688,17 @@ impl VimEngine {
 
         // 3. Apply state mutations using precomputed data
         super::insert::apply_insert_mutations(&mut self.state, &command, &precomputed);
+        // edit.c ins_bs(): a Replace backspace that only moves back still
+        // saves for undo (stop_arrow()).
+        if let crate::dispatch::InsertPrecomputed::ReplaceBackspace {
+            action: crate::dispatch::ReplaceRestoreAction::StackEmpty,
+            prev_pos,
+        } = precomputed
+        {
+            if prev_pos < cursor {
+                self.state.undo_tree_mut().mark_edit();
+            }
+        }
 
         // Store expression text for dot-repeat re-evaluation.
         // When `.` replays an insert session that included `<C-r>=expr<CR>`,
