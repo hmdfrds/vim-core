@@ -1035,28 +1035,12 @@ fn substitute_flags(text: &str) -> Result<SubFlags, VimError> {
 }
 
 fn parse_global(input: &str, invert: bool, range: ExRange) -> Result<ExCommand, VimError> {
-    let mut chars = input.chars();
-    let _ = chars.next(); // skip 'g' or 'v'
-    let delim = chars.next().ok_or(VimError::InvalidSearchPattern)?;
-    let remainder = &input[1 + delim.len_utf8()..];
-
-    let (pattern, rest) = take_delimited(remainder, delim)?;
-    let nested = rest.trim();
-    if nested.is_empty() {
-        return Err(VimError::NoCommandAfterGlobal);
-    }
-
-    let command = parse_ex_command(nested)?;
-    Ok(ExCommand::Global {
-        range,
-        pattern: CompactString::from(pattern),
-        command: Box::new(command),
-        invert,
-    })
+    // Skip `g` or `v`.
+    parse_global_from_delim(&input[1..], invert, range)
 }
 
-/// Like `parse_global` but input starts directly at the delimiter (no command letter prefix).
-/// Used by `:g!` where the `g!` prefix has already been stripped.
+/// `:g` from its delimiter on: the pattern, then the rest of the line,
+/// which `ex_global()` runs on each line.
 fn parse_global_from_delim(
     input: &str,
     invert: bool,
@@ -1067,16 +1051,14 @@ fn parse_global_from_delim(
     let remainder = &input[delim.len_utf8()..];
 
     let (pattern, rest) = take_delimited(remainder, delim)?;
-    let nested = rest.trim();
-    if nested.is_empty() {
+    let commands = rest.trim_start_matches(BLANKS);
+    if commands.trim_end_matches(BLANKS).is_empty() {
         return Err(VimError::NoCommandAfterGlobal);
     }
-
-    let command = parse_ex_command(nested)?;
     Ok(ExCommand::Global {
         range,
         pattern: CompactString::from(pattern),
-        command: Box::new(command),
+        commands: CompactString::from(commands),
         invert,
     })
 }

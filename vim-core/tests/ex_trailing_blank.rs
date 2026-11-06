@@ -24,7 +24,7 @@ fn config_error(line: &str) -> Option<String> {
 #[test]
 fn copy_with_a_trailing_blank() {
     assert_eq!(typed("a\nb\n", ":t. <CR>").text(), "a\na\nb\n");
-    assert_eq!(typed("a\nb\n", ":co$  <CR>").text(), "a\nb\na\n");
+    assert_eq!(typed("a\nb", ":co$  <CR>").text(), "a\nb\na");
 }
 
 #[test]

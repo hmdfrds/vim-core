@@ -2012,6 +2012,9 @@ fn changelist_push(state: &mut VimState, offset: Offset, text: Option<&str>) {
         // This runs whether or not a new entry was created. It corresponds
         // to the first `changed_common` call in the new undo group.
         state.changelist_mut().update_last(offset);
+    } else if state.changelist_follow_next() {
+        state.set_changelist_follow_next(false);
+        state.changelist_mut().update_last(offset);
     }
 
     // b_new_change is false and changelist is non-empty.

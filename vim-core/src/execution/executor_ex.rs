@@ -11,8 +11,8 @@ use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::execution::host::{HostRequestSequencer, HostResult, SplitDirection};
 use crate::execution::{HostRequest, HostRequestMeta};
-use crate::grammar::types::{ExCommand, ExRange, LineSpec, TimeAmount};
-use crate::grammar::{parse_ex_command_with_modifiers, split_ex_pipeline};
+use crate::grammar::ex_parser::parse_ex_piece;
+use crate::grammar::types::{ExCommand, ExRange, LineSpec, ModifierFlags, TimeAmount};
 use crate::keymap::{Handler, KeyEvent, MappingMode};
 use crate::primitives::byte_delta;
 use crate::primitives::{
@@ -184,69 +184,55 @@ pub(crate) struct ExExecutionOutput {
     /// Only text-mutating ex commands set this. The engine saves it so that
     /// `.` can replay the ex command with the current line as implicit range.
     pub last_ex_for_dot: Option<CompactString>,
+    /// A `:g` or `:v`, which the engine runs one marked line at a time.
+    pub global: Option<GlobalCommand>,
+    /// The lines of a `:@r` register, which the engine runs as command
+    /// lines, one after another.
+    pub ex_lines: Vec<CompactString>,
+    /// The modifiers of the command, applied to its effects already, and
+    /// to be applied to what the engine runs for it.
+    pub modifiers: ModifierFlags,
 }
 
-/// Parse and execute an ex command line.
+/// A `:g/{pattern}/{commands}` or `:v` for the engine to run.
+#[derive(Debug, Clone)]
+pub(crate) struct GlobalCommand {
+    /// The lines it searches.
+    pub range: ExRange,
+    /// The pattern a line must match, or with `invert` must not.
+    pub pattern: CompactString,
+    /// The command line run on each line.
+    pub commands: CompactString,
+    /// `:v` or `:g!`.
+    pub invert: bool,
+}
+
+/// Parse and execute one command of an Ex command line, as
+/// [`split_ex_pipeline`](crate::grammar::split_ex_pipeline) gives it.
 ///
-/// Supports `|`-separated pipelines: `s/a/b/|w|q` executes each command
-/// sequentially, stopping on the first error.
-///
-/// Modifier prefixes (`:silent`, `:keepjumps`, etc.) are parsed and applied
-/// as post-processing filters on the effects output.
-pub(crate) fn execute_ex_line<D: Document>(
-    line: &str,
+/// Its modifiers (`:silent`, `:keepjumps`, ...) filter its effects, an
+/// error included, so `:silent!` hides it. A `:g` and the lines of `:@r`
+/// come back for the engine to run.
+pub(crate) fn execute_ex_piece<D: Document>(
+    piece: &str,
     ctx: &ExecutionContext<'_, D>,
     sequencer: &mut HostRequestSequencer,
-) -> Result<ExExecutionOutput, VimError> {
-    let commands = split_ex_pipeline(line);
-    if commands.len() <= 1 {
-        // A blank line or a comment runs nothing.
-        let Some(single) = commands.first() else {
-            return Ok(ExExecutionOutput::default());
-        };
-        let (modifiers, command) = parse_ex_command_with_modifiers(single)?;
+) -> ExExecutionOutput {
+    let (modifiers, parsed) = parse_ex_piece(piece);
+    let result = parsed.and_then(|command| {
         let mut output = execute_ex_command(&command, ctx, sequencer)?;
-        super::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
-        // Populate last_ex_for_dot for text-mutating commands (dot-repeat).
         if command.mutates_text() && output.last_ex_for_dot.is_none() {
-            output.last_ex_for_dot = Some(CompactString::from(line));
+            output.last_ex_for_dot = Some(CompactString::from(piece));
         }
-        return Ok(output);
-    }
-
-    let mut combined = ExExecutionOutput::default();
-    let mut any_mutates_text = false;
-    for cmd_str in &commands {
-        let (modifiers, parsed) = match parse_ex_command_with_modifiers(cmd_str) {
-            Ok(result) => result,
-            Err(err) => {
-                combined
-                    .effects
-                    .extend(crate::commands::ex::effects::show_error(err));
-                return Ok(combined);
-            }
-        };
-        if parsed.mutates_text() {
-            any_mutates_text = true;
-        }
-        match execute_ex_command(&parsed, ctx, sequencer) {
-            Ok(mut output) => {
-                super::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
-                merge_output(&mut combined, output);
-            }
-            Err(err) => {
-                combined
-                    .effects
-                    .extend(crate::commands::ex::effects::show_error(err));
-                return Ok(combined);
-            }
-        }
-    }
-    // Populate last_ex_for_dot for pipelines containing text-mutating commands.
-    if any_mutates_text && combined.last_ex_for_dot.is_none() {
-        combined.last_ex_for_dot = Some(CompactString::from(line));
-    }
-    Ok(combined)
+        Ok(output)
+    });
+    let mut output = result.unwrap_or_else(|err| ExExecutionOutput {
+        effects: crate::commands::ex::effects::show_error(err),
+        ..ExExecutionOutput::default()
+    });
+    super::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
+    output.modifiers = modifiers;
+    output
 }
 
 fn set_output(
@@ -262,33 +248,36 @@ fn set_output(
     }
 }
 
-/// Merge a pipeline step's output into the accumulated result.
-fn merge_output(target: &mut ExExecutionOutput, source: ExExecutionOutput) {
-    target.effects.extend(source.effects);
-    target.host_requests.extend(source.host_requests);
-    target.set_commands.extend(source.set_commands);
-    target.mapping_changes.extend(source.mapping_changes);
-    target.abbrev_changes.extend(source.abbrev_changes);
-    target.handler_changes.extend(source.handler_changes);
-    if source.undo_navigation.is_some() {
-        target.undo_navigation = source.undo_navigation;
+/// The lines `global` marks in the text of `ctx`, 0-indexed: pass 1 of
+/// `ex_global()`.
+pub(crate) fn global_lines<D: Document>(
+    global: &GlobalCommand,
+    ctx: &ExecutionContext<'_, D>,
+) -> Result<Vec<usize>, VimError> {
+    let mark_resolver = |name: crate::primitives::MarkName| {
+        ctx.state.marks().get(name).map(|mark| mark.offset().get())
+    };
+    let mut ex_ctx = ExContext::new(ctx.doc().text(), ctx.cursor_pos().line().get())
+        .with_mark_resolver(&mark_resolver);
+    if let Some(tree) = ctx.doc().vim_text_tree() {
+        ex_ctx = ex_ctx.with_tree(tree);
     }
-    target.leader_changes.extend(source.leader_changes);
-    if source.multi_cursor_command.is_some() {
-        target.multi_cursor_command = source.multi_cursor_command;
-    }
-    if source.clear_message_history {
-        target.clear_message_history = true;
-    }
-    if source.clear_jumplist {
-        target.clear_jumplist = true;
-    }
-    if source.undo_join_pending {
-        target.undo_join_pending = true;
-    }
-    if source.last_ex_for_dot.is_some() {
-        target.last_ex_for_dot = source.last_ex_for_dot;
-    }
+    crate::commands::ex::global::global_lines(
+        &global.range,
+        &global.pattern,
+        global.invert,
+        &ex_ctx,
+    )
+}
+
+/// Whether the line `line` of `ctx` matches the pattern of `global`.
+pub(crate) fn global_line_matches<D: Document>(
+    global: &GlobalCommand,
+    line: usize,
+    ctx: &ExecutionContext<'_, D>,
+) -> Result<bool, VimError> {
+    let ex_ctx = ExContext::new(ctx.doc().text(), ctx.cursor_pos().line().get());
+    crate::commands::ex::global::line_matches_pattern(&global.pattern, line, &ex_ctx)
 }
 
 /// Execute a parsed ex command.
@@ -857,48 +846,42 @@ pub(crate) fn execute_ex_command<D: Document>(
                     format!("Register @{} is empty", register.char()),
                 ))));
             }
-            // Split by newlines and execute each as an ex command.
-            // Handle line continuation with trailing backslash.
-            let mut combined = ExExecutionOutput::default();
+            // A line ending in a backslash continues on the next one.
+            let mut ex_lines = Vec::new();
             let mut continuation = String::new();
             for raw_line in text.lines() {
-                if raw_line.ends_with('\\') {
-                    // Line continuation: strip trailing backslash, append next line.
-                    continuation.push_str(&raw_line[..raw_line.len() - 1]);
+                if let Some(head) = raw_line.strip_suffix('\\') {
+                    continuation.push_str(head);
                     continue;
                 }
-                let line = if continuation.is_empty() {
-                    raw_line.to_owned()
-                } else {
-                    continuation.push_str(raw_line);
-                    std::mem::take(&mut continuation)
-                };
-                if line.trim().is_empty() {
-                    continue;
-                }
-                match execute_ex_line(&line, ctx, sequencer) {
-                    Ok(output) => merge_output(&mut combined, output),
-                    Err(e) => {
-                        combined
-                            .effects
-                            .extend(crate::commands::ex::effects::show_error(e));
-                        return Ok(combined);
-                    }
+                continuation.push_str(raw_line);
+                let line = std::mem::take(&mut continuation);
+                if !line.trim().is_empty() {
+                    ex_lines.push(CompactString::from(line));
                 }
             }
-            // Handle any remaining continuation line.
             if !continuation.is_empty() {
-                match execute_ex_line(&continuation, ctx, sequencer) {
-                    Ok(output) => merge_output(&mut combined, output),
-                    Err(e) => {
-                        combined
-                            .effects
-                            .extend(crate::commands::ex::effects::show_error(e));
-                    }
-                }
+                ex_lines.push(CompactString::from(continuation));
             }
-            Ok(combined)
+            Ok(ExExecutionOutput {
+                ex_lines,
+                ..ExExecutionOutput::default()
+            })
         }
+        ExCommand::Global {
+            range,
+            pattern,
+            commands,
+            invert,
+        } => Ok(ExExecutionOutput {
+            global: Some(GlobalCommand {
+                range: range.clone(),
+                pattern: pattern.clone(),
+                commands: commands.clone(),
+                invert: *invert,
+            }),
+            ..ExExecutionOutput::default()
+        }),
         // ── :undojoin ────────────────────────────────────────────────
         ExCommand::UndoJoin => {
             if ctx.state.undo_tree().last_was_undo() {
@@ -2898,7 +2881,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_line("undojoin", &ctx, &mut seq).unwrap();
+        let output = execute_ex_piece("undojoin", &ctx, &mut seq);
         assert!(
             output.undo_join_pending,
             ":undojoin should set undo_join_pending"
@@ -2915,7 +2898,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_line("undoj", &ctx, &mut seq).unwrap();
+        let output = execute_ex_piece("undoj", &ctx, &mut seq);
         assert!(
             output.undo_join_pending,
             ":undoj (abbreviated) should set undo_join_pending"
@@ -2936,7 +2919,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_line("s/foo/baz/", &ctx, &mut seq).unwrap();
+        let output = execute_ex_piece("s/foo/baz/", &ctx, &mut seq);
         assert_eq!(
             output.last_ex_for_dot.as_deref(),
             Some("s/foo/baz/"),
@@ -2954,7 +2937,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_line("delete", &ctx, &mut seq).unwrap();
+        let output = execute_ex_piece("delete", &ctx, &mut seq);
         assert_eq!(
             output.last_ex_for_dot.as_deref(),
             Some("delete"),
@@ -2972,7 +2955,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_line("set tabstop=4", &ctx, &mut seq).unwrap();
+        let output = execute_ex_piece("set tabstop=4", &ctx, &mut seq);
         assert!(
             output.last_ex_for_dot.is_none(),
             ":set should NOT populate last_ex_for_dot"
@@ -2989,28 +2972,10 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_line("undojoin", &ctx, &mut seq).unwrap();
+        let output = execute_ex_piece("undojoin", &ctx, &mut seq);
         assert!(
             output.last_ex_for_dot.is_none(),
             ":undojoin should NOT populate last_ex_for_dot (not text-mutating)"
-        );
-    }
-
-    #[test]
-    fn pipeline_with_mutating_command_sets_last_ex_for_dot() {
-        let doc = crate::test_utils::SimpleDocument::new("foo bar");
-        let state = crate::state::VimState::new();
-        let input = crate::execution::InputContext::new(&doc, 0)
-            .validate()
-            .unwrap();
-        let opts = crate::primitives::VimOptions::default();
-        let ctx = super::ExecutionContext::new(input, &state, &opts);
-        let mut seq = crate::execution::host::HostRequestSequencer::default();
-        // Pipeline: undojoin (non-mutating) | s/foo/baz/ (mutating)
-        let output = execute_ex_line("undojoin | s/foo/baz/", &ctx, &mut seq).unwrap();
-        assert!(
-            output.last_ex_for_dot.is_some(),
-            "pipeline containing :s should populate last_ex_for_dot"
         );
     }
 }

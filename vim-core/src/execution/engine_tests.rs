@@ -9774,6 +9774,18 @@ fn substitute_stores_last_ex_for_dot_on_state() {
 }
 
 #[test]
+fn a_line_that_changes_text_is_stored_whole() {
+    let mut engine = VimEngine::new();
+    let doc = SimpleDocument::new("foo bar");
+    type_command_line(&mut engine, &doc, "undojoin | s/foo/baz/");
+    process_key(&mut engine, &doc, KeyEvent::enter());
+    assert_eq!(
+        engine.state.last_ex_for_dot(),
+        Some("undojoin | s/foo/baz/")
+    );
+}
+
+#[test]
 fn non_mutating_ex_does_not_store_last_ex_for_dot() {
     let mut engine = VimEngine::new();
     let doc = SimpleDocument::new("foo bar");

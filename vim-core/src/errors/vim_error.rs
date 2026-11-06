@@ -162,6 +162,9 @@ pub enum VimError {
         limit: u8,
     },
 
+    /// E147: a `:g` inside `:g` was given a range.
+    GlobalRecursiveWithRange,
+
     /// E146: Regular expressions can't be delimited.
     InvalidRegexDelimiter,
 
@@ -525,6 +528,9 @@ impl fmt::Display for VimError {
             Self::GlobalRecursionLimitExceeded { limit } => {
                 write!(f, "E5101: :global recursion depth limit exceeded ({limit})")
             }
+            Self::GlobalRecursiveWithRange => {
+                write!(f, "E147: Cannot do :global recursive with a range")
+            }
             Self::InvalidRegexDelimiter => {
                 write!(f, "E146: Regular expressions can't be delimited")
             }
@@ -768,6 +774,7 @@ mod tests {
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },
             VimError::GlobalRecursionLimitExceeded { limit: 10 },
+            VimError::GlobalRecursiveWithRange,
             VimError::InvalidRegexDelimiter,
             VimError::InvalidSearchPattern,
             VimError::InvalidCommand,

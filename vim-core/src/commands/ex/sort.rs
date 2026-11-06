@@ -123,15 +123,6 @@ fn extract_leading_number(s: &str) -> i64 {
     }
 }
 
-/// Compute cursor position at start of last line in inserted text.
-fn last_inserted_line_offset(insert_text: &str, base_cursor: usize) -> usize {
-    let content_start = usize::from(insert_text.starts_with('\n'));
-    let content = &insert_text[content_start..];
-    let content_trimmed = content.trim_end_matches('\n');
-    let last_line_offset = content_trimmed.rfind('\n').map_or(0, |p| p + 1);
-    base_cursor + last_line_offset
-}
-
 /// Move lines to a target address (`:m`).
 ///
 /// # Errors
@@ -143,101 +134,72 @@ pub fn move_lines(
     ctx: &ExContext,
 ) -> ExResult {
     let resolved = resolve_range(range, ctx)?;
-    let (start_offset, end_offset) = ctx
-        .lines_range(resolved.start(), resolved.end())
-        .ok_or(crate::errors::VimError::InvalidRange)?;
-
-    // Get text to move
-    let raw_text = Range::new(start_offset, end_offset).slice(ctx.text);
-
-    // Calculate target offset (after target line)
-    // None means before first line (`:0m` semantics) => insert at offset 0
-    let (target_offset, target_line_val) = match target_line {
-        None => (Offset::new(0), 0usize),
-        Some(tl) => {
-            let off = if tl >= ctx.total_lines {
-                Offset::new(ctx.text.len())
-            } else {
-                ctx.line_start_offset(tl + 1)
-                    .unwrap_or_else(|| Offset::new(ctx.text.len()))
-            };
-            (off, tl)
-        }
-    };
-
-    // Adjust target if moving within the range being moved
-    if target_line.is_some()
-        && target_line_val >= resolved.start()
-        && target_line_val <= resolved.end()
-    {
-        // Vim E134: Cannot move a range of lines into itself
+    let (first, last) = (resolved.start(), resolved.end());
+    let line_start = |line: usize| ctx.line_start_offset(line).map(Offset::get);
+    let invalid = || crate::errors::VimError::InvalidRange;
+    let len = ctx.text.len();
+    // ex_cmds.c do_move(), with `dest` the 1-based line the lines go after.
+    let dest = target_line.map_or(0, |t| t.min(ctx.total_lines.saturating_sub(1)) + 1);
+    if dest > first && dest <= last {
         return Err(crate::errors::VimError::MoveIntoItself);
     }
+    let first_start = line_start(first).ok_or_else(invalid)?;
+    let last_start = line_start(last).ok_or_else(invalid)?;
+    if dest == first || dest == last + 1 {
+        // Nothing moves; the cursor goes to the last line of the range.
+        return Ok(Effects::new().set_cursor(Offset::new(last_start)));
+    }
+    // The lines with their `\n`, or without one when the last is the text's.
+    let after_last = line_start(last + 1);
+    let moved = ctx
+        .text
+        .get(first_start..after_last.unwrap_or(len))
+        .ok_or_else(invalid)?;
 
-    let moving_down = target_line.is_some() && target_line_val > resolved.end();
-    let source_len = start_offset.distance(end_offset);
-
-    // Build insert text with proper newline handling.
-    // We compute offsets for the insert-first-then-delete order, matching
-    // Neovim's do_move() which inserts at the destination before deleting
-    // from the source.  This order also produces changelist entries in the
-    // correct sequence (insert position first, delete position second).
-    let mut insert_text = String::new();
-
-    // Insert position: the raw target_offset (before any delete).
-    // For insert-at-end-of-document, check current text (before any edit).
-    let inserting_at_end = target_offset.get() >= ctx.text.len();
-    if inserting_at_end && !ctx.text.is_empty() {
-        // If text doesn't end with newline, we need a separator
-        if !ctx.text.ends_with('\n') {
-            insert_text.push('\n');
+    // Insert at the destination first, then delete the source, as
+    // do_move() appends before it deletes.
+    let (insert_at, insert_text, delete, block_start) = if dest > last {
+        let source = Range::from_raw(first_start, after_last.ok_or_else(invalid)?);
+        match line_start(dest) {
+            Some(dest_start) => (
+                dest_start,
+                moved.to_owned(),
+                source,
+                dest_start - source.len(),
+            ),
+            // After the last line, which has no `\n`.
+            None => (
+                len,
+                format!("\n{}", moved.strip_suffix('\n').unwrap_or(moved)),
+                source,
+                len - source.len() + 1,
+            ),
         }
-    }
-    insert_text.push_str(raw_text);
-    if !insert_text.ends_with('\n') {
-        insert_text.push('\n');
-    }
-
-    // After the insert, the source range shifts if the insert was before it.
-    let (delete_start, delete_end) = if target_offset.get() <= start_offset.get() {
-        // Insert was before source: source shifts by insert_text.len()
-        let shift = insert_text.len();
-        (
-            Offset::new(start_offset.get() + shift),
-            Offset::new(end_offset.get() + shift),
-        )
     } else {
-        // Insert was after source: source range unchanged
-        (start_offset, end_offset)
+        let dest_start = line_start(dest).ok_or_else(invalid)?;
+        let (insert_text, source) = match after_last {
+            Some(end) => (moved.to_owned(), Range::from_raw(first_start, end)),
+            // The last line moves up: its `\n` is the one before it.
+            None => (
+                format!("{moved}\n"),
+                Range::from_raw(first_start.saturating_sub(1), len),
+            ),
+        };
+        let shifted = Range::from_raw(
+            source.start().get() + insert_text.len(),
+            source.end().get() + insert_text.len(),
+        );
+        (dest_start, insert_text, shifted, dest_start)
     };
-
-    // Compute the final cursor position and marks in the post-edit text.
-    // After insert-then-delete, the final text is the same as delete-then-insert.
-    // Use the adjusted_target (post-both-edits) for cursor/mark computation.
-    let adjusted_target = if moving_down {
-        target_offset.saturating_sub_raw(source_len)
-    } else {
-        target_offset
-    };
-
-    // Check if the final insert position is at end of post-edit text.
-    let text_after_both_len = ctx.text.len(); // insert + delete = same total
-    let final_at_end = adjusted_target.get() >= text_after_both_len - source_len;
-
-    let base_cursor = if final_at_end && insert_text.starts_with('\n') {
-        adjusted_target.next().get()
-    } else {
-        adjusted_target.get()
-    };
-    let cursor_pos = last_inserted_line_offset(&insert_text, base_cursor);
+    let cursor_pos = block_start + (last_start - first_start);
 
     // Neovim marks after :move:
     //   '[' = start of first moved line in final position
     //   ']' = start of last moved line in final position
     //   '.' = min of source start and insert position (first affected byte)
-    let mark_start = Offset::new(base_cursor);
+    let mark_start = Offset::new(block_start);
     let mark_end = Offset::new(cursor_pos);
-    let mark_dot = Offset::new(start_offset.get().min(adjusted_target.get()));
+    let mark_dot = Offset::new(first_start.min(block_start));
 
     let line_count = resolved.line_count();
     // Neovim's do_move() calls u_save() twice (once before the insert at
@@ -248,10 +210,10 @@ pub fn move_lines(
     // operation order, yielding changelist entries [insert_pos, delete_pos].
     let effects = Effects::new()
         .begin_undo()
-        .insert(target_offset, insert_text)
+        .insert(Offset::new(insert_at), insert_text)
         .end_undo()
         .begin_undo()
-        .delete(Range::new(delete_start, delete_end))
+        .delete(delete)
         .set_mark(MarkName::CHANGE_START, mark_start, None)
         .set_mark(MarkName::CHANGE_END, mark_end, None)
         .set_mark(MarkName::LAST_CHANGE, mark_dot, None)
@@ -273,45 +235,30 @@ pub fn copy_lines(
     ctx: &ExContext,
 ) -> ExResult {
     let resolved = resolve_range(range, ctx)?;
-    let (start_offset, end_offset) = ctx
-        .lines_range(resolved.start(), resolved.end())
-        .ok_or(crate::errors::VimError::InvalidRange)?;
-
-    // Get text to copy
-    let raw_text = Range::new(start_offset, end_offset).slice(ctx.text);
-
-    // Calculate target offset (after target line, or at offset 0 for "before first")
-    let target_offset = match target_line {
-        None => Offset::new(0), // `:co 0` — before first line
-        Some(line) if line >= ctx.total_lines => Offset::new(ctx.text.len()),
-        Some(line) => ctx
-            .line_start_offset(line + 1)
-            .unwrap_or_else(|| Offset::new(ctx.text.len())),
+    let (first, last) = (resolved.start(), resolved.end());
+    let line_start = |line: usize| ctx.line_start_offset(line).map(Offset::get);
+    let invalid = || crate::errors::VimError::InvalidRange;
+    let len = ctx.text.len();
+    let first_start = line_start(first).ok_or_else(invalid)?;
+    let last_start = line_start(last).ok_or_else(invalid)?;
+    let copied = ctx
+        .text
+        .get(first_start..line_start(last + 1).unwrap_or(len))
+        .ok_or_else(invalid)?;
+    // ex_cmds.c ex_copy(), with `dest` the 1-based line the copy goes after.
+    let dest = target_line.map_or(0, |t| t.min(ctx.total_lines.saturating_sub(1)) + 1);
+    let (target_offset, insert_text, base_cursor) = match line_start(dest) {
+        Some(at) if copied.ends_with('\n') => (at, copied.to_owned(), at),
+        Some(at) => (at, format!("{copied}\n"), at),
+        // After the last line, which has no `\n`.
+        None => (
+            len,
+            format!("\n{}", copied.strip_suffix('\n').unwrap_or(copied)),
+            len + 1,
+        ),
     };
-
-    // Build the text to insert, ensuring proper line separation:
-    // - If inserting at end of document and last char isn't newline, prepend \n
-    // - Ensure copied text always ends with newline (linewise)
-    let mut insert_text = String::new();
-    if target_offset.get() == ctx.text.len() && !ctx.text.is_empty() && !ctx.text.ends_with('\n') {
-        insert_text.push('\n');
-    }
-    insert_text.push_str(raw_text);
-    // Ensure trailing newline for linewise copy (unless at very end of document)
-    if !insert_text.ends_with('\n') {
-        insert_text.push('\n');
-    }
-
-    // Vim places cursor at the start of the LAST copied line
-    let base_cursor = if target_offset.get() == ctx.text.len()
-        && !ctx.text.is_empty()
-        && !ctx.text.ends_with('\n')
-    {
-        target_offset.next().get() // after the prepended \n
-    } else {
-        target_offset.get()
-    };
-    let cursor_pos = last_inserted_line_offset(&insert_text, base_cursor);
+    let target_offset = Offset::new(target_offset);
+    let cursor_pos = base_cursor + (last_start - first_start);
 
     // Neovim marks after :copy:
     //   '[' = start of first copied line (content, after any prepended \n)
@@ -341,6 +288,20 @@ mod tests {
 
     fn ctx() -> ExContext<'static> {
         ExContext::new("cherry\napple\nbanana", 0)
+    }
+
+    fn applied(text: &str, effects: &Effects) -> String {
+        let mut out = text.to_owned();
+        for effect in effects.iter() {
+            match effect {
+                Effect::Insert { offset, text } => out.insert_str(offset.get(), text),
+                Effect::Delete { range } => {
+                    out.replace_range(range.start().get()..range.end().get(), "");
+                }
+                _ => {}
+            }
+        }
+        out
     }
 
     #[test]
@@ -404,16 +365,82 @@ mod tests {
         assert!(result.iter().any(|e| matches!(e, Effect::Insert { .. })));
     }
 
+    /// ex_cmds.c do_move(): lines moved to where they are do not move, and
+    /// the cursor goes to the last of them.
     #[test]
-    fn move_lines_within_range_returns_error() {
-        // Moving line 2 after line 2 (within itself) → E134 error.
-        let range = ExRange::single_line(2);
-        let result = move_lines(&range, Some(1), &ctx());
+    fn move_lines_after_themselves_does_nothing() {
+        for (range, target) in [
+            (ExRange::single_line(2), Some(1)),
+            (ExRange::single_line(2), Some(0)),
+            (ExRange::single_line(1), None),
+            (ExRange::lines(1, 2), Some(1)),
+        ] {
+            let result = move_lines(&range, target, &ctx()).unwrap();
+            assert!(!result.iter().any(|e| e.is_text_mutation()), "{range:?}");
+        }
+        let result = move_lines(&ExRange::lines(1, 2), Some(1), &ctx()).unwrap();
+        assert!(result
+            .iter()
+            .any(|e| matches!(e, Effect::SetCursor { offset } if offset.get() == 7)));
+    }
 
-        assert!(matches!(
-            result,
-            Err(crate::errors::VimError::MoveIntoItself)
-        ));
+    /// ex_cmds.c do_move(): the last line has no `\n` before or after the
+    /// move.
+    #[test]
+    fn move_lines_keeps_the_text_without_a_last_newline() {
+        let apply = |text: &str, range: ExRange, target: Option<usize>| {
+            applied(
+                text,
+                &move_lines(&range, target, &ExContext::new(text, 0)).unwrap(),
+            )
+        };
+        assert_eq!(
+            apply("ab\ncd\n😀", ExRange::single_line(3), None),
+            "😀\nab\ncd"
+        );
+        assert_eq!(
+            apply("ab\ncd\n😀", ExRange::single_line(1), Some(2)),
+            "cd\n😀\nab"
+        );
+        assert_eq!(apply("a\nb\n", ExRange::single_line(1), Some(2)), "b\n\na");
+        assert_eq!(apply("a\nb\nc", ExRange::lines(2, 3), None), "b\nc\na");
+        assert_eq!(
+            apply("a\nb\nc", ExRange::single_line(1), Some(1)),
+            "b\na\nc"
+        );
+    }
+
+    /// ex_cmds.c `ex_copy()` appends whole lines after the destination.
+    #[test]
+    fn copy_lines_keeps_the_text_without_a_last_newline() {
+        let apply = |text: &str, range: ExRange, target: Option<usize>| {
+            let effects = copy_lines(&range, target, &ExContext::new(text, 0)).unwrap();
+            let cursor = effects.iter().find_map(|effect| match effect {
+                Effect::SetCursor { offset } => Some(offset.get()),
+                _ => None,
+            });
+            (applied(text, &effects), cursor)
+        };
+        assert_eq!(
+            apply("\na\na", ExRange::lines(2, 3), None),
+            ("a\na\n\na\na".into(), Some(2))
+        );
+        assert_eq!(
+            apply("ab\n😀", ExRange::single_line(2), Some(1)),
+            ("ab\n😀\n😀".into(), Some(8))
+        );
+        assert_eq!(
+            apply("a\nb\n", ExRange::single_line(1), Some(2)),
+            ("a\nb\n\na".into(), Some(5))
+        );
+        assert_eq!(
+            apply("a\nb", ExRange::single_line(2), Some(0)),
+            ("a\nb\nb".into(), Some(2))
+        );
+        assert_eq!(
+            apply("", ExRange::single_line(1), Some(0)),
+            ("\n".into(), Some(1))
+        );
     }
 
     #[test]
