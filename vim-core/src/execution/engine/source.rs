@@ -808,6 +808,9 @@ impl super::VimEngine {
                 }
             }
         };
+        if let Some(error) = executor_ex::let_option_error(options, &assignment) {
+            return Err(error);
+        }
         let mut assignments = smallvec::SmallVec::new();
         assignments.push(assignment);
         Ok(Some(match layer {
@@ -1692,6 +1695,26 @@ mod tests {
                 "E928: String required",
             ]
         );
+    }
+
+    #[test]
+    fn source_config_let_option_error_names_no_argument() {
+        // ex_let_option(): set_option_value_give_err() shows the message
+        // alone, where :set adds the argument.
+        let mut engine = VimEngine::new();
+        let config = "let &tw = -1\nlet &ts = 0\nlet &fo = 'tZ'\nlet &l:sw = -2\nlet &tw = 5\n";
+        let response = engine.source_config_text(config);
+        assert_eq!(
+            errors(&response),
+            [
+                "E487: Argument must be positive",
+                "E487: Argument must be positive",
+                "E539: Illegal character <Z>",
+                "E487: Argument must be positive",
+            ]
+        );
+        assert_eq!(engine.options().textwidth(), 5);
+        assert_eq!(engine.options().tabstop(), 4);
     }
 
     #[test]

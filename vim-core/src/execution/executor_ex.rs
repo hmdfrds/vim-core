@@ -1175,6 +1175,31 @@ pub(crate) fn apply_set_assignments(
     effects
 }
 
+/// The error `assignment` would give, as `:let &name` shows it: without
+/// the argument `:set` adds, as `set_option_value_give_err()` gives the
+/// message (evalvars.c `ex_let_option()`).
+pub(crate) fn let_option_error(
+    global: &crate::primitives::VimOptions,
+    assignment: &crate::grammar::types::SetAssignment,
+) -> Option<VimError> {
+    let mut global = global.clone();
+    let mut layers = SetLayers {
+        scope: SetScope::Global,
+        global: &mut global,
+        buffer: &mut OptionOverrides::default(),
+        window: &mut OptionOverrides::default(),
+    };
+    let error = layers.apply(assignment, &mut Vec::new()).err()?;
+    let suffix = format!(": {}", set_argument(assignment));
+    Some(match error {
+        VimError::OptionValue(text) => match text.strip_suffix(&suffix) {
+            Some(message) => VimError::OptionValue(message.into()),
+            None => VimError::OptionValue(text),
+        },
+        other => other,
+    })
+}
+
 /// What `:set` writes: the layers of one command.
 struct SetLayers<'a> {
     scope: SetScope,
