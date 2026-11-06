@@ -161,11 +161,7 @@ impl SessionHost {
             document: SessionDocument::new(text),
             cursor_offset: 0,
             selection: None,
-            viewport: ViewportInfo {
-                first_line: 0,
-                height: 24,
-                width: 80,
-            },
+            viewport: ViewportInfo::new(0, 24, 80),
             undo_store: UndoStore::new(),
             dirty_tracker: DirtyTracker::new(),
             frame_id: 0,

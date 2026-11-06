@@ -1619,13 +1619,32 @@ fn bracket_abbrev_display_intermediates() {
 
 #[test]
 fn bracket_abbrev_marks_intermediates() {
-    for abbrev in ["mar", "mark", "marks"] {
-        let cmd = parse_ex_command(abbrev).unwrap();
+    let cmd = parse_ex_command("marks").unwrap();
+    assert!(matches!(cmd, ExCommand::Marks { .. }), "{cmd:?}");
+}
+
+/// `:ma[rk]` and `:k` set a mark; `:k` needs no blank before it (ex_docmd.c
+/// `ex_mark()`, `one_letter_cmd()`).
+#[test]
+fn mark_and_k_parse_as_mark() {
+    let a = crate::primitives::MarkName::new('a').unwrap();
+    for line in ["ma a", "mar a", "mark a", "k a", "ka", "mark a "] {
+        let cmd = parse_ex_command(line).unwrap();
         assert!(
-            matches!(cmd, ExCommand::Marks { .. }),
-            "{abbrev:?} should parse as Marks, got: {cmd:?}"
+            matches!(cmd, ExCommand::Mark { mark, .. } if mark == a),
+            "{line:?}: {cmd:?}"
         );
     }
+    assert_eq!(parse_ex_command("mark"), Err(VimError::ArgumentRequired));
+    assert_eq!(
+        parse_ex_command("mark ab"),
+        Err(VimError::TrailingCharacters("ab".into()))
+    );
+    assert_eq!(parse_ex_command("mark !"), Err(VimError::MarkArgument));
+    assert!(matches!(
+        parse_ex_command("keepmarks d"),
+        Ok(ExCommand::Custom { .. })
+    ));
 }
 
 #[test]
@@ -5892,4 +5911,22 @@ fn set_term_code_names_take_two_characters() {
             SetAssignment::SetBool(cs("t_Co")),
         ]
     );
+}
+
+/// Trailing blanks do not change the command (ex_docmd.c
+/// `separate_nextcmd()`, `del_trailing_spaces()`).
+#[test]
+fn trailing_blank_keeps_the_command() {
+    for (line, bare) in [
+        ("t. ", "t."),
+        ("co$\t", "co$"),
+        ("m0  ", "m0"),
+        ("@a ", "@a"),
+    ] {
+        assert_eq!(parse_ex_command(line), parse_ex_command(bare), "{line:?}");
+    }
+    assert!(matches!(
+        parse_ex_command("t. "),
+        Ok(ExCommand::Copy { .. })
+    ));
 }

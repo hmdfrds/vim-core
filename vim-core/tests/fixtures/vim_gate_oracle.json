@@ -1,5 +1,5 @@
 {
- "generator": "headless vim -Nu NONE --not-a-term: nostartofline nojoinspaces backspace=indent,eol,start, explicit setlocal options, the keys through feedkeys('xt') one at a time (InsertCharPre autocommand), an Esc at the end in Insert or Replace mode; register is the unnamed one",
+ "generator": "cases without a provenance field: headless vim -Nu NONE --not-a-term: nostartofline nojoinspaces backspace=indent,eol,start, explicit setlocal options, the keys through feedkeys('xt') one at a time (InsertCharPre autocommand), an Esc at the end in Insert or Replace mode; register is the unnamed one",
  "vim": "VIM - Vi IMproved 9.1 (2024 Jan 02) / Included patches: 1-948, 950-2141",
  "cases": [
   {
@@ -5834,6 +5834,7 @@
   },
   {
    "name": "block > builds the indent with Tabs under noexpandtab",
+   "provenance": "derived from Vim's test_visual.vim (text) and op_shift() (cursor), not recorded from headless Vim",
    "lines": [
     "      1",
     "      2",
@@ -5869,6 +5870,7 @@
   },
   {
    "name": "block > builds the indent with spaces under expandtab",
+   "provenance": "derived from Vim's test_visual.vim (text) and op_shift() (cursor), not recorded from headless Vim",
    "lines": [
     "      1",
     "      2",
@@ -5904,6 +5906,7 @@
   },
   {
    "name": "block < takes out Tabs and splits the one the block starts in",
+   "provenance": "derived from Vim's test_visual.vim (text) and op_shift() (cursor), not recorded from headless Vim",
    "lines": [
     "    abcdefghijklmnopqrstuvwxyz",
     "abcdefghij",
@@ -5943,6 +5946,7 @@
   },
   {
    "name": "block > goes in front of a double-width character the block starts in",
+   "provenance": "derived from Vim's test_visual.vim (text) and op_shift() (cursor), not recorded from headless Vim",
    "lines": [
     "xヹxxx",
     "ヹxxx"

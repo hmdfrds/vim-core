@@ -68,10 +68,26 @@ impl Parser {
     /// After Ctrl-R in insert mode, we need a register name.
     /// Special case: `=` enters expression input mode instead of looking up a register.
     pub(crate) fn handle_awaiting_insert_register(key: KeyEvent) -> GrammarResult {
-        // Ctrl-R again stays in the state (handles <C-r><C-r>{reg} = literal)
-        if key == KeyEvent::ctrl('r') {
-            return GrammarResult::Continue(InputState::AwaitingInsertRegister);
+        for prefix in ['r', 'o', 'p'] {
+            if key == KeyEvent::ctrl(prefix) {
+                return GrammarResult::Continue(InputState::AwaitingInsertRegisterLiterally {
+                    prefix: prefix.to_ascii_uppercase(),
+                });
+            }
         }
+        Self::insert_register_name(key)
+    }
+
+    /// Handle `AwaitingInsertRegisterLiterally` state: a key that names no
+    /// register is used up, as in Vim.
+    pub(crate) fn handle_awaiting_insert_register_literally(key: KeyEvent) -> GrammarResult {
+        match Self::insert_register_name(key) {
+            GrammarResult::Invalid => GrammarResult::Cancel,
+            result => result,
+        }
+    }
+
+    fn insert_register_name(key: KeyEvent) -> GrammarResult {
         // Ctrl-W/A/L: insert word/WORD/line under cursor (pseudo-registers)
         if key == KeyEvent::ctrl('w') {
             return GrammarResult::Execute(Command::Insert(InsertKind::InsertWordUnderCursor));

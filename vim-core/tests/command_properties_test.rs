@@ -57,6 +57,7 @@ fn properties_guard_all_variants_compile() {
             kind: TextObjectKind::Word,
             seek: None,
         },
+        force_type: None,
     }
     .properties();
 
@@ -298,6 +299,7 @@ fn operator_text_object_with_delete_has_record_repeat() {
             kind: TextObjectKind::Word,
             seek: None,
         },
+        force_type: None,
     };
 
     let props = cmd.properties();
@@ -319,6 +321,7 @@ fn operator_text_object_with_yank_has_skip_repeat() {
             kind: TextObjectKind::Word,
             seek: None,
         },
+        force_type: None,
     };
 
     let props = cmd.properties();

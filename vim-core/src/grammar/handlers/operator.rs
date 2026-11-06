@@ -448,6 +448,7 @@ impl Parser {
                     register,
                     operator,
                     textobject,
+                    force_type: None,
                 });
             }
             if let Some(kind) = TextObjectKind::from_semantic_char(c) {
@@ -461,6 +462,7 @@ impl Parser {
                     register,
                     operator,
                     textobject,
+                    force_type: None,
                 });
             }
         }
@@ -496,6 +498,7 @@ impl Parser {
                         register,
                         operator,
                         textobject,
+                        force_type: None,
                     });
                 }
             }

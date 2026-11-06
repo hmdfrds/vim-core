@@ -30,11 +30,10 @@ impl ModeHandler for ReplaceModeHandler {
         };
         let (parser, keymap) = ctx.parser_and_keymap();
 
-        // Fast path: Escape exits replace mode — but NOT when awaiting
-        // a literal character (Ctrl-V sequence).
-        if keymap.classify(key, mode) == KeyClass::Escape
-            && !matches!(parser.state(), crate::grammar::InputState::InsertLiteral(_))
-        {
+        // Escape leaves Replace mode unless a pending command takes it; any
+        // other pending state goes with the mode.
+        if keymap.classify(key, mode) == KeyClass::Escape && !parser.state().takes_insert_escape() {
+            parser.reset();
             return ModeAction::InsertExit;
         }
 

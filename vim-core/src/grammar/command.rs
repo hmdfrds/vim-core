@@ -628,6 +628,9 @@ pub enum Command {
         operator: Operator,
         /// The text object
         textobject: TextObject,
+        /// Motion force override (`v`, `V` or `<C-v>` before the object).
+        /// The parser leaves it `None` and the operators ignore it.
+        force_type: Option<crate::primitives::MotionType>,
     },
 
     /// Linewise operator (doubled key).
@@ -1566,12 +1569,14 @@ impl Command {
                 register,
                 operator,
                 textobject,
+                force_type,
                 ..
             } => Self::OperatorTextObject {
                 count: new_count,
                 register: *register,
                 operator: *operator,
                 textobject: *textobject,
+                force_type: *force_type,
             },
             Self::OperatorLine {
                 register, operator, ..
@@ -1686,12 +1691,14 @@ impl Command {
                 count,
                 operator,
                 textobject,
+                force_type,
                 ..
             } => Self::OperatorTextObject {
                 count: *count,
                 register: new_register,
                 operator: *operator,
                 textobject: *textobject,
+                force_type: *force_type,
             },
             Self::OperatorLine {
                 count, operator, ..
@@ -2618,6 +2625,7 @@ mod tests {
                 kind: super::super::types::TextObjectKind::Word,
                 seek: None,
             },
+            force_type: None,
         };
         assert!(cmd.is_content_dependent());
     }
@@ -2851,6 +2859,7 @@ mod tests {
                     kind: super::super::types::TextObjectKind::Word,
                     seek: None,
                 },
+                force_type: None,
             },
             Command::OperatorLine {
                 count: NonZeroU32::MIN,
@@ -3244,6 +3253,7 @@ mod tests {
                     kind: TextObjectKind::Word,
                     seek: None,
                 },
+                force_type: None,
             };
             // All operator+textobject commands are CD — text objects
             // scan content to find boundaries.
@@ -3510,6 +3520,7 @@ mod tests {
                         kind: TextObjectKind::Paragraph,
                         seek: None,
                     },
+                    force_type: None,
                 },
                 true,
             ),
@@ -3547,6 +3558,7 @@ mod tests {
                         kind: TextObjectKind::Word,
                         seek: None,
                     },
+                    force_type: None,
                 },
                 true,
             ),
@@ -3561,6 +3573,7 @@ mod tests {
                         kind: TextObjectKind::Word,
                         seek: None,
                     },
+                    force_type: None,
                 },
                 true,
             ),

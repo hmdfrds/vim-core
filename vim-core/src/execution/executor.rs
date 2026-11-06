@@ -195,6 +195,7 @@ fn execute_raw<D: Document>(command: Command, ctx: &ExecutionContext<'_, D>) -> 
             operator,
             textobject,
             register,
+            ..
         } => {
             let count = count.get();
 

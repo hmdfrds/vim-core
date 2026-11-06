@@ -52,11 +52,7 @@ impl FidelitySession {
             });
         host.set_cursor_offset(offset);
 
-        let viewport = window.map(|w| ViewportInfo {
-            first_line: 0,
-            height: w.height,
-            width: w.width,
-        });
+        let viewport = window.map(|w| ViewportInfo::new(0, w.height, w.width));
         if let Some(vp) = viewport {
             host.set_viewport(vp);
         }

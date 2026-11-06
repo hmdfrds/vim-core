@@ -168,6 +168,14 @@ impl Parser {
                 self.update_state(&result);
                 return result;
             }
+            if matches!(
+                &self.state,
+                InputState::AwaitingInsertRegisterLiterally { .. }
+            ) {
+                let result = Self::handle_awaiting_insert_register_literally(key);
+                self.update_state(&result);
+                return result;
+            }
             // Awaiting Ctrl-G sub-command
             if matches!(&self.state, InputState::AwaitingInsertCtrlG) {
                 let result = Self::handle_awaiting_insert_ctrl_g(key);
@@ -563,6 +571,9 @@ impl Parser {
                 register,
             } => Self::handle_awaiting_mark(*count, *mark_type, *operator, *register, key),
             InputState::AwaitingInsertRegister => Self::handle_awaiting_insert_register(key),
+            InputState::AwaitingInsertRegisterLiterally { .. } => {
+                Self::handle_awaiting_insert_register_literally(key)
+            }
             InputState::AwaitingInsertExpression { collected } => {
                 Self::handle_awaiting_insert_expression(key, collected.clone())
             }

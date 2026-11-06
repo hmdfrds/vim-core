@@ -370,11 +370,7 @@ impl VimTestBuilder {
         if let Some((height, width)) = self.viewport {
             session
                 .session_mut()
-                .set_viewport(vim_core::dispatch::ViewportInfo {
-                    first_line: 0,
-                    height,
-                    width,
-                });
+                .set_viewport(vim_core::dispatch::ViewportInfo::new(0, height, width));
         }
 
         for (name, value) in &self.options {

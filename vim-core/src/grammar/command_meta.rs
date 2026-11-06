@@ -215,16 +215,14 @@ static OWN_COMMANDS: [OwnCommand; 28] = [
 /// The forms the parser reads as another command than Vim does, with the
 /// command the parser reads. Deviation: Vim reads `:sm` as `:smagic`,
 /// `:sn` as `:snext`, `:sno` as `:snomagic`, `:su` as `:substitute`, `:sun`
-/// as `:sunhide`, `:mar` as `:mark` and `:cha` as `:change`.
-const PARSER_FORMS: [(&str, &str); 14] = [
+/// as `:sunhide` and `:cha` as `:change`.
+const PARSER_FORMS: [(&str, &str); 12] = [
     ("sm", "smap"),
     ("sma", "smap"),
     ("sn", "snoremap"),
     ("sno", "snoremap"),
     ("su", "sunmap"),
     ("sun", "sunmap"),
-    ("mar", "marks"),
-    ("mark", "marks"),
     ("cha", "changes"),
     ("chan", "changes"),
     ("chang", "changes"),

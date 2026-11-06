@@ -154,6 +154,27 @@ pub fn partial_star_search_normal(text: &str, cursor: usize, direction: Directio
         .set_register(RegisterName::SEARCH, pattern, MotionType::CharWise)
 }
 
+/// The literal search for a Visual `*` or `#`: `\V` with `\` and `/`
+/// escaped as Normal `*` does (normal.c `nv_ident()`) and line breaks as
+/// `\n` (Neovim's `_visual_search()`). `?` stays: the pattern is stored, not
+/// typed after `?`, and a stored `\?` is a multi.
+#[must_use]
+pub(crate) fn visual_star_pattern(selected: &str) -> CompactString {
+    let mut pattern = CompactString::with_capacity(selected.len() + 2);
+    pattern.push_str("\\V");
+    for c in selected.chars() {
+        match c {
+            '\\' | '/' => {
+                pattern.push('\\');
+                pattern.push(c);
+            }
+            '\n' => pattern.push_str("\\n"),
+            _ => pattern.push(c),
+        }
+    }
+    pattern
+}
+
 /// Compute star search effects for visual selection.
 ///
 /// Uses `\V` (very nomagic) prefix so literal text is matched.
@@ -167,9 +188,7 @@ pub fn star_search_visual(text: &str, start: usize, end: usize, direction: Direc
         return Effects::new();
     }
 
-    let mut pattern = CompactString::with_capacity(selected.len() + 2);
-    pattern.push_str("\\V");
-    pattern.push_str(selected);
+    let pattern = visual_star_pattern(selected);
     Effects::new()
         .set_search_pattern(pattern.as_str(), direction)
         .set_register(RegisterName::SEARCH, pattern, MotionType::CharWise)

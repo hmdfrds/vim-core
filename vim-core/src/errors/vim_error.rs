@@ -62,6 +62,8 @@ pub enum VimError {
     // ═══════════════════════════════════════════════════════════════════
     /// E20: Mark not set.
     MarkNotSet(char),
+    /// E191: Argument must be a letter or forward/backward quote.
+    MarkArgument,
 
     // ═══════════════════════════════════════════════════════════════════
     // Changelist / jump list errors
@@ -477,6 +479,12 @@ impl fmt::Display for VimError {
 
             // Marks
             Self::MarkNotSet(_mark) => write!(f, "E20: Mark not set"),
+            Self::MarkArgument => {
+                write!(
+                    f,
+                    "E191: Argument must be a letter or forward/backward quote"
+                )
+            }
 
             // Changelist
             Self::AtStartOfChangelist => write!(f, "E662: At start of changelist"),

@@ -107,7 +107,11 @@ const fn resolve_continue_state(
     mode: Mode,
     next_state: &InputState,
 ) -> Result<(PlannedAction, bool), PipelineError> {
-    if matches!(next_state, InputState::AwaitingInsertRegister) && !mode.is_insert() {
+    if matches!(
+        next_state,
+        InputState::AwaitingInsertRegister | InputState::AwaitingInsertRegisterLiterally { .. }
+    ) && !mode.is_insert()
+    {
         return Err(PipelineError::InsertRegisterOutsideInsert { mode });
     }
 
