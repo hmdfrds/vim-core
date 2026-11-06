@@ -363,6 +363,26 @@ fn append_and_insert_entries_match_composite() {
     }
 }
 
+/// The cursors do the same whichever one the host cursor is on.
+#[test]
+fn insert_does_not_depend_on_the_primary_cursor() {
+    for (keys, expected) in [
+        ("Ay<Esc>x", "ab\ncd\nef"),
+        ("iy<Esc>x", "ab\ncd\nef"),
+        ("R<Esc>x", "b\nd\nf"),
+        ("Ry<Esc>x", "b\nd\nf"),
+        ("oy<Esc>x", "ab\n\ncd\n\nef\n"),
+        ("A<Tab>y<Esc>.x", "ab  y  \ncd  y  \nef  y  "),
+    ] {
+        for offsets in [[0, 3, 6], [3, 0, 6], [6, 3, 0]] {
+            let mut s = session("ab\ncd\nef", &offsets);
+            feed(&mut s, keys);
+            assert_eq!(s.text(), expected, "{keys:?} from {offsets:?}");
+            assert_eq!(s.cursor_count(), 3, "{keys:?} from {offsets:?}");
+        }
+    }
+}
+
 #[test]
 fn esc_steps_back_at_each_cursor() {
     assert_composite(&["é", "ab", "日本"], &[0, 0, 3], "a<Esc>x", false);

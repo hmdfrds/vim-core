@@ -865,15 +865,13 @@ impl VimEngine {
             // the last SetCursor applied), so when a cursor sits there it
             // becomes the primary, as in the algebraic path below.
             // Overwriting the primary head instead would put two cursors on
-            // the same offset. Only formatting needs this, so without it
-            // the primary head is overwritten as before.
+            // the same offset.
             let cursor_off = crate::primitives::Offset::new(cursor);
             let selections = self.state.multi_cursor_mut().selections_mut();
             if let Some(idx) = selections
                 .ranges()
                 .iter()
                 .position(|s| s.head() == cursor_off)
-                .filter(|_| format_active)
             {
                 selections.set_primary_index(idx);
             } else {
@@ -1682,11 +1680,20 @@ impl VimEngine {
         if self.state.multi_cursor().is_active() {
             use crate::effects::Effect;
 
-            // Sync primary selection head with the actual cursor offset.
-            let primary = self.state.multi_cursor_mut().selections_mut().primary_mut();
-            *primary = crate::primitives::SelectionRange::insert_cursor(
-                crate::primitives::Offset::new(cursor),
-            );
+            // The cursor at the host cursor becomes the primary, as while
+            // typing.
+            let cursor_off = crate::primitives::Offset::new(cursor);
+            let selections = self.state.multi_cursor_mut().selections_mut();
+            if let Some(idx) = selections
+                .ranges()
+                .iter()
+                .position(|s| s.head() == cursor_off)
+            {
+                selections.set_primary_index(idx);
+            } else {
+                *selections.primary_mut() =
+                    crate::primitives::SelectionRange::insert_cursor(cursor_off);
+            }
 
             let mut positional: Vec<Effect> = Vec::new();
             let mut global: Vec<Effect> = Vec::new();
@@ -1713,19 +1720,23 @@ impl VimEngine {
                     ends.push((head, end, delta));
                     merged.extend(own.iter().cloned());
                 }
-                secondary_heads = Some(
-                    ends.iter()
-                        .filter(|&&(head, ..)| head != cursor)
-                        .map(|&(head, end, _)| {
-                            let shift: i64 = ends
-                                .iter()
-                                .filter(|&&(other, ..)| other < head)
-                                .map(|&(.., delta)| delta)
-                                .sum();
-                            (head, byte_delta::shift(end, shift))
-                        })
-                        .collect(),
-                );
+                let finals: Vec<(usize, usize)> = ends
+                    .iter()
+                    .map(|&(head, end, _)| {
+                        let shift: i64 = ends
+                            .iter()
+                            .filter(|&&(other, ..)| other < head)
+                            .map(|&(.., delta)| delta)
+                            .sum();
+                        (head, byte_delta::shift(end, shift))
+                    })
+                    .collect();
+                let primary_end = finals
+                    .iter()
+                    .find(|&&(head, _)| head == cursor)
+                    .map(|&(_, end)| end);
+                secondary_heads = Some(finals);
+                end_on_primary(&mut merged, primary_end);
                 merged.extend(global);
                 response.effects = merged;
             } else if !positional.is_empty() {
@@ -1757,6 +1768,18 @@ impl VimEngine {
                             .collect(),
                     );
                 }
+                let below: i64 = self
+                    .state
+                    .multi_cursor()
+                    .selections()
+                    .iter()
+                    .filter(|s| s.head().get() < cursor)
+                    .map(|_| 1)
+                    .sum();
+                let primary_end = Self::last_cursor_in_effects(&positional).map(|end| {
+                    let delta = crate::effects::algebra::compute_length_change(&positional);
+                    byte_delta::shift(end.get(), below.saturating_mul(delta))
+                });
                 let positional_effects: crate::effects::Effects = positional.into_iter().collect();
                 let replicated = super::super::multi_cursor::replicate_effects_precise(
                     &positional_effects,
@@ -1765,6 +1788,7 @@ impl VimEngine {
                 );
                 let mut merged: smallvec::SmallVec<[Effect; 4]> = smallvec::SmallVec::new();
                 merged.extend(replicated.into_inner());
+                end_on_primary(&mut merged, primary_end);
                 merged.extend(global);
                 response.effects = merged;
             }
@@ -2624,6 +2648,27 @@ impl VimEngine {
                         response.effects.push(effect);
                     }
                 }
+                // Replicated edits leave the host cursor on the first cursor;
+                // it goes to the primary one, which the next key moves to it.
+                let primary_end = repeat_heads.as_ref().and_then(|heads| {
+                    heads
+                        .iter()
+                        .find(|&&(head, _)| head == primary_offset.get())
+                        .map(|&(_, end)| Offset::new(end))
+                });
+                if let Some(end) = primary_end {
+                    if Self::last_cursor_in_effects(&response.effects) != Some(end) {
+                        let mut effect = crate::effects::Effect::SetCursor { offset: end };
+                        super::super::effect_processor::sync_effect_mut(
+                            &mut self.state,
+                            &mut self.parser,
+                            &mut effect,
+                            doc_text,
+                            self.options.undolevels(),
+                        );
+                        response.effects.push(effect);
+                    }
+                }
                 super::super::effect_processor::inject_repeat_global_effects(
                     &mut self.state,
                     &mut self.parser,
@@ -3032,6 +3077,17 @@ fn cursor_line_after(
         &after,
         cursor.min(after.len()),
     ))
+}
+
+/// Leave the host cursor on the primary cursor's `end`: replicated effects
+/// leave it on the first cursor, and the next Normal mode key makes the
+/// primary cursor follow the host cursor.
+fn end_on_primary(effects: &mut SmallVec<[Effect; 4]>, end: Option<usize>) {
+    if let Some(end) = end.map(Offset::new) {
+        if VimEngine::last_cursor_in_effects(effects) != Some(end) {
+            effects.push(Effect::SetCursor { offset: end });
+        }
+    }
 }
 
 /// Move every cursor but the primary one from a head in `heads` to the
