@@ -321,3 +321,9 @@ fn append_and_insert_entries_match_composite() {
         assert_composite(&lines, &[0, 3, 0, 1], keys, false);
     }
 }
+
+#[test]
+fn esc_steps_back_at_each_cursor() {
+    assert_composite(&["é", "ab", "日本"], &[0, 0, 3], "a<Esc>x", false);
+    assert_composite(&["日本", "ab"], &[3, 1], "i<Esc>x", false);
+}

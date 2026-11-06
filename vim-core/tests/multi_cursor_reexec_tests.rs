@@ -1187,7 +1187,7 @@ fn insert_entry_and_exit_without_formatting() {
     feed(&mut session, "Ax<Esc>");
     assert_eq!(session.text(), "hx\n//hat is long enoughx");
 
-    // `<Esc>` leaves the other cursor where it typed.
+    // `<Esc>` steps each cursor back onto its last typed character.
     let mut session = session_with_cursors("t\n    line two ur", &[0, 14]);
     feed(&mut session, "i x 日本 #<Esc> bar<Esc>");
     assert_eq!(session.text(), " x 日本 #rt\n    line two x 日本 #r ur");

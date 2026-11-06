@@ -1654,11 +1654,7 @@ impl VimEngine {
                 }
             }
         }
-        // With formatting, where the other cursors end, by their head before
-        // the exit. Without it they stay where the insert left them.
-        let format_active =
-            crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options)
-                .is_active();
+        // Where the other cursors end, by their head before the exit.
         let mut secondary_heads: Option<Vec<(usize, usize)>> = None;
         // Multi-cursor: replicate positional exit effects to all cursors.
         // Global effects (EndUndoGroup, SetMode, SetStickyColumn, etc.) are
@@ -1715,14 +1711,12 @@ impl VimEngine {
             } else if !positional.is_empty() {
                 // Without edits, the other cursors step back onto the
                 // character before them as the primary one does.
-                if format_active
-                    && !positional.iter().any(|e| {
-                        matches!(
-                            e,
-                            Effect::Insert { .. } | Effect::Delete { .. } | Effect::Replace { .. }
-                        )
-                    })
-                {
+                if !positional.iter().any(|e| {
+                    matches!(
+                        e,
+                        Effect::Insert { .. } | Effect::Delete { .. } | Effect::Replace { .. }
+                    )
+                }) {
                     let selections = self.state.multi_cursor().selections();
                     secondary_heads = Some(
                         selections
