@@ -4772,6 +4772,18 @@ fn normalize_for_layout_preserves_modifiers() {
 }
 
 #[test]
+fn would_handle_key_applies_langmap_to_a_typed_key() {
+    // LANGMAP_ADJUST() translates a typed key whatever 'langremap' says,
+    // and the host asks about keys the user types.
+    let mut engine = VimEngine::new();
+    let cyrillic_o = KeyEvent::char('\u{043E}');
+    assert!(!engine.would_handle_key(cyrillic_o));
+    let _ = engine.source_config_text("set langmap=\u{043E}j nolangremap\n");
+    assert!(!engine.options().langremap());
+    assert!(engine.would_handle_key(cyrillic_o));
+}
+
+#[test]
 fn would_handle_key_with_latin_key_in_normal() {
     let engine = VimEngine::new();
     // Cyrillic 'о' alone is Unknown in Normal keymap
