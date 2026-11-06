@@ -106,14 +106,18 @@ fn source_passes_the_path_unexpanded() {
 
 #[test]
 fn source_ends_at_a_bar() {
+    // separate_nextcmd() ends :source at the `|`, and del_trailing_spaces()
+    // drops the blanks before it.
     let doc = SimpleDocument::new("alpha");
-    let mut engine = VimEngine::new();
-    let req = request(&run(&mut engine, &doc, "source x | set ic"));
-    assert!(
-        matches!(req, HostRequest::ReadConfigFile { path: Some(ref p), .. } if p.as_str() == "x"),
-        "{req:?}"
-    );
-    assert!(engine.options().ignorecase());
+    for command in ["source x | set ic", "source x  |set ic"] {
+        let mut engine = VimEngine::new();
+        let req = request(&run(&mut engine, &doc, command));
+        assert!(
+            matches!(req, HostRequest::ReadConfigFile { path: Some(ref p), .. } if p.as_str() == "x"),
+            "{command}: {req:?}"
+        );
+        assert!(engine.options().ignorecase(), "{command}");
+    }
 }
 
 #[test]

@@ -1381,6 +1381,36 @@ fn a_host_may_source_a_file_itself_or_leave_it_for_later() {
 }
 
 #[test]
+fn source_ends_at_a_bar() {
+    // :source has EX_TRLBAR: separate_nextcmd() ends it at the `|` and
+    // del_trailing_spaces() drops the blanks before it, so the host is
+    // asked for `x` and the command after the `|` runs.
+    for config in ["source x | set ic\n", "source x  |set ic\n"] {
+        let mut engine = VimEngine::new();
+        let mut done = Reply(SourceReply::Done(None), Vec::new());
+        let _ = engine.source_script(ConfigText::new("a.vim", config), &mut done);
+        assert_eq!(done.1, [Some("x".to_owned())], "{config:?}");
+        assert!(engine.options().ignorecase(), "{config:?}");
+
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text(config);
+        let [HostRequest::ReadConfigFile { path, .. }] = response.host_requests() else {
+            panic!("{config:?}: {:?}", response.host_requests());
+        };
+        assert_eq!(path.as_deref(), Some("x"), "{config:?}");
+        assert!(engine.options().ignorecase(), "{config:?}");
+
+        let mut session = HostSession::new("a");
+        let response = session.source_config(config);
+        let [HostRequest::ReadConfigFile { path, .. }] = response.host_requests.as_slice() else {
+            panic!("{config:?}: {:?}", response.host_requests);
+        };
+        assert_eq!(path.as_deref(), Some("x"), "{config:?}");
+        assert!(session.options().ignorecase(), "{config:?}");
+    }
+}
+
+#[test]
 fn silent_before_source_holds_inside_the_file() {
     // apply_cmdmod() keeps emsg_silent and msg_silent up while the file
     // runs, so its errors neither show nor skip anything.
