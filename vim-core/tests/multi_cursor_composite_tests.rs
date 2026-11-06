@@ -335,3 +335,12 @@ fn open_and_substitute_entries_match_composite() {
         assert_composite(&lines, &[4, 0, 1], keys, true);
     }
 }
+
+/// A counted change that reaches the next cursor's line takes that cursor.
+#[test]
+fn counted_change_over_another_cursor_keeps_one() {
+    let mut s = session("ab\ncd\nef\ngh", &[0, 3, 6]);
+    feed(&mut s, "2SX<Esc>");
+    assert_eq!(s.text(), "X\nX");
+    assert_eq!(s.cursor_count(), 2);
+}
