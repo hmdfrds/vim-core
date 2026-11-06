@@ -6,7 +6,7 @@
 //! ```text
 //! ex_command  = [range] cmd_name [args]
 //! substitute  = [range] "s" "/" pattern "/" replacement "/" [sub_flags]
-//! global_cmd  = [range] ("g" | "v") "/" pattern "/" cmd_name
+//! global_cmd  = [range] ("g" | "v") "/" pattern "/" command_line
 //! ```
 
 use compact_str::CompactString;
@@ -229,14 +229,16 @@ pub enum ExCommand {
         /// Substitute flags (g, c, i, I, n).
         flags: SubFlags,
     },
-    /// Global: `:g/pattern/command`
+    /// Global: `:g/pattern/commands`
     Global {
         /// Line range to search within.
         range: ExRange,
         /// Pattern to match lines against.
         pattern: CompactString,
-        /// Command to execute on matching lines.
-        command: Box<Self>,
+        /// The command line run on each matching line, every `|` command
+        /// in it, as written: each line parses it again, as Vim's
+        /// `global_exe_one()` does.
+        commands: CompactString,
         /// If true, this is `:v` (inverse match).
         invert: bool,
     },

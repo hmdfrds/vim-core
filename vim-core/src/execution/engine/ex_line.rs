@@ -1,6 +1,7 @@
 //! Running an Ex command line for [`VimEngine`]: each `|` command runs on
 //! the text, cursor and marks the command before it left, as Vim's
-//! `do_cmdline()` runs them.
+//! `do_cmdline()` runs them, and `:g` runs its commands one marked line at
+//! a time (ex_cmds.c `ex_global()`, `global_exe()`).
 //!
 //! The host applies the effects in order, so each command's effects are
 //! computed on an [`OwnedDocument`] that has the effects before them
@@ -11,17 +12,22 @@ use smallvec::SmallVec;
 
 use super::shadow_document::OwnedDocument;
 use super::VimEngine;
+use crate::commands::ex::global::{LineMarks, MAX_GLOBAL_RECURSION_DEPTH};
 use crate::document::Document;
-use crate::effects::{Effect, Effects};
-use crate::execution::executor_ex::{self, ExExecutionOutput};
+use crate::effects::{Effect, Effects, InfoMessage, LineModCounts};
+use crate::errors::VimError;
+use crate::execution::executor_ex::{self, ExExecutionOutput, GlobalCommand};
 use crate::execution::{ExecutionContext, HostRequest, InputContext, Validated};
 use crate::grammar::split_ex_pipeline;
-use crate::grammar::types::ExCommand;
-use crate::primitives::{Mode, SelectionRange, UndoCursorStrategy};
+use crate::grammar::types::{ExCommand, ExRange, ModifierFlags};
+use crate::primitives::{Direction, Mode, Position, SelectionRange, UndoCursorStrategy};
+
+/// Vim's default 'report': a `:g` reports more changed lines than this.
+const REPORT: usize = 2;
 
 /// Whether an error ends a command line (ex_docmd.c `do_cmdline()`): it
 /// does for a typed line, `@:` and a line of `:@r`, not for a `<Cmd>`
-/// mapping.
+/// mapping or the commands `:g` runs on a line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum OnError {
     /// The commands after the error do not run.
@@ -68,6 +74,15 @@ struct Run<'d, D: Document> {
     dot: bool,
     /// The text is no longer known, as after `:undo`.
     lost: bool,
+    /// The modifiers of the commands this line runs for, such as the
+    /// `:silent` before a `:g`.
+    modifiers: ModifierFlags,
+    /// Inside how many `:g`.
+    global_depth: u8,
+    /// The lines the outer `:g` has yet to run on.
+    marks: Option<LineMarks>,
+    /// Substitutions and the lines they changed inside `:g`.
+    substitutions: (usize, usize),
 }
 
 impl<'d, D: Document> Run<'d, D> {
@@ -81,7 +96,25 @@ impl<'d, D: Document> Run<'d, D> {
             .map_or_else(|| self.host().text(), OwnedDocument::text)
     }
 
-    /// Follow `effects` as the host applies them: the text and the cursor.
+    fn line_start(&self, line: usize) -> Option<usize> {
+        match &self.shadow {
+            Some(doc) => doc.line_index().line_start(line),
+            None => self
+                .host()
+                .pos_to_offset(Position::from_raw(line, 0))
+                .map(crate::primitives::Offset::get),
+        }
+    }
+
+    fn cursor_line(&self) -> usize {
+        let text = self.text();
+        let cursor = self.cursor.min(text.len());
+        crate::commands::helpers::line_count(text.get(..cursor).unwrap_or_default())
+            .saturating_sub(1)
+    }
+
+    /// Follow `effects` as the host applies them: the text, the `:g` marks
+    /// and the cursor.
     fn follow(&mut self, effects: &[Effect]) {
         for effect in effects {
             let (start, end, new) = match effect {
@@ -104,6 +137,9 @@ impl<'d, D: Document> Run<'d, D> {
             let doc = self
                 .shadow
                 .get_or_insert_with(|| OwnedDocument::new(host.text()));
+            if let Some(marks) = &mut self.marks {
+                marks.edit(doc.text(), start, end, new);
+            }
             match effect {
                 Effect::Insert { .. } => doc.apply_insert(start, new),
                 Effect::Delete { .. } => doc.apply_delete(start, end),
@@ -153,6 +189,29 @@ impl<'d, D: Document> Run<'d, D> {
     }
 }
 
+/// The counts of a `:s` report, "3 substitutions on 2 lines".
+fn substitution_report(effects: &Effects) -> Option<(usize, usize)> {
+    effects.iter().find_map(|effect| {
+        let Effect::ShowInfo {
+            info: InfoMessage::Text(text),
+        } = effect
+        else {
+            return None;
+        };
+        let (count, rest) = text.split_once(' ')?;
+        let count = count.parse().ok()?;
+        let rest = rest
+            .strip_prefix("substitutions")
+            .or_else(|| rest.strip_prefix("substitution"))?;
+        let lines = rest
+            .strip_prefix(" on ")
+            .and_then(|rest| rest.split_once(' '))
+            .and_then(|(lines, _)| lines.parse().ok())
+            .unwrap_or(1);
+        Some((count, lines))
+    })
+}
+
 /// Whether `piece` is `:undo`, `:redo`, `:earlier` or `:later`.
 fn moves_in_undo(piece: &str) -> bool {
     matches!(
@@ -193,6 +252,10 @@ impl VimEngine {
             },
             dot: false,
             lost: false,
+            modifiers: ModifierFlags::empty(),
+            global_depth: 0,
+            marks: None,
+            substitutions: (0, 0),
             input: ctx,
         };
         for piece in &pieces {
@@ -216,8 +279,8 @@ impl VimEngine {
         }
     }
 
-    /// Run the commands of `line`, as `:@r` runs a register line. Whether
-    /// one gave an error.
+    /// Run the commands of `line`, as `:g` runs them on a line or `:@r`
+    /// runs a register line. Whether one gave an error.
     fn run_nested_line<D: Document>(
         &mut self,
         line: &str,
@@ -252,11 +315,22 @@ impl VimEngine {
             Some(doc) => self.execute_piece_on(piece, doc, run),
             None => self.execute_piece_on(piece, run.host(), run),
         };
+        crate::execution::modifier_filter::apply_modifiers(&mut output.effects, run.modifiers);
+        if run.global_depth > 0 && output.last_ex_for_dot.is_some() {
+            Self::quiet_in_global(&mut output.effects, run);
+        }
         if output.last_ex_for_dot.take().is_some() {
             run.dot = true;
         }
+        let global = output.global.take();
         let ex_lines = std::mem::take(&mut output.ex_lines);
+        let modifiers = output.modifiers | run.modifiers;
         let mut error = self.finish_piece(output, run);
+        if let Some(global) = global {
+            let outer = std::mem::replace(&mut run.modifiers, modifiers);
+            error |= self.run_global(&global, run);
+            run.modifiers = outer;
+        }
         for line in &ex_lines {
             // flush_buffers() after an error drops the register's other lines.
             if error || run.lost {
@@ -293,6 +367,31 @@ impl VimEngine {
         };
         let ctx = ExecutionContext::new(input, &self.state, options);
         executor_ex::execute_ex_piece(piece, &ctx, &mut self.host.sequencer)
+    }
+
+    /// Inside `:g`, a command that changes the text reports nothing and
+    /// `:s` finding no match is no error; the counts of `:s` go to the
+    /// report after the `:g` (ex_cmds.c `ex_substitute()`, misc1.c
+    /// `msgmore()` with `global_busy`).
+    fn quiet_in_global<D: Document>(effects: &mut Effects, run: &mut Run<'_, D>) {
+        if let Some((count, lines)) = substitution_report(effects) {
+            run.substitutions.0 += count;
+            run.substitutions.1 += lines;
+        }
+        let kept: Vec<Effect> = effects
+            .drain()
+            .filter(|effect| {
+                !matches!(
+                    effect,
+                    Effect::ShowInfo { .. }
+                        | Effect::ShowError {
+                            error: VimError::PatternNotFound(_),
+                            ..
+                        }
+                )
+            })
+            .collect();
+        effects.extend(kept);
     }
 
     /// Sync `output` to the engine, apply what it asks of the engine, follow
@@ -333,5 +432,188 @@ impl VimEngine {
             effects.as_mut_slice(),
             Some(run.text()),
         );
+    }
+
+    /// Add `effects` to the line as a command's own.
+    fn add_line_effects<D: Document>(&mut self, effects: Effects, run: &mut Run<'_, D>) -> bool {
+        self.finish_piece(
+            ExExecutionOutput {
+                effects,
+                ..ExExecutionOutput::default()
+            },
+            run,
+        )
+    }
+
+    /// Run `:g` or `:v`: mark the lines first, then run its commands on each
+    /// marked line that is left, on the text the line before left
+    /// (ex_cmds.c `ex_global()`, `global_exe()`). Whether it gave an error.
+    fn run_global<D: Document>(&mut self, global: &GlobalCommand, run: &mut Run<'_, D>) -> bool {
+        let pattern_effects =
+            Effects::new().set_search_pattern(global.pattern.as_str(), Direction::Forward);
+        let error = self.add_line_effects(pattern_effects, run);
+        if run.global_depth > 0 {
+            return error || self.run_global_on_cursor_line(global, run);
+        }
+        let lines = match &run.shadow {
+            Some(doc) => self.global_lines_on(global, doc, run),
+            None => self.global_lines_on(global, run.host(), run),
+        };
+        let lines = match lines {
+            Ok(lines) => lines,
+            Err(err) => return self.add_line_effects(Effects::new().show_error(err), run),
+        };
+        if lines.is_empty() {
+            // A message, not an error, outside Vim9 script (ex_global()).
+            let message = if global.invert {
+                format!("Pattern found in every line: {}", global.pattern)
+            } else {
+                format!("Pattern not found: {}", global.pattern)
+            };
+            return self.add_line_effects(Effects::new().show_message(message), run);
+        }
+        let line_count = run.text().split('\n').count();
+        run.marks = Some(LineMarks::new(line_count, &lines));
+        run.global_depth = 1;
+        run.substitutions = (0, 0);
+        let mut error = false;
+        while let Some(line) = run.marks.as_mut().and_then(LineMarks::take_first) {
+            // global_exe_one(): the cursor goes to the line's start.
+            run.cursor = run.line_start(line).unwrap_or(run.cursor);
+            // An error ends the loop once the line's commands ran.
+            if self.run_nested_line(&global.commands, OnError::Continue, run) {
+                error = true;
+                break;
+            }
+            if run.lost {
+                break;
+            }
+        }
+        run.marks = None;
+        run.global_depth = 0;
+        if run.lost {
+            return error;
+        }
+        let report = self.global_report(run, line_count);
+        error | self.add_line_effects(report, run)
+    }
+
+    /// A `:g` inside `:g` runs on the cursor line only, if it matches
+    /// (`ex_global()` with `global_busy`).
+    fn run_global_on_cursor_line<D: Document>(
+        &mut self,
+        global: &GlobalCommand,
+        run: &mut Run<'_, D>,
+    ) -> bool {
+        let refusal = if global.range != ExRange::entire_file() {
+            Some(VimError::GlobalRecursiveWithRange)
+        } else if run.global_depth > MAX_GLOBAL_RECURSION_DEPTH {
+            Some(VimError::GlobalRecursionLimitExceeded {
+                limit: MAX_GLOBAL_RECURSION_DEPTH,
+            })
+        } else {
+            None
+        };
+        if let Some(error) = refusal {
+            return self.add_line_effects(Effects::new().show_error(error), run);
+        }
+        let line = run.cursor_line();
+        let matches = match &run.shadow {
+            Some(doc) => self.global_line_matches_on(global, line, doc, run),
+            None => self.global_line_matches_on(global, line, run.host(), run),
+        };
+        match matches {
+            Ok(matches) if matches != global.invert => {
+                run.global_depth += 1;
+                let error = self.run_nested_line(&global.commands, OnError::Continue, run);
+                run.global_depth -= 1;
+                error
+            }
+            Ok(_) => false,
+            Err(err) => self.add_line_effects(Effects::new().show_error(err), run),
+        }
+    }
+
+    fn global_lines_on<D: Document, E: Document>(
+        &self,
+        global: &GlobalCommand,
+        doc: &E,
+        run: &Run<'_, D>,
+    ) -> Result<Vec<usize>, VimError> {
+        let input = InputContext::new(doc, run.cursor).validate_clamped();
+        let ctx = ExecutionContext::new(input, &self.state, &self.options);
+        executor_ex::global_lines(global, &ctx)
+    }
+
+    fn global_line_matches_on<D: Document, E: Document>(
+        &self,
+        global: &GlobalCommand,
+        line: usize,
+        doc: &E,
+        run: &Run<'_, D>,
+    ) -> Result<bool, VimError> {
+        let input = InputContext::new(doc, run.cursor).validate_clamped();
+        let ctx = ExecutionContext::new(input, &self.state, &self.options);
+        executor_ex::global_line_matches(global, line, &ctx)
+    }
+
+    /// The report and cursor after `:g`: the substitutions, or else the
+    /// lines added or removed, when more than 'report'; after a
+    /// substitution the cursor goes to the first non-blank of its line
+    /// (ex_cmds.c `global_exe()`, `do_sub_msg()`; misc1.c `msgmore()`).
+    fn global_report<D: Document>(&self, run: &Run<'_, D>, line_count: usize) -> Effects {
+        // global_exe_one() moved the cursor without an effect.
+        let mut effects = Effects::new().set_cursor(crate::primitives::Offset::new(
+            run.cursor.min(run.text().len()),
+        ));
+        let (count, lines) = run.substitutions;
+        if count > 0 {
+            if let Some(start) = run.line_start(run.cursor_line()) {
+                let text = run.text();
+                let blank = text
+                    .get(start..)
+                    .unwrap_or_default()
+                    .bytes()
+                    .take_while(|b| matches!(b, b' ' | b'\t'))
+                    .count();
+                let line_end = text
+                    .get(start..)
+                    .and_then(|rest| rest.find('\n'))
+                    .map_or(text.len(), |end| start + end);
+                effects = effects.set_cursor(crate::primitives::Offset::new(
+                    (start + blank).min(line_end),
+                ));
+            }
+        }
+        if count > REPORT {
+            let plural = |n: usize, word: &str| {
+                if n == 1 {
+                    format!("{n} {word}")
+                } else {
+                    format!("{n} {word}s")
+                }
+            };
+            let message = format!(
+                "{} on {}",
+                plural(count, "substitution"),
+                plural(lines, "line")
+            );
+            return effects.show_message(message);
+        }
+        let now = run.text().split('\n').count();
+        let counts = if now > line_count + REPORT {
+            LineModCounts {
+                added: u32::try_from(now - line_count).unwrap_or(u32::MAX),
+                ..LineModCounts::default()
+            }
+        } else if line_count > now + REPORT {
+            LineModCounts {
+                deleted: u32::try_from(line_count - now).unwrap_or(u32::MAX),
+                ..LineModCounts::default()
+            }
+        } else {
+            return effects;
+        };
+        effects.show_info(InfoMessage::LineReport(counts))
     }
 }

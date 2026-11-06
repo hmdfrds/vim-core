@@ -7,7 +7,8 @@ use crate::grammar::types::{ExCommand, ExRange, LineSpec};
 use crate::primitives::SubFlags;
 
 /// Dispatch core ex commands that produce side effects without requiring host interaction.
-/// Host commands are ignored by returning `None`.
+/// Host commands are ignored by returning `None`, and so is `:g`, which the
+/// engine runs line by line.
 #[must_use]
 pub fn dispatch_ex_core(
     command: &ExCommand,
@@ -38,12 +39,6 @@ pub fn dispatch_ex_core(
                 ctx,
             ))
         }
-        ExCommand::Global {
-            range,
-            pattern,
-            command: inner,
-            invert,
-        } => Some(ex::global::global(range, pattern, inner, *invert, ctx)),
         ExCommand::Delete { range, register } => Some(ex::delete(range, *register, ctx)),
         ExCommand::Yank { range, register } => Some(ex::yank(range, *register, ctx)),
         ExCommand::Move { range, target } => Some(match resolve_target_line(target, ctx) {

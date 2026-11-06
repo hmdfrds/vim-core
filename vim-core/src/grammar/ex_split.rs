@@ -392,25 +392,10 @@ pub(super) fn skip_range(bytes: &[u8], at: usize) -> usize {
 fn vim_command_piece(line: &str, start: usize, name: usize, len: usize, row: &VimCommand) -> Piece {
     let bytes = line.as_bytes();
     let mut p = name + len;
-    // `:s`, `:g`, `:g!` and `:v` followed by a delimiter, as the parser reads
-    // them.
-    if len == 1 {
-        match row.name {
-            "substitute" if is_pattern_delimiter(bytes.get(p).copied()) => {
-                let delim = line[p..].chars().next();
-                return substitute_piece(line, start, p, delim);
-            }
-            "global" | "vglobal" => {
-                let bang = row.name == "global"
-                    && bytes.get(p) == Some(&b'!')
-                    && is_pattern_delimiter(bytes.get(p + 1).copied());
-                let delim = if bang { p + 1 } else { p };
-                if is_pattern_delimiter(bytes.get(delim).copied()) {
-                    return pattern_then_command(line, start, delim);
-                }
-            }
-            _ => {}
-        }
+    // `:s` followed by a delimiter, as the parser reads it.
+    if len == 1 && row.name == "substitute" && is_pattern_delimiter(bytes.get(p).copied()) {
+        let delim = line[p..].chars().next();
+        return substitute_piece(line, start, p, delim);
     }
     // `do_one_cmd()`: a `!` after the name, except for the `:s` commands.
     let bang =
@@ -840,8 +825,8 @@ fn first_bar(line: &str, start: usize, arg: usize) -> Piece {
     }
 }
 
-/// `:!`, `:r !`, `:w !`, `:terminal` and the long `:global`: the rest of the
-/// line, up to a newline. A backslash before a newline is dropped.
+/// `:!`, `:r !`, `:w !`, `:terminal`, `:global` and `:vglobal`: the rest of
+/// the line, up to a newline. A backslash before a newline is dropped.
 fn shell_piece(line: &str, start: usize, arg: usize) -> Piece {
     let bytes = line.as_bytes();
     let mut dropped = Vec::new();
@@ -940,10 +925,8 @@ fn substitute_piece(line: &str, start: usize, at: usize, delim: Option<char>) ->
     }
 }
 
-/// `:g/{pattern}/{command}` and `:sx`, `:sy`, with the delimiter at `at`:
-/// the command after the pattern ends the piece. Deviation: Vim's `:g`
-/// takes the rest of the line and runs every `|` command in it per line;
-/// the engine's `:g` holds one command.
+/// `:sx/{pattern}/{command}` and `:sy`, with the delimiter at `at`: the
+/// command after the pattern ends the piece.
 fn pattern_then_command(line: &str, start: usize, at: usize) -> Piece {
     let Some(delim) = line.get(at..).and_then(|rest| rest.chars().next()) else {
         return Piece::rest_of_line(line, start);

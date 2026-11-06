@@ -27,7 +27,7 @@ pub mod abbreviation;
 pub mod completion;
 pub mod display;
 pub mod effects;
-pub mod global;
+pub(crate) mod global;
 pub mod line_ops;
 pub mod range;
 pub mod shell;
@@ -39,7 +39,6 @@ pub mod types;
 pub mod structural;
 
 pub use display::{print_lines, z_window};
-pub use global::global;
 pub use line_ops::{delete, goto_line, join, yank};
 pub use range::resolve_range;
 pub use shell::nohighlight;

@@ -12,7 +12,7 @@ use crate::errors::VimError;
 use crate::execution::host::{HostRequestSequencer, HostResult, SplitDirection};
 use crate::execution::{HostRequest, HostRequestMeta};
 use crate::grammar::ex_parser::parse_ex_piece;
-use crate::grammar::types::{ExCommand, ExRange, LineSpec, TimeAmount};
+use crate::grammar::types::{ExCommand, ExRange, LineSpec, ModifierFlags, TimeAmount};
 use crate::keymap::{Handler, KeyEvent, MappingMode};
 use crate::primitives::byte_delta;
 use crate::primitives::{
@@ -184,17 +184,35 @@ pub(crate) struct ExExecutionOutput {
     /// Only text-mutating ex commands set this. The engine saves it so that
     /// `.` can replay the ex command with the current line as implicit range.
     pub last_ex_for_dot: Option<CompactString>,
+    /// A `:g` or `:v`, which the engine runs one marked line at a time.
+    pub global: Option<GlobalCommand>,
     /// The lines of a `:@r` register, which the engine runs as command
     /// lines, one after another.
     pub ex_lines: Vec<CompactString>,
+    /// The modifiers of the command, applied to its effects already, and
+    /// to be applied to what the engine runs for it.
+    pub modifiers: ModifierFlags,
+}
+
+/// A `:g/{pattern}/{commands}` or `:v` for the engine to run.
+#[derive(Debug, Clone)]
+pub(crate) struct GlobalCommand {
+    /// The lines it searches.
+    pub range: ExRange,
+    /// The pattern a line must match, or with `invert` must not.
+    pub pattern: CompactString,
+    /// The command line run on each line.
+    pub commands: CompactString,
+    /// `:v` or `:g!`.
+    pub invert: bool,
 }
 
 /// Parse and execute one command of an Ex command line, as
 /// [`split_ex_pipeline`](crate::grammar::split_ex_pipeline) gives it.
 ///
 /// Its modifiers (`:silent`, `:keepjumps`, ...) filter its effects, an
-/// error included, so `:silent!` hides it. The lines of `:@r` come back
-/// for the engine to run.
+/// error included, so `:silent!` hides it. A `:g` and the lines of `:@r`
+/// come back for the engine to run.
 pub(crate) fn execute_ex_piece<D: Document>(
     piece: &str,
     ctx: &ExecutionContext<'_, D>,
@@ -213,6 +231,7 @@ pub(crate) fn execute_ex_piece<D: Document>(
         ..ExExecutionOutput::default()
     });
     super::modifier_filter::apply_modifiers(&mut output.effects, modifiers);
+    output.modifiers = modifiers;
     output
 }
 
@@ -227,6 +246,38 @@ fn set_output(
         }],
         ..ExExecutionOutput::default()
     }
+}
+
+/// The lines `global` marks in the text of `ctx`, 0-indexed: pass 1 of
+/// `ex_global()`.
+pub(crate) fn global_lines<D: Document>(
+    global: &GlobalCommand,
+    ctx: &ExecutionContext<'_, D>,
+) -> Result<Vec<usize>, VimError> {
+    let mark_resolver = |name: crate::primitives::MarkName| {
+        ctx.state.marks().get(name).map(|mark| mark.offset().get())
+    };
+    let mut ex_ctx = ExContext::new(ctx.doc().text(), ctx.cursor_pos().line().get())
+        .with_mark_resolver(&mark_resolver);
+    if let Some(tree) = ctx.doc().vim_text_tree() {
+        ex_ctx = ex_ctx.with_tree(tree);
+    }
+    crate::commands::ex::global::global_lines(
+        &global.range,
+        &global.pattern,
+        global.invert,
+        &ex_ctx,
+    )
+}
+
+/// Whether the line `line` of `ctx` matches the pattern of `global`.
+pub(crate) fn global_line_matches<D: Document>(
+    global: &GlobalCommand,
+    line: usize,
+    ctx: &ExecutionContext<'_, D>,
+) -> Result<bool, VimError> {
+    let ex_ctx = ExContext::new(ctx.doc().text(), ctx.cursor_pos().line().get());
+    crate::commands::ex::global::line_matches_pattern(&global.pattern, line, &ex_ctx)
 }
 
 /// Execute a parsed ex command.
@@ -817,6 +868,20 @@ pub(crate) fn execute_ex_command<D: Document>(
                 ..ExExecutionOutput::default()
             })
         }
+        ExCommand::Global {
+            range,
+            pattern,
+            commands,
+            invert,
+        } => Ok(ExExecutionOutput {
+            global: Some(GlobalCommand {
+                range: range.clone(),
+                pattern: pattern.clone(),
+                commands: commands.clone(),
+                invert: *invert,
+            }),
+            ..ExExecutionOutput::default()
+        }),
         // ── :undojoin ────────────────────────────────────────────────
         ExCommand::UndoJoin => {
             if ctx.state.undo_tree().last_was_undo() {

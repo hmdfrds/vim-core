@@ -3760,24 +3760,14 @@ fn pipeline_splits_after_a_short_modifier() {
 
 #[test]
 fn pipeline_keeps_a_bar_inside_a_pattern_before_another_command() {
-    for (line, head) in [
-        ("s/a|b/c/ | w", "s/a|b/c/"),
-        ("s#a|b#c# | w", "s#a|b#c#"),
-        ("g/a|b/d | w", "g/a|b/d"),
-        ("v/a|b/d | w", "v/a|b/d"),
-    ] {
+    for (line, head) in [("s/a|b/c/ | w", "s/a|b/c/"), ("s#a|b#c# | w", "s#a|b#c#")] {
         assert_eq!(split_ex_pipeline(line), vec![head, "w"], "{line}");
     }
 }
 
 #[test]
 fn pipeline_finds_the_pattern_after_modifiers_and_colons() {
-    for line in [
-        "silent! s/a|b/c/",
-        "keepp s/a|b/c/",
-        ":2s/a|b/c/",
-        "sil g/a|b/d",
-    ] {
+    for line in ["silent! s/a|b/c/", "keepp s/a|b/c/", ":2s/a|b/c/"] {
         let with_tail = format!("{line} | w");
         assert_eq!(split_ex_pipeline(&with_tail), vec![line, "w"], "{line}");
     }
@@ -4145,26 +4135,51 @@ fn pipeline_ends_a_substitute_after_its_flags_as_ex_substitute_does() {
     assert_eq!(split_ex_pipeline("s/a/b "), vec!["s/a/b "]);
 }
 
+/// ex_docmd.c `do_one_cmd()`: no `separate_nextcmd()` for `CMD_global` and
+/// `CMD_vglobal`, so `:g` and `:v` take the rest of the line, every `|`,
+/// `"` and blank in it.
 #[test]
-fn pipeline_ends_a_global_after_its_command() {
-    for (line, first) in [
-        ("g/x/s/a|b/c/ | w", "g/x/s/a|b/c/"),
-        ("g/x/set ic \" c | w", "g/x/set ic"),
-        ("g!/x/d | w", "g!/x/d"),
+fn pipeline_gives_a_global_the_rest_of_the_line() {
+    for line in [
+        "g/x/s/a|b/c/ | w",
+        "g/x/set ic \" c | w",
+        "g!/x/d | w",
+        "v/a|b/d | w",
+        "sil g/a|b/d | w",
+        ":2,3g/x/d|d",
+        "global/x/d | d",
+        "vglobal/x/d | d",
+        "g/x/normal a|b | w",
+        "g?foo|bar?d|w",
+        "g/x/normal A ",
     ] {
-        let pieces = split_ex_pipeline(line);
-        assert_eq!(pieces.first().map(AsRef::as_ref), Some(first), "{line}");
+        assert_eq!(split_ex_pipeline(line), vec![line], "{line}");
     }
-    assert_eq!(
-        split_ex_pipeline("g/x/normal a|b | w"),
-        vec!["g/x/normal a|b | w"]
-    );
+    assert_eq!(split_ex_pipeline("d | g/x/d|d"), vec!["d", "g/x/d|d"]);
 }
 
 #[test]
-fn pipeline_question_mark_regex_preserved() {
-    let cmds = split_ex_pipeline("g?foo|bar?d|w");
-    assert_eq!(cmds, vec!["g?foo|bar?d", "w"]);
+fn global_holds_the_rest_of_the_line_as_written() {
+    for (line, commands) in [
+        ("g/x/d|d", "d|d"),
+        ("g/x/ s/a/b/ | normal A ", "s/a/b/ | normal A "),
+        ("v/a|b/set ic \" c | w", "set ic \" c | w"),
+        ("g!/x/g/y/d", "g/y/d"),
+    ] {
+        match parse_ex_command(line).unwrap() {
+            ExCommand::Global {
+                commands: parsed, ..
+            } => assert_eq!(parsed, commands, "{line}"),
+            other => panic!("expected Global, got {other:?}"),
+        }
+    }
+    for line in ["g/x/", "g/x/  ", "v/x"] {
+        assert_eq!(
+            parse_ex_command(line),
+            Err(VimError::NoCommandAfterGlobal),
+            "{line}"
+        );
+    }
 }
 
 // ── Blanks before a command ────────────────────────────────────────────
@@ -4660,12 +4675,12 @@ fn g_bang_nested_substitute() {
         ExCommand::Global {
             invert,
             pattern,
-            command,
+            commands,
             ..
         } => {
             assert!(invert);
             assert_eq!(pattern.as_str(), "^#");
-            assert!(matches!(*command, ExCommand::Substitute { .. }));
+            assert_eq!(commands, "s/old/new/g");
         }
         other => panic!("expected Global, got {other:?}"),
     }
