@@ -9,6 +9,8 @@
 //! that ends in Insert or Replace mode gets an `<Esc>`. Each case checks the
 //! text, the cursor (line and byte column), the mode and the unnamed
 //! register with its type. A text that ends in `\n` has an empty last line.
+//! A case with a `provenance` field was not recorded: the field says where
+//! it comes from.
 //!
 //! Every case runs twice: as recorded, and with an empty fold provider, as
 //! a host that supports folds has when nothing is folded.
@@ -26,6 +28,7 @@ struct Fixture {
 #[derive(Debug, Deserialize)]
 struct Case {
     name: String,
+    provenance: Option<String>,
     lines: Vec<String>,
     cursor: [usize; 2],
     keys: String,
@@ -181,4 +184,23 @@ fn matches_vim_oracle() {
         2 * fixture.cases.len(),
         failures.join("\n\n")
     );
+}
+
+/// Only the four block shift cases are not recordings, and they say so.
+#[test]
+fn derived_cases_name_their_source() {
+    let fixture: Fixture =
+        serde_json::from_str(include_str!("fixtures/vim_gate_oracle.json")).unwrap();
+    let derived: Vec<&Case> = fixture
+        .cases
+        .iter()
+        .filter(|case| case.provenance.is_some())
+        .collect();
+    assert_eq!(derived.len(), 4);
+    for case in derived {
+        let provenance = case.provenance.as_deref().unwrap_or("");
+        assert!(case.name.starts_with("block "), "{}", case.name);
+        assert!(provenance.contains("test_visual.vim"), "{provenance}");
+        assert!(provenance.contains("op_shift()"), "{provenance}");
+    }
 }
