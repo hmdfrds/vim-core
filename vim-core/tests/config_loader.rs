@@ -801,6 +801,24 @@ fn a_session_shows_the_last_message_of_a_config() {
     );
 }
 
+#[test]
+fn a_session_writes_the_history_of_a_script_once() {
+    let mut session = HostSession::new("a");
+    let _ = session.source_script(
+        ConfigText::new("a.vim", "set tw?\nset nosuch\n"),
+        &mut Features(&[]),
+    );
+    assert_eq!(
+        history(session.engine()),
+        [
+            "textwidth=0",
+            "Error detected while processing a.vim:",
+            "line    2:",
+            "E518: Unknown option: nosuch",
+        ]
+    );
+}
+
 // ── where errors are raised ───────────────────────────────────────────
 
 #[test]
