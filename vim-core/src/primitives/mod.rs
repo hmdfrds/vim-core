@@ -52,6 +52,7 @@ mod motion_inclusivity;
 mod motion_type;
 mod operator;
 mod option_scope;
+pub(crate) mod option_table;
 mod position;
 mod range;
 mod range_transform;

@@ -1024,41 +1024,7 @@ fn undo_navigation(nav: UndoNavigation) -> Result<ExExecutionOutput, VimError> {
 /// Returns `None` for unknown option names; callers fall through to the
 /// existing name-dispatch helpers in that case.
 fn option_name_to_id(name: &str) -> Option<OptionId> {
-    match name {
-        "ignorecase" | "ic" => Some(OptionId::IgnoreCase),
-        "smartcase" | "scs" => Some(OptionId::SmartCase),
-        "hlsearch" | "hls" => Some(OptionId::HlSearch),
-        "incsearch" | "is" => Some(OptionId::IncSearch),
-        "wrapscan" | "ws" => Some(OptionId::WrapScan),
-        "gdefault" | "gd" => Some(OptionId::GDefault),
-        "clipboard" | "cb" => Some(OptionId::Clipboard),
-        "inccommand" | "icm" => Some(OptionId::IncCommand),
-        "timeoutlen" | "tm" => Some(OptionId::TimeoutLen),
-        "undolevels" | "ul" => Some(OptionId::UndoLevels),
-        "tabstop" | "ts" => Some(OptionId::TabStop),
-        "shiftwidth" | "sw" => Some(OptionId::ShiftWidth),
-        "expandtab" | "et" => Some(OptionId::ExpandTab),
-        "autoindent" | "ai" => Some(OptionId::AutoIndent),
-        "smartindent" | "si" => Some(OptionId::SmartIndent),
-        "commentstring" | "cms" => Some(OptionId::CommentString),
-        "iskeyword" | "isk" => Some(OptionId::IsKeyword),
-        "textwidth" | "tw" => Some(OptionId::TextWidth),
-        "scrolloff" | "so" => Some(OptionId::ScrollOff),
-        "number" | "nu" => Some(OptionId::Number),
-        "relativenumber" | "rnu" => Some(OptionId::RelativeNumber),
-        "sidescrolloff" | "siso" => Some(OptionId::SideScrollOff),
-        "virtualedit" | "ve" => Some(OptionId::VirtualEdit),
-        "selection" | "sel" => Some(OptionId::Selection),
-        "backspace" | "bs" => Some(OptionId::Backspace),
-        "whichwrap" | "ww" => Some(OptionId::WhichWrap),
-        "visualstar" => Some(OptionId::VisualStar),
-        "undoautogroupms" | "uagm" => Some(OptionId::UndoAutoGroupMs),
-        "belloff" | "bo" => Some(OptionId::BellOff),
-        "softtabstop" | "sts" => Some(OptionId::SoftTabStop),
-        "formatoptions" | "fo" => Some(OptionId::FormatOptions),
-        "comments" | "com" => Some(OptionId::Comments),
-        _ => None,
-    }
+    crate::primitives::option_table::known_option(name).and_then(|row| row.id)
 }
 
 /// Execute `&` (repeat substitution on current line) or `g&` (repeat globally).
@@ -2398,6 +2364,27 @@ pub(crate) fn completion_effects_for_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn set_names_the_options_of_the_option_table() {
+        use crate::primitives::option_table::KNOWN_OPTIONS;
+        let options = crate::primitives::VimOptions::default();
+        for row in &KNOWN_OPTIONS {
+            for name in std::iter::once(row.name).chain(row.short.iter().copied()) {
+                let shown = option_value(&options, name).map(|(full, _)| full);
+                assert_eq!(shown, Some(row.name), "{name}");
+            }
+        }
+        for row in crate::primitives::vim_option_names::OPTIONS {
+            let known = KNOWN_OPTIONS.iter().any(|known| known.name == row.name);
+            assert_eq!(
+                option_value(&options, row.name).is_some(),
+                known,
+                "{}",
+                row.name
+            );
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // resolve_width
