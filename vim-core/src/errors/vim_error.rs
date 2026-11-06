@@ -423,6 +423,10 @@ pub enum VimError {
     /// unstructured error string. All vim-core-internal errors use
     /// typed variants above.
     HostFailure(CompactString),
+
+    /// A host refused a command of a config, or the file a `:source` in
+    /// it names. Shown as the host wrote it.
+    Refused(Box<str>),
 }
 
 /// Severity level of a [`VimError`], used by hosts to choose how to display it.
@@ -648,6 +652,7 @@ impl fmt::Display for VimError {
 
             // Host boundary
             Self::HostFailure(msg) => write!(f, "{msg}"),
+            Self::Refused(msg) => write!(f, "{msg}"),
         }
     }
 }
@@ -827,6 +832,7 @@ mod tests {
             VimError::MotionFailed,
             VimError::NoSelectionsRemaining,
             VimError::HostFailure("err".into()),
+            VimError::Refused("E48: Not allowed in sandbox".into()),
         ];
         for v in variants {
             // Just calling severity() is enough — the compiler ensures all
@@ -896,6 +902,13 @@ mod tests {
             VimError::ChangelistEmpty.to_string(),
             "E664: Changelist is empty"
         );
+    }
+
+    #[test]
+    fn display_refused_as_written() {
+        let e = VimError::Refused("E48: Not allowed in sandbox: !ls".into());
+        assert_eq!(e.to_string(), "E48: Not allowed in sandbox: !ls");
+        assert_eq!(e.severity(), ErrorSeverity::Normal);
     }
 
     #[test]

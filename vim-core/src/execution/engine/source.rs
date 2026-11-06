@@ -625,7 +625,7 @@ impl super::VimEngine {
                 response.extend_effects(effects);
             }
             SourceReply::Refuse(text) => {
-                let error = VimError::HostFailure(text.into());
+                let error = VimError::Refused(text.into_boxed_str());
                 show_config_errors(modifiers, [error], response);
             }
             SourceReply::Defer => {

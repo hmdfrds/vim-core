@@ -111,7 +111,8 @@ pub enum SourceReply {
     /// The host sourced the file itself; the message, if any, is shown.
     Done(Option<String>),
     /// The file is not sourced, and the text is shown as the error of the
-    /// `:source`, as written, such as `E484: Can't open file b.vim`.
+    /// `:source`, a [`VimError::Refused`](crate::errors::VimError::Refused)
+    /// as written, such as `E484: Can't open file b.vim`.
     Refuse(String),
     /// The `:source` becomes a
     /// [`HostRequest::ReadConfigFile`](crate::execution::HostRequest::ReadConfigFile)
