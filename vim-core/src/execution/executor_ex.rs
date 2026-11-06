@@ -1256,6 +1256,7 @@ fn set_argument(assignment: &crate::grammar::types::SetAssignment) -> String {
         A::SetBool(name) => name.to_string(),
         A::UnsetBool(name) => format!("no{name}"),
         A::ToggleBool(name) => format!("{name}!"),
+        A::InvertBool(name) => format!("inv{name}"),
         A::Query(name) => format!("{name}?"),
         A::Assign(name, value) => format!("{name}={value}"),
         A::Append(name, value) => format!("{name}+={value}"),
@@ -1331,6 +1332,15 @@ impl SetLayers<'_> {
             A::UnsetBool(name) => match set_kind(self.global, name).ok_or_else(unknown)? {
                 SetKind::Bool => {
                     self.set_bool(name, false);
+                    Ok(())
+                }
+                _ => Err(invalid()),
+            },
+            // do_set_option_value(): `inv` before a number or string option
+            // is E474, as `no` is.
+            A::InvertBool(name) => match set_kind(self.global, name).ok_or_else(unknown)? {
+                SetKind::Bool => {
+                    self.toggle_bool(name);
                     Ok(())
                 }
                 _ => Err(invalid()),
@@ -1420,8 +1430,7 @@ impl SetLayers<'_> {
         let (kind, next) = match assignment {
             A::ShowAll => return None,
             A::SetBool(name) | A::UnsetBool(name) => (hidden_option(self.global, name)?, None),
-            // Deviation: a bare `inv` prefix comes here too, where Vim reads
-            // a bare name.
+            A::InvertBool(name) => (hidden_option(self.global, name)?, None),
             A::ToggleBool(name) => (written(name)?, Some('!')),
             A::Query(name) => (written(name)?, Some('?')),
             A::Assign(name, _) | A::Append(name, _) | A::Remove(name, _) | A::Prepend(name, _) => {

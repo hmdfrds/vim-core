@@ -263,6 +263,28 @@ fn inv_inverts_a_boolean() {
 }
 
 #[test]
+fn inv_before_an_option_that_is_not_a_boolean_is_an_error() {
+    // do_set_option(), do_set_option_value(): `inv` is E474 before a
+    // number or string option, and E519 before a hidden one; the message
+    // names the argument as typed, prefix included.
+    let mut engine = VimEngine::new();
+    for (command, message) in [
+        ("set invtw", "E474: Invalid argument: invtw"),
+        ("set invfo", "E474: Invalid argument: invfo"),
+        ("set invnosuch", "E518: Unknown option: invnosuch"),
+        ("set invmouse", "E519: Option not supported: invmouse"),
+    ] {
+        assert_eq!(
+            run_ex(&mut engine, command),
+            (vec![], vec![message.to_owned()]),
+            ":{command}"
+        );
+    }
+    assert_eq!(engine.options().textwidth(), 0);
+    assert_eq!(run_ex(&mut engine, "set invtgc"), (vec![], vec![]));
+}
+
+#[test]
 fn a_string_value_loses_its_backslashes() {
     // stropt_copy_value(): a backslash before any character goes.
     let mut engine = VimEngine::new();

@@ -1359,7 +1359,8 @@ fn parse_mapclear_command(
 /// - `:set` alone or `:set all` → `ShowAll`; `:set all&` → `Reset`
 /// - `:set expandtab` → `SetBool("expandtab")`
 /// - `:set noexpandtab` → `UnsetBool("expandtab")`
-/// - `:set invexpandtab` and `:set expandtab!` → `ToggleBool("expandtab")`
+/// - `:set expandtab!` → `ToggleBool("expandtab")`
+/// - `:set invexpandtab` → `InvertBool("expandtab")`
 /// - `:set expandtab?` → `Query("expandtab")`
 /// - `:set tabstop=8` and `:set tabstop:8` → `Assign("tabstop", "8")`
 /// - `:set tw+=4` → `Append`, `:set fo-=t` → `Remove`, `:set com^=b:#` →
@@ -1489,11 +1490,10 @@ fn set_bare(prefix: &str, name: &str) -> SetAssignment {
     if name.is_empty() {
         return SetAssignment::SetBool(CompactString::from(prefix));
     }
-    let name = CompactString::from(name);
     match prefix {
-        "no" => SetAssignment::UnsetBool(name),
-        "inv" => SetAssignment::ToggleBool(name),
-        _ => SetAssignment::SetBool(name),
+        "no" => SetAssignment::UnsetBool(name.into()),
+        "inv" => SetAssignment::InvertBool(name.into()),
+        _ => SetAssignment::SetBool(name.into()),
     }
 }
 

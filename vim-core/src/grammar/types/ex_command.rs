@@ -983,8 +983,12 @@ pub enum SetAssignment {
     SetBool(CompactString),
     /// Set boolean off: `:set noexpandtab`
     UnsetBool(CompactString),
-    /// Toggle boolean: `:set expandtab!`
+    /// Toggle boolean: `:set expandtab!`. A `no` or `inv` prefix stays on
+    /// the name.
     ToggleBool(CompactString),
+    /// Invert a boolean with the `inv` prefix: `:set invexpandtab`. The
+    /// name is without the prefix.
+    InvertBool(Box<str>),
     /// Query option value: `:set expandtab?`
     Query(CompactString),
     /// Assign a number or string: `:set tabstop=8`. The value is as

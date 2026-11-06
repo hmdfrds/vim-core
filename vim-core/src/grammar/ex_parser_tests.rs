@@ -5822,7 +5822,7 @@ fn set_bool_forms() {
             SetAssignment::SetBool(cs("ic")),
             SetAssignment::UnsetBool(cs("ai")),
             SetAssignment::ToggleBool(cs("et")),
-            SetAssignment::ToggleBool(cs("hls")),
+            SetAssignment::InvertBool("hls".into()),
             SetAssignment::Query(cs("ts")),
             SetAssignment::ShowAll,
         ]
