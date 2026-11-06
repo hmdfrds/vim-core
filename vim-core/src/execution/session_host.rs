@@ -916,16 +916,19 @@ impl VimSession<SessionHost> {
 
     /// Source a config the host has read, as
     /// [`VimEngine::source_script`](crate::execution::VimEngine::source_script)
-    /// does.
+    /// does, and say what it came to.
     pub fn source_script(
         &mut self,
         text: crate::execution::ConfigText<'_>,
         host: &mut dyn crate::execution::ConfigHost,
-    ) -> HostResponse {
+    ) -> crate::execution::HostConfigResponse {
         self.host_mut().frame_id += 1;
         self.host_mut().clipboard_dirty = false;
-        let response = self.engine_mut().source_script(text, host).response;
-        self.deliver_config(response)
+        let sourced = self.engine_mut().source_script(text, host);
+        crate::execution::HostConfigResponse {
+            response: self.deliver_config(sourced.response),
+            outcome: sourced.outcome,
+        }
     }
 
     /// Deliver what sourcing a config gave, and run its host requests.

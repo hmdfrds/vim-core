@@ -757,11 +757,13 @@ fn has_ignores_the_case_of_a_feature() {
 #[test]
 fn a_session_sources_a_script_through_its_host() {
     let mut session = HostSession::new("a");
-    let _ = session.source_script(
-        ConfigText::new("init.vim", "if has('godot')\nset ic\nendif\n"),
+    let sourced = session.source_script(
+        ConfigText::new("init.vim", "if has('godot')\nset ic\nendif\nset nosuch\n"),
         &mut Features(&["godot"]),
     );
     assert!(session.options().ignorecase());
+    assert_eq!(sourced.outcome.errors, 1);
+    assert!(sourced.response.host_requests.is_empty());
 }
 
 // ── where errors are raised ───────────────────────────────────────────

@@ -4,7 +4,7 @@
 //! a [`ConfigText`] and a [`ConfigHost`], which answers what the engine
 //! cannot know itself while the config runs.
 
-use crate::execution::Response;
+use crate::execution::{HostResponse, Response};
 
 /// A config a host has read: its name, its text and a tag of the host's.
 #[non_exhaustive]
@@ -117,6 +117,17 @@ pub enum SourceReply {
     /// [`HostRequest::ReadConfigFile`](crate::execution::HostRequest::ReadConfigFile)
     /// request, answered once the config has run.
     Defer,
+}
+
+/// What [`HostSession::source_script`](crate::execution::HostSession::source_script)
+/// returns.
+#[non_exhaustive]
+#[derive(Debug)]
+pub struct HostConfigResponse {
+    /// The session after the config ran, with its messages delivered.
+    pub response: HostResponse,
+    /// What it came to.
+    pub outcome: ConfigOutcome,
 }
 
 /// A host that answers nothing.
