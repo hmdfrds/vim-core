@@ -344,3 +344,11 @@ fn counted_change_over_another_cursor_keeps_one() {
     assert_eq!(s.text(), "X\nX");
     assert_eq!(s.cursor_count(), 2);
 }
+
+#[test]
+fn replace_mode_matches_composite() {
+    let lines = ["éé", "ab", "日本"];
+    for keys in ["Rxy<Esc>", "Rxyz<Esc>", "Rx<CR>y<Esc>"] {
+        assert_composite(&lines, &[0, 0, 3], keys, false);
+    }
+}

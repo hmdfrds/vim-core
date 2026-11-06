@@ -828,12 +828,18 @@ impl VimEngine {
         // independently against the T0 document text). Position-independent
         // insert commands use the existing algebraic rebase path.
         // A character that may break the line depends on its own line, so
-        // every cursor formats its own text.
+        // every cursor formats its own text. In Replace mode a character
+        // overwrites the one under each cursor, whose width differs.
         let is_insert_cd = if let Command::Insert(ref kind) = command {
             kind.is_content_dependent(
                 self.options.expandtab(),
                 self.options.auto_pairs().is_some(),
             ) || formats_typed
+                || (insert_mode != InsertMode::Insert
+                    && matches!(
+                        kind,
+                        InsertKind::Char { .. } | InsertKind::LiteralChar { .. }
+                    ))
         } else {
             false
         };
