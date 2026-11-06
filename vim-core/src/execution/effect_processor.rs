@@ -2395,6 +2395,7 @@ pub(crate) fn inject_repeat_text(
     } = repeat;
     let saved_text = state.last_inserted_text();
     if saved_text.is_empty() {
+        close_textless_repeat_group(state, parser, response, doc_text, undolevels_max);
         return;
     }
 
@@ -2766,6 +2767,27 @@ pub(crate) fn inject_repeat_text(
     response.effects.push(end_undo);
 }
 
+/// Close the group of a dot-repeat that has no text to retype.
+///
+/// The group holds only what the repeated command did before Insert (the
+/// delete of `cw`), so it is dropped when that changed nothing.
+fn close_textless_repeat_group(
+    state: &mut VimState,
+    parser: &mut Parser,
+    response: &mut Response,
+    doc_text: Option<&str>,
+    undolevels_max: Option<usize>,
+) {
+    if !state.undo_tree().has_pending_group() {
+        return;
+    }
+    let mut end_undo = Effect::EndUndoGroup { node_id: None };
+    if !state.undo_tree_mut().discard_pending_if_unchanged() {
+        sync_effect_mut(state, parser, &mut end_undo, doc_text, undolevels_max);
+    }
+    response.effects.push(end_undo);
+}
+
 /// Build positional effects (Insert+SetCursor) for dot-repeat at one cursor.
 /// Returns `None` when there is no saved insert text. Counterpart:
 /// [`inject_repeat_global_effects`] emits marks/sticky/EndUndoGroup once.
@@ -2844,6 +2866,7 @@ pub(crate) fn inject_repeat_global_effects(
     use unicode_segmentation::UnicodeSegmentation;
     let saved_text = state.last_inserted_text();
     if saved_text.is_empty() {
+        close_textless_repeat_group(state, parser, response, doc_text, undolevels_max);
         return;
     }
     let is_replace =

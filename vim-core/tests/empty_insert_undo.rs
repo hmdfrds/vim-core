@@ -210,6 +210,41 @@ fn multi_cursor_empty_insert_then_u_undoes_previous_change() {
     assert_eq!(s.text(), "abc\ndef\n");
 }
 
+/// `.` repeats the empty Insert, which again saves nothing.
+#[test]
+fn dot_after_empty_insert_then_u_undoes_previous_change() {
+    assert_empty_session_leaves_no_node("i<Esc>.");
+}
+
+/// `.` after `cw<Esc>` repeats the delete: one node, closed by the `.`.
+#[test]
+fn dot_after_empty_change_keeps_its_node() {
+    let mut s = TestSession::new("|aa bb cc\n");
+    s.feed("cw<Esc>");
+    assert_eq!(s.text(), " bb cc\n");
+    s.feed("w.");
+    assert_eq!(s.text(), "  cc\n");
+    assert!(!s.has_pending_group(), "`.` left its group open");
+    assert_eq!(s.change_count(), 2);
+    s.feed("u");
+    assert_eq!(s.text(), " bb cc\n");
+    s.feed("u");
+    assert_eq!(s.text(), "aa bb cc\n");
+}
+
+#[test]
+fn multi_cursor_dot_after_empty_insert_then_u_undoes_previous_change() {
+    let mut s = TestSession::new_multi("|1abc\n|2def\n");
+    s.feed("x");
+    let before = undo_info(&s);
+    s.feed("i<Esc>.");
+    assert_eq!(s.text(), "bc\nef\n");
+    assert!(!s.has_pending_group());
+    assert_eq!(undo_info(&s), before);
+    s.feed("u");
+    assert_eq!(s.text(), "abc\ndef\n");
+}
+
 /// Text the host typed itself still commits the Insert's node.
 #[test]
 fn host_recorded_insert_text_keeps_its_node() {
