@@ -265,3 +265,33 @@ fn multicursor_insert_full_composite() {
         "OK {ok} TEXT {text} NONLOCAL {nonlocal} PANIC {panics}"
     );
 }
+
+fn session(text: &str, offsets: &[usize]) -> HostSession {
+    let mut s = HostSession::new(text);
+    s.set_cursor_offset(offsets[0]);
+    for &o in &offsets[1..] {
+        s.add_cursor(o).unwrap();
+    }
+    s
+}
+
+fn feed(s: &mut HostSession, keys: &str) {
+    for k in parse_keys_from_string(keys) {
+        s.process_key_host(k);
+    }
+}
+
+/// A counted Replace repeats its text over the characters that follow,
+/// one character for each typed one.
+/// Vim: insert.txt, Replace mode; change.c ins_char_bytes() replaces one
+/// character and edit.c ins_eol() replaces none.
+#[test]
+fn counted_replace_overwrites_characters() {
+    let mut s = session("éééé", &[0]);
+    feed(&mut s, "3Rxy<Esc>");
+    assert_eq!(s.text(), "xyxyxy");
+
+    let mut s = session("abcdef", &[0]);
+    feed(&mut s, "2Rx<CR>y<Esc>");
+    assert_eq!(s.text(), "x\nyx\nyef");
+}
