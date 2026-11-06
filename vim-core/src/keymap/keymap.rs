@@ -232,6 +232,16 @@ impl MappingMode {
             Mode::CommandLine => &[Self::Command],
         }
     }
+
+    /// The other mapping modes that share a mode with this one, as Vim's
+    /// `:vmap` is its `:xmap` and `:smap` together.
+    pub(crate) const fn overlapping(self) -> &'static [Self] {
+        match self {
+            Self::Visual => &[Self::VisualOnly, Self::SelectOnly],
+            Self::VisualOnly | Self::SelectOnly => &[Self::Visual],
+            _ => &[],
+        }
+    }
 }
 
 /// Three-layer keymap: Buffer-local overlay → User layer → Core layer.
@@ -801,6 +811,91 @@ impl Keymap {
     pub fn unmap(&mut self, mm: MappingMode, from: &[KeyEvent]) -> Option<MappingEntry> {
         let resolved = self.resolve_leader(from);
         self.user_table_mut(mm).remove(&resolved)
+    }
+
+    /// Take the Visual and Select modes `mm` names off the other mappings
+    /// of `from`, as Vim's `do_map()` clears the mode bits of a mapping it
+    /// replaces or removes: Vim keeps one mapping for both modes where
+    /// vim-core keeps `:vmap` apart from `:xmap` and `:smap`. For
+    /// [`Visual`](MappingMode::Visual) the `:xmap` and `:smap` mappings go;
+    /// for the other two a `:vmap` mapping is left to the other mode only.
+    /// In the current buffer's mappings when `buffer`. Whether a mapping
+    /// lost a mode.
+    pub(crate) fn take_visual_modes(
+        &mut self,
+        mm: MappingMode,
+        from: &[KeyEvent],
+        buffer: bool,
+    ) -> bool {
+        let resolved = self.resolve_leader(from);
+        let rest = match mm {
+            MappingMode::Visual => {
+                let x = self.remove_from(MappingMode::VisualOnly, &resolved, buffer);
+                let s = self.remove_from(MappingMode::SelectOnly, &resolved, buffer);
+                return x.is_some() || s.is_some();
+            }
+            MappingMode::VisualOnly => MappingMode::SelectOnly,
+            MappingMode::SelectOnly => MappingMode::VisualOnly,
+            _ => return false,
+        };
+        let Some(entry) = self.remove_from(MappingMode::Visual, &resolved, buffer) else {
+            return false;
+        };
+        let table = if buffer {
+            self.buf_table_mut(rest)
+        } else {
+            self.user_table_mut(rest)
+        };
+        if table.get_exact(&resolved).is_none() {
+            table.insert(&resolved, entry);
+        }
+        true
+    }
+
+    /// [`take_visual_modes`](Self::take_visual_modes) for every mapping
+    /// of the Visual tables, as `:mapclear` of `mm` clears its bits.
+    pub(crate) fn clear_visual_modes(&mut self, mm: MappingMode, buffer: bool) {
+        let from = match mm {
+            MappingMode::Visual => {
+                self.clear_in(MappingMode::VisualOnly, buffer);
+                self.clear_in(MappingMode::SelectOnly, buffer);
+                return;
+            }
+            MappingMode::VisualOnly | MappingMode::SelectOnly => MappingMode::Visual,
+            _ => return,
+        };
+        let table = if buffer {
+            self.buf_table(from)
+        } else {
+            Some(self.user_table(from))
+        };
+        let keys: Vec<_> = table.map_or_else(Vec::new, |trie| {
+            trie.entries().into_iter().map(|(lhs, _)| lhs).collect()
+        });
+        for lhs in keys {
+            self.take_visual_modes(mm, &lhs, buffer);
+        }
+    }
+
+    fn remove_from(
+        &mut self,
+        mm: MappingMode,
+        resolved: &[KeyEvent],
+        buffer: bool,
+    ) -> Option<MappingEntry> {
+        if buffer {
+            self.buf[mm].as_mut()?.remove(resolved)
+        } else {
+            self.user_table_mut(mm).remove(resolved)
+        }
+    }
+
+    fn clear_in(&mut self, mm: MappingMode, buffer: bool) {
+        if buffer {
+            self.clear_buffer(mm);
+        } else {
+            self.clear(mm);
+        }
     }
 
     /// Clear all user mappings for the given mode.

@@ -429,3 +429,90 @@ fn langmap_applies_to_typed_keys_without_langremap() {
     assert_eq!(session.mode(), Mode::Normal);
     assert_eq!(session.cursor_offset(), 6);
 }
+
+/// The keys of the mapping `lhs` gives in Normal, Visual and Select mode,
+/// as notation, or "-" for none.
+fn mapped_in_modes(engine: &VimEngine, lhs: char) -> [String; 3] {
+    use vim_core::primitives::VisualType;
+    [
+        Mode::Normal,
+        Mode::Visual(VisualType::Char),
+        Mode::Select(VisualType::Char),
+    ]
+    .map(|mode| {
+        engine
+            .keymap()
+            .get_user_mapping(KeyEvent::char(lhs), mode)
+            .map_or_else(
+                || "-".to_owned(),
+                |entry| {
+                    entry
+                        .sequence()
+                        .iter()
+                        .map(|k| k.to_vim_notation())
+                        .collect()
+                },
+            )
+    })
+}
+
+#[test]
+fn unmap_of_visual_or_select_mode_leaves_the_other() {
+    // do_map() clears the mode bits the command names from a mapping, so
+    // :xunmap and :sunmap after :map each leave the other mode mapped.
+    let mut engine = VimEngine::new();
+    run_ex(&mut engine, "map x dd");
+    assert!(run_ex(&mut engine, "xunmap x").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["dd", "-", "dd"]);
+    assert!(run_ex(&mut engine, "sunmap x").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["dd", "-", "-"]);
+    assert_eq!(run_ex(&mut engine, "vunmap x"), ["E31: No such mapping"]);
+
+    run_ex(&mut engine, "map y dd");
+    assert!(run_ex(&mut engine, "sunmap y").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'y'), ["dd", "dd", "-"]);
+    assert_eq!(run_ex(&mut engine, "sunmap y"), ["E31: No such mapping"]);
+
+    // :vunmap and :unmap take both modes off an :xmap or :smap.
+    run_ex(&mut engine, "xmap z a");
+    run_ex(&mut engine, "smap z b");
+    assert!(run_ex(&mut engine, "vunmap z").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'z'), ["-", "-", "-"]);
+    run_ex(&mut engine, "xmap z a");
+    assert!(run_ex(&mut engine, "unmap z").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'z'), ["-", "-", "-"]);
+
+    // The second round, by right-hand side.
+    run_ex(&mut engine, "vmap w e");
+    assert!(run_ex(&mut engine, "xunmap e").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'w'), ["-", "-", "e"]);
+}
+
+#[test]
+fn map_of_visual_or_select_mode_replaces_that_mode_only() {
+    // do_map() gives a mapping that keeps other modes its own entry.
+    let mut engine = VimEngine::new();
+    run_ex(&mut engine, "vmap x a");
+    run_ex(&mut engine, "xmap x b");
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["-", "b", "a"]);
+    run_ex(&mut engine, "vmap x c");
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["-", "c", "c"]);
+    run_ex(&mut engine, "map x d");
+    run_ex(&mut engine, "smap x e");
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["d", "d", "e"]);
+
+    // map_clear_mode() clears the bits of its modes too.
+    assert!(run_ex(&mut engine, "xmapclear").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["d", "-", "e"]);
+    run_ex(&mut engine, "vmap y a");
+    assert!(run_ex(&mut engine, "vmapclear").is_empty());
+    assert_eq!(mapped_in_modes(&engine, 'x'), ["d", "-", "-"]);
+    assert_eq!(mapped_in_modes(&engine, 'y'), ["-", "-", "-"]);
+
+    // <unique> sees a mapping of the other table.
+    run_ex(&mut engine, "vmap z a");
+    assert_eq!(
+        run_ex(&mut engine, "xmap <unique> z b"),
+        ["E227: Mapping already exists for z"]
+    );
+}

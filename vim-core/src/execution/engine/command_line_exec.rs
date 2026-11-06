@@ -533,6 +533,7 @@ impl VimEngine {
                     (rhs, None)
                 };
                 for &mode in modes {
+                    self.keymap.take_visual_modes(mode, &lhs_seq, *buffer);
                     if *buffer {
                         self.typeahead.buffer.clear();
                         self.keymap.map_buffer_with_expr(
@@ -562,6 +563,7 @@ impl VimEngine {
                 let mut removed = false;
                 for &mode in modes {
                     removed |= self.unmap_in(mode, &lhs_seq, *buffer);
+                    removed |= self.keymap.take_visual_modes(mode, &lhs_seq, *buffer);
                 }
                 // do_map(): when no keys match, a second round removes the
                 // mappings whose right-hand side is the argument.
@@ -569,6 +571,15 @@ impl VimEngine {
                     for &mode in modes {
                         for lhs in self.keymap.keys_mapped_to(mode, &lhs_seq, *buffer) {
                             removed |= self.unmap_in(mode, &lhs, *buffer);
+                        }
+                        for &other in mode.overlapping() {
+                            for lhs in self.keymap.keys_mapped_to(other, &lhs_seq, *buffer) {
+                                removed |= if mode == crate::keymap::MappingMode::Visual {
+                                    self.unmap_in(other, &lhs, *buffer)
+                                } else {
+                                    self.keymap.take_visual_modes(mode, &lhs, *buffer)
+                                };
+                            }
                         }
                     }
                 }
@@ -578,6 +589,7 @@ impl VimEngine {
             }
             executor_ex::MappingChange::ClearAll { modes, buffer } => {
                 for &mode in modes {
+                    self.keymap.clear_visual_modes(mode, *buffer);
                     if *buffer {
                         self.clear_buffer_mappings_for(mode);
                     } else {
@@ -614,9 +626,11 @@ impl VimEngine {
         buffer: bool,
     ) -> Option<crate::errors::VimError> {
         let mapped = |buffer| {
-            modes
-                .iter()
-                .any(|&mode| self.keymap.exact_mapping(mode, lhs, buffer).is_some())
+            modes.iter().any(|&mode| {
+                std::iter::once(&mode)
+                    .chain(mode.overlapping())
+                    .any(|&mm| self.keymap.exact_mapping(mm, lhs, buffer).is_some())
+            })
         };
         let keys = || {
             let keys = self.keymap.resolved_keys(lhs);
