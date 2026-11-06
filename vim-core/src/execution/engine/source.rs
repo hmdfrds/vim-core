@@ -1721,6 +1721,23 @@ mod tests {
     }
 
     #[test]
+    fn source_config_let_local_option_acts_like_setlocal() {
+        // Deviation: with no buffer or window, `&l:` sets the global value
+        // too, as :setlocal does in a config.
+        for config in [
+            "setlocal tw=20 et\nset tw? et?\n",
+            "let &l:tw = 20 | let &l:et = 1\nset tw? et?\n",
+        ] {
+            let mut engine = VimEngine::new();
+            let response = engine.source_config_text(config);
+            assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+            assert_eq!(engine.options().textwidth(), 20, "{config:?}");
+            assert!(engine.options().expandtab(), "{config:?}");
+            assert_eq!(infos(&response)[0], "textwidth=20\nexpandtab", "{config:?}");
+        }
+    }
+
+    #[test]
     fn source_config_let_option_error_names_no_argument() {
         // ex_let_option(): set_option_value_give_err() shows the message
         // alone, where :set adds the argument.
