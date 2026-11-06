@@ -414,6 +414,20 @@ fn langremap_decides_whether_langmap_applies_to_mapped_keys() {
 }
 
 #[test]
+fn a_register_runs_the_keys_it_recorded_without_langremap() {
+    // Deviation: q records each key as 'langmap' translated it, so with
+    // 'langremap' off @q runs the translated keys; Vim records the keys as
+    // typed, and they are not translated when the register runs, as they
+    // were not typed (getchar.c gotchars(); macros.h LANGMAP_ADJUST()).
+    let mut session = HostSession::new("a\nb\nc\nd");
+    let _ = session.source_config("set langmap=jk,kj nolangremap\n");
+    type_keys(&mut session, "qqkq");
+    assert_eq!(session.cursor_offset(), 2);
+    type_keys(&mut session, "@q");
+    assert_eq!(session.cursor_offset(), 4);
+}
+
+#[test]
 fn langmap_applies_to_typed_keys_without_langremap() {
     let mut session = HostSession::new("hello\nworld");
     let _ = session.source_config("set langmap=j: nolangremap\n");
