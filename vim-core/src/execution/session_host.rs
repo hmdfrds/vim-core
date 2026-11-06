@@ -900,13 +900,15 @@ impl VimSession<SessionHost> {
         Ok(self.complete_request_host(result))
     }
 
-    /// Source a config string (sequence of ex commands), as
-    /// [`VimEngine::source_config_text`](crate::execution::VimEngine::source_config_text)
-    /// does. The response's `message` is its last, "Config file sourced".
+    /// Source a config string (sequence of ex commands) without a name, as
+    /// [`source_script`](Self::source_script) does with
+    /// [`TrustAll`](crate::execution::TrustAll), which allows every
+    /// command. The response's `message` is its last, "Config file
+    /// sourced".
     pub fn source_config(&mut self, text: &str) -> HostResponse {
         self.host_mut().frame_id += 1;
         self.host_mut().clipboard_dirty = false;
-        let response = self.engine_mut().source_config_text(text);
+        let response = self.engine_mut().source_config_named("", text, 1);
         self.deliver_config(response)
     }
 

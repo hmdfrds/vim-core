@@ -3,9 +3,16 @@
 use vim_core::effects::{Effect, InfoMessage, SourceContext};
 use vim_core::execution::{
     ConfigHost, ConfigText, HostRequest, HostSession, Response, SourceReply, SourceRequest,
-    TrustTag, VimEngine,
+    TrustAll, TrustTag, VimEngine,
 };
 use vim_core::state::StatusMessage;
+
+/// Run `text` as a config without a name, every command allowed.
+fn source_text(engine: &mut VimEngine, text: &str) -> Response {
+    engine
+        .source_script(ConfigText::new("", text), &mut TrustAll::new())
+        .response
+}
 
 /// The text of each error the response shows.
 fn errors(response: &Response) -> Vec<String> {
@@ -83,7 +90,7 @@ fn host_commands(response: &Response) -> Vec<String> {
 fn a_script_heredoc_never_runs_as_commands() {
     // The Lua line `x = 1` would be `:x`, which writes and quits.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("lua << EOF\nx = 1\nEOF\nset tw=33\n");
+    let response = source_text(&mut engine, "lua << EOF\nx = 1\nEOF\nset tw=33\n");
     assert!(response.host_requests().is_empty());
     assert_eq!(engine.options().textwidth(), 33);
     assert_eq!(
@@ -95,14 +102,14 @@ fn a_script_heredoc_never_runs_as_commands() {
 #[test]
 fn a_let_heredoc_never_runs_as_commands() {
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text("let x =<< END\nset tw=33\nEND\n");
+    let _ = source_text(&mut engine, "let x =<< END\nset tw=33\nEND\n");
     assert_eq!(engine.options().textwidth(), 0);
 }
 
 #[test]
 fn a_let_heredoc_with_text_after_its_marker_fails() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("let x =<< END | set ic\nset tw=33\nEND\n");
+    let response = source_text(&mut engine, "let x =<< END | set ic\nset tw=33\nEND\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 0);
     assert_eq!(errors(&response), ["E488: Trailing characters:  | set ic"]);
@@ -113,8 +120,10 @@ fn a_let_heredoc_with_text_after_its_marker_fails() {
 fn a_function_body_never_runs_and_the_rest_of_its_end_line_does() {
     // Under :silent! the E319 of :function counts as no error.
     let mut engine = VimEngine::new();
-    let response =
-        engine.source_config_text("silent! function! F()\n  set ic\nendfunction | set tw=33\n");
+    let response = source_text(
+        &mut engine,
+        "silent! function! F()\n  set ic\nendfunction | set tw=33\n",
+    );
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
@@ -124,7 +133,10 @@ fn a_function_body_never_runs_and_the_rest_of_its_end_line_does() {
 fn the_e319_of_a_function_skips_the_rest_of_its_end_line() {
     // The text after `endfunction |` is the rest of the :function line.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("function! F()\n  set ic\nendfunction | set tw=33\n");
+    let response = source_text(
+        &mut engine,
+        "function! F()\n  set ic\nendfunction | set tw=33\n",
+    );
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 0);
     assert_eq!(
@@ -137,12 +149,12 @@ fn the_e319_of_a_function_skips_the_rest_of_its_end_line() {
 #[test]
 fn a_function_without_its_end_gives_e126_and_runs_nothing() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("function F()\nset ic\n");
+    let response = source_text(&mut engine, "function F()\nset ic\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(errors(&response), ["E126: Missing :endfunction"]);
     assert!(response.host_requests().is_empty());
 
-    let response = engine.source_config_text("silent! function F()\nset ic\n");
+    let response = source_text(&mut engine, "silent! function F()\nset ic\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
 }
 
@@ -150,7 +162,7 @@ fn a_function_without_its_end_gives_e126_and_runs_nothing() {
 fn a_skipped_block_still_reads_a_heredoc() {
     // do_one_cmd() calls :lua while skipping, and it reads its heredoc.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("if 0\nlua << EOF\nset ic\nEOF\nendif\n");
+    let response = source_text(&mut engine, "if 0\nlua << EOF\nset ic\nEOF\nendif\n");
     assert!(!engine.options().ignorecase());
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert!(response.host_requests().is_empty());
@@ -161,7 +173,7 @@ fn a_skipped_block_reads_no_append_text() {
     // do_one_cmd() does not call :append while skipping, so the :endif
     // after it closes the block.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("if 0\nappend\nendif\nset ic\n.\n");
+    let response = source_text(&mut engine, "if 0\nappend\nendif\nset ic\n.\n");
     assert!(engine.options().ignorecase());
     assert_eq!(errors(&response), ["E523: Not allowed here: ."]);
 }
@@ -169,7 +181,7 @@ fn a_skipped_block_reads_no_append_text() {
 #[test]
 fn append_text_never_runs_as_commands() {
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text("1append\nset ic\n.\nset tw=33\n");
+    let _ = source_text(&mut engine, "1append\nset ic\n.\nset tw=33\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
 }
@@ -177,7 +189,7 @@ fn append_text_never_runs_as_commands() {
 #[test]
 fn a_command_block_never_runs_as_commands() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("command! Foo {\n  set ic\n}\nset tw=33\n");
+    let response = source_text(&mut engine, "command! Foo {\n  set ic\n}\nset tw=33\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
     assert_eq!(
@@ -191,7 +203,7 @@ fn a_command_after_an_error_on_its_line_still_reads_a_heredoc() {
     // `do_one_cmd()` skips the rest of the line but still calls `:let`,
     // which reads its heredoc.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("%d | let x =<< END\nset ic\nEND\nset tw=33\n");
+    let response = source_text(&mut engine, "%d | let x =<< END\nset ic\nEND\nset tw=33\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
     assert_eq!(errors(&response).len(), 1, "{:?}", errors(&response));
@@ -202,14 +214,15 @@ fn a_command_after_an_error_on_its_line_still_reads_a_heredoc() {
 fn a_command_after_an_error_on_its_line_reads_no_append_text() {
     // Vim does not call `:append` while skipping, so its text runs.
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text("%d | 1append\nset ic\n");
+    let _ = source_text(&mut engine, "%d | 1append\nset ic\n");
     assert!(engine.options().ignorecase());
 }
 
 #[test]
 fn the_rest_of_an_end_line_after_an_error_still_reads_a_heredoc() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(
+    let response = source_text(
+        &mut engine,
         "%d | function F()\nendfunction | let x =<< END\nset ic\nEND\nset tw=33\n",
     );
     assert!(!engine.options().ignorecase());
@@ -222,7 +235,10 @@ fn an_error_ends_its_line() {
     // do_one_cmd() skips every command after an error on its line, :set
     // errors and those of plain :silent included.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("set tw=abc | set ic\nsilent set nosuch | set ts=3\n");
+    let response = source_text(
+        &mut engine,
+        "set tw=abc | set ic\nsilent set nosuch | set ts=3\n",
+    );
     assert!(!engine.options().ignorecase());
     assert_ne!(engine.options().tabstop(), 3);
     assert_eq!(errors(&response).len(), 2, "{:?}", errors(&response));
@@ -232,7 +248,10 @@ fn an_error_ends_its_line() {
 fn silent_bang_hides_an_error_and_skips_nothing() {
     // emsg() under :silent! neither shows the error nor counts it.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("sil! %d | set tw=44\nsilent! source! x | set ic\n");
+    let response = source_text(
+        &mut engine,
+        "sil! %d | set tw=44\nsilent! source! x | set ic\n",
+    );
     assert_eq!(engine.options().textwidth(), 44);
     assert!(engine.options().ignorecase());
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
@@ -243,7 +262,7 @@ fn a_set_error_ends_the_set_and_its_line() {
     // do_set() returns at its first bad argument, and the error skips the
     // rest of the line.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("set ts=7 nosuch sw=2 | set ic\nset tw=33\n");
+    let response = source_text(&mut engine, "set ts=7 nosuch sw=2 | set ic\nset tw=33\n");
     assert_eq!(engine.options().tabstop(), 7);
     assert_eq!(engine.options().shiftwidth(), 4);
     assert!(!engine.options().ignorecase());
@@ -254,7 +273,7 @@ fn a_set_error_ends_the_set_and_its_line() {
 #[test]
 fn silent_bang_hides_a_set_error_but_still_ends_the_set() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("silent! set nosuch ic | set tw=33\n");
+    let response = source_text(&mut engine, "silent! set nosuch ic | set tw=33\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
@@ -267,7 +286,7 @@ fn strings(texts: &[&str]) -> Vec<String> {
 /// The textwidth a config leaves, and the errors it shows.
 fn textwidth_after(config: &str) -> (usize, Vec<String>) {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(config);
+    let response = source_text(&mut engine, config);
     (engine.options().textwidth(), errors(&response))
 }
 
@@ -302,14 +321,14 @@ fn a_condition_that_fails_runs_no_branch() {
     // even under :silent!, which only hides the error.
     let config = "if Foo()\nset ic\nelse\nset tw=5\nendif\nset sw=3\n";
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(config);
+    let response = source_text(&mut engine, config);
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 0);
     assert_eq!(engine.options().shiftwidth(), 3);
     assert_eq!(errors(&response), ["E117: Unknown function: Foo"]);
 
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(&format!("silent! {config}"));
+    let response = source_text(&mut engine, &format!("silent! {config}"));
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 0);
     assert_eq!(engine.options().shiftwidth(), 3);
@@ -325,7 +344,7 @@ fn a_condition_that_fails_runs_no_branch() {
 fn an_error_inside_a_block_skips_to_its_outermost_end() {
     // do_cmdline() clears did_emsg only when no block is open.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(
+    let response = source_text(&mut engine,
         "if 1\nif 1\nset tw=abc\nendif\nset ic\nendif\nset sw=3\nif 1 | set ts=abc | endif | set ts=3\n",
     );
     assert!(!engine.options().ignorecase());
@@ -337,7 +356,7 @@ fn an_error_inside_a_block_skips_to_its_outermost_end() {
 #[test]
 fn silent_bang_inside_a_block_skips_nothing() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("if 1\nsilent! set tw=abc\nset ic\nendif\n");
+    let response = source_text(&mut engine, "if 1\nsilent! set tw=abc\nset ic\nendif\n");
     assert!(engine.options().ignorecase());
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
 }
@@ -345,7 +364,8 @@ fn silent_bang_inside_a_block_skips_nothing() {
 #[test]
 fn a_skipped_block_runs_and_refuses_nothing() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(
+    let response = source_text(
+        &mut engine,
         "if 0\nwrite\nnosuch\n%d\necho nosuch\nlet x = nosuch\nfinish\nbreak\nendif\nset ic\n",
     );
     assert!(engine.options().ignorecase());
@@ -358,7 +378,7 @@ fn an_unknown_command_in_a_skipped_block_takes_the_rest_of_its_line() {
     // do_one_cmd() sets no next command for a name it does not know, so
     // the :endif after it is lost.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("if 0 | Foo | endif\nset ic\n");
+    let response = source_text(&mut engine, "if 0 | Foo | endif\nset ic\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(errors(&response), ["E171: Missing :endif"]);
 }
@@ -403,7 +423,8 @@ fn a_loop_or_try_block_never_runs() {
     // vim-core runs no loops and catches no exceptions: E319, and the
     // lines up to the end of the block are skipped.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(
+    let response = source_text(
+        &mut engine,
         "wh 1\nset ic\nbrea\ncon\nendw\nset tw=7\n\
          try\nset ic\ncat /x/\nset tw=1\nfina\nset tw=2\nendt\nset sw=2\n\
          for x in [1]\nset ic\nendfo\nset ts=3\n",
@@ -487,7 +508,7 @@ fn a_block_error_after_another_error_is_not_shown() {
 fn endtry_reports_an_open_block_inside_it_after_another_error() {
     // ex_endtry() clears did_emsg to report it, and closes both blocks.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("try\nif 1\nendtry\nset ic\n");
+    let response = source_text(&mut engine, "try\nif 1\nendtry\nset ic\n");
     assert!(engine.options().ignorecase());
     assert_eq!(
         errors(&response),
@@ -548,8 +569,8 @@ fn finish_inside_a_block_skips_the_rest_of_its_line() {
 fn finish_guards_a_config_sourced_twice() {
     let config = "if exists('g:loaded') | finish | endif\nlet g:loaded = 1\nlet &tw += 1\n";
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text(config);
-    let response = engine.source_config_text(config);
+    let _ = source_text(&mut engine, config);
+    let response = source_text(&mut engine, config);
     assert_eq!(engine.options().textwidth(), 1);
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
 }
@@ -567,15 +588,15 @@ fn langnoremap_is_langremap_inverted() {
     // keep each the inverse of the other.
     let mut engine = VimEngine::new();
     let config = "set langnoremap\necho &lrm &lnr exists('+langnoremap')\n";
-    let response = engine.source_config_text(config);
+    let response = source_text(&mut engine, config);
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert_eq!(infos(&response)[0], "0 1 1");
     assert!(!engine.options().langremap());
-    let _ = engine.source_config_text("let &lnr = 0\n");
+    let _ = source_text(&mut engine, "let &lnr = 0\n");
     assert!(engine.options().langremap());
-    let _ = engine.source_config_text("set invlnr\n");
+    let _ = source_text(&mut engine, "set invlnr\n");
     assert!(!engine.options().langremap());
-    let _ = engine.source_config_text("set lnr!\n");
+    let _ = source_text(&mut engine, "set lnr!\n");
     assert!(engine.options().langremap());
 }
 
@@ -585,7 +606,8 @@ fn langnoremap_is_langremap_inverted() {
 fn a_vim_option_vim_core_lacks_is_set_silently() {
     // do_set_option(): a hidden option takes the value and keeps nothing.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text(
+    let response = source_text(
+        &mut engine,
         "set nocompatible\nset encoding=utf-8\nset mouse=a\nset t_Co=256\n\
          set guifont=Monospace\\ 11\nlet &mouse = 'a'\nlet &compatible += 1\nset ic\n",
     );
@@ -596,7 +618,7 @@ fn a_vim_option_vim_core_lacks_is_set_silently() {
 #[test]
 fn asking_for_a_vim_option_vim_core_lacks_is_e519() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("set mouse? | set ic\nset nosuch\n");
+    let response = source_text(&mut engine, "set mouse? | set ic\nset nosuch\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(
         errors(&response),
@@ -612,7 +634,8 @@ fn a_vim_option_vim_core_lacks_exists_and_reads_as_empty() {
     // eval_option(): `&name` of a hidden option is 0 or "", and only
     // `+name` tells that it does not work.
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text(
+    let _ = source_text(
+        &mut engine,
         "if exists('&mouse') && !exists('+mouse') && &mouse == '' && &compatible == 0\n\
          set ic\nendif\n",
     );
@@ -623,7 +646,7 @@ fn a_vim_option_vim_core_lacks_exists_and_reads_as_empty() {
 fn let_of_a_vim_option_vim_core_lacks_checks_the_value_type() {
     // ex_let_option(): a Float is no Number, v:true no String.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("let &compatible = 1.5\nlet &mouse = v:true\n");
+    let response = source_text(&mut engine, "let &compatible = 1.5\nlet &mouse = v:true\n");
     assert_eq!(
         errors(&response),
         ["E805: Using a Float as a Number", "E928: String required"]
@@ -634,7 +657,7 @@ fn let_of_a_vim_option_vim_core_lacks_checks_the_value_type() {
 fn a_vim_command_vim_core_lacks_is_e319_and_ends_its_line() {
     // ex_ni(): `syntax` is Vim's, so the error names it and ends the line.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("syntax on | set ic\ncolorscheme desert\n");
+    let response = source_text(&mut engine, "syntax on | set ic\ncolorscheme desert\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(
         errors(&response),
@@ -650,8 +673,10 @@ fn a_vim_command_vim_core_lacks_is_e319_and_ends_its_line() {
 fn a_vim_command_vim_core_lacks_skips_the_rest_of_its_block() {
     // do_cmdline(): the error skips to the end of the outermost block.
     let mut engine = VimEngine::new();
-    let response =
-        engine.source_config_text("if 1\nautocmd BufRead * set ts=2\nset ic\nendif\nset tw=33\n");
+    let response = source_text(
+        &mut engine,
+        "if 1\nautocmd BufRead * set ts=2\nset ic\nendif\nset tw=33\n",
+    );
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
     assert_eq!(errors(&response).len(), 1, "{:?}", errors(&response));
@@ -660,8 +685,10 @@ fn a_vim_command_vim_core_lacks_skips_the_rest_of_its_block() {
 #[test]
 fn a_skipped_vim_command_vim_core_lacks_gives_nothing() {
     let mut engine = VimEngine::new();
-    let response =
-        engine.source_config_text("if 0\nsyntax on\nendif\nsilent! syntax on | set ic\n");
+    let response = source_text(
+        &mut engine,
+        "if 0\nsyntax on\nendif\nsilent! syntax on | set ic\n",
+    );
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert!(engine.options().ignorecase());
 }
@@ -671,8 +698,10 @@ fn filetype_and_commands_that_are_not_vim_s_go_to_the_host() {
     // find_ex_command(): a name that starts with a capital is a user
     // command, but for :Next, :Print and :X.
     let mut engine = VimEngine::new();
-    let response =
-        engine.source_config_text("filetype plugin indent on\npanelmap x y\nMake all\nNext\n");
+    let response = source_text(
+        &mut engine,
+        "filetype plugin indent on\npanelmap x y\nMake all\nNext\n",
+    );
     assert_eq!(
         errors(&response),
         ["E319: Sorry, the command is not available in this version: Next"]
@@ -687,7 +716,7 @@ fn filetype_and_commands_that_are_not_vim_s_go_to_the_host() {
 fn scriptencoding_does_nothing() {
     // ex_scriptencoding(): the text is UTF-8 already.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("scriptencoding utf-8 | set ic\n");
+    let response = source_text(&mut engine, "scriptencoding utf-8 | set ic\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert!(response.host_requests().is_empty());
     assert!(engine.options().ignorecase());
@@ -697,13 +726,13 @@ fn scriptencoding_does_nothing() {
 fn vim9script_is_e319_and_ends_the_file() {
     // Deviation: Vim reads the rest as Vim9 script.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("if 1\nvim9script\nendif\nset ic\n");
+    let response = source_text(&mut engine, "if 1\nvim9script\nendif\nset ic\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(
         errors(&response),
         ["E319: Sorry, the command is not available in this version: vim9script"]
     );
-    let response = engine.source_config_text("silent! vim9script\nset ic\n");
+    let response = source_text(&mut engine, "silent! vim9script\nset ic\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert!(!engine.options().ignorecase());
 }
@@ -742,7 +771,7 @@ fn has_asks_the_host_for_a_feature_vim_core_does_not_know() {
     assert_eq!(infos(&shown.response), ["11"]);
 
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text("if has('godot') | set ic | endif\n");
+    let _ = source_text(&mut engine, "if has('godot') | set ic | endif\n");
     assert!(!engine.options().ignorecase());
 }
 
@@ -926,12 +955,12 @@ fn a_warning_is_at_its_own_line() {
 #[test]
 fn a_config_without_a_name_places_its_errors_at_their_lines() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("set nosuch");
+    let response = source_text(&mut engine, "set nosuch");
     assert_eq!(
         located(&response, ""),
         [(1, "E518: Unknown option: nosuch".to_owned())]
     );
-    assert_eq!(infos(&response), ["Config file sourced"]);
+    assert_eq!(infos(&response), Vec::<String>::new());
 }
 
 // ── :messages ─────────────────────────────────────────────────────────
@@ -955,7 +984,7 @@ fn a_config_s_messages_and_errors_reach_the_message_history_once() {
 #[test]
 fn messages_in_a_config_lists_what_the_config_showed_before_it() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("set tw? | set nosuch\nmessages\n");
+    let response = source_text(&mut engine, "set tw? | set nosuch\nmessages\n");
     let listed: Vec<_> = response
         .host_requests()
         .iter()
@@ -1015,7 +1044,7 @@ fn errors_are_headed_in_the_history_as_vim_heads_them() {
 fn errors_of_a_config_without_a_name_get_line_labels_only() {
     // Deviation: Vim gives neither without a name.
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text("set nosuch\nset nosuch | set nosuch\n");
+    let _ = source_text(&mut engine, "set nosuch\nset nosuch | set nosuch\n");
     assert_eq!(
         history(&engine),
         [
@@ -1023,7 +1052,6 @@ fn errors_of_a_config_without_a_name_get_line_labels_only() {
             "E518: Unknown option: nosuch",
             "line    2:",
             "E518: Unknown option: nosuch",
-            "Config file sourced"
         ]
     );
 }
@@ -1393,7 +1421,7 @@ fn source_ends_at_a_bar() {
         assert!(engine.options().ignorecase(), "{config:?}");
 
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text(config);
+        let response = source_text(&mut engine, config);
         let [HostRequest::ReadConfigFile { path, .. }] = response.host_requests() else {
             panic!("{config:?}: {:?}", response.host_requests());
         };

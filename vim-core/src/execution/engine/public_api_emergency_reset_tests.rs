@@ -810,7 +810,7 @@ fn emergency_reset_field_inventory() {
         .set_sticky_column(Some(crate::primitives::VirtualColumn::new(42)));
 
     // Leave the file of a :source to the host.
-    let _ = engine.source_config_text("source x.vim\n");
+    let _ = engine.source_config_str("source x.vim\n");
     assert!(!engine.host.source_depths.is_empty());
 
     // Set user data that should be PRESERVED.

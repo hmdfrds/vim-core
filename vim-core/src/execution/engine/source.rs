@@ -253,16 +253,23 @@ impl super::VimEngine {
     }
 
     /// Run a config file's text as [`source_script`](Self::source_script)
-    /// runs a config without a name, with a host that answers nothing.
-    /// The response ends with "Config file sourced".
+    /// runs a config without a name with [`TrustAll`], which allows every
+    /// command. The response ends with "Config file sourced".
+    #[deprecated(
+        since = "0.10.0",
+        note = "use `source_script`, whose host judges each command and which says what \
+                the config came to; `source_config_text` goes in v0.11.0"
+    )]
     pub fn source_config_text(&mut self, text: &str) -> Response {
         self.source_config_named("", text, 1)
     }
 
-    /// [`source_config_text`](Self::source_config_text) for the config
-    /// named `name`, as when a host answers `:source {name}` with the
-    /// file's text, run as the `depth`th of the files that run.
-    pub(super) fn source_config_named(&mut self, name: &str, text: &str, depth: u32) -> Response {
+    /// Run the config `text` named `name` as
+    /// [`source_script`](Self::source_script) runs it with [`TrustAll`],
+    /// as the `depth`th of the files that run, as when a host answers
+    /// `:source {name}` with the file's text. The response ends with
+    /// "Config file sourced".
+    pub(crate) fn source_config_named(&mut self, name: &str, text: &str, depth: u32) -> Response {
         let config = ConfigText::new(name, text);
         let mut response =
             self.run_script(config, &mut TrustAll, depth, &mut ConfigOutcome::default());
@@ -1517,6 +1524,11 @@ pub(super) mod seam {
 
 #[cfg(test)]
 impl super::VimEngine {
+    /// Run `text` as a config without a name that allows every command.
+    pub(crate) fn source_config_str(&mut self, text: &str) -> Response {
+        self.source_config_named("", text, 1)
+    }
+
     /// What a config command can change in the engine, as text.
     fn config_fingerprint(&self) -> String {
         if !seam::recording() {
@@ -1721,7 +1733,7 @@ mod tests {
                       inoremap i j\ncnoremap k l\niabbrev m n\ncabbrev o p\n\
                       abbreviate q r\nsethandler <C-a> n:ide\nlet mapleader = \",\"\n\
                       let maplocalleader = \";\"\nset tw=33\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(errors(&response), Vec::<String>::new());
         assert!(!engine.handler_map().is_empty());
 
@@ -1804,7 +1816,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "filetype plugin indent on | set ic\necho \"a|b\" | set tw=33\n\
                       nnoremap x y | set et\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert!(engine.options().expandtab());
@@ -1825,7 +1837,7 @@ mod tests {
     #[test]
     fn source_config_clears_mappings_with_mapclear() {
         let mut engine = VimEngine::new();
-        engine.source_config_text("nnoremap x y\nnmapclear\n");
+        engine.source_config_str("nnoremap x y\nnmapclear\n");
         assert!(!engine.could_start_mapping(crate::keymap::KeyEvent::char('x')));
     }
 
@@ -1837,7 +1849,7 @@ mod tests {
             .buffer_overrides
             .set(OptionId::TextWidth, OptionValue::Unsigned(20));
         engine.rebuild_resolved_cache();
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
         (
             engine.options().textwidth(),
@@ -1864,7 +1876,7 @@ mod tests {
         );
         assert_eq!(textwidths_after("let &g:tw = 10\n"), (10, twenty));
         let mut engine = VimEngine::new();
-        engine.source_config_text("setglobal ic\n");
+        engine.source_config_str("setglobal ic\n");
         assert!(engine.options().ignorecase());
     }
 
@@ -1873,7 +1885,7 @@ mod tests {
     #[test]
     fn source_config_refuses_commands_that_need_a_buffer() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set ic | %d | set tw=33\nnormal dd\n");
+        let response = engine.source_config_str("set ic | %d | set tw=33\nnormal dd\n");
 
         assert!(engine.options().ignorecase());
         assert_eq!(
@@ -1893,14 +1905,14 @@ mod tests {
     #[test]
     fn source_config_silent_bang_hides_errors() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("silent! normal dd\nsilent! set nosuchoption\n");
+        let response = engine.source_config_str("silent! normal dd\nsilent! set nosuchoption\n");
         assert!(errors(&response).is_empty());
     }
 
     #[test]
     fn source_config_reports_an_error_and_goes_on() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set nosuchoption\nset tw=33\n");
+        let response = engine.source_config_str("set nosuchoption\nset tw=33\n");
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(errors(&response).len(), 1);
     }
@@ -1911,7 +1923,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "set tw=80 | set tw?\niabbrev teh the\niabbrev\nnoh\necho hi\n\
                       registers\nmessages\nnormal x\nclearjumps\nnnoremap x y\nsethandler <C-a> n:vim\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         for effect in response.effects() {
             assert!(
                 matches!(
@@ -1926,7 +1938,7 @@ mod tests {
     #[test]
     fn source_config_returns_every_message() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set tw=80 | set tw?\necho \"hi\"\n");
+        let response = engine.source_config_str("set tw=80 | set tw?\necho \"hi\"\n");
         assert_eq!(
             infos(&response),
             ["textwidth=80", "hi", "Config file sourced"]
@@ -1938,7 +1950,7 @@ mod tests {
         // ex_echo(): the values joined by a space.
         let mut engine = VimEngine::new();
         let response =
-            engine.source_config_text("set tw=33\necho \"tw\" &tw has('eval') 1.0 . 'x'\n");
+            engine.source_config_str("set tw=33\necho \"tw\" &tw has('eval') 1.0 . 'x'\n");
         assert_eq!(infos(&response), ["tw 33 1 1.0x", "Config file sourced"]);
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     }
@@ -1948,7 +1960,7 @@ mod tests {
         // Under :silent! emsg() counts no error, so the line goes on.
         let mut engine = VimEngine::new();
         let response = engine
-            .source_config_text("echo \"a\" nosuch | set ic\nsilent! echo nosuch | set tw=33\n");
+            .source_config_str("echo \"a\" nosuch | set ic\nsilent! echo nosuch | set tw=33\n");
         assert!(!engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(infos(&response), ["a", "Config file sourced"]);
@@ -1960,7 +1972,7 @@ mod tests {
     #[test]
     fn source_config_sends_host_commands_to_the_host() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("write\nfiletype plugin on\npanelmap x y\n");
+        let response = engine.source_config_str("write\nfiletype plugin on\npanelmap x y\n");
         let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
         assert_eq!(
             kinds,
@@ -1993,7 +2005,7 @@ mod tests {
         use crate::execution::HostResult;
 
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("source a.vim\nsource b.vim\nsource c.vim\n");
+        let response = engine.source_config_str("source a.vim\nsource b.vim\nsource c.vim\n");
         let ids: Vec<_> = response.host_requests().iter().map(|r| r.id()).collect();
         assert_eq!(ids.len(), 3);
         assert!(ids
@@ -2017,7 +2029,7 @@ mod tests {
         // `skipwhite()` skips no other white space, so after a no-break
         // space `"` starts no comment and the line is a command.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("\u{a0}\" x\n \t\" y\n");
+        let response = engine.source_config_str("\u{a0}\" x\n \t\" y\n");
         let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
         assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
     }
@@ -2031,7 +2043,7 @@ mod tests {
     #[test]
     fn source_config_reads_a_dos_file() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set tw=33\r\nset ic\r\n");
+        let response = engine.source_config_str("set tw=33\r\nset ic\r\n");
         assert_eq!(engine.options().textwidth(), 33);
         assert!(engine.options().ignorecase());
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
@@ -2043,7 +2055,7 @@ mod tests {
         // and the file is read as Unix from there, so the CR of the next
         // line stays in its value.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set ic\r\nset tw=33\nset tw=44\r\n");
+        let response = engine.source_config_str("set ic\r\nset tw=33\nset tw=44\r\n");
         assert!(engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(
@@ -2067,7 +2079,7 @@ mod tests {
     fn source_config_does_not_run_a_function_body() {
         let config = "function! Foo()\n  set ic\n  function! Bar()\n  endfunction\n  set tw=1\nendfunction\nset tw=33\n";
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(!engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(
@@ -2081,7 +2093,7 @@ mod tests {
     fn source_config_applies_set_options() {
         let mut engine = VimEngine::new();
         let config = "set tabstop=8\nset expandtab\nset noautoindent\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
 
         assert_eq!(engine.options().tabstop(), 8);
         assert!(engine.options().expandtab());
@@ -2093,7 +2105,7 @@ mod tests {
     fn source_config_skips_comments_and_empty_lines() {
         let mut engine = VimEngine::new();
         let config = "\" This is a comment\n\n  \" Another comment\nset tabstop=2\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert_eq!(engine.options().tabstop(), 2);
     }
@@ -2102,7 +2114,7 @@ mod tests {
     fn source_config_skips_unparseable_lines() {
         let mut engine = VimEngine::new();
         let config = "not_a_valid_command\nset tabstop=4\ngibberish!!!!\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert_eq!(engine.options().tabstop(), 4);
     }
@@ -2111,7 +2123,7 @@ mod tests {
     fn source_config_applies_mappings() {
         let mut engine = VimEngine::new();
         let config = "nnoremap jk <Esc>\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
 
         // Mapping was applied (we can verify it indirectly by checking
         // that could_start_mapping returns true for 'j')
@@ -2127,7 +2139,7 @@ mod tests {
         let default_leader = engine.leader();
 
         let config = "let mapleader = \" \"\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         let new_leader = engine.leader();
         assert_ne!(default_leader, new_leader);
@@ -2138,7 +2150,7 @@ mod tests {
     fn source_config_leader_before_mapping() {
         let mut engine = VimEngine::new();
         let config = "let mapleader = \",\"\nnnoremap <Leader>w :save<CR>\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // The mapping should be registered under comma (the leader)
         let comma = crate::keymap::KeyEvent::char(',');
@@ -2169,16 +2181,16 @@ mod tests {
         use crate::keymap::KeyEvent;
 
         let mut engine = VimEngine::new();
-        engine.source_config_text("let mapleader = ','\nlet mapleader = ''\n");
+        engine.source_config_str("let mapleader = ','\nlet mapleader = ''\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
         // `<Space>` in a value is seven keys; only "\<Space>" is Space.
-        engine.source_config_text("let mapleader = '<Space>'\n");
+        engine.source_config_str("let mapleader = '<Space>'\n");
         assert_eq!(engine.leader_keys().len(), 7);
-        engine.source_config_text("let mapleader = \"\\<C-W>\\t\"\nlet maplocalleader = ','\n");
+        engine.source_config_str("let mapleader = \"\\<C-W>\\t\"\nlet maplocalleader = ','\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::ctrl('w'), KeyEvent::tab()]);
         assert_eq!(engine.local_leader_keys(), [KeyEvent::char(',')]);
         let response =
-            engine.source_config_text("echo g:maplocalleader exists('g:mapleader') g:mapleader\n");
+            engine.source_config_str("echo g:maplocalleader exists('g:mapleader') g:mapleader\n");
         assert_eq!(infos(&response)[0], ", 1 \x17\t");
     }
 
@@ -2186,7 +2198,7 @@ mod tests {
     fn source_config_keeps_the_leader_when_its_expression_fails() {
         let mut engine = VimEngine::new();
         let response =
-            engine.source_config_text("let mapleader = nosuch | set ic\nlet mapleader = \\\n");
+            engine.source_config_str("let mapleader = nosuch | set ic\nlet mapleader = \\\n");
         assert_eq!(engine.leader(), crate::keymap::KeyEvent::char('\\'));
         assert!(!engine.options().ignorecase());
         assert_eq!(
@@ -2217,7 +2229,7 @@ mod tests {
     fn source_config_let_assigns_variables() {
         // ex_let(): a plain name is global at the script level.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text(
+        let response = engine.source_config_str(
             "let g:x = 1 | let y = 'a' | let b:z = 2.5\necho g:x y b:z x exists('g:y')\n",
         );
         assert_eq!(infos(&response)[0], "1 a 2.5 1 1");
@@ -2229,7 +2241,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "let x = 1 | let x += 2 | let x *= 3 | let x -= 1 | let x /= 2 | let x %= 3\n\
                       let s = 'a' | let s .= 'b' | let s ..= 1\nlet n = 5 | let n .= 1\necho x s n\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(infos(&response)[0], "1 ab1 51");
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     }
@@ -2239,7 +2251,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "let nosuch += 1 | set ic\nlet x = 1 | let x .= 1.5 | set ic\n\
                       let x = nosuch | set ic\nlet s:x = 1\nlet [a, b] = [1, 2]\nlet x\nlet $X = 1\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(!engine.options().ignorecase());
         assert_eq!(
             errors(&response),
@@ -2263,14 +2275,14 @@ mod tests {
         let config =
             "let &tw = 33 | let &tw += 2\nlet &ic = 1\nlet &ww = 'b,s' | let &ww .= ',h'\n\
                       let &l:sw = 3 | let &g:ts = 6\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
         assert_eq!(engine.options().textwidth(), 35);
         assert!(engine.options().ignorecase());
         assert_eq!(engine.options().whichwrap(), "b,s,h");
         assert_eq!(engine.options().shiftwidth(), 3);
         assert_eq!(engine.options().tabstop(), 6);
-        engine.source_config_text("let &ic = 0\n");
+        engine.source_config_str("let &ic = 0\n");
         assert!(!engine.options().ignorecase());
     }
 
@@ -2278,7 +2290,7 @@ mod tests {
     fn source_config_let_option_keeps_backslashes_and_blanks() {
         // ex_let_option() sets the value itself, without :set's escapes.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("let &isk = '@,\\,4 8' | let &isk .= '\\'\n");
+        let response = engine.source_config_str("let &isk = '@,\\,4 8' | let &isk .= '\\'\n");
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
         assert_eq!(engine.options().iskeyword(), "@,\\,4 8\\");
     }
@@ -2288,7 +2300,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config =
             "let &tw .= 1\nlet &ww += 1\nlet &nosuch = 1\nlet &tw = 1.5\nlet &ww = v:true\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(
             errors(&response),
             [
@@ -2310,7 +2322,7 @@ mod tests {
             "let &l:tw = 20 | let &l:et = 1\nset tw? et?\n",
         ] {
             let mut engine = VimEngine::new();
-            let response = engine.source_config_text(config);
+            let response = engine.source_config_str(config);
             assert!(errors(&response).is_empty(), "{:?}", errors(&response));
             assert_eq!(engine.options().textwidth(), 20, "{config:?}");
             assert!(engine.options().expandtab(), "{config:?}");
@@ -2324,7 +2336,7 @@ mod tests {
         // alone, where :set adds the argument.
         let mut engine = VimEngine::new();
         let config = "let &tw = -1\nlet &ts = 0\nlet &fo = 'tZ'\nlet &l:sw = -2\nlet &tw = 5\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(
             errors(&response),
             [
@@ -2344,7 +2356,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "let g:x = 1 | let y = 2 | unlet g:x y\necho exists('x') exists('y')\n\
                       unlet nosuch | set ic\nunlet! nosuch\nunlet\nunlet $X\nlet x = 1 | unlet x+1\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(infos(&response)[0], "0 0");
         assert!(!engine.options().ignorecase());
         assert_eq!(
@@ -2363,12 +2375,12 @@ mod tests {
         use crate::keymap::KeyEvent;
 
         let mut engine = VimEngine::new();
-        engine.source_config_text("let g:mapleader = ',' | let mapleader .= ','\n");
+        engine.source_config_str("let g:mapleader = ',' | let mapleader .= ','\n");
         assert_eq!(
             engine.leader_keys(),
             [KeyEvent::char(','), KeyEvent::char(',')]
         );
-        engine.source_config_text("unlet mapleader\nlet maplocalleader = 1\n");
+        engine.source_config_str("unlet mapleader\nlet maplocalleader = 1\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
         assert_eq!(engine.local_leader_keys(), [KeyEvent::char('1')]);
     }
@@ -2389,7 +2401,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "verbose set tw=33\n3verbose set ic | noa set ts=3\nkeepmarks set sw=2\n\
                       lefta set et\nrightbelow set ai\nunsilent echo 'x'\nsilent! verbose set nosuch\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(errors(&response), Vec::<String>::new());
         assert_eq!(infos(&response), ["x", "Config file sourced"]);
         let options = engine.options();
@@ -2403,7 +2415,7 @@ mod tests {
     #[test]
     fn source_config_still_refuses_a_lacking_command_after_such_a_modifier() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("verbose syntax on | set ic\nsandbox set tw=3\n");
+        let response = engine.source_config_str("verbose syntax on | set ic\nsandbox set tw=3\n");
         let syntax = "E319: Sorry, the command is not available in this version: verbose syntax on";
         let sandbox = "E319: Sorry, the command is not available in this version: sandbox set tw=3";
         assert_eq!(errors(&response), [syntax, sandbox]);
@@ -2431,7 +2443,7 @@ mod tests {
     #[test]
     fn source_config_shows_sourced_message() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("");
+        let response = engine.source_config_str("");
 
         // Even with empty config, should show "Config file sourced"
         let has_message = response.effects.iter().any(|e| {
@@ -2448,7 +2460,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-a> i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine
@@ -2471,7 +2483,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-a> n:vim i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             !engine
@@ -2493,7 +2505,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-c> n-v:ide i:vim\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine
@@ -2521,7 +2533,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-v> a:host\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         for mm in MappingMode::ALL {
             assert!(
@@ -2541,7 +2553,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-a> n:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Process Ctrl-A in Normal mode — should be ignored (host-handled)
         let doc = SimpleDocument::new("hello");
@@ -2563,7 +2575,7 @@ mod tests {
         let mut engine = VimEngine::new();
         // Set Ctrl-A to Vim in Normal, Host in Insert
         let config = "sethandler <C-a> n:vim i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Process Ctrl-A in Normal mode — should be consumed (Vim handles it)
         let doc = SimpleDocument::new("hello");
@@ -2582,7 +2594,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "seth <C-a> i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine
@@ -2595,7 +2607,7 @@ mod tests {
     #[test]
     fn source_config_sethandler_invalid_handler_is_reported() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("sethandler <C-a> n:banana\n");
+        let response = engine.source_config_str("sethandler <C-a> n:banana\n");
 
         assert!(engine.handler_map().is_empty());
         assert_eq!(errors(&response).len(), 1);
@@ -2606,7 +2618,7 @@ mod tests {
         let mut engine = VimEngine::new();
         // No key specified — global default, currently a no-op
         let config = "sethandler n:vim\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Should not error, handler map stays empty
         assert!(engine.handler_map().is_empty());
@@ -2624,7 +2636,7 @@ mod tests {
         let mut engine = VimEngine::new();
         // Semicolon format: й maps to j, ц maps to k
         let config = "set langmap=йц;jk\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Verify the langmap table was populated
         assert!(
@@ -2686,14 +2698,14 @@ mod tests {
         assert!(engine.options().langremap());
 
         let config = "set nolangremap\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
         assert!(
             !engine.options().langremap(),
             "langremap should be false after :set nolangremap"
         );
 
         let config2 = "set langremap\n";
-        engine.source_config_text(config2);
+        engine.source_config_str(config2);
         assert!(
             engine.options().langremap(),
             "langremap should be true after :set langremap"
@@ -2707,7 +2719,7 @@ mod tests {
         engine.key_interest_dirty = false;
 
         let config = "set langmap=ab\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine.key_interest_dirty,
@@ -2720,12 +2732,12 @@ mod tests {
         let mut engine = VimEngine::new();
         // First set a non-empty langmap
         let config = "set langmap=йц;jk\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
         assert!(!engine.langmap_table.is_empty());
 
         // Now clear it
         let config2 = "set langmap=\n";
-        engine.source_config_text(config2);
+        engine.source_config_str(config2);
         assert!(
             engine.langmap_table.is_empty(),
             "langmap table should be empty after :set langmap="

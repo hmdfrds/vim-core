@@ -2,12 +2,19 @@
 
 use vim_core::effects::{Effect, InfoMessage, SourceContext};
 use vim_core::execution::{
-    HostCallbacks, HostRequest, HostResponse, HostResult, HostSession, InputContext, Response,
-    VimEngine,
+    ConfigText, HostCallbacks, HostRequest, HostResponse, HostResult, HostSession, InputContext,
+    Response, TrustAll, VimEngine,
 };
 use vim_core::keymap::KeyEvent;
 use vim_core::state::StatusMessage;
 use vim_core::test_utils::SimpleDocument;
+
+/// Run `text` as a config without a name, every command allowed.
+fn source_text(engine: &mut VimEngine, text: &str) -> Response {
+    engine
+        .source_script(ConfigText::new("", text), &mut TrustAll::new())
+        .response
+}
 
 fn process_key(engine: &mut VimEngine, doc: &SimpleDocument, key: KeyEvent) -> Response {
     let ctx = InputContext::new(doc, 0).validate_clamped();
@@ -246,7 +253,7 @@ fn returned_text_keeps_its_messages_in_the_history() {
 fn sourcing_adds_to_existing_state() {
     let doc = SimpleDocument::new("alpha");
     let mut engine = VimEngine::new();
-    let _ = engine.source_config_text("nnoremap Q x\nset ic");
+    let _ = source_text(&mut engine, "nnoremap Q x\nset ic");
     let req = request(&run(&mut engine, &doc, "source extra.vim"));
     let _ = engine.complete_host_request(&HostResult::Data {
         id: req.id(),
@@ -352,7 +359,7 @@ fn a_file_that_sources_itself_through_the_host_stops_at_vim_s_depth() {
     );
 
     let mut engine = VimEngine::new();
-    let first = engine.source_config_text(text);
+    let first = source_text(&mut engine, text);
     let (answers, last) = answer_every_source(&mut engine, first, text);
     assert_eq!(answers, 199);
     assert_eq!(engine.options().textwidth(), 200);

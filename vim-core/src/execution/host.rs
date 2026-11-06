@@ -432,16 +432,18 @@ pub enum HostRequest {
     /// against its access policy and filters untrusted text. It answers in
     /// one of two ways:
     ///
-    /// - `HostResult::Data` with the text: the engine sources it with
-    ///   [`VimEngine::source_config_text`], adding to the current state as
-    ///   Vim's `:source` does. The host must not source it again. A file
+    /// - `HostResult::Data` with the text: the engine sources it as
+    ///   [`VimEngine::source_script`] does with [`TrustAll`], which allows
+    ///   every command, adding to the current state as Vim's `:source`
+    ///   does, and ends with the message "Config file sourced". The host must not source it again. A file
     ///   sourced from a config counts the files that sourced it, so one that
     ///   sources itself stops with E169 after 200 files, as in Vim.
     /// - `HostResult::Success`: the host sourced the file itself (for example
     ///   a full reload of its active config) and the engine only shows the
     ///   message, if any.
     ///
-    /// [`VimEngine::source_config_text`]: crate::execution::VimEngine::source_config_text
+    /// [`VimEngine::source_script`]: crate::execution::VimEngine::source_script
+    /// [`TrustAll`]: crate::execution::TrustAll
     ReadConfigFile {
         /// Correlation metadata.
         meta: HostRequestMeta,

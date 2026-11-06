@@ -5,9 +5,18 @@ mod common;
 
 use common::document::TestDocument;
 use vim_core::effects::Effect;
-use vim_core::execution::{parse_keys_from_string, HostSession, InputContext, Response, VimEngine};
+use vim_core::execution::{
+    parse_keys_from_string, ConfigText, HostSession, InputContext, Response, TrustAll, VimEngine,
+};
 use vim_core::keymap::{KeyEvent, MappingMode};
 use vim_core::primitives::Mode;
+
+/// Run `text` as a config without a name, every command allowed.
+fn source_text(engine: &mut VimEngine, text: &str) -> Response {
+    engine
+        .source_script(ConfigText::new("", text), &mut TrustAll::new())
+        .response
+}
 
 fn press(engine: &mut VimEngine, doc: &TestDocument, key: KeyEvent) -> Response {
     let ctx = InputContext::new(doc, doc.cursor_offset()).validate_clamped();
@@ -93,7 +102,10 @@ fn mapclear_buffer_clears_only_the_buffer_mappings() {
 #[test]
 fn a_buffer_mapping_in_a_config_is_not_allowed() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("nnoremap <buffer> x y | set ic\nnunmap <buffer> x\n");
+    let response = source_text(
+        &mut engine,
+        "nnoremap <buffer> x y | set ic\nnunmap <buffer> x\n",
+    );
     assert_eq!(
         errors(&response),
         [
@@ -180,7 +192,7 @@ fn a_right_hand_side_keeps_its_trailing_blanks() {
 
     // The blank before a `|` belongs to the right-hand side.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("nnoremap x y | set ic\n");
+    let response = source_text(&mut engine, "nnoremap x y | set ic\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert_eq!(normal_mappings(&engine), [mapping("x", "y<Space>", false)]);
     assert!(engine.options().ignorecase());
@@ -250,7 +262,7 @@ fn nop_leaves_the_mode_as_it_is() {
 fn nop_with_more_text_is_keys() {
     // The whole right-hand side must be `<Nop>`.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("nnoremap x <Nop> | nnoremap y <Nop>x\n");
+    let response = source_text(&mut engine, "nnoremap x <Nop> | nnoremap y <Nop>x\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     let mappings = normal_mappings(&engine);
     assert_eq!(mappings.len(), 2);
@@ -323,7 +335,10 @@ fn unmap_removes_a_mapping_to_its_argument() {
 #[test]
 fn a_missing_mapping_ends_a_config_line() {
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("unmap x | set ic\nsilent! unmap x | set tw=33\n");
+    let response = source_text(
+        &mut engine,
+        "unmap x | set ic\nsilent! unmap x | set tw=33\n",
+    );
     assert_eq!(errors(&response), ["E31: No such mapping"]);
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
@@ -368,7 +383,7 @@ fn map_bang_maps_insert_and_command_line_mode() {
     // get_map_mode() gives the "!" forms MODE_INSERT | MODE_CMDLINE. A
     // config, so that the command-line mappings leave its lines alone.
     let mut engine = VimEngine::new();
-    let response = engine.source_config_text("noremap! a b | map! c d | nnoremap a b\n");
+    let response = source_text(&mut engine, "noremap! a b | map! c d | nnoremap a b\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     for mode in [MappingMode::Insert, MappingMode::Command] {
         assert!(has_mapping(&engine, mode, "a") && has_mapping(&engine, mode, "c"));
@@ -376,13 +391,13 @@ fn map_bang_maps_insert_and_command_line_mode() {
     assert!(!has_mapping(&engine, MappingMode::Visual, "a"));
     assert!(!has_mapping(&engine, MappingMode::Normal, "c"));
 
-    let response = engine.source_config_text("unmap! a\nunmap! a\n");
+    let response = source_text(&mut engine, "unmap! a\nunmap! a\n");
     assert_eq!(errors(&response), ["E31: No such mapping"]);
     assert!(!has_mapping(&engine, MappingMode::Insert, "a"));
     assert!(!has_mapping(&engine, MappingMode::Command, "a"));
     assert!(has_mapping(&engine, MappingMode::Normal, "a"));
 
-    let response = engine.source_config_text("mapclear!\n");
+    let response = source_text(&mut engine, "mapclear!\n");
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     assert!(!has_mapping(&engine, MappingMode::Insert, "c"));
     assert!(!has_mapping(&engine, MappingMode::Command, "c"));
