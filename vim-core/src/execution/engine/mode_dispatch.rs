@@ -2461,8 +2461,8 @@ impl VimEngine {
             self.process_macro_plays(result.macro_plays, &mut response);
         }
 
-        // With formatting, where a dot-repeat leaves every cursor, by its
-        // head before the repeat.
+        // Where a dot-repeat leaves every cursor, by its head before the
+        // repeat.
         let mut repeat_heads: Option<Vec<(usize, usize)>> = None;
         // Inject saved text for dot-repeat if intercepted.
         // With multi-cursor active, build the positional effects, replicate
@@ -2484,9 +2484,10 @@ impl VimEngine {
             if self.state.multi_cursor().is_active() {
                 let primary_offset = self.state.multi_cursor().selections().primary().head();
                 repeat.last_cursor_offset = Some(primary_offset);
-                // Vim retypes the text at every cursor, so with formatting
-                // each cursor breaks its own line. That is done here when the
-                // repeated command made no edit of its own before the text.
+                // Vim retypes the text at every cursor, so each cursor
+                // overwrites, indents and, with formatting, breaks its own
+                // line. That is done here when the repeated command made no
+                // edit of its own before the text.
                 let edited = response.effects.iter().any(|e| {
                     matches!(
                         e,
@@ -2495,7 +2496,7 @@ impl VimEngine {
                             | crate::effects::Effect::Replace { .. }
                     )
                 });
-                if let (true, false, Some(text)) = (repeat.format.is_active(), edited, doc_text) {
+                if let (false, Some(text)) = (edited, doc_text) {
                     let mut heads: Vec<Offset> = self
                         .state
                         .multi_cursor()
@@ -2506,8 +2507,19 @@ impl VimEngine {
                     heads.sort_unstable_by(|a, b| b.cmp(a));
                     heads.dedup();
                     let mut ends: Vec<(usize, usize, i64)> = Vec::with_capacity(heads.len());
+                    // Where the edits at the cursors after this one start.
+                    let mut limit = usize::MAX;
                     for head in heads {
-                        repeat.last_cursor_offset = Some(head);
+                        // `A`, `I`, `a` and `gI` type where they put a cursor
+                        // on that line alone.
+                        repeat.last_cursor_offset =
+                            Some(own_entry.as_ref().map_or(head, |&(entry_type, _)| {
+                                Offset::new(crate::commands::insert::entry::entry_offset(
+                                    text,
+                                    head.get().min(text.len()),
+                                    entry_type,
+                                ))
+                            }));
                         let Some(mut positional) =
                             super::super::effect_processor::build_repeat_positional_effects(
                                 &self.state,
@@ -2516,7 +2528,20 @@ impl VimEngine {
                         else {
                             continue;
                         };
-                        format_repeated_text(&mut positional, text, &repeat.format);
+                        if repeat.format.is_active() {
+                            format_repeated_text(&mut positional, text, &repeat.format);
+                        }
+                        // A cursor whose repeat reaches into the text a later
+                        // cursor changed, as Replace mode can on one line,
+                        // repeats nothing.
+                        match super::per_cursor::mutation_span(positional.as_slice()) {
+                            Some((_, end)) if end > limit => {
+                                ends.push((head.get(), head.get(), 0));
+                                continue;
+                            }
+                            Some((start, _)) => limit = start,
+                            None => {}
+                        }
                         ends.push((
                             head.get(),
                             Self::last_cursor_in_effects(positional.as_slice())
@@ -2554,6 +2579,35 @@ impl VimEngine {
                         &repeat,
                     )
                 {
+                    // Every cursor types the same text, so each ends as far
+                    // past its head as the primary one, shifted by the text
+                    // typed at the cursors below it.
+                    let end = Self::last_cursor_in_effects(positional.as_slice())
+                        .map_or_else(|| primary_offset.get(), Offset::get);
+                    let delta =
+                        crate::effects::algebra::compute_length_change(positional.as_slice());
+                    let mut heads: Vec<usize> = self
+                        .state
+                        .multi_cursor()
+                        .selections()
+                        .iter()
+                        .map(|s| s.head().get())
+                        .collect();
+                    heads.sort_unstable();
+                    heads.dedup();
+                    repeat_heads = Some(
+                        heads
+                            .iter()
+                            .zip(0i64..)
+                            .map(|(&head, below)| {
+                                let own = byte_delta::shift(
+                                    end,
+                                    byte_delta::delta_i64(head, primary_offset.get()),
+                                );
+                                (head, byte_delta::shift(own, below.saturating_mul(delta)))
+                            })
+                            .collect(),
+                    );
                     let replicated = super::super::multi_cursor::replicate_effects_precise(
                         &positional,
                         self.state.multi_cursor().selections(),
@@ -2648,15 +2702,16 @@ impl VimEngine {
         // here and its text mutations (newline insertion for o/O, character
         // deletion for s/S) shift cursor positions that must be reflected in
         // the selections before the next keystroke arrives.
-        if let Some(primary_delta) = rebase_primary_net_delta {
+        // A dot-repeat that typed at every cursor knows where each one ends,
+        // by its head before the command.
+        if let Some(heads) = repeat_heads {
+            move_other_cursors(&mut self.state, &heads);
+        } else if let Some(primary_delta) = rebase_primary_net_delta {
             super::per_cursor::update_selections_after_rebase(
                 &mut self.state,
                 &response,
                 primary_delta,
             );
-        }
-        if let Some(heads) = repeat_heads {
-            move_other_cursors(&mut self.state, &heads);
         }
         if let (Some((entry_type, before)), Some(text), Some(0)) =
             (own_entry, doc_text, rebase_primary_net_delta)

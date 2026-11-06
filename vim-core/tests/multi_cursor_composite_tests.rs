@@ -409,3 +409,31 @@ fn counted_insert_and_empty_open_match_composite() {
     // Each cursor ends on its own last repeated character.
     assert_composite(&["a", "short"], &[0, 4], "3ax<CR>é<Esc>x", true);
 }
+
+#[test]
+fn dot_repeat_matches_composite() {
+    let lines = ["ab", "日本語", "  x"];
+    for keys in [
+        "Ax<Esc>0.",
+        "ix<Esc>.",
+        "ax<Esc>3.",
+        "ox<Esc>.",
+        "Rxé<Esc>2.",
+    ] {
+        assert_composite(&lines, &[0, 3, 2], keys, true);
+    }
+}
+
+/// A repeat that would overwrite past the next cursor on the line leaves
+/// that text to the next cursor.
+#[test]
+fn dot_repeat_of_replace_on_one_line_keeps_text_whole() {
+    let mut s = session("abcdefgh", &[0, 3]);
+    feed(&mut s, "Rxé<Esc>2.");
+    let text = s.text().to_owned();
+    assert!(s
+        .cursor_positions()
+        .iter()
+        .all(|&(.., offset)| text.is_char_boundary(offset)));
+    assert_eq!(s.cursor_count(), 2);
+}
