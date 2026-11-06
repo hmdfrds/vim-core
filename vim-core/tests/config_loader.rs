@@ -95,7 +95,7 @@ fn a_script_heredoc_never_runs_as_commands() {
 #[test]
 fn a_let_heredoc_never_runs_as_commands() {
     let mut engine = VimEngine::new();
-    engine.source_config_text("let x =<< END\nset tw=33\nEND\n");
+    let _ = engine.source_config_text("let x =<< END\nset tw=33\nEND\n");
     assert_eq!(engine.options().textwidth(), 0);
 }
 
@@ -169,7 +169,7 @@ fn a_skipped_block_reads_no_append_text() {
 #[test]
 fn append_text_never_runs_as_commands() {
     let mut engine = VimEngine::new();
-    engine.source_config_text("1append\nset ic\n.\nset tw=33\n");
+    let _ = engine.source_config_text("1append\nset ic\n.\nset tw=33\n");
     assert!(!engine.options().ignorecase());
     assert_eq!(engine.options().textwidth(), 33);
 }
@@ -202,7 +202,7 @@ fn a_command_after_an_error_on_its_line_still_reads_a_heredoc() {
 fn a_command_after_an_error_on_its_line_reads_no_append_text() {
     // Vim does not call `:append` while skipping, so its text runs.
     let mut engine = VimEngine::new();
-    engine.source_config_text("%d | 1append\nset ic\n");
+    let _ = engine.source_config_text("%d | 1append\nset ic\n");
     assert!(engine.options().ignorecase());
 }
 
@@ -548,7 +548,7 @@ fn finish_inside_a_block_skips_the_rest_of_its_line() {
 fn finish_guards_a_config_sourced_twice() {
     let config = "if exists('g:loaded') | finish | endif\nlet g:loaded = 1\nlet &tw += 1\n";
     let mut engine = VimEngine::new();
-    engine.source_config_text(config);
+    let _ = engine.source_config_text(config);
     let response = engine.source_config_text(config);
     assert_eq!(engine.options().textwidth(), 1);
     assert!(errors(&response).is_empty(), "{:?}", errors(&response));
@@ -612,7 +612,7 @@ fn a_vim_option_vim_core_lacks_exists_and_reads_as_empty() {
     // eval_option(): `&name` of a hidden option is 0 or "", and only
     // `+name` tells that it does not work.
     let mut engine = VimEngine::new();
-    engine.source_config_text(
+    let _ = engine.source_config_text(
         "if exists('&mouse') && !exists('+mouse') && &mouse == '' && &compatible == 0\n\
          set ic\nendif\n",
     );
