@@ -216,6 +216,14 @@ pub enum InputState {
     /// Example: After pressing Ctrl-R waiting for register like "a" or "0"
     AwaitingInsertRegister,
 
+    /// Waiting for the register name after `<C-r><C-r>`, `<C-r><C-o>` or
+    /// `<C-r><C-p>`, which takes the next key whatever it is (edit.c
+    /// `ins_reg()`).
+    AwaitingInsertRegisterLiterally {
+        /// The second key's letter: `R`, `O` or `P`.
+        prefix: char,
+    },
+
     /// Collecting expression text for `<C-r>=` in insert mode.
     ///
     /// After `<C-r>=`, collects characters until `<CR>` and then emits
@@ -633,6 +641,10 @@ impl InputState {
             }
 
             Self::AwaitingInsertRegister => buf.push_str("^R"),
+            Self::AwaitingInsertRegisterLiterally { prefix } => {
+                buf.push_str("^R^");
+                buf.push(*prefix);
+            }
             Self::AwaitingInsertExpression { collected } => {
                 buf.push_str("^R=");
                 buf.push_str(collected);
@@ -704,6 +716,23 @@ impl InputState {
     #[must_use]
     pub const fn is_ready(&self) -> bool {
         matches!(self, Self::Ready { .. })
+    }
+
+    /// Whether an Insert-mode command waits for its argument, which an
+    /// `<Esc>` cancels or becomes instead of leaving Insert mode (edit.c
+    /// `ins_reg()`, `ins_ctrl_g()`, digraph.c `get_digraph()`).
+    #[must_use]
+    pub const fn takes_insert_escape(&self) -> bool {
+        matches!(
+            self,
+            Self::InsertLiteral(_)
+                | Self::AwaitingInsertRegister
+                | Self::AwaitingInsertRegisterLiterally { .. }
+                | Self::AwaitingInsertExpression { .. }
+                | Self::AwaitingInsertCtrlG
+                | Self::AwaitingInsertDigraph1
+                | Self::AwaitingInsertDigraph2 { .. }
+        )
     }
 
     /// Whether this state expects the next key to be a literal character
@@ -824,6 +853,7 @@ impl InputState {
             Self::AwaitingPrefix { count, .. } => *count,
             Self::AwaitingMark { count, .. } => *count,
             Self::AwaitingInsertRegister
+            | Self::AwaitingInsertRegisterLiterally { .. }
             | Self::AwaitingInsertExpression { .. }
             | Self::AwaitingInsertCtrlG
             | Self::AwaitingInsertDigraph1
@@ -859,6 +889,7 @@ impl InputState {
             Self::AwaitingPrefix { register, .. } => *register,
             Self::AwaitingMark { register, .. } => *register,
             Self::AwaitingInsertRegister
+            | Self::AwaitingInsertRegisterLiterally { .. }
             | Self::AwaitingInsertExpression { .. }
             | Self::AwaitingInsertCtrlG
             | Self::AwaitingInsertDigraph1
@@ -1390,6 +1421,12 @@ mod tests {
                 .as_str(),
             "^R"
         );
+    }
+
+    #[test]
+    fn insert_register_literally() {
+        let state = InputState::AwaitingInsertRegisterLiterally { prefix: 'O' };
+        assert_eq!(state.pending_display().as_str(), "^R^O");
     }
 
     #[test]

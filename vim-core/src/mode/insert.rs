@@ -26,11 +26,12 @@ impl ModeHandler for InsertModeHandler {
     fn handle_key(&self, key: KeyEvent, ctx: &mut ModeContext<'_>) -> ModeAction {
         let (parser, keymap) = ctx.parser_and_keymap();
 
-        // Fast path: Escape bypasses grammar parser entirely — but NOT when
-        // the parser is awaiting a literal character (Ctrl-V sequence).
+        // Escape leaves Insert mode unless a pending command takes it; any
+        // other pending state goes with the mode.
         if keymap.classify(key, Mode::Insert) == KeyClass::Escape
-            && !matches!(parser.state(), crate::grammar::InputState::InsertLiteral(_))
+            && !parser.state().takes_insert_escape()
         {
+            parser.reset();
             return ModeAction::InsertExit;
         }
 
