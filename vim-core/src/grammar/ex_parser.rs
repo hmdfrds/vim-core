@@ -108,6 +108,53 @@ pub(super) fn parse_modifier_prefixes(input: &str) -> (ModifierFlags, &str) {
     }
 }
 
+/// Vim's modifiers that only a config takes. vim-core has no meaning for
+/// them, so the command after them runs as without them.
+const CONFIG_MODIFIERS: &[(&str, ModifierFlags)] = &[
+    ("keepmarks", ModifierFlags::KEEPMARKS),
+    ("leftabove", ModifierFlags::ABOVELEFT),
+    ("noautocmd", ModifierFlags::NOAUTOCMD),
+    ("rightbelow", ModifierFlags::BELOWRIGHT),
+    ("unsilent", ModifierFlags::UNSILENT),
+    ("verbose", ModifierFlags::VERBOSE),
+];
+
+/// Strip the modifiers before a config command, those of
+/// [`CONFIG_MODIFIERS`] included, as Vim's `parse_command_modifiers()`
+/// does: `:verbose` may have a count before it.
+pub(crate) fn parse_config_modifiers(input: &str) -> (ModifierFlags, &str) {
+    let mut flags = ModifierFlags::empty();
+    let mut rest = input;
+    loop {
+        let (known, after_known) = parse_modifier_prefixes(rest);
+        flags |= known;
+        let digits = after_known.bytes().take_while(u8::is_ascii_digit).count();
+        let counted = after_known.get(digits..).unwrap_or_default();
+        let word_len = counted
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(counted.len());
+        let (word, after) = counted.split_at(word_len);
+        // The engine's own commands come first, as `:kee[p]`.
+        let own = matches!(
+            command_meta::find_command(counted),
+            Some((command_meta::FoundCommand::Own(_), _))
+        );
+        let modifier = CONFIG_MODIFIERS.iter().find(|(full, _)| {
+            word.len() >= modifier_min_len(full)
+                && full.starts_with(word)
+                && (digits == 0 || *full == "verbose")
+                && !own
+        });
+        match (modifier, after.as_bytes().first()) {
+            (Some(&(_, flag)), None | Some(b' ' | b'\t')) => {
+                flags |= flag;
+                rest = after;
+            }
+            _ => return (flags, after_known),
+        }
+    }
+}
+
 fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     let trimmed = input.trim_start_matches(BLANKS);
     if trimmed.is_empty() {

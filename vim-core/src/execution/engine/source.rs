@@ -10,16 +10,16 @@ use crate::document::Document;
 use crate::effects::{Effect, Effects, SourceContext};
 use crate::errors::VimError;
 use crate::execution::config::{
-    ConfigHost, ConfigOutcome, ConfigResponse, ConfigText, NoHost, SourceReply, SourceRequest,
-    TrustTag,
+    ConfigAction, ConfigCommand, ConfigHost, ConfigOutcome, ConfigResponse, ConfigText,
+    MapDefinition, OptionTarget, SourceReply, SourceRequest, TrustAll, TrustTag, Verdict,
 };
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, HostRequest, InputContext};
-use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
+use crate::grammar::ex_parser::{parse_config_modifiers, parse_ex_piece, vim_command_parts};
 use crate::grammar::script::{script_command, Control, Line, Script, ScriptCommand};
 use crate::grammar::split_ex_pipeline;
-use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, SetAssignment};
+use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, Reach, SetAssignment};
 use crate::primitives::{Offset, OptionValue, Position, VarScope};
 use compact_str::CompactString;
 use std::borrow::Cow;
@@ -241,32 +241,38 @@ impl super::VimEngine {
         text: ConfigText<'_>,
         host: &mut dyn ConfigHost,
     ) -> ConfigResponse {
-        let response = self.run_script(text, host, 1);
+        let mut outcome = ConfigOutcome::default();
+        let response = self.run_script(text, host, 1, &mut outcome);
         let errors = response
             .effects()
             .iter()
             .filter(|e| matches!(e, Effect::ShowError { .. }))
             .count();
-        ConfigResponse {
-            response,
-            outcome: ConfigOutcome {
-                errors: u32::try_from(errors).unwrap_or(u32::MAX),
-            },
-        }
+        outcome.errors = u32::try_from(errors).unwrap_or(u32::MAX);
+        ConfigResponse { response, outcome }
     }
 
     /// Run a config file's text as [`source_script`](Self::source_script)
-    /// runs a config without a name, with a host that answers nothing.
-    /// The response ends with "Config file sourced".
+    /// runs a config without a name with [`TrustAll`], which allows every
+    /// command. The response ends with "Config file sourced".
+    #[deprecated(
+        since = "0.10.0",
+        note = "use `source_script`, whose host judges each command and which says what \
+                the config came to; `source_config_text` goes in v0.11.0"
+    )]
     pub fn source_config_text(&mut self, text: &str) -> Response {
         self.source_config_named("", text, 1)
     }
 
-    /// [`source_config_text`](Self::source_config_text) for the config
-    /// named `name`, as when a host answers `:source {name}` with the
-    /// file's text, run as the `depth`th of the files that run.
-    pub(super) fn source_config_named(&mut self, name: &str, text: &str, depth: u32) -> Response {
-        let mut response = self.run_script(ConfigText::new(name, text), &mut NoHost, depth);
+    /// Run the config `text` named `name` as
+    /// [`source_script`](Self::source_script) runs it with [`TrustAll`],
+    /// as the `depth`th of the files that run, as when a host answers
+    /// `:source {name}` with the file's text. The response ends with
+    /// "Config file sourced".
+    pub(crate) fn source_config_named(&mut self, name: &str, text: &str, depth: u32) -> Response {
+        let config = ConfigText::new(name, text);
+        let mut response =
+            self.run_script(config, &mut TrustAll, depth, &mut ConfigOutcome::default());
         let from = response.effects().len();
         response.extend_effects(ex_effects::show_message(CompactString::from(
             "Config file sourced",
@@ -282,6 +288,7 @@ impl super::VimEngine {
         text: ConfigText<'_>,
         host: &mut dyn ConfigHost,
         depth: u32,
+        outcome: &mut ConfigOutcome,
     ) -> Response {
         if self.options_dirty {
             self.rebuild_resolved_cache();
@@ -300,7 +307,7 @@ impl super::VimEngine {
             depth,
             ModifierFlags::empty(),
         );
-        self.run_frames(top, host, &mut response);
+        self.run_frames(top, host, outcome, &mut response);
         // Not register_pending_host_requests: its effect optimizer keeps only
         // the last of several messages, and a config can print many.
         self.track_host_requests(&mut response);
@@ -310,11 +317,18 @@ impl super::VimEngine {
     /// Run the file `top` and the files it sources, each on top of the
     /// file that sources it, as nested `do_cmdline()` calls run them, but
     /// on the heap.
-    fn run_frames(&mut self, top: Frame<'_>, host: &mut dyn ConfigHost, response: &mut Response) {
+    fn run_frames(
+        &mut self,
+        top: Frame<'_>,
+        host: &mut dyn ConfigHost,
+        outcome: &mut ConfigOutcome,
+        response: &mut Response,
+    ) {
         let mut frames = vec![top];
         while let Some(frame) = frames.last_mut() {
             if let Some(piece) = frame.pieces.pop() {
-                if let Some(sourced) = self.source_config_command(frame, host, &piece, response) {
+                let sourced = self.source_config_command(frame, host, &piece, outcome, response);
+                if let Some(sourced) = sourced {
                     let nested = frame.nested(sourced);
                     frames.push(nested);
                 }
@@ -365,6 +379,7 @@ impl super::VimEngine {
         frame: &mut Frame<'_>,
         host: &mut dyn ConfigHost,
         piece: &str,
+        outcome: &mut ConfigOutcome,
         response: &mut Response,
     ) -> Option<Sourced> {
         // Vim's SOURCING_LNUM: after a command read lines as text, the
@@ -380,20 +395,22 @@ impl super::VimEngine {
         if let Some(body) = body {
             frame.rest = body.tail;
             fails = body.fails;
-            let (modifiers, _) = parse_ex_piece(piece);
+            let (modifiers, _) = parse_config_modifiers(piece);
             for (number, error) in body.errors {
                 let at_error = response.effects().len();
                 show_config_errors(modifiers | frame.modifiers, [error], response);
                 locate(response, at_error, &frame.file, number);
             }
         }
+        #[cfg(test)]
+        let before = seam::begin(self, piece, response);
         if fails {
             frame.error |= shows_error(response, from);
         } else if let Some(command) = script_command(piece) {
             self.source_config_control(frame, host, command, response);
         } else {
             if !skipping {
-                match self.source_config_piece(frame, host, piece, response) {
+                match self.source_config_piece(frame, host, piece, at, outcome, response) {
                     Then::Next => {}
                     Then::End => {
                         frame.blocks.finish();
@@ -404,6 +421,8 @@ impl super::VimEngine {
             }
             frame.error |= shows_error(response, from);
         }
+        #[cfg(test)]
+        seam::end(self, before, response);
         locate(response, start, &frame.file, at);
         self.settle(response, start);
         sourced
@@ -534,50 +553,166 @@ impl super::VimEngine {
     }
 
     /// Run one command of a config line as the command line runs it,
-    /// with the modifiers in force in the frame.
+    /// with the modifiers in force in the frame, once the engine found
+    /// nothing wrong with it and `host` allows it.
     fn source_config_piece(
         &mut self,
         frame: &Frame<'_>,
         host: &mut dyn ConfigHost,
         piece: &str,
+        line: u32,
+        outcome: &mut ConfigOutcome,
         response: &mut Response,
     ) -> Then {
-        let inherited = frame.modifiers;
-        match vim_command_parts(piece) {
+        let checked = match self.check_config_piece(frame, host, piece, response) {
+            Ok(checked) => checked,
+            Err(then) => return then,
+        };
+        let options = checked.option_targets();
+        let map = map_definition(&checked.command);
+        let judged = checked.command.clone();
+        let verdict = host.judge(&ConfigCommand {
+            file: &frame.name,
+            trust: frame.trust,
+            depth: frame.depth,
+            line,
+            text: piece.trim_matches([' ', '\t']),
+            modifiers: checked.modifiers,
+            action: checked.action(&options, map.as_ref()),
+            reach: checked.reach,
+            command: &judged,
+        });
+        outcome.commands = outcome.commands.saturating_add(1);
+        #[cfg(test)]
+        seam::judged(&judged, &verdict);
+        let refusal = match verdict {
+            Verdict::Allow if judged == checked.command => None,
+            Verdict::Allow => {
+                debug_assert!(false, "{judged:?} was judged, {:?} runs", checked.command);
+                Some("E48: Not allowed here: the command is not the one judged".into())
+            }
+            Verdict::Refuse(text) => Some(text),
+            Verdict::Claim => {
+                outcome.claimed = outcome.claimed.saturating_add(1);
+                return Then::Next;
+            }
+        };
+        if let Some(text) = refusal {
+            outcome.refused = outcome.refused.saturating_add(1);
+            show_config_errors(checked.modifiers, [VimError::Refused(text)], response);
+            return Then::Next;
+        }
+        self.run_checked(frame, host, checked, response)
+    }
+
+    /// What `piece` will run, after the checks the engine makes itself:
+    /// its parse, E319 for a Vim command vim-core lacks, E169 for a
+    /// `:source` too deep, E523 for a command that needs a buffer, and the
+    /// value a `:let` assigns. Otherwise its errors are shown, and what
+    /// the runner does next.
+    fn check_config_piece(
+        &self,
+        frame: &Frame<'_>,
+        host: &dyn ConfigHost,
+        piece: &str,
+        response: &mut Response,
+    ) -> Result<Checked, Then> {
+        // Deviation: the modifiers only a config takes change nothing.
+        let (modifiers, text) = parse_config_modifiers(piece);
+        let inherited = frame.modifiers | modifiers;
+        match vim_command_parts(text) {
             Some((modifiers, "echo", argument)) => {
-                self.source_config_echo(host, modifiers | inherited, argument, response);
+                let command = ExCommand::Echo {
+                    message: argument.into(),
+                };
+                return Ok(Checked::new(modifiers | inherited, command, Run::Echo));
             }
             Some((modifiers, "let", argument)) => {
-                self.source_config_let(host, modifiers | inherited, argument, response);
+                return self
+                    .check_config_let(host, modifiers | inherited, argument, response)
+                    .ok_or(Then::Next);
             }
             Some((modifiers, "unlet", argument)) => {
-                self.source_config_unlet(modifiers | inherited, argument, response);
+                return check_config_unlet(modifiers | inherited, argument, response)
+                    .ok_or(Then::Next);
             }
-            _ => match parse_ex_piece(piece) {
-                (modifiers, Ok(ExCommand::Source { path })) => {
-                    let modifiers = modifiers | inherited;
-                    return self.source_config_source(
-                        frame,
-                        host,
-                        modifiers,
-                        path.as_deref(),
-                        response,
-                    );
-                }
-                (modifiers, Ok(parsed)) => {
-                    let modifiers = modifiers | inherited;
-                    if let Some(name) = lacking_vim_command(&parsed) {
-                        if source_config_lacking(modifiers, name, piece, response) {
-                            return Then::End;
-                        }
-                        return Then::Next;
-                    }
-                    self.run_config_command(modifiers, &parsed, piece, response);
-                }
-                (modifiers, Err(err)) => {
-                    show_config_errors(modifiers | inherited, [err], response);
-                }
-            },
+            _ => {}
+        }
+        let (modifiers, parsed) = parse_ex_piece(text);
+        let modifiers = modifiers | inherited;
+        let command = match parsed {
+            Ok(command) => command,
+            Err(err) => {
+                show_config_errors(modifiers, [err], response);
+                return Err(Then::Next);
+            }
+        };
+        if let ExCommand::Source { .. } = command {
+            if frame.depth >= MAX_DEPTH {
+                show_config_errors(modifiers, [VimError::CommandTooRecursive], response);
+                return Err(Then::Next);
+            }
+            return Ok(Checked::new(modifiers, command, Run::Source));
+        }
+        if let Some(name) = lacking_vim_command(&command) {
+            if source_config_lacking(modifiers, name, piece, response) {
+                return Err(Then::End);
+            }
+            return Err(Then::Next);
+        }
+        if command.needs_buffer() {
+            let error = VimError::NotAllowedHere(CompactString::from(piece.trim()));
+            show_config_errors(modifiers, [error], response);
+            return Err(Then::Next);
+        }
+        Ok(Checked::new(modifiers, command, Run::Command))
+    }
+
+    /// Run a command the host allowed.
+    fn run_checked(
+        &mut self,
+        frame: &Frame<'_>,
+        host: &mut dyn ConfigHost,
+        checked: Checked,
+        response: &mut Response,
+    ) -> Then {
+        let Checked {
+            modifiers,
+            command,
+            run,
+            ..
+        } = checked;
+        #[cfg(test)]
+        seam::executed(&command);
+        match (run, &command) {
+            (Run::Command, _) => {
+                self.run_config_command(modifiers, &command, frame.trust, response);
+            }
+            (Run::Echo, ExCommand::Echo { message }) => {
+                self.source_config_echo(host, modifiers, message, response);
+            }
+            (
+                Run::Variable {
+                    scope, name, value, ..
+                },
+                _,
+            ) => {
+                self.state
+                    .variable_store_mut()
+                    .set(scope, &name, value.into_variable());
+                self.sync_leader_variable(scope, &name);
+            }
+            (Run::Unlet(argument), _) => self.source_config_unlet(modifiers, &argument, response),
+            (Run::Source, ExCommand::Source { path }) => {
+                return self.source_config_source(
+                    frame,
+                    host,
+                    modifiers,
+                    path.as_deref(),
+                    response,
+                );
+            }
+            (Run::Echo | Run::Source | Run::Nothing(_), _) => {}
         }
         Then::Next
     }
@@ -585,8 +720,7 @@ impl super::VimEngine {
     /// `:source {file}` in a config, as `cmd_source()` runs it: the host
     /// gives the file's text, which runs before the next command, or
     /// sources it itself, refuses it, or leaves it for later as a
-    /// `ReadConfigFile` request. Inside 200 files that run, E169, as
-    /// `do_cmdline()` gives it; the host is not asked.
+    /// `ReadConfigFile` request.
     fn source_config_source(
         &mut self,
         frame: &Frame<'_>,
@@ -595,10 +729,6 @@ impl super::VimEngine {
         path: Option<&str>,
         response: &mut Response,
     ) -> Then {
-        if frame.depth >= MAX_DEPTH {
-            show_config_errors(modifiers, [VimError::CommandTooRecursive], response);
-            return Then::Next;
-        }
         let depth = frame.depth + 1;
         let request = SourceRequest {
             path,
@@ -625,7 +755,7 @@ impl super::VimEngine {
                 response.extend_effects(effects);
             }
             SourceReply::Refuse(text) => {
-                let error = VimError::HostFailure(text.into());
+                let error = VimError::Refused(text.into_boxed_str());
                 show_config_errors(modifiers, [error], response);
             }
             SourceReply::Defer => {
@@ -640,23 +770,17 @@ impl super::VimEngine {
         Then::Next
     }
 
-    /// Run a parsed config command, written as `command`.
+    /// Run a parsed config command in a config tagged `trust`.
     fn run_config_command(
         &mut self,
         modifiers: ModifierFlags,
         parsed: &ExCommand,
-        command: &str,
+        trust: TrustTag,
         response: &mut Response,
     ) {
-        let result = if parsed.needs_buffer() {
-            Err(VimError::NotAllowedHere(CompactString::from(
-                command.trim(),
-            )))
-        } else {
-            let input = InputContext::new(&NoBuffer, 0).validate_clamped();
-            let ctx = ExecutionContext::new(input, &self.state, &self.options);
-            executor_ex::execute_ex_command(parsed, &ctx, &mut self.host.sequencer)
-        };
+        let input = InputContext::new(&NoBuffer, 0).validate_clamped();
+        let ctx = ExecutionContext::new(input, &self.state, &self.options);
+        let result = executor_ex::execute_ex_command(parsed, &ctx, &mut self.host.sequencer);
         let mut output = match result {
             Ok(output) => output,
             Err(err) => return show_config_errors(modifiers, [err], response),
@@ -668,7 +792,7 @@ impl super::VimEngine {
                 set.scope = SetScope::Effective;
             }
         }
-        let mut applied = self.apply_ex_output(&mut output, "");
+        let mut applied = self.apply_ex_output(&mut output, "", trust);
         crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
         response.extend_effects(output.effects);
         response.extend_effects(applied);
@@ -690,68 +814,93 @@ impl super::VimEngine {
     /// with `+=`, `-=`, `*=`, `/=`, `%=`, `.=` or `..=`, and an option is
     /// set as `:set` sets it. Any other form gives E319. A typed `:let`
     /// still goes to the host.
-    fn source_config_let(
-        &mut self,
+    ///
+    /// The value is computed here, before the host judges the command;
+    /// `None` when that fails, after its errors are shown.
+    fn check_config_let(
+        &self,
         host: &dyn ConfigHost,
         modifiers: ModifierFlags,
         argument: &str,
         response: &mut Response,
-    ) {
+    ) -> Option<Checked> {
         let argument = argument.trim_start_matches([' ', '\t']);
         let Some(assignment) = script_expr::parse_let(argument) else {
             let form = CompactString::from(format!("let {argument}"));
-            return show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
+            show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
+            return None;
         };
         let evaluated = script_expr::evaluate(assignment.expr, &self.script_env(host));
         let mut errors = evaluated.errors;
         let Some(value) = evaluated.value else {
-            return show_config_errors(modifiers, errors, response);
+            show_config_errors(modifiers, errors, response);
+            return None;
         };
-        let assigned = match assignment.target {
-            Target::Variable(variable) => self.let_variable(variable, assignment.op, value),
+        let written = || ExCommand::Custom {
+            command: CompactString::from(format!("let {argument}")),
+        };
+        let checked = match assignment.target {
+            Target::Variable(variable) => {
+                match self.assigned_value(variable, assignment.op, value) {
+                    Ok(value) => {
+                        let leader = leader_variable(variable.scope, variable.name);
+                        let command = match (leader, assignment.op) {
+                            (Some(local), None) => ExCommand::LetLeader {
+                                local,
+                                value: assignment.expr.into(),
+                            },
+                            _ => written(),
+                        };
+                        let run = Run::Variable {
+                            scope: variable.scope,
+                            name: variable.name.to_owned(),
+                            leader: leader.map(|local| (local, value.text().into_owned())),
+                            value,
+                        };
+                        Some(Checked::new(modifiers, command, run))
+                    }
+                    Err(err) => {
+                        errors.push(err);
+                        None
+                    }
+                }
+            }
             Target::Option(layer, name) => {
                 match self.let_option(layer, name, assignment.op, &value) {
-                    Ok(Some(command)) => {
-                        show_config_errors(modifiers, errors, response);
-                        let text = format!("let {argument}");
-                        return self.run_config_command(modifiers, &command, &text, response);
+                    Ok(Some(command)) => Some(Checked::new(modifiers, command, Run::Command)),
+                    Ok(None) => {
+                        let run = Run::Nothing(name.to_owned());
+                        Some(Checked::new(modifiers, written(), run))
                     }
-                    Ok(None) => Ok(()),
-                    Err(err) => Err(err),
+                    Err(err) => {
+                        errors.push(err);
+                        None
+                    }
                 }
             }
         };
-        errors.extend(assigned.err());
         show_config_errors(modifiers, errors, response);
+        checked
     }
 
-    /// Assign to a variable, and take the leader from `g:mapleader` or
-    /// `g:maplocalleader`.
-    fn let_variable(
-        &mut self,
+    /// The value `variable` takes from `value` with the operator `op`.
+    fn assigned_value(
+        &self,
         variable: script_expr::Variable<'_>,
         op: Option<char>,
         value: Value,
-    ) -> Result<(), VimError> {
-        let value = match op {
-            None => value,
-            Some(op) => {
-                let current = self
-                    .state
-                    .variable_store()
-                    .get(variable.scope, variable.name)
-                    .ok_or_else(|| VimError::UndefinedVariable(variable.written.into()))?;
-                // A List or a Dictionary.
-                let current =
-                    Value::from_variable(current).ok_or(VimError::WrongVariableType(op))?;
-                script_expr::assign_op(op, &current, &value)?
-            }
+    ) -> Result<Value, VimError> {
+        let Some(op) = op else {
+            return Ok(value);
         };
-        self.state
-            .variable_store_mut()
-            .set(variable.scope, variable.name, value.into_variable());
-        self.sync_leader_variable(variable);
-        Ok(())
+        let current = self
+            .state
+            .variable_store()
+            .get(variable.scope, variable.name)
+            .ok_or_else(|| VimError::UndefinedVariable(variable.written.into()))?;
+        // A List or a Dictionary.
+        let current = Value::from_variable(current).ok_or(VimError::WrongVariableType(op))?;
+        script_expr::assign_op(op, &current, &value)
     }
 
     /// The `:set` that `:let &name = value` amounts to, as Vim's
@@ -866,20 +1015,16 @@ impl super::VimEngine {
                 let error = VimError::NoSuchVariable(variable.written.into());
                 return show_config_errors(modifiers, [error], response);
             }
-            self.sync_leader_variable(variable);
+            self.sync_leader_variable(variable.scope, variable.name);
             rest = after.trim_start_matches([' ', '\t']);
         }
     }
 
-    /// Take the leader again when `variable` is `g:mapleader` or
-    /// `g:maplocalleader`.
-    fn sync_leader_variable(&mut self, variable: script_expr::Variable<'_>) {
-        if variable.scope == VarScope::Global {
-            match variable.name {
-                "mapleader" => self.sync_leader(false),
-                "maplocalleader" => self.sync_leader(true),
-                _ => {}
-            }
+    /// Take the leader again when the variable `name` of `scope` is
+    /// `g:mapleader` or `g:maplocalleader`.
+    fn sync_leader_variable(&mut self, scope: VarScope, name: &str) {
+        if let Some(local) = leader_variable(scope, name) {
+            self.sync_leader(local);
         }
     }
 
@@ -902,6 +1047,267 @@ impl super::VimEngine {
         crate::execution::modifier_filter::apply_modifiers(&mut effects, modifiers);
         response.extend_effects(effects);
     }
+}
+
+/// A config command the engine found nothing wrong with, before the host
+/// judges it.
+struct Checked {
+    /// Its modifiers and those in force in its file.
+    modifiers: ModifierFlags,
+    /// The command the host judges and the engine runs.
+    command: ExCommand,
+    /// How it runs.
+    run: Run,
+    /// What running it reaches.
+    reach: Reach,
+}
+
+/// How a checked command runs.
+enum Run {
+    /// As the command line runs it.
+    Command,
+    /// `:echo`, whose argument is evaluated.
+    Echo,
+    /// `:let` of a variable, with the value it takes and, for a leader
+    /// variable, whether it is the local one and its text.
+    Variable {
+        scope: VarScope,
+        name: String,
+        value: Value,
+        leader: Option<(bool, String)>,
+    },
+    /// `:let` of the option `name`, which vim-core lacks: nothing is kept.
+    Nothing(String),
+    /// `:unlet`, with the text after its name.
+    Unlet(String),
+    /// `:source`.
+    Source,
+}
+
+impl Checked {
+    fn new(modifiers: ModifierFlags, command: ExCommand, run: Run) -> Self {
+        let reach = match &run {
+            Run::Variable { leader: None, .. } => Reach::VARIABLE,
+            Run::Variable { .. } => Reach::VARIABLE | Reach::LEADER,
+            Run::Nothing(name) => option_reach(name),
+            Run::Unlet(argument) => unlet_reach(argument),
+            Run::Command | Run::Echo | Run::Source => command.reach(),
+        };
+        Self {
+            modifiers,
+            command,
+            run,
+            reach,
+        }
+    }
+
+    /// The options it sets or shows.
+    fn option_targets(&self) -> Vec<OptionTarget> {
+        match (&self.run, &self.command) {
+            (Run::Nothing(name), _) => vec![option_target(name)],
+            (
+                Run::Command,
+                ExCommand::Set { assignments }
+                | ExCommand::SetLocal { assignments }
+                | ExCommand::SetGlobal { assignments },
+            ) => assignments
+                .iter()
+                .filter_map(SetAssignment::option)
+                .map(option_target)
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// What it does, for the host.
+    fn action<'a>(
+        &'a self,
+        options: &'a [OptionTarget],
+        map: Option<&'a MapDefinition<'a>>,
+    ) -> ConfigAction<'a> {
+        match &self.run {
+            Run::Command => command_action(&self.command, self.reach, options, map),
+            Run::Echo => ConfigAction::Message,
+            Run::Variable {
+                leader: Some((local, value)),
+                ..
+            } => ConfigAction::Leader {
+                local: *local,
+                value,
+            },
+            Run::Variable { .. } | Run::Unlet(_) => ConfigAction::Other,
+            Run::Nothing(_) => ConfigAction::SetOptions { options },
+            Run::Source => match &self.command {
+                ExCommand::Source { path } => ConfigAction::Source {
+                    path: path.as_deref(),
+                },
+                _ => ConfigAction::Other,
+            },
+        }
+    }
+}
+
+/// What the command line's `command`, which reaches `reach`, does, for a
+/// host judging it in a config.
+fn command_action<'a>(
+    command: &'a ExCommand,
+    reach: Reach,
+    options: &'a [OptionTarget],
+    map: Option<&'a MapDefinition<'a>>,
+) -> ConfigAction<'a> {
+    match command {
+        ExCommand::Set { .. } | ExCommand::SetLocal { .. } | ExCommand::SetGlobal { .. } => {
+            ConfigAction::SetOptions { options }
+        }
+        ExCommand::Map { .. } => map.map_or(ConfigAction::Message, ConfigAction::Map),
+        ExCommand::Unmap {
+            mode_prefix, lhs, ..
+        } => ConfigAction::Unmap {
+            modes: *mode_prefix,
+            lhs,
+        },
+        ExCommand::MapClear { mode, .. } => ConfigAction::MapClear { modes: *mode },
+        ExCommand::Abbreviate {
+            trigger: Some(trigger),
+            replacement: Some(replacement),
+            mode,
+            ..
+        } => ConfigAction::Abbreviate {
+            mode: *mode,
+            trigger,
+            replacement,
+        },
+        ExCommand::Unabbreviate { trigger, mode } => ConfigAction::Unabbreviate {
+            mode: *mode,
+            trigger,
+        },
+        ExCommand::AbClear { mode, .. } => ConfigAction::AbClear { mode: *mode },
+        ExCommand::LetLeader { local, value } => ConfigAction::Leader {
+            local: *local,
+            value,
+        },
+        ExCommand::SetHandler { .. } => ConfigAction::Handler,
+        ExCommand::Abbreviate { .. }
+        | ExCommand::Echo { .. }
+        | ExCommand::NoHighlight
+        | ExCommand::Registers { .. }
+        | ExCommand::Messages { .. }
+        | ExCommand::ActionList { .. } => ConfigAction::Message,
+        ExCommand::Source { path } => ConfigAction::Source {
+            path: path.as_deref(),
+        },
+        ExCommand::Custom { command } => custom_action(command),
+        _ if reach.contains(Reach::HOST) => ConfigAction::Host,
+        _ => ConfigAction::Other,
+    }
+}
+
+/// The mapping `command` defines, if it defines one.
+fn map_definition(command: &ExCommand) -> Option<MapDefinition<'_>> {
+    match command {
+        ExCommand::Map {
+            mode_prefix,
+            lhs,
+            rhs: Some(rhs),
+            kind,
+            flags,
+            ..
+        } => Some(MapDefinition {
+            modes: *mode_prefix,
+            lhs,
+            rhs,
+            kind: *kind,
+            flags: *flags,
+        }),
+        _ => None,
+    }
+}
+
+/// The parts of a command the engine leaves to the host: its name, in
+/// full for one of Vim's, the text after it, and whether it is Vim's.
+fn custom_action(command: &str) -> ConfigAction<'_> {
+    let command = command.trim_start_matches([' ', '\t', ':']);
+    if let Some((_, name, args)) = vim_command_parts(command) {
+        return ConfigAction::Custom {
+            name,
+            args: args.trim_matches([' ', '\t']),
+            vim_command: true,
+        };
+    }
+    let end = command
+        .find(|c: char| !c.is_alphanumeric() && c != '_')
+        .unwrap_or(command.len());
+    let (name, args) = command.split_at(end);
+    ConfigAction::Custom {
+        name,
+        args: args.trim_matches([' ', '\t']),
+        vim_command: false,
+    }
+}
+
+/// What a host sees of the option `written` names, with any `no` or `inv`
+/// before it.
+fn option_target(written: &str) -> OptionTarget {
+    let named = crate::grammar::types::option_target(written);
+    OptionTarget {
+        name: named.full.unwrap_or(written).into(),
+        known: named.known,
+        secure: named.secure,
+    }
+}
+
+/// What setting the option `name` reaches.
+fn option_reach(name: &str) -> Reach {
+    if option_target(name).secure {
+        Reach::OPTIONS | Reach::SECURE_OPTION
+    } else {
+        Reach::OPTIONS
+    }
+}
+
+/// Whether the variable `name` of `scope` holds a leader, and whether the
+/// local one.
+fn leader_variable(scope: VarScope, name: &str) -> Option<bool> {
+    match (scope, name) {
+        (VarScope::Global, "mapleader") => Some(false),
+        (VarScope::Global, "maplocalleader") => Some(true),
+        _ => None,
+    }
+}
+
+/// What `:unlet` with the text `argument` after its name reaches.
+fn unlet_reach(argument: &str) -> Reach {
+    let names = argument.strip_prefix('!').unwrap_or(argument);
+    let leader = names.split([' ', '\t']).any(|name| {
+        script_expr::variable_name(name)
+            .is_some_and(|(variable, _)| leader_variable(variable.scope, variable.name).is_some())
+    });
+    if leader {
+        Reach::VARIABLE | Reach::LEADER
+    } else {
+        Reach::VARIABLE
+    }
+}
+
+/// `:unlet` before the host judges it: E471 without a name.
+fn check_config_unlet(
+    modifiers: ModifierFlags,
+    argument: &str,
+    response: &mut Response,
+) -> Option<Checked> {
+    let names = argument.strip_prefix('!').unwrap_or(argument);
+    if names.trim_matches([' ', '\t']).is_empty() {
+        show_config_errors(modifiers, [VimError::ArgumentRequired], response);
+        return None;
+    }
+    let command = ExCommand::Custom {
+        command: CompactString::from(format!("unlet{argument}")),
+    };
+    Some(Checked::new(
+        modifiers,
+        command,
+        Run::Unlet(argument.to_owned()),
+    ))
 }
 
 /// The Vim command that `parsed` runs when it is one the engine leaves to
@@ -1031,6 +1437,120 @@ impl Document for NoBuffer {
     }
 }
 
+/// A record of each command a config runs, for the tests of the seam
+/// between the engine and [`ConfigHost::judge`].
+#[cfg(test)]
+pub(super) mod seam {
+    use super::super::{Response, VimEngine};
+    use crate::execution::config::Verdict;
+    use crate::grammar::types::ExCommand;
+    use std::cell::RefCell;
+
+    /// One command of a config line.
+    #[derive(Debug)]
+    pub(crate) struct Entry {
+        /// The command as written.
+        pub(crate) text: String,
+        /// What the host judged and decided.
+        pub(crate) judged: Vec<(ExCommand, Verdict)>,
+        /// What the engine ran.
+        pub(crate) executed: Vec<ExCommand>,
+        /// The engine's state changed.
+        pub(crate) changed: bool,
+        /// The host requests it made.
+        pub(crate) requests: usize,
+    }
+
+    thread_local! {
+        static LOG: RefCell<Option<Vec<Entry>>> = const { RefCell::new(None) };
+    }
+
+    /// Record the commands configs run on this thread from now on.
+    pub(crate) fn start() {
+        LOG.with(|log| *log.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// Whether [`start`] was called and [`take`] not since.
+    pub(crate) fn recording() -> bool {
+        LOG.with(|log| log.borrow().is_some())
+    }
+
+    /// The commands recorded since [`start`], which stops recording.
+    pub(crate) fn take() -> Vec<Entry> {
+        LOG.with(|log| log.borrow_mut().take()).unwrap_or_default()
+    }
+
+    fn with_last(f: impl FnOnce(&mut Entry)) {
+        LOG.with(|log| {
+            if let Some(entry) = log.borrow_mut().as_mut().and_then(|log| log.last_mut()) {
+                f(entry);
+            }
+        });
+    }
+
+    /// The state before the command `text` runs.
+    pub(crate) fn begin(engine: &VimEngine, text: &str, response: &Response) -> (String, usize) {
+        LOG.with(|log| {
+            if let Some(log) = log.borrow_mut().as_mut() {
+                log.push(Entry {
+                    text: text.to_owned(),
+                    judged: Vec::new(),
+                    executed: Vec::new(),
+                    changed: false,
+                    requests: 0,
+                });
+            }
+        });
+        (engine.config_fingerprint(), response.host_requests.len())
+    }
+
+    pub(crate) fn end(engine: &VimEngine, before: (String, usize), response: &Response) {
+        let changed = engine.config_fingerprint() != before.0;
+        let requests = response.host_requests.len() - before.1;
+        with_last(|entry| {
+            entry.changed = changed;
+            entry.requests = requests;
+        });
+    }
+
+    pub(crate) fn judged(command: &ExCommand, verdict: &Verdict) {
+        with_last(|entry| entry.judged.push((command.clone(), verdict.clone())));
+    }
+
+    pub(crate) fn executed(command: &ExCommand) {
+        with_last(|entry| entry.executed.push(command.clone()));
+    }
+}
+
+#[cfg(test)]
+impl super::VimEngine {
+    /// Run `text` as a config without a name that allows every command.
+    pub(crate) fn source_config_str(&mut self, text: &str) -> Response {
+        self.source_config_named("", text, 1)
+    }
+
+    /// What a config command can change in the engine, as text.
+    fn config_fingerprint(&self) -> String {
+        if !seam::recording() {
+            return String::new();
+        }
+        format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
+            self.options,
+            self.buffer_overrides,
+            self.window_overrides,
+            self.keymap,
+            self.abbrev_table,
+            self.handler_map,
+            self.state.variable_store(),
+            self.langmap_table,
+            self.host.source_depths,
+            self.state.message_history().len(),
+            self.state.jump_list().len(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::effects::Effect;
@@ -1118,6 +1638,79 @@ mod tests {
         assert_eq!(session.text(), "x the ");
     }
 
+    // ── trust tags ────────────────────────────────────────────────
+
+    /// A host whose files are `(name, text, tag)`.
+    struct TaggedFiles(&'static [(&'static str, &'static str, u32)]);
+
+    impl crate::execution::ConfigHost for TaggedFiles {
+        fn source(
+            &mut self,
+            request: &crate::execution::SourceRequest<'_>,
+        ) -> crate::execution::SourceReply {
+            let found = self.0.iter().find(|(name, ..)| Some(*name) == request.path);
+            match found {
+                Some(&(name, text, tag)) => crate::execution::SourceReply::Text {
+                    name: name.to_owned(),
+                    text: text.to_owned(),
+                    trust: crate::execution::TrustTag::new(tag),
+                },
+                None => crate::execution::SourceReply::Refuse(format!("E484: {request:?}")),
+            }
+        }
+    }
+
+    /// The tag of the Normal mapping of `lhs`.
+    fn mapping_tag(engine: &VimEngine, lhs: char) -> Option<u32> {
+        use crate::keymap::KeyEvent;
+        use crate::primitives::Mode;
+        let entry = engine
+            .keymap()
+            .get_user_mapping(KeyEvent::char(lhs), Mode::Normal)?;
+        Some(entry.trust().get())
+    }
+
+    #[test]
+    fn mappings_and_abbreviations_keep_the_tag_of_their_file() {
+        use crate::execution::{ConfigText, TrustTag};
+        let mut engine = VimEngine::new();
+        let mut host = TaggedFiles(&[("b.vim", "nnoremap b x\ncabbrev bb x\n", 3)]);
+        let text = "nnoremap a x\niabbrev aa x\nsource b.vim\n";
+        let config = ConfigText::new("a.vim", text).with_trust(TrustTag::new(2));
+        let response = engine.source_script(config, &mut host).response;
+        assert_eq!(errors(&response), Vec::<String>::new());
+        assert_eq!(mapping_tag(&engine, 'a'), Some(2));
+        assert_eq!(mapping_tag(&engine, 'b'), Some(3));
+        let tag = |trigger: &str| engine.abbreviations().get(trigger).map(|e| e.trust.get());
+        assert_eq!(tag("aa"), Some(2));
+        assert_eq!(tag("bb"), Some(3));
+    }
+
+    #[test]
+    fn typed_and_host_mappings_get_the_default_tag() {
+        use crate::execution::{ConfigText, HostMapping, TrustTag};
+        use crate::keymap::MappingMode;
+        let mut session = HostSession::new("x");
+        let config = ConfigText::new("a.vim", "nnoremap a x\n").with_trust(TrustTag::new(2));
+        let _ = session.source_script(config, &mut TaggedFiles(&[]));
+        type_keys(&mut session, ":nnoremap a y<CR>:iabbrev aa y<CR>");
+        session.engine_mut().register_host_mappings(
+            "ext",
+            &[HostMapping {
+                modes: smallvec::smallvec![MappingMode::Normal],
+                lhs: "h".into(),
+                rhs: "x".into(),
+                recursive: false,
+                silent: false,
+                description: None,
+            }],
+        );
+        assert_eq!(mapping_tag(session.engine(), 'a'), Some(0));
+        assert_eq!(mapping_tag(session.engine(), 'h'), Some(0));
+        let entry = session.engine().abbrev_table.get("aa");
+        assert_eq!(entry.map(|e| e.trust), Some(TrustTag::default()));
+    }
+
     // ── reset_config_state ────────────────────────────────────────
 
     #[test]
@@ -1140,7 +1733,7 @@ mod tests {
                       inoremap i j\ncnoremap k l\niabbrev m n\ncabbrev o p\n\
                       abbreviate q r\nsethandler <C-a> n:ide\nlet mapleader = \",\"\n\
                       let maplocalleader = \";\"\nset tw=33\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(errors(&response), Vec::<String>::new());
         assert!(!engine.handler_map().is_empty());
 
@@ -1223,7 +1816,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "filetype plugin indent on | set ic\necho \"a|b\" | set tw=33\n\
                       nnoremap x y | set et\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert!(engine.options().expandtab());
@@ -1244,7 +1837,7 @@ mod tests {
     #[test]
     fn source_config_clears_mappings_with_mapclear() {
         let mut engine = VimEngine::new();
-        engine.source_config_text("nnoremap x y\nnmapclear\n");
+        engine.source_config_str("nnoremap x y\nnmapclear\n");
         assert!(!engine.could_start_mapping(crate::keymap::KeyEvent::char('x')));
     }
 
@@ -1256,7 +1849,7 @@ mod tests {
             .buffer_overrides
             .set(OptionId::TextWidth, OptionValue::Unsigned(20));
         engine.rebuild_resolved_cache();
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
         (
             engine.options().textwidth(),
@@ -1283,7 +1876,7 @@ mod tests {
         );
         assert_eq!(textwidths_after("let &g:tw = 10\n"), (10, twenty));
         let mut engine = VimEngine::new();
-        engine.source_config_text("setglobal ic\n");
+        engine.source_config_str("setglobal ic\n");
         assert!(engine.options().ignorecase());
     }
 
@@ -1292,7 +1885,7 @@ mod tests {
     #[test]
     fn source_config_refuses_commands_that_need_a_buffer() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set ic | %d | set tw=33\nnormal dd\n");
+        let response = engine.source_config_str("set ic | %d | set tw=33\nnormal dd\n");
 
         assert!(engine.options().ignorecase());
         assert_eq!(
@@ -1312,14 +1905,14 @@ mod tests {
     #[test]
     fn source_config_silent_bang_hides_errors() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("silent! normal dd\nsilent! set nosuchoption\n");
+        let response = engine.source_config_str("silent! normal dd\nsilent! set nosuchoption\n");
         assert!(errors(&response).is_empty());
     }
 
     #[test]
     fn source_config_reports_an_error_and_goes_on() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set nosuchoption\nset tw=33\n");
+        let response = engine.source_config_str("set nosuchoption\nset tw=33\n");
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(errors(&response).len(), 1);
     }
@@ -1330,7 +1923,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "set tw=80 | set tw?\niabbrev teh the\niabbrev\nnoh\necho hi\n\
                       registers\nmessages\nnormal x\nclearjumps\nnnoremap x y\nsethandler <C-a> n:vim\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         for effect in response.effects() {
             assert!(
                 matches!(
@@ -1345,7 +1938,7 @@ mod tests {
     #[test]
     fn source_config_returns_every_message() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set tw=80 | set tw?\necho \"hi\"\n");
+        let response = engine.source_config_str("set tw=80 | set tw?\necho \"hi\"\n");
         assert_eq!(
             infos(&response),
             ["textwidth=80", "hi", "Config file sourced"]
@@ -1357,7 +1950,7 @@ mod tests {
         // ex_echo(): the values joined by a space.
         let mut engine = VimEngine::new();
         let response =
-            engine.source_config_text("set tw=33\necho \"tw\" &tw has('eval') 1.0 . 'x'\n");
+            engine.source_config_str("set tw=33\necho \"tw\" &tw has('eval') 1.0 . 'x'\n");
         assert_eq!(infos(&response), ["tw 33 1 1.0x", "Config file sourced"]);
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     }
@@ -1367,7 +1960,7 @@ mod tests {
         // Under :silent! emsg() counts no error, so the line goes on.
         let mut engine = VimEngine::new();
         let response = engine
-            .source_config_text("echo \"a\" nosuch | set ic\nsilent! echo nosuch | set tw=33\n");
+            .source_config_str("echo \"a\" nosuch | set ic\nsilent! echo nosuch | set tw=33\n");
         assert!(!engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(infos(&response), ["a", "Config file sourced"]);
@@ -1379,7 +1972,7 @@ mod tests {
     #[test]
     fn source_config_sends_host_commands_to_the_host() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("write\nfiletype plugin on\npanelmap x y\n");
+        let response = engine.source_config_str("write\nfiletype plugin on\npanelmap x y\n");
         let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
         assert_eq!(
             kinds,
@@ -1412,7 +2005,7 @@ mod tests {
         use crate::execution::HostResult;
 
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("source a.vim\nsource b.vim\nsource c.vim\n");
+        let response = engine.source_config_str("source a.vim\nsource b.vim\nsource c.vim\n");
         let ids: Vec<_> = response.host_requests().iter().map(|r| r.id()).collect();
         assert_eq!(ids.len(), 3);
         assert!(ids
@@ -1436,7 +2029,7 @@ mod tests {
         // `skipwhite()` skips no other white space, so after a no-break
         // space `"` starts no comment and the line is a command.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("\u{a0}\" x\n \t\" y\n");
+        let response = engine.source_config_str("\u{a0}\" x\n \t\" y\n");
         let kinds: Vec<_> = response.host_requests().iter().map(|r| r.kind()).collect();
         assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
     }
@@ -1450,7 +2043,7 @@ mod tests {
     #[test]
     fn source_config_reads_a_dos_file() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set tw=33\r\nset ic\r\n");
+        let response = engine.source_config_str("set tw=33\r\nset ic\r\n");
         assert_eq!(engine.options().textwidth(), 33);
         assert!(engine.options().ignorecase());
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
@@ -1462,7 +2055,7 @@ mod tests {
         // and the file is read as Unix from there, so the CR of the next
         // line stays in its value.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("set ic\r\nset tw=33\nset tw=44\r\n");
+        let response = engine.source_config_str("set ic\r\nset tw=33\nset tw=44\r\n");
         assert!(engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(
@@ -1486,7 +2079,7 @@ mod tests {
     fn source_config_does_not_run_a_function_body() {
         let config = "function! Foo()\n  set ic\n  function! Bar()\n  endfunction\n  set tw=1\nendfunction\nset tw=33\n";
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(!engine.options().ignorecase());
         assert_eq!(engine.options().textwidth(), 33);
         assert_eq!(
@@ -1500,7 +2093,7 @@ mod tests {
     fn source_config_applies_set_options() {
         let mut engine = VimEngine::new();
         let config = "set tabstop=8\nset expandtab\nset noautoindent\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
 
         assert_eq!(engine.options().tabstop(), 8);
         assert!(engine.options().expandtab());
@@ -1512,7 +2105,7 @@ mod tests {
     fn source_config_skips_comments_and_empty_lines() {
         let mut engine = VimEngine::new();
         let config = "\" This is a comment\n\n  \" Another comment\nset tabstop=2\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert_eq!(engine.options().tabstop(), 2);
     }
@@ -1521,7 +2114,7 @@ mod tests {
     fn source_config_skips_unparseable_lines() {
         let mut engine = VimEngine::new();
         let config = "not_a_valid_command\nset tabstop=4\ngibberish!!!!\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert_eq!(engine.options().tabstop(), 4);
     }
@@ -1530,7 +2123,7 @@ mod tests {
     fn source_config_applies_mappings() {
         let mut engine = VimEngine::new();
         let config = "nnoremap jk <Esc>\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
 
         // Mapping was applied (we can verify it indirectly by checking
         // that could_start_mapping returns true for 'j')
@@ -1546,7 +2139,7 @@ mod tests {
         let default_leader = engine.leader();
 
         let config = "let mapleader = \" \"\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         let new_leader = engine.leader();
         assert_ne!(default_leader, new_leader);
@@ -1557,7 +2150,7 @@ mod tests {
     fn source_config_leader_before_mapping() {
         let mut engine = VimEngine::new();
         let config = "let mapleader = \",\"\nnnoremap <Leader>w :save<CR>\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // The mapping should be registered under comma (the leader)
         let comma = crate::keymap::KeyEvent::char(',');
@@ -1588,16 +2181,16 @@ mod tests {
         use crate::keymap::KeyEvent;
 
         let mut engine = VimEngine::new();
-        engine.source_config_text("let mapleader = ','\nlet mapleader = ''\n");
+        engine.source_config_str("let mapleader = ','\nlet mapleader = ''\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
         // `<Space>` in a value is seven keys; only "\<Space>" is Space.
-        engine.source_config_text("let mapleader = '<Space>'\n");
+        engine.source_config_str("let mapleader = '<Space>'\n");
         assert_eq!(engine.leader_keys().len(), 7);
-        engine.source_config_text("let mapleader = \"\\<C-W>\\t\"\nlet maplocalleader = ','\n");
+        engine.source_config_str("let mapleader = \"\\<C-W>\\t\"\nlet maplocalleader = ','\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::ctrl('w'), KeyEvent::tab()]);
         assert_eq!(engine.local_leader_keys(), [KeyEvent::char(',')]);
         let response =
-            engine.source_config_text("echo g:maplocalleader exists('g:mapleader') g:mapleader\n");
+            engine.source_config_str("echo g:maplocalleader exists('g:mapleader') g:mapleader\n");
         assert_eq!(infos(&response)[0], ", 1 \x17\t");
     }
 
@@ -1605,7 +2198,7 @@ mod tests {
     fn source_config_keeps_the_leader_when_its_expression_fails() {
         let mut engine = VimEngine::new();
         let response =
-            engine.source_config_text("let mapleader = nosuch | set ic\nlet mapleader = \\\n");
+            engine.source_config_str("let mapleader = nosuch | set ic\nlet mapleader = \\\n");
         assert_eq!(engine.leader(), crate::keymap::KeyEvent::char('\\'));
         assert!(!engine.options().ignorecase());
         assert_eq!(
@@ -1636,7 +2229,7 @@ mod tests {
     fn source_config_let_assigns_variables() {
         // ex_let(): a plain name is global at the script level.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text(
+        let response = engine.source_config_str(
             "let g:x = 1 | let y = 'a' | let b:z = 2.5\necho g:x y b:z x exists('g:y')\n",
         );
         assert_eq!(infos(&response)[0], "1 a 2.5 1 1");
@@ -1648,7 +2241,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "let x = 1 | let x += 2 | let x *= 3 | let x -= 1 | let x /= 2 | let x %= 3\n\
                       let s = 'a' | let s .= 'b' | let s ..= 1\nlet n = 5 | let n .= 1\necho x s n\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(infos(&response)[0], "1 ab1 51");
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
     }
@@ -1658,7 +2251,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "let nosuch += 1 | set ic\nlet x = 1 | let x .= 1.5 | set ic\n\
                       let x = nosuch | set ic\nlet s:x = 1\nlet [a, b] = [1, 2]\nlet x\nlet $X = 1\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(!engine.options().ignorecase());
         assert_eq!(
             errors(&response),
@@ -1682,14 +2275,14 @@ mod tests {
         let config =
             "let &tw = 33 | let &tw += 2\nlet &ic = 1\nlet &ww = 'b,s' | let &ww .= ',h'\n\
                       let &l:sw = 3 | let &g:ts = 6\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
         assert_eq!(engine.options().textwidth(), 35);
         assert!(engine.options().ignorecase());
         assert_eq!(engine.options().whichwrap(), "b,s,h");
         assert_eq!(engine.options().shiftwidth(), 3);
         assert_eq!(engine.options().tabstop(), 6);
-        engine.source_config_text("let &ic = 0\n");
+        engine.source_config_str("let &ic = 0\n");
         assert!(!engine.options().ignorecase());
     }
 
@@ -1697,7 +2290,7 @@ mod tests {
     fn source_config_let_option_keeps_backslashes_and_blanks() {
         // ex_let_option() sets the value itself, without :set's escapes.
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("let &isk = '@,\\,4 8' | let &isk .= '\\'\n");
+        let response = engine.source_config_str("let &isk = '@,\\,4 8' | let &isk .= '\\'\n");
         assert!(errors(&response).is_empty(), "{:?}", errors(&response));
         assert_eq!(engine.options().iskeyword(), "@,\\,4 8\\");
     }
@@ -1707,7 +2300,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config =
             "let &tw .= 1\nlet &ww += 1\nlet &nosuch = 1\nlet &tw = 1.5\nlet &ww = v:true\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(
             errors(&response),
             [
@@ -1729,7 +2322,7 @@ mod tests {
             "let &l:tw = 20 | let &l:et = 1\nset tw? et?\n",
         ] {
             let mut engine = VimEngine::new();
-            let response = engine.source_config_text(config);
+            let response = engine.source_config_str(config);
             assert!(errors(&response).is_empty(), "{:?}", errors(&response));
             assert_eq!(engine.options().textwidth(), 20, "{config:?}");
             assert!(engine.options().expandtab(), "{config:?}");
@@ -1743,7 +2336,7 @@ mod tests {
         // alone, where :set adds the argument.
         let mut engine = VimEngine::new();
         let config = "let &tw = -1\nlet &ts = 0\nlet &fo = 'tZ'\nlet &l:sw = -2\nlet &tw = 5\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(
             errors(&response),
             [
@@ -1763,7 +2356,7 @@ mod tests {
         let mut engine = VimEngine::new();
         let config = "let g:x = 1 | let y = 2 | unlet g:x y\necho exists('x') exists('y')\n\
                       unlet nosuch | set ic\nunlet! nosuch\nunlet\nunlet $X\nlet x = 1 | unlet x+1\n";
-        let response = engine.source_config_text(config);
+        let response = engine.source_config_str(config);
         assert_eq!(infos(&response)[0], "0 0");
         assert!(!engine.options().ignorecase());
         assert_eq!(
@@ -1782,12 +2375,12 @@ mod tests {
         use crate::keymap::KeyEvent;
 
         let mut engine = VimEngine::new();
-        engine.source_config_text("let g:mapleader = ',' | let mapleader .= ','\n");
+        engine.source_config_str("let g:mapleader = ',' | let mapleader .= ','\n");
         assert_eq!(
             engine.leader_keys(),
             [KeyEvent::char(','), KeyEvent::char(',')]
         );
-        engine.source_config_text("unlet mapleader\nlet maplocalleader = 1\n");
+        engine.source_config_str("unlet mapleader\nlet maplocalleader = 1\n");
         assert_eq!(engine.leader_keys(), [KeyEvent::char('\\')]);
         assert_eq!(engine.local_leader_keys(), [KeyEvent::char('1')]);
     }
@@ -1801,6 +2394,44 @@ mod tests {
         assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
     }
 
+    /// Vim applies them (ex_docmd.c `parse_command_modifiers()`); vim-core
+    /// has no meaning for them and runs the command.
+    #[test]
+    fn source_config_runs_a_command_after_a_modifier_only_a_config_takes() {
+        let mut engine = VimEngine::new();
+        let config = "verbose set tw=33\n3verbose set ic | noa set ts=3\nkeepmarks set sw=2\n\
+                      lefta set et\nrightbelow set ai\nunsilent echo 'x'\nsilent! verbose set nosuch\n";
+        let response = engine.source_config_str(config);
+        assert_eq!(errors(&response), Vec::<String>::new());
+        assert_eq!(infos(&response), ["x", "Config file sourced"]);
+        let options = engine.options();
+        assert_eq!(
+            (options.textwidth(), options.tabstop(), options.shiftwidth()),
+            (33, 3, 2)
+        );
+        assert!(options.ignorecase() && options.expandtab() && options.autoindent());
+    }
+
+    #[test]
+    fn source_config_still_refuses_a_lacking_command_after_such_a_modifier() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_str("verbose syntax on | set ic\nsandbox set tw=3\n");
+        let syntax = "E319: Sorry, the command is not available in this version: verbose syntax on";
+        let sandbox = "E319: Sorry, the command is not available in this version: sandbox set tw=3";
+        assert_eq!(errors(&response), [syntax, sandbox]);
+        assert!(!engine.options().ignorecase());
+    }
+
+    #[test]
+    fn a_typed_command_after_a_modifier_only_a_config_takes_still_goes_to_the_host() {
+        let mut session = HostSession::new("a");
+        type_keys(&mut session, ":verbose set tw=33");
+        let response = session.process_key_host(crate::keymap::KeyEvent::enter());
+        let kinds: Vec<_> = response.host_requests.iter().map(|r| r.kind()).collect();
+        assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
+        assert_eq!(session.options().textwidth(), 0);
+    }
+
     #[test]
     fn a_typed_let_still_goes_to_the_host() {
         let mut session = HostSession::new("a");
@@ -1812,7 +2443,7 @@ mod tests {
     #[test]
     fn source_config_shows_sourced_message() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("");
+        let response = engine.source_config_str("");
 
         // Even with empty config, should show "Config file sourced"
         let has_message = response.effects.iter().any(|e| {
@@ -1829,7 +2460,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-a> i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine
@@ -1852,7 +2483,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-a> n:vim i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             !engine
@@ -1874,7 +2505,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-c> n-v:ide i:vim\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine
@@ -1902,7 +2533,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-v> a:host\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         for mm in MappingMode::ALL {
             assert!(
@@ -1922,7 +2553,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "sethandler <C-a> n:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Process Ctrl-A in Normal mode — should be ignored (host-handled)
         let doc = SimpleDocument::new("hello");
@@ -1944,7 +2575,7 @@ mod tests {
         let mut engine = VimEngine::new();
         // Set Ctrl-A to Vim in Normal, Host in Insert
         let config = "sethandler <C-a> n:vim i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Process Ctrl-A in Normal mode — should be consumed (Vim handles it)
         let doc = SimpleDocument::new("hello");
@@ -1963,7 +2594,7 @@ mod tests {
 
         let mut engine = VimEngine::new();
         let config = "seth <C-a> i:ide\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine
@@ -1976,7 +2607,7 @@ mod tests {
     #[test]
     fn source_config_sethandler_invalid_handler_is_reported() {
         let mut engine = VimEngine::new();
-        let response = engine.source_config_text("sethandler <C-a> n:banana\n");
+        let response = engine.source_config_str("sethandler <C-a> n:banana\n");
 
         assert!(engine.handler_map().is_empty());
         assert_eq!(errors(&response).len(), 1);
@@ -1987,7 +2618,7 @@ mod tests {
         let mut engine = VimEngine::new();
         // No key specified — global default, currently a no-op
         let config = "sethandler n:vim\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Should not error, handler map stays empty
         assert!(engine.handler_map().is_empty());
@@ -2005,7 +2636,7 @@ mod tests {
         let mut engine = VimEngine::new();
         // Semicolon format: й maps to j, ц maps to k
         let config = "set langmap=йц;jk\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         // Verify the langmap table was populated
         assert!(
@@ -2067,14 +2698,14 @@ mod tests {
         assert!(engine.options().langremap());
 
         let config = "set nolangremap\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
         assert!(
             !engine.options().langremap(),
             "langremap should be false after :set nolangremap"
         );
 
         let config2 = "set langremap\n";
-        engine.source_config_text(config2);
+        engine.source_config_str(config2);
         assert!(
             engine.options().langremap(),
             "langremap should be true after :set langremap"
@@ -2088,7 +2719,7 @@ mod tests {
         engine.key_interest_dirty = false;
 
         let config = "set langmap=ab\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
 
         assert!(
             engine.key_interest_dirty,
@@ -2101,12 +2732,12 @@ mod tests {
         let mut engine = VimEngine::new();
         // First set a non-empty langmap
         let config = "set langmap=йц;jk\n";
-        engine.source_config_text(config);
+        engine.source_config_str(config);
         assert!(!engine.langmap_table.is_empty());
 
         // Now clear it
         let config2 = "set langmap=\n";
-        engine.source_config_text(config2);
+        engine.source_config_str(config2);
         assert!(
             engine.langmap_table.is_empty(),
             "langmap table should be empty after :set langmap="

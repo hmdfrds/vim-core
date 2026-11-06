@@ -37,6 +37,8 @@ mod providers;
 mod public_api;
 mod select;
 mod source;
+#[cfg(test)]
+mod source_seam_tests;
 mod substitute_confirm;
 mod undo;
 mod would_handle;

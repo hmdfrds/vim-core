@@ -14,7 +14,9 @@ use crate::effects::{Effect, Effects};
 use crate::execution::executor_ex;
 use crate::execution::{InputContext, Validated};
 use crate::grammar::Command;
+use crate::keymap::MappingEntry;
 use crate::primitives::Direction;
+use crate::primitives::TrustTag;
 use crate::primitives::{Mode, SearchDirection};
 use crate::state::VimState;
 
@@ -56,10 +58,12 @@ impl VimEngine {
     /// options, mappings, abbreviations, handlers, the leader, cleared
     /// histories, undo navigation and multi-cursor commands. Returns the
     /// effects that produces, in the order they follow the command's own.
+    /// The mappings and abbreviations it defines keep `trust`.
     pub(super) fn apply_ex_output(
         &mut self,
         output: &mut executor_ex::ExExecutionOutput,
         doc_text: &str,
+        trust: TrustTag,
     ) -> Effects {
         let mut effects = if output.set_commands.is_empty() {
             Effects::new()
@@ -75,10 +79,10 @@ impl VimEngine {
             effects
         };
         for change in &output.mapping_changes {
-            effects.extend(self.apply_mapping_change(change));
+            effects.extend(self.apply_mapping_change(change, trust));
         }
         for change in &output.abbrev_changes {
-            effects.extend(self.apply_abbrev_change(change));
+            effects.extend(self.apply_abbrev_change(change, trust));
         }
         for change in &output.handler_changes {
             self.apply_handler_change(change);
@@ -467,7 +471,11 @@ impl VimEngine {
     /// Parses the raw notation strings with access to `self.keymap` so that
     /// `<Action>(name)` and `<Plug>(name)` can be resolved against the
     /// keymap's name registries. Returns the error the change gives.
-    pub(super) fn apply_mapping_change(&mut self, change: &executor_ex::MappingChange) -> Effects {
+    pub(super) fn apply_mapping_change(
+        &mut self,
+        change: &executor_ex::MappingChange,
+        trust: TrustTag,
+    ) -> Effects {
         match change {
             executor_ex::MappingChange::Define {
                 modes,
@@ -499,23 +507,17 @@ impl VimEngine {
                     );
                     (rhs, None)
                 };
+                let entry =
+                    MappingEntry::with_flags(rhs_seq, *kind, flags, expr_text).with_trust(trust);
                 for &mode in modes {
                     self.keymap.take_visual_modes(mode, &lhs_seq, *buffer);
+                    self.typeahead.buffer.clear();
                     if *buffer {
-                        self.typeahead.buffer.clear();
-                        self.keymap.map_buffer_with_expr(
-                            mode,
-                            &lhs_seq,
-                            rhs_seq.clone(),
-                            *kind,
-                            flags,
-                            expr_text.clone(),
-                        );
-                        self.key_interest_dirty = true;
+                        self.keymap.map_buffer_entry(mode, &lhs_seq, entry.clone());
                     } else {
-                        let rhs = rhs_seq.clone();
-                        self.map_with_expr(mode, &lhs_seq, rhs, *kind, flags, expr_text.clone());
+                        self.keymap.map_entry(mode, &lhs_seq, entry.clone());
                     }
+                    self.key_interest_dirty = true;
                 }
             }
             executor_ex::MappingChange::Remove {
@@ -616,7 +618,11 @@ impl VimEngine {
     ///
     /// Returns effects (e.g. info messages for listing) that should be merged
     /// into the response.
-    pub(super) fn apply_abbrev_change(&mut self, change: &executor_ex::AbbrevChange) -> Effects {
+    pub(super) fn apply_abbrev_change(
+        &mut self,
+        change: &executor_ex::AbbrevChange,
+        trust: TrustTag,
+    ) -> Effects {
         use crate::commands::ex::abbreviation;
 
         match change {
@@ -635,11 +641,15 @@ impl VimEngine {
                     }
                 }
                 let is_keyword = |c: char| crate::primitives::is_word_char(c);
-                abbreviation::abbreviate(
+                let defined = abbreviation::Defined {
+                    mode: *mode,
+                    noremap: *noremap,
+                    trust,
+                };
+                abbreviation::abbreviate_tagged(
                     trigger.as_deref(),
                     replacement.as_deref(),
-                    *mode,
-                    *noremap,
+                    defined,
                     &mut self.abbrev_table,
                     &is_keyword,
                 )

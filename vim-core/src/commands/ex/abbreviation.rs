@@ -5,6 +5,7 @@ use compact_str::CompactString;
 use crate::effects::{Effects, InfoMessage};
 use crate::errors::VimError;
 use crate::primitives::abbreviation::{AbbrevEntry, AbbrevKind, AbbrevMode, AbbrevTable};
+use crate::primitives::TrustTag;
 
 /// Execute `:abbreviate`/`:iabbrev`/`:cabbrev`/`:noreabbrev` etc.
 ///
@@ -32,6 +33,36 @@ pub fn abbreviate(
     table: &mut AbbrevTable,
     is_keyword: &dyn Fn(char) -> bool,
 ) -> Result<Effects, VimError> {
+    let defined = Defined {
+        mode,
+        noremap,
+        trust: TrustTag::default(),
+    };
+    abbreviate_tagged(trigger, replacement, defined, table, is_keyword)
+}
+
+/// What an abbreviation is defined with besides its text.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Defined {
+    pub(crate) mode: AbbrevMode,
+    pub(crate) noremap: bool,
+    /// The tag of the config that defines it.
+    pub(crate) trust: TrustTag,
+}
+
+/// [`abbreviate`], keeping `defined.trust` with an abbreviation it defines.
+pub(crate) fn abbreviate_tagged(
+    trigger: Option<&str>,
+    replacement: Option<&str>,
+    defined: Defined,
+    table: &mut AbbrevTable,
+    is_keyword: &dyn Fn(char) -> bool,
+) -> Result<Effects, VimError> {
+    let Defined {
+        mode,
+        noremap,
+        trust,
+    } = defined;
     match (trigger, replacement) {
         (None, None) => {
             let entries = table.list(mode);
@@ -62,6 +93,7 @@ pub fn abbreviate(
                 mode,
                 kind,
                 noremap,
+                trust,
             });
             Ok(Effects::new())
         }

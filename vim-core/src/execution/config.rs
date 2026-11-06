@@ -2,9 +2,15 @@
 //!
 //! A host hands [`VimEngine::source_script`](crate::execution::VimEngine::source_script)
 //! a [`ConfigText`] and a [`ConfigHost`], which answers what the engine
-//! cannot know itself while the config runs.
+//! cannot know itself while the config runs, and judges each command
+//! before it runs.
 
 use crate::execution::{HostResponse, Response};
+pub use crate::grammar::types::Reach;
+use crate::grammar::types::{ExCommand, MapModePrefix, ModifierFlags};
+use crate::keymap::{MappingFlags, MappingKind};
+use crate::primitives::AbbrevMode;
+pub use crate::primitives::TrustTag;
 
 /// A config a host has read: its name, its text and a tag of the host's.
 #[non_exhaustive]
@@ -37,28 +43,25 @@ impl<'a> ConfigText<'a> {
     }
 }
 
-/// A tag a host puts on a config, such as how far it trusts the file.
-/// vim-core never reads it.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub struct TrustTag(pub u32);
-
-impl TrustTag {
-    /// The tag `n`.
-    #[must_use]
-    pub const fn new(n: u32) -> Self {
-        Self(n)
-    }
-
-    /// The number of the tag.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
-    }
-}
-
 /// What the host answers while a config runs.
 pub trait ConfigHost {
+    /// Decide about one command of the config, once the engine has parsed
+    /// it and found nothing wrong with it, before it changes anything.
+    /// The engine runs the very command it hands here.
+    ///
+    /// Asked once for each `|` command that would run, a joined
+    /// continuation line being one line. Not asked for comments, blank
+    /// lines, the lines of a heredoc or function body, the commands of
+    /// `:if`, `:while`, `:try` and `:finish`, which change nothing, or a
+    /// command the engine refuses itself: one that does not parse, a Vim
+    /// command vim-core lacks (E319), a `:source` too deep (E169) and one
+    /// that needs a buffer (E523).
+    ///
+    /// By default everything is allowed.
+    fn judge(&mut self, _command: &ConfigCommand<'_>) -> Verdict {
+        Verdict::Allow
+    }
+
     /// Whether `has({feature})` is 1 for a feature vim-core does not
     /// answer itself, such as one the host names after itself. The name
     /// comes in lowercase, as Vim compares feature names without case.
@@ -111,7 +114,8 @@ pub enum SourceReply {
     /// The host sourced the file itself; the message, if any, is shown.
     Done(Option<String>),
     /// The file is not sourced, and the text is shown as the error of the
-    /// `:source`, as written, such as `E484: Can't open file b.vim`.
+    /// `:source`, a [`VimError::Refused`](crate::errors::VimError::Refused)
+    /// as written, such as `E484: Can't open file b.vim`.
     Refuse(String),
     /// The `:source` becomes a
     /// [`HostRequest::ReadConfigFile`](crate::execution::HostRequest::ReadConfigFile)
@@ -130,10 +134,191 @@ pub struct HostConfigResponse {
     pub outcome: ConfigOutcome,
 }
 
-/// A host that answers nothing.
-pub(crate) struct NoHost;
+/// A host that allows every command and leaves each nested `:source` for
+/// later as a
+/// [`HostRequest::ReadConfigFile`](crate::execution::HostRequest::ReadConfigFile)
+/// request.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TrustAll;
 
-impl ConfigHost for NoHost {}
+impl TrustAll {
+    /// The host that allows everything.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl ConfigHost for TrustAll {}
+
+/// What [`ConfigHost::judge`] decides about a command.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verdict {
+    /// The command runs.
+    Allow,
+    /// The command does not run, and the text is shown as its error, a
+    /// [`VimError::Refused`](crate::errors::VimError::Refused) at its
+    /// line. As after any error, the commands after it on its line do not
+    /// run, nor, inside a block, those up to the end of the outermost
+    /// block; `:silent!` before it hides the error, and then they do.
+    Refuse(Box<str>),
+    /// The command does not run and nothing is shown: the host has taken
+    /// it, such as a line it runs itself.
+    Claim,
+}
+
+/// A command of a config, for [`ConfigHost::judge`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
+pub struct ConfigCommand<'a> {
+    /// The name of the config it is in.
+    pub file: &'a str,
+    /// The tag of that config.
+    pub trust: TrustTag,
+    /// How many files run with this one: the config the host passed is 1,
+    /// a file it sources 2, as in [`SourceRequest::depth`].
+    pub depth: u32,
+    /// Its line, the first of a continued line.
+    pub line: u32,
+    /// The command as written, its modifiers included, without the blanks
+    /// around it.
+    pub text: &'a str,
+    /// Its modifiers, with those of the `:source` that runs its file.
+    pub modifiers: ModifierFlags,
+    /// What it does.
+    pub action: ConfigAction<'a>,
+    /// What running it reaches. For a command the engine runs as the
+    /// command line does, the [`ExCommand::reach`] of `command`.
+    pub reach: Reach,
+    /// The command in full, as the engine runs it. A `:let` that assigns
+    /// a variable or an option vim-core lacks is the `Custom` command of
+    /// its text, and `:let &name` the `:set` it amounts to.
+    pub command: &'a ExCommand,
+}
+
+/// What a config command does, for [`ConfigHost::judge`]. A later version
+/// may add kinds; a host that allows by kind should refuse the others.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigAction<'a> {
+    /// Sets or shows options: `:set`, `:setlocal`, `:setglobal` and
+    /// `:let &name`.
+    #[non_exhaustive]
+    SetOptions {
+        /// The options it names, in order.
+        options: &'a [OptionTarget],
+    },
+    /// Defines a mapping.
+    Map(&'a MapDefinition<'a>),
+    /// Removes a mapping: `:unmap` and its mode forms.
+    #[non_exhaustive]
+    Unmap {
+        /// The modes.
+        modes: MapModePrefix,
+        /// The keys as written.
+        lhs: &'a str,
+    },
+    /// Removes the mappings of modes: `:mapclear` and its mode forms.
+    #[non_exhaustive]
+    MapClear {
+        /// The modes.
+        modes: MapModePrefix,
+    },
+    /// Defines an abbreviation.
+    #[non_exhaustive]
+    Abbreviate {
+        /// The modes.
+        mode: AbbrevMode,
+        /// The text typed.
+        trigger: &'a str,
+        /// The text it becomes, as written.
+        replacement: &'a str,
+    },
+    /// Removes an abbreviation.
+    #[non_exhaustive]
+    Unabbreviate {
+        /// The modes.
+        mode: AbbrevMode,
+        /// The text typed.
+        trigger: &'a str,
+    },
+    /// Removes the abbreviations of modes: `:abclear` and its mode forms.
+    #[non_exhaustive]
+    AbClear {
+        /// The modes.
+        mode: AbbrevMode,
+    },
+    /// Sets the leader: `:let mapleader` or `:let maplocalleader`.
+    #[non_exhaustive]
+    Leader {
+        /// The local leader.
+        local: bool,
+        /// The value it takes, or for the command line's `:let` form the
+        /// expression.
+        value: &'a str,
+    },
+    /// Changes the `:sethandler` table.
+    Handler,
+    /// Shows a message or a listing: `:echo`, `:nohlsearch`,
+    /// `:registers`, `:messages`, and the map and abbreviation commands
+    /// that list.
+    Message,
+    /// Sources a file.
+    #[non_exhaustive]
+    Source {
+        /// The file as typed, unexpanded; `None` for a bare `:source`.
+        path: Option<&'a str>,
+    },
+    /// Becomes a host request, such as `:write` or `:action`.
+    Host,
+    /// A command vim-core does not run itself, which becomes a
+    /// [`HostRequest::CustomExCommand`](crate::execution::HostRequest::CustomExCommand)
+    /// request: `:filetype`, or a command that is not Vim's.
+    #[non_exhaustive]
+    Custom {
+        /// Its name, in full for one of Vim's.
+        name: &'a str,
+        /// The text after the name.
+        args: &'a str,
+        /// It is one of Vim's commands.
+        vim_command: bool,
+    },
+    /// Something else the engine runs itself, such as `:let` of a
+    /// variable or `:unlet`.
+    Other,
+}
+
+/// An option a command names.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OptionTarget {
+    /// Its full name, for an option of vim-core or of Vim; otherwise the
+    /// name as written.
+    pub name: Box<str>,
+    /// vim-core has the option; setting one it lacks does nothing.
+    pub known: bool,
+    /// Vim keeps it from a modeline and the sandbox (`P_SECURE` in
+    /// optiondefs.h), such as 'langmap' or 'shell'.
+    pub secure: bool,
+}
+
+/// A mapping a config command defines.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MapDefinition<'a> {
+    /// The modes.
+    pub modes: MapModePrefix,
+    /// The keys as written.
+    pub lhs: &'a str,
+    /// The keys they become, as written.
+    pub rhs: &'a str,
+    /// Whether the keys it gives are mapped again.
+    pub kind: MappingKind,
+    /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`.
+    pub flags: MappingFlags,
+}
 
 /// What running a config came to.
 #[non_exhaustive]
@@ -141,6 +326,12 @@ impl ConfigHost for NoHost {}
 pub struct ConfigOutcome {
     /// The errors it showed; those `:silent!` hid are not counted.
     pub errors: u32,
+    /// The commands the host judged.
+    pub commands: u32,
+    /// Of those, the ones the host refused.
+    pub refused: u32,
+    /// Of those, the ones the host claimed.
+    pub claimed: u32,
 }
 
 /// What [`VimEngine::source_script`](crate::execution::VimEngine::source_script)

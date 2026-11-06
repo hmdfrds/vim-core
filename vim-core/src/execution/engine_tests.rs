@@ -1074,13 +1074,13 @@ fn action_forwards_selection_in_visual_mode() {
 fn action_notation_via_source_config() {
     let mut engine = VimEngine::new();
     let config = "nnoremap <leader>r <Action>(Rename)\n";
-    engine.source_config_text(config);
+    engine.source_config_str(config);
 
     // The action should be registered in the keymap
     assert_eq!(
         engine.keymap().action_name(0),
         Some("Rename"),
-        "Action name should be registered via source_config_text"
+        "Action name should be registered by a config"
     );
 
     // Now press backslash (default leader) then 'r'
@@ -1112,8 +1112,8 @@ fn action_notation_via_ex_command_line() {
     let doc = SimpleDocument::new("hello");
 
     // Execute `:nnoremap = <Action>(ReformatCode)` through the command line
-    // We simulate this by using source_config_text which processes the same way
-    engine.source_config_text("nnoremap = <Action>(ReformatCode)\n");
+    // We simulate this by sourcing a config, which processes the same way
+    engine.source_config_str("nnoremap = <Action>(ReformatCode)\n");
 
     // Verify action was registered
     assert_eq!(engine.keymap().action_name(0), Some("ReformatCode"),);
@@ -1138,7 +1138,7 @@ fn plug_notation_via_source_config() {
 
     // Register via source config: two-step mapping through <Plug>
     let config = "nmap S <Plug>(test-down)\nnnoremap <Plug>(test-down) j\n";
-    engine.source_config_text(config);
+    engine.source_config_str(config);
 
     // Verify plug was registered
     assert_eq!(engine.keymap().plug_name(0), Some("test-down"));
@@ -1164,7 +1164,7 @@ fn multiple_actions_via_source_config() {
         nnoremap <leader>r <Action>(Rename)\n\
         nnoremap <leader>f <Action>(FindUsages)\n\
     ";
-    engine.source_config_text(config);
+    engine.source_config_str(config);
 
     // Both should be registered with different ids
     let rename_id = engine.keymap().action_id("Rename");
@@ -3302,7 +3302,7 @@ fn provenance_none_for_ignored_response() {
     let doc = SimpleDocument::new("hello");
 
     // Use sethandler to make Ctrl-A host-handled → Response::ignored()
-    engine.source_config_text("sethandler <C-a> n:ide");
+    engine.source_config_str("sethandler <C-a> n:ide");
     let response = process_key(&mut engine, &doc, KeyEvent::ctrl('a'));
     assert!(
         !response.consumed(),
@@ -4400,7 +4400,7 @@ fn silent_mapping_via_source_config() {
     let mut engine = VimEngine::new();
 
     let config = "nnoremap <silent> x <C-g>\n";
-    engine.source_config_text(config);
+    engine.source_config_str(config);
 
     // Verify the mapping was installed
     let x_key = KE::char('x');
@@ -4420,7 +4420,7 @@ fn silent_mapping_via_source_config() {
         .any(|e| matches!(e, Effect::ShowInfo { .. }));
     assert!(
         !has_show_message,
-        "Silent mapping installed via source_config_text should suppress ShowInfo"
+        "Silent mapping installed by a config should suppress ShowInfo"
     );
 }
 
@@ -4778,7 +4778,7 @@ fn would_handle_key_applies_langmap_to_a_typed_key() {
     let mut engine = VimEngine::new();
     let cyrillic_o = KeyEvent::char('\u{043E}');
     assert!(!engine.would_handle_key(cyrillic_o));
-    let _ = engine.source_config_text("set langmap=\u{043E}j nolangremap\n");
+    let _ = engine.source_config_str("set langmap=\u{043E}j nolangremap\n");
     assert!(!engine.options().langremap());
     assert!(engine.would_handle_key(cyrillic_o));
 }
@@ -8848,6 +8848,7 @@ fn add_iabbrev(engine: &mut VimEngine, trigger: &str, replacement: &str) {
         mode: AbbrevMode::Insert,
         kind: AbbrevKind::classify(trigger, is_keyword),
         noremap: false,
+        trust: crate::primitives::TrustTag::default(),
     });
 }
 
@@ -9812,7 +9813,7 @@ fn zero_in_count_suppresses_mapping_expansion() {
     // `nmap 0 ^` — common mapping: standalone 0 goes to first non-blank.
     // But `10j` must move 10 lines down, not expand 0→^ mid-count.
     let mut engine = VimEngine::new();
-    engine.source_config_text("nmap 0 ^");
+    engine.source_config_str("nmap 0 ^");
 
     // Build a 12-line document so 10j has room.
     // Each line is "  Xn\n" where n is the line number.
@@ -9870,7 +9871,7 @@ fn standalone_zero_still_triggers_mapping() {
     // `nmap 0 ^` — a standalone `0` (no count accumulating) should still
     // expand through the mapping and behave as `^` (first non-blank).
     let mut engine = VimEngine::new();
-    engine.source_config_text("nmap 0 ^");
+    engine.source_config_str("nmap 0 ^");
 
     // "    hello" — 4 spaces then "hello". First non-blank is at offset 4.
     let doc = SimpleDocument::new("    hello");
@@ -9901,7 +9902,7 @@ fn zero_in_operator_count2_suppresses_mapping() {
     // After typing `d10w`, the `0` in `10` is count2 (post-operator count).
     // With `nmap 0 ^`, the `0` must not expand — it's part of count2.
     let mut engine = VimEngine::new();
-    engine.source_config_text("nmap 0 ^");
+    engine.source_config_str("nmap 0 ^");
 
     let doc = SimpleDocument::new("aaa bbb ccc ddd eee fff ggg hhh iii jjj kkk");
 

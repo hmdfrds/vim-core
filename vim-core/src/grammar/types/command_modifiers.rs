@@ -24,7 +24,7 @@ bitflags! {
     /// :silent keepjumps d3j      → SILENT | KEEPJUMPS
     /// ```
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-    pub struct ModifierFlags: u16 {
+    pub struct ModifierFlags: u32 {
         /// `:silent` — suppress `ShowInfo` effects.
         const SILENT       = 0x0001;
         /// `:silent!` — also suppress `ShowError` effects (implies SILENT).
@@ -37,7 +37,8 @@ bitflags! {
         const LOCKMARKS    = 0x0010;
         /// `:keepalt` — suppress alternate file register changes.
         const KEEPALT      = 0x0020;
-        /// Reserved for future `:noautocmd`.
+        /// `:noautocmd`, which changes nothing: vim-core runs no
+        /// autocommands. Only a config takes it.
         const NOAUTOCMD    = 0x0040;
         /// `:tab` — open in a new tab.
         const TAB          = 0x0080;
@@ -49,14 +50,25 @@ bitflags! {
         const TOPLEFT      = 0x0400;
         /// `:botright` — position split at bottom/right.
         const BOTRIGHT     = 0x0800;
-        /// `:aboveleft` — position split above/left of current.
+        /// `:aboveleft` or `:leftabove`: position split above/left of
+        /// current. A config takes `:leftabove`.
         const ABOVELEFT    = 0x1000;
-        /// `:belowright` — position split below/right of current.
+        /// `:belowright` or `:rightbelow`: position split below/right of
+        /// current. A config takes `:rightbelow`.
         const BELOWRIGHT   = 0x2000;
         /// `:browse` — use file browser.
         const BROWSE       = 0x4000;
         /// `:confirm` — prompt for confirmation.
         const CONFIRM      = 0x8000;
+        /// `:[N]verbose`, which changes nothing: vim-core has no
+        /// 'verbose'. Only a config takes it.
+        const VERBOSE      = 0x1_0000;
+        /// `:keepmarks`, which changes nothing: a config runs no command
+        /// that moves marks. Only a config takes it.
+        const KEEPMARKS    = 0x2_0000;
+        /// `:unsilent`, which vim-core does not apply: a message under
+        /// `:silent` stays hidden. Only a config takes it.
+        const UNSILENT     = 0x4_0000;
     }
 }
 
@@ -70,7 +82,7 @@ impl serde::Serialize for ModifierFlags {
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for ModifierFlags {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bits = u16::deserialize(deserializer)?;
+        let bits = u32::deserialize(deserializer)?;
         Self::from_bits(bits).ok_or_else(|| {
             serde::de::Error::custom(format!("invalid ModifierFlags bits: {bits:#x}"))
         })

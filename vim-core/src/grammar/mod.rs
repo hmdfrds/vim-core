@@ -114,6 +114,7 @@ pub use parser::Parser;
 pub use result::GrammarResult;
 pub use types::MapModePrefix;
 pub use types::ModifierFlags;
+pub use types::Reach;
 pub use types::{
     Action, CharCommand, CommandLineEdit, MarkType, Motion, Operator, TextObject, TextObjectKind,
 };

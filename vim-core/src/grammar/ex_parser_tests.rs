@@ -5013,6 +5013,46 @@ fn modifier_noautocmd_not_parsed() {
     assert_eq!(mods, ModifierFlags::empty());
 }
 
+/// The modifiers only a config takes, at the shortest forms of Vim's
+/// `parse_command_modifiers()` (ex_docmd.c); only `:verbose` takes a count.
+#[test]
+fn config_modifiers_are_stripped_with_the_others() {
+    let parsed = parse_config_modifiers("silent! 3verb noa keepm set ic");
+    let flags = ModifierFlags::SILENT
+        | ModifierFlags::SILENT_BANG
+        | ModifierFlags::VERBOSE
+        | ModifierFlags::NOAUTOCMD
+        | ModifierFlags::KEEPMARKS;
+    assert_eq!(parsed, (flags, "set ic"));
+    let parsed = parse_config_modifiers(":lefta rightb uns verbose silent echo 1");
+    let flags = ModifierFlags::ABOVELEFT
+        | ModifierFlags::BELOWRIGHT
+        | ModifierFlags::UNSILENT
+        | ModifierFlags::VERBOSE
+        | ModifierFlags::SILENT;
+    assert_eq!(parsed, (flags, "echo 1"));
+}
+
+#[test]
+fn config_modifiers_are_whole_words_at_their_shortest_forms() {
+    for text in [
+        "verbosity x",
+        "ver x",
+        "left x",
+        "right x",
+        "un x",
+        "3silent x",
+        "3noa x",
+        // The engine's `:kee[p]` comes first.
+        "kee /a/",
+        "keep /a/",
+    ] {
+        assert_eq!(parse_config_modifiers(text), (ModifierFlags::empty(), text));
+    }
+    let (_, cmd) = parse_ex_command_with_modifiers("verbose set ic").unwrap();
+    assert!(matches!(cmd, ExCommand::Custom { .. }));
+}
+
 #[test]
 fn modifier_triple_composition() {
     let (mods, cmd) =
