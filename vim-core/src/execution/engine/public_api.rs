@@ -564,6 +564,15 @@ impl VimEngine {
         &self.keymap
     }
 
+    /// The abbreviations (read-only), each with the
+    /// [`TrustTag`](crate::execution::TrustTag) of the config that
+    /// defined it.
+    #[inline]
+    #[must_use]
+    pub const fn abbreviations(&self) -> &crate::primitives::AbbrevTable {
+        &self.abbrev_table
+    }
+
     /// Mutable access to the keymap for registering mappings, `<Plug>`, `<Action>`, etc.
     #[inline]
     pub const fn keymap_mut(&mut self) -> &mut Keymap {

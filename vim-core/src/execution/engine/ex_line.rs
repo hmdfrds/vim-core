@@ -20,7 +20,7 @@ use crate::execution::executor_ex::{self, ExExecutionOutput, GlobalCommand};
 use crate::execution::{ExecutionContext, HostRequest, InputContext, Validated};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{ExCommand, ExRange, ModifierFlags};
-use crate::primitives::{Direction, Mode, Position, SelectionRange, UndoCursorStrategy};
+use crate::primitives::{Direction, Mode, Position, SelectionRange, TrustTag, UndoCursorStrategy};
 
 /// Vim's default 'report': a `:g` reports more changed lines than this.
 const REPORT: usize = 2;
@@ -411,7 +411,7 @@ impl VimEngine {
         if let Some(mode) = run.mode_after {
             self.state.set_mode(mode);
         }
-        let applied = self.apply_ex_output(&mut output, run.text());
+        let applied = self.apply_ex_output(&mut output, run.text(), TrustTag::default());
         let error = output
             .effects
             .iter()

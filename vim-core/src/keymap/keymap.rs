@@ -1175,6 +1175,18 @@ impl Keymap {
             .insert(&resolved, build_entry(to, kind, flags, expr_text));
     }
 
+    /// Insert a pre-built [`MappingEntry`] into the buffer-local layer,
+    /// `<Leader>` resolved in `from`.
+    pub(crate) fn map_buffer_entry(
+        &mut self,
+        mm: MappingMode,
+        from: &[KeyEvent],
+        entry: MappingEntry,
+    ) {
+        let resolved = self.resolve_leader(from);
+        self.buf_table_mut(mm).insert(&resolved, entry);
+    }
+
     /// Remove a buffer-local mapping.
     ///
     /// Resolves `<Leader>` in `from` before lookup, matching `map_buffer()` semantics.

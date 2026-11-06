@@ -572,7 +572,7 @@ impl super::VimEngine {
                         }
                         return Then::Next;
                     }
-                    self.run_config_command(modifiers, &parsed, piece, response);
+                    self.run_config_command(modifiers, &parsed, piece, frame.trust, response);
                 }
                 (modifiers, Err(err)) => {
                     show_config_errors(modifiers | inherited, [err], response);
@@ -640,12 +640,14 @@ impl super::VimEngine {
         Then::Next
     }
 
-    /// Run a parsed config command, written as `command`.
+    /// Run a parsed config command, written as `command`, in a config
+    /// tagged `trust`.
     fn run_config_command(
         &mut self,
         modifiers: ModifierFlags,
         parsed: &ExCommand,
         command: &str,
+        trust: TrustTag,
         response: &mut Response,
     ) {
         let result = if parsed.needs_buffer() {
@@ -668,7 +670,7 @@ impl super::VimEngine {
                 set.scope = SetScope::Effective;
             }
         }
-        let mut applied = self.apply_ex_output(&mut output, "");
+        let mut applied = self.apply_ex_output(&mut output, "", trust);
         crate::execution::modifier_filter::apply_modifiers(&mut applied, modifiers);
         response.extend_effects(output.effects);
         response.extend_effects(applied);
@@ -714,7 +716,13 @@ impl super::VimEngine {
                     Ok(Some(command)) => {
                         show_config_errors(modifiers, errors, response);
                         let text = format!("let {argument}");
-                        return self.run_config_command(modifiers, &command, &text, response);
+                        return self.run_config_command(
+                            modifiers,
+                            &command,
+                            &text,
+                            TrustTag::default(),
+                            response,
+                        );
                     }
                     Ok(None) => Ok(()),
                     Err(err) => Err(err),
@@ -1116,6 +1124,79 @@ mod tests {
         let mut session = sourced("x", "iabbrev teh the\nabclear <buffer>\n");
         type_keys(&mut session, "A teh <Esc>");
         assert_eq!(session.text(), "x the ");
+    }
+
+    // ── trust tags ────────────────────────────────────────────────
+
+    /// A host whose files are `(name, text, tag)`.
+    struct TaggedFiles(&'static [(&'static str, &'static str, u32)]);
+
+    impl crate::execution::ConfigHost for TaggedFiles {
+        fn source(
+            &mut self,
+            request: &crate::execution::SourceRequest<'_>,
+        ) -> crate::execution::SourceReply {
+            let found = self.0.iter().find(|(name, ..)| Some(*name) == request.path);
+            match found {
+                Some(&(name, text, tag)) => crate::execution::SourceReply::Text {
+                    name: name.to_owned(),
+                    text: text.to_owned(),
+                    trust: crate::execution::TrustTag::new(tag),
+                },
+                None => crate::execution::SourceReply::Refuse(format!("E484: {request:?}")),
+            }
+        }
+    }
+
+    /// The tag of the Normal mapping of `lhs`.
+    fn mapping_tag(engine: &VimEngine, lhs: char) -> Option<u32> {
+        use crate::keymap::KeyEvent;
+        use crate::primitives::Mode;
+        let entry = engine
+            .keymap()
+            .get_user_mapping(KeyEvent::char(lhs), Mode::Normal)?;
+        Some(entry.trust().get())
+    }
+
+    #[test]
+    fn mappings_and_abbreviations_keep_the_tag_of_their_file() {
+        use crate::execution::{ConfigText, TrustTag};
+        let mut engine = VimEngine::new();
+        let mut host = TaggedFiles(&[("b.vim", "nnoremap b x\ncabbrev bb x\n", 3)]);
+        let text = "nnoremap a x\niabbrev aa x\nsource b.vim\n";
+        let config = ConfigText::new("a.vim", text).with_trust(TrustTag::new(2));
+        let response = engine.source_script(config, &mut host).response;
+        assert_eq!(errors(&response), Vec::<String>::new());
+        assert_eq!(mapping_tag(&engine, 'a'), Some(2));
+        assert_eq!(mapping_tag(&engine, 'b'), Some(3));
+        let tag = |trigger: &str| engine.abbreviations().get(trigger).map(|e| e.trust.get());
+        assert_eq!(tag("aa"), Some(2));
+        assert_eq!(tag("bb"), Some(3));
+    }
+
+    #[test]
+    fn typed_and_host_mappings_get_the_default_tag() {
+        use crate::execution::{ConfigText, HostMapping, TrustTag};
+        use crate::keymap::MappingMode;
+        let mut session = HostSession::new("x");
+        let config = ConfigText::new("a.vim", "nnoremap a x\n").with_trust(TrustTag::new(2));
+        let _ = session.source_script(config, &mut TaggedFiles(&[]));
+        type_keys(&mut session, ":nnoremap a y<CR>:iabbrev aa y<CR>");
+        session.engine_mut().register_host_mappings(
+            "ext",
+            &[HostMapping {
+                modes: smallvec::smallvec![MappingMode::Normal],
+                lhs: "h".into(),
+                rhs: "x".into(),
+                recursive: false,
+                silent: false,
+                description: None,
+            }],
+        );
+        assert_eq!(mapping_tag(session.engine(), 'a'), Some(0));
+        assert_eq!(mapping_tag(session.engine(), 'h'), Some(0));
+        let entry = session.engine().abbrev_table.get("aa");
+        assert_eq!(entry.map(|e| e.trust), Some(TrustTag::default()));
     }
 
     // ── reset_config_state ────────────────────────────────────────

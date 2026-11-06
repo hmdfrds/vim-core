@@ -5,6 +5,7 @@
 //! cannot know itself while the config runs.
 
 use crate::execution::{HostResponse, Response};
+pub use crate::primitives::TrustTag;
 
 /// A config a host has read: its name, its text and a tag of the host's.
 #[non_exhaustive]
@@ -34,26 +35,6 @@ impl<'a> ConfigText<'a> {
     #[must_use]
     pub const fn with_trust(self, trust: TrustTag) -> Self {
         Self { trust, ..self }
-    }
-}
-
-/// A tag a host puts on a config, such as how far it trusts the file.
-/// vim-core never reads it.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub struct TrustTag(pub u32);
-
-impl TrustTag {
-    /// The tag `n`.
-    #[must_use]
-    pub const fn new(n: u32) -> Self {
-        Self(n)
-    }
-
-    /// The number of the tag.
-    #[must_use]
-    pub const fn get(self) -> u32 {
-        self.0
     }
 }
 

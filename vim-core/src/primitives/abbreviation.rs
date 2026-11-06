@@ -3,6 +3,7 @@
 //! Types representing abbreviation entries, their classification,
 //! mode applicability, and the table used for O(1) exact-match lookup.
 
+use super::TrustTag;
 use compact_str::CompactString;
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -66,6 +67,10 @@ pub struct AbbrevEntry {
     pub kind: AbbrevKind,
     /// Whether remapping is suppressed (noremap variant).
     pub noremap: bool,
+    /// The tag of the config that defined it; the default for one typed
+    /// or added by the host.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub trust: TrustTag,
 }
 
 impl AbbrevMode {
@@ -408,6 +413,7 @@ mod tests {
             mode: AbbrevMode::Both,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         assert!(table.get("teh").is_some());
         assert!(table.get("nope").is_none());
@@ -422,6 +428,7 @@ mod tests {
             mode: AbbrevMode::Both,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         assert!(table.remove("teh", AbbrevMode::Both));
         assert!(table.get("teh").is_none());
@@ -436,6 +443,7 @@ mod tests {
             mode: AbbrevMode::Insert,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         table.add(AbbrevEntry {
             trigger: "c".into(),
@@ -443,6 +451,7 @@ mod tests {
             mode: AbbrevMode::CommandLine,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         table.clear(AbbrevMode::Insert);
         assert!(table.get("a").is_none());
@@ -458,6 +467,7 @@ mod tests {
             mode: AbbrevMode::Insert,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         table.add(AbbrevEntry {
             trigger: "c".into(),
@@ -465,6 +475,7 @@ mod tests {
             mode: AbbrevMode::Both,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         let insert_list = table.list(AbbrevMode::Insert);
         assert_eq!(insert_list.len(), 2); // "a" (Insert) + "c" (Both)
@@ -479,6 +490,7 @@ mod tests {
             mode,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         }
     }
 
@@ -588,6 +600,7 @@ mod tests {
             mode: AbbrevMode::Both,
             kind,
             noremap: false,
+            trust: TrustTag::default(),
         });
         table
     }
@@ -694,6 +707,7 @@ mod tests {
             mode: AbbrevMode::CommandLine,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         // Insert mode, but entry is CommandLine-only
         let result = table.try_expand(' ', "teh", AbbrevMode::Insert, &is_kw);
@@ -816,6 +830,7 @@ mod tests {
             mode: AbbrevMode::Insert,
             kind: AbbrevKind::FullId,
             noremap: false,
+            trust: TrustTag::default(),
         });
         // Insert mode: should match
         let result = table.try_expand(' ', "iab", AbbrevMode::Insert, &is_kw);

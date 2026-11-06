@@ -6,6 +6,7 @@
 //! - `recursive` flag per entry (for `map` vs `noremap`)
 
 use super::{KeyEvent, MappingFlags, MappingKind, MappingOwner};
+use crate::primitives::TrustTag;
 use ahash::AHashMap;
 use compact_str::CompactString;
 
@@ -36,6 +37,8 @@ pub struct MappingEntry {
     pub(crate) owner: MappingOwner,
     /// Optional human-readable description for which-key display.
     pub(crate) description: Option<CompactString>,
+    /// The tag of the config that defined it.
+    pub(crate) trust: TrustTag,
 }
 
 impl MappingEntry {
@@ -49,6 +52,7 @@ impl MappingEntry {
             expression: None,
             owner: MappingOwner::User,
             description: None,
+            trust: TrustTag::new(0),
         }
     }
 
@@ -67,6 +71,7 @@ impl MappingEntry {
             expression,
             owner: MappingOwner::User,
             description: None,
+            trust: TrustTag::new(0),
         }
     }
 
@@ -86,6 +91,7 @@ impl MappingEntry {
             expression: None,
             owner: MappingOwner::User,
             description: None,
+            trust: TrustTag::new(0),
         }
     }
 
@@ -105,6 +111,7 @@ impl MappingEntry {
             expression: None,
             owner: MappingOwner::User,
             description: None,
+            trust: TrustTag::new(0),
         }
     }
 
@@ -127,6 +134,7 @@ impl MappingEntry {
             expression: Some(expression),
             owner: MappingOwner::User,
             description: None,
+            trust: TrustTag::new(0),
         }
     }
 
@@ -146,6 +154,7 @@ impl MappingEntry {
             expression: Some(expression),
             owner: MappingOwner::User,
             description: None,
+            trust: TrustTag::new(0),
         }
     }
 
@@ -154,6 +163,21 @@ impl MappingEntry {
     pub fn with_owner(mut self, owner: MappingOwner) -> Self {
         self.owner = owner;
         self
+    }
+
+    /// Set the tag of the config that defines the mapping.
+    #[must_use]
+    pub const fn with_trust(mut self, trust: TrustTag) -> Self {
+        self.trust = trust;
+        self
+    }
+
+    /// The tag of the config that defined this mapping: the default for a
+    /// mapping typed or added by the host.
+    #[inline]
+    #[must_use]
+    pub const fn trust(&self) -> TrustTag {
+        self.trust
     }
 
     /// Set an optional human-readable description for which-key display.

@@ -8848,6 +8848,7 @@ fn add_iabbrev(engine: &mut VimEngine, trigger: &str, replacement: &str) {
         mode: AbbrevMode::Insert,
         kind: AbbrevKind::classify(trigger, is_keyword),
         noremap: false,
+        trust: crate::primitives::TrustTag::default(),
     });
 }
 
