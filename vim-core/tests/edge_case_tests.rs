@@ -9,6 +9,7 @@ use vim_core::commands::actions::{
     execute_outdent_lines, execute_toggle_case_char, toggle_case_range, ActionContext,
 };
 use vim_core::effects::Effect;
+use vim_core::execution::{parse_keys_from_string, HostSession};
 use vim_core::primitives::{LinewiseText, Offset, Range};
 
 const N1: NonZeroU32 = match NonZeroU32::new(1) {
@@ -663,4 +664,55 @@ fn test_offset_equality() {
     let a = Offset::new(5);
     let b = Offset::new(5);
     assert_eq!(a, b);
+}
+
+// =============================================================================
+// End of buffer after a trailing newline
+// =============================================================================
+
+const THREE_LINES: &str = "a\nbbb\ncccc\n";
+
+fn cursor_after(text: &str, keys: &str) -> usize {
+    let mut session = HostSession::new(text);
+    for key in parse_keys_from_string(keys) {
+        let _ = session.process_key_host(key);
+    }
+    session.cursor_offset()
+}
+
+/// `)` past the last sentence stops on the empty line after the trailing
+/// newline (textobject.c `findsent()`), so `l`, `e` and `<Space>` stay there.
+#[test]
+fn sentence_forward_at_end_then_space() {
+    assert_eq!(cursor_after(THREE_LINES, ")"), 11);
+    assert_eq!(cursor_after(THREE_LINES, ")le<Space>"), 11);
+}
+
+#[test]
+fn sentence_forward_at_end_then_space_in_normal_bang() {
+    assert_eq!(cursor_after(THREE_LINES, ":norm! )le l<CR>"), 11);
+}
+
+#[test]
+fn sentence_forward_at_end_then_space_after_jump_back() {
+    assert_eq!(cursor_after(THREE_LINES, ")gg<C-o><Space>"), 11);
+}
+
+/// `e` with no word end ahead stops at the end of the buffer, the empty last
+/// line, not on the newline before it (textobject.c `end_word()`).
+#[test]
+fn word_end_with_no_word_ahead_then_space() {
+    assert_eq!(cursor_after(THREE_LINES, "3G$e"), 11);
+    assert_eq!(cursor_after(THREE_LINES, "3G$E<Space>"), 11);
+    assert_eq!(cursor_after("a  \nb\n  \n", "2Ge"), 9);
+}
+
+#[test]
+fn space_from_a_host_cursor_on_a_newline() {
+    let mut session = HostSession::new(THREE_LINES);
+    session.set_cursor_offset(10);
+    for key in parse_keys_from_string("<Space>") {
+        let _ = session.process_key_host(key);
+    }
+    assert_eq!(session.cursor_offset(), 11);
 }

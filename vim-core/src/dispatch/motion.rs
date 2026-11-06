@@ -291,6 +291,30 @@ pub fn dispatch_motion(motion: Motion, ctx: &MotionContext<'_>) -> MotionResult 
 
 pub use crate::commands::motions::MotionEffectsContext;
 
+/// `)`, `e` and `E` that run off the end of the text return the newline that
+/// ends it, which an operator needs as its end. Normal mode cannot hold the
+/// cursor there: Vim stops on the empty line after it (textobject.c
+/// `findsent()`, `end_word()`).
+fn past_end_in_normal(
+    ctx: &MotionEffectsContext<'_>,
+    offset: crate::primitives::Offset,
+) -> crate::primitives::Offset {
+    let text = ctx.motion_ctx.text;
+    let runs_off_end = matches!(
+        ctx.motion,
+        Motion::SentenceForward | Motion::WordEnd | Motion::WORDEnd
+    );
+    if runs_off_end
+        && !ctx.motion_ctx.inclusive_end
+        && text.ends_with('\n')
+        && offset.get() + 1 == text.len()
+    {
+        crate::primitives::Offset::new(text.len())
+    } else {
+        offset
+    }
+}
+
 /// Dispatch a motion and produce the full `CommandResult` with all side effects.
 ///
 /// This is the enterprise-grade motion dispatch that owns the complete lifecycle:
@@ -467,6 +491,7 @@ pub fn dispatch_motion_with_effects(
                 let sel_effects = vs::extend_selection(sel, new_offset, shape);
                 effects.extend(sel_effects);
             } else {
+                let new_offset = past_end_in_normal(&ctx, new_offset);
                 let is_cross_line = ctx.motion.is_jump_motion() && {
                     let text = ctx.motion_ctx.text;
                     crate::commands::helpers::line_of(text, ctx.cursor_offset.get())

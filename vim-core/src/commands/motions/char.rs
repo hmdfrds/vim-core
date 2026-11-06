@@ -140,7 +140,8 @@ fn right_impl(ctx: &MotionContext<'_>, ww_char: char) -> MotionResult {
             0
         };
 
-        // How many graphemes can we move right before hitting last_reachable?
+        // A host can leave the cursor on a newline, past `last_reachable`.
+        let last_reachable = last_reachable.max(pos);
         let chars_available = text[pos..last_reachable].chars().count();
 
         if chars_available >= remaining {
