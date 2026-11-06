@@ -266,6 +266,24 @@ fn multicursor_insert_full_composite() {
     );
 }
 
+/// Checks `keys` with a cursor at `cols[i]` on line `i` against the
+/// composite of the single-cursor runs.
+fn assert_composite(lines: &[&str], cols: &[usize], keys: &str, ai: bool) {
+    let case = Case {
+        lines: lines.iter().map(|&l| l.to_owned()).collect(),
+        rows: (0..lines.len()).collect(),
+        cols: cols.to_vec(),
+        keys: keys.to_owned(),
+        ai,
+        et: false,
+        ts: 8,
+    };
+    let all: Vec<usize> = (0..lines.len()).collect();
+    let singles: Vec<String> = all.iter().map(|&j| run(&case, &[j])).collect();
+    let expected = composite(&case, &singles).expect("single runs stay local");
+    assert_eq!(run(&case, &all), expected, "{keys:?} on {lines:?}");
+}
+
 fn session(text: &str, offsets: &[usize]) -> HostSession {
     let mut s = HostSession::new(text);
     s.set_cursor_offset(offsets[0]);
@@ -294,4 +312,12 @@ fn counted_replace_overwrites_characters() {
     let mut s = session("abcdef", &[0]);
     feed(&mut s, "2Rx<CR>y<Esc>");
     assert_eq!(s.text(), "x\nyx\nyef");
+}
+
+#[test]
+fn append_and_insert_entries_match_composite() {
+    let lines = ["日本語 x", "  ab", "", "héllo wörld 日本語"];
+    for keys in ["ax<Esc>", "Ax<Esc>", "Ix<Esc>", "gIx<Esc>", "a<CR>y<Esc>"] {
+        assert_composite(&lines, &[0, 3, 0, 1], keys, false);
+    }
 }

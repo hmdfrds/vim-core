@@ -2184,10 +2184,9 @@ impl VimEngine {
         //
         let mc_active = self.state.multi_cursor().is_active();
         let is_global_only = command.is_global_only();
-        // With formatting, `A`, `I`, `a` and `gI` put every cursor where
-        // the command puts a cursor on that line alone, as the line breaks
-        // depend on where each insert starts. Without it every cursor moves
-        // as the primary one does, as before.
+        // `A`, `I`, `a` and `gI` put every cursor where the command puts a
+        // cursor on that line alone; moving them as the primary one moves
+        // lands them inside other characters or past their line.
         let own_entry = match &command {
             Command::InsertEntry { entry_type, .. }
                 if mc_active
@@ -2197,11 +2196,7 @@ impl VimEngine {
                             | crate::primitives::InsertEntryType::FirstNonBlank
                             | crate::primitives::InsertEntryType::AfterCursor
                             | crate::primitives::InsertEntryType::Column0
-                    )
-                    && crate::commands::insert::wrap::FormatPolicy::from_options(
-                        &self.resolved_options,
-                    )
-                    .is_active() =>
+                    ) =>
             {
                 Some((*entry_type, self.state.multi_cursor().selections().clone()))
             }
@@ -2650,7 +2645,15 @@ impl VimEngine {
         if let (Some((entry_type, before)), Some(text), Some(0)) =
             (own_entry, doc_text, rebase_primary_net_delta)
         {
-            place_cursors_at_own_entry(&mut self.state, text, entry_type, &before);
+            // The host cursor goes to the first cursor, the last one a
+            // replicated edit moves.
+            if let Some(primary) =
+                place_cursors_at_own_entry(&mut self.state, text, entry_type, &before)
+            {
+                if Self::last_cursor_in_effects(&response.effects) != Some(primary) {
+                    response.effects.push(Effect::SetCursor { offset: primary });
+                }
+            }
         }
 
         // Emit the deferred expression re-evaluation host request (if any).
@@ -2982,51 +2985,37 @@ fn move_other_cursors(state: &mut crate::state::VimState, heads: &[(usize, usize
         crate::primitives::Selections::from_vec(ranges, primary).normalize();
 }
 
-/// Put every cursor but the primary one where `entry_type` puts a cursor
-/// that was at its head in `before` on that line alone, when the cursors
-/// are on different lines and the command left them in Insert mode.
+/// Put every cursor where `entry_type` puts a cursor that was at its head in
+/// `before` alone, when the command left them in Insert mode. Cursors that
+/// land on one offset merge. The first cursor becomes the primary one, as
+/// the host cursor follows the last cursor moved; returns it when the
+/// cursors were placed.
 fn place_cursors_at_own_entry(
     state: &mut crate::state::VimState,
     text: &str,
     entry_type: crate::primitives::InsertEntryType,
     before: &crate::primitives::Selections,
-) {
+) -> Option<Offset> {
     if !matches!(state.mode(), Mode::Insert) || !state.multi_cursor().is_active() {
-        return;
+        return None;
     }
-    let after = state.multi_cursor().selections();
-    if after.len() != before.len() {
-        return;
-    }
-    let mut lines: Vec<usize> = before
-        .iter()
-        .map(|s| crate::commands::helpers::line_of(text, s.head().get().min(text.len())))
-        .collect();
-    lines.sort_unstable();
-    lines.dedup();
-    if lines.len() != before.len() {
-        return;
-    }
-    let primary = before.primary_index();
     let ranges = before
         .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            if i == primary {
-                *after.primary()
-            } else {
-                crate::primitives::SelectionRange::insert_cursor(Offset::new(
-                    crate::commands::insert::entry::entry_offset(
-                        text,
-                        s.head().get().min(text.len()),
-                        entry_type,
-                    ),
-                ))
-            }
+        .map(|s| {
+            crate::primitives::SelectionRange::insert_cursor(Offset::new(
+                crate::commands::insert::entry::entry_offset(
+                    text,
+                    s.head().get().min(text.len()),
+                    entry_type,
+                ),
+            ))
         })
         .collect();
-    *state.multi_cursor_mut().selections_mut() =
-        crate::primitives::Selections::from_vec(ranges, primary).normalize();
+    let mut placed = crate::primitives::Selections::from_vec(ranges, 0).normalize();
+    placed.set_primary_index(0);
+    let head = placed.primary().head();
+    *state.multi_cursor_mut().selections_mut() = placed;
+    Some(head)
 }
 
 /// Whether one of the cursors at `others` is on the same line as `cursor`.
