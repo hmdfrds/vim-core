@@ -491,7 +491,7 @@ fn byte_offset_for_column(text: &str, line_start: usize, target_col: usize) -> u
 ///
 /// If `target_vcol` is beyond the line, returns the last character's byte offset
 /// (clamped to line length).
-fn coladvance_byte(line: &str, target_vcol: usize, tabstop: usize) -> usize {
+pub(crate) fn coladvance_byte(line: &str, target_vcol: usize, tabstop: usize) -> usize {
     let tabstop = tabstop.max(1);
     let mut vcol: usize = 0;
     let mut consumed: usize = 0;

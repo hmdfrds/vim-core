@@ -85,10 +85,14 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
                         super::types::adjust_to_char_boundaries(ctx.text, raw_start, raw_end);
                     let after_delete = end.min(ctx.text.len());
                     let surviving = &ctx.text[after_delete..];
-                    let surviving_line_len = surviving.find('\n').unwrap_or(surviving.len());
-                    if surviving_line_len > 0 {
-                        let clamped = target_col.min(surviving_line_len.saturating_sub(1));
-                        base = crate::primitives::Offset::new(start + clamped);
+                    let surviving_line = surviving.split('\n').next().unwrap_or_default();
+                    if !surviving_line.is_empty() {
+                        let col = crate::commands::motions::line::coladvance_byte(
+                            surviving_line,
+                            target_col,
+                            ctx.tabstop,
+                        );
+                        base = crate::primitives::Offset::new(start + col);
                     }
                 }
             }
@@ -221,6 +225,40 @@ mod tests {
             name,
             offset
         );
+    }
+
+    /// With 'nostartofline' a linewise delete puts the cursor on the
+    /// character at the cursor's virtual column (Neovim ops.c `op_delete()`,
+    /// `coladvance(curwin->w_curswant)`), the last one on a shorter line.
+    #[test]
+    fn linewise_delete_lands_on_a_whole_character() {
+        let ctx = OperatorContext::new(
+            "\t\n\u{e9}x\n",
+            Range::from_raw(0, 2),
+            MotionType::LineWise,
+            None,
+            1,
+            Offset::new(0),
+        )
+        .with_tabstop(4)
+        .with_sticky_column(Some(crate::primitives::VirtualColumn::new(3)));
+        let cursor = execute(&ctx)
+            .effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::SetCursor { offset } => Some(offset.get()),
+                _ => None,
+            });
+        assert_eq!(cursor, Some(2));
+        let ctx = ctx.with_sticky_column(Some(crate::primitives::VirtualColumn::new(1)));
+        let cursor = execute(&ctx)
+            .effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::SetCursor { offset } => Some(offset.get()),
+                _ => None,
+            });
+        assert_eq!(cursor, Some(2));
     }
 
     #[test]
