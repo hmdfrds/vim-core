@@ -318,6 +318,30 @@ pub fn goto_line(range: &ExRange, ctx: &ExContext) -> ExResult {
     Ok(super::effects::goto_line(first_non_ws))
 }
 
+/// `:mark`: set `mark` at the first non-blank of the range's last line, and
+/// for `'` or `` ` `` add that place to the jump list (ex_docmd.c
+/// `ex_mark()`, mark.c `setmark_pos()`).
+///
+/// # Errors
+///
+/// Returns `VimError::InvalidRange` if the range is invalid.
+pub(crate) fn set_mark(range: &ExRange, mark: MarkName, ctx: &ExContext) -> ExResult {
+    let resolved = resolve_range(range, ctx)?;
+    let line_start = ctx
+        .line_start_offset(resolved.end())
+        .ok_or(crate::errors::VimError::InvalidRange)?
+        .get();
+    let line = ctx.text[line_start..].split('\n').next().unwrap_or("");
+    let offset = Offset::new(line_start + crate::commands::helpers::first_non_blank_in_line(line));
+    Ok(
+        if matches!(mark, MarkName::PREV_JUMP | MarkName::PREV_JUMP_EXACT) {
+            Effects::new().push_jump_list(offset)
+        } else {
+            Effects::new().set_mark(mark, offset, None)
+        },
+    )
+}
+
 /// Join lines in range (`:j`).
 ///
 /// Resolves the range, expands single-line ranges to include the next line,

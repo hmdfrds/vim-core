@@ -338,7 +338,11 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
                 Some(CompactString::from(tail))
             },
         })
-    } else if matches_abbrev(name, "mar", "marks") {
+    } else if matches_abbrev(name, "ma", "mark") {
+        parse_mark(line_range, tail)
+    } else if let Some(arg) = one_letter_mark_argument(name, rest) {
+        parse_mark(line_range, arg)
+    } else if name.eq_ignore_ascii_case("marks") {
         Ok(ExCommand::Marks {
             filter: if tail.is_empty() {
                 None
@@ -949,6 +953,35 @@ fn split_head(input: &str) -> (&str, &str) {
         } else {
             (trimmed, "")
         }
+    }
+}
+
+/// The argument of `:k{mark}`, which needs no blank before the mark
+/// (ex_docmd.c `one_letter_cmd()`; `:kee` starts `:keepmarks` and others).
+fn one_letter_mark_argument<'a>(name: &str, rest: &'a str) -> Option<&'a str> {
+    let lower = name.to_ascii_lowercase();
+    if !lower.starts_with('k') || lower.starts_with("kee") {
+        return None;
+    }
+    rest.trim_start_matches(BLANKS)
+        .get(1..)
+        .map(|arg| arg.trim_matches(BLANKS))
+}
+
+/// `:mark {mark}`, with ex_docmd.c `ex_mark()`'s errors and the marks
+/// mark.c `setmark_pos()` takes.
+fn parse_mark(range: ExRange, arg: &str) -> Result<ExCommand, VimError> {
+    let mut chars = arg.chars();
+    let Some(c) = chars.next() else {
+        return Err(VimError::ArgumentRequired);
+    };
+    if chars.next().is_some() {
+        return Err(VimError::TrailingCharacters(arg.into()));
+    }
+    let settable = c.is_ascii_alphanumeric() || "'`\"[]<>".contains(c);
+    match crate::primitives::MarkName::new(c) {
+        Some(mark) if settable => Ok(ExCommand::Mark { range, mark }),
+        _ => Err(VimError::MarkArgument),
     }
 }
 

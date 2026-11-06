@@ -114,6 +114,7 @@ pub fn dispatch_ex_core(
         }
         ExCommand::NoHighlight => Some(ex::nohighlight()),
         ExCommand::GotoLine { range } => Some(ex::goto_line(range, ctx)),
+        ExCommand::Mark { range, mark } => Some(ex::line_ops::set_mark(range, *mark, ctx)),
         ExCommand::PrintLines {
             range,
             number,

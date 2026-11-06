@@ -289,6 +289,14 @@ pub enum ExCommand {
         /// Optional filter: show only these register names.
         filter: Option<CompactString>,
     },
+    /// Set a mark at the first non-blank of the range's last line:
+    /// `:ma[rk] {mark}` or `:k{mark}`
+    Mark {
+        /// Line range; the mark goes on its last line.
+        range: ExRange,
+        /// The mark to set.
+        mark: crate::primitives::MarkName,
+    },
     /// Show marks: `:marks`
     Marks {
         /// Optional filter: show only these mark names.
@@ -1078,6 +1086,7 @@ impl ExCommand {
             | Self::Copy { .. }
             | Self::Join { .. }
             | Self::Sort { .. }
+            | Self::Mark { .. }
             | Self::Marks { .. }
             | Self::Jumps
             | Self::Changes
