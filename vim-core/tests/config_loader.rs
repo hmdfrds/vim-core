@@ -1175,6 +1175,55 @@ fn errors_in_a_sourced_file_name_the_files_that_run() {
     assert_eq!(places(&response), [("b.vim".to_owned(), 2, nosuch)]);
 }
 
+/// A host that gives `b.vim` without a name.
+struct Nameless;
+
+impl ConfigHost for Nameless {
+    fn source(&mut self, request: &SourceRequest<'_>) -> SourceReply {
+        let (name, text) = match request.path {
+            Some("b.vim") => ("", "set ic\nset nosuch\nsource c.vim\n"),
+            _ => ("c.vim", "set nosuch\n"),
+        };
+        SourceReply::Text {
+            name: name.to_owned(),
+            text: text.to_owned(),
+            trust: TrustTag::new(0),
+        }
+    }
+}
+
+#[test]
+fn a_sourced_file_without_a_name_is_left_out_of_the_names() {
+    // estack_sfile() names each file that runs; one without a name adds
+    // nothing, so its errors name the file and line that sourced it.
+    let mut engine = VimEngine::new();
+    let text = ConfigText::new("a.vim", "\nsource b.vim\nset nosuch\n");
+    let response = engine.source_script(text, &mut Nameless).response;
+    let nosuch = "E518: Unknown option: nosuch".to_owned();
+    assert_eq!(
+        places(&response),
+        [
+            ("a.vim[2]".to_owned(), 2, nosuch.clone()),
+            ("a.vim[2]..c.vim".to_owned(), 1, nosuch.clone()),
+            ("a.vim".to_owned(), 3, nosuch),
+        ]
+    );
+    assert_eq!(
+        history(&engine),
+        [
+            "Error detected while processing a.vim[2]:",
+            "line    2:",
+            "E518: Unknown option: nosuch",
+            "Error detected while processing a.vim[2]..c.vim:",
+            "line    1:",
+            "E518: Unknown option: nosuch",
+            "Error detected while processing a.vim:",
+            "line    3:",
+            "E518: Unknown option: nosuch",
+        ]
+    );
+}
+
 #[test]
 fn errors_in_a_file_sourced_twice_share_one_header() {
     // msg_source() compares the innermost file and its line.

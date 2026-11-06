@@ -39,6 +39,8 @@ struct Frame<'a> {
     /// The name its errors are reported under: `estack_sfile()`'s stack of
     /// the files that run, as in `a.vim[12]..b.vim`.
     file: String,
+    /// The files that source it, as `file` starts with them: `a.vim[12]..`.
+    stack: String,
     trust: TrustTag,
     /// How many files run, this one included.
     depth: u32,
@@ -76,6 +78,7 @@ impl<'a> Frame<'a> {
     fn new(
         name: Cow<'a, str>,
         file: String,
+        stack: String,
         text: Cow<'a, str>,
         trust: TrustTag,
         depth: u32,
@@ -84,6 +87,7 @@ impl<'a> Frame<'a> {
         Self {
             name,
             file,
+            stack,
             trust,
             depth,
             modifiers,
@@ -98,17 +102,23 @@ impl<'a> Frame<'a> {
     }
 
     /// The frame of the file `sourced`, which the command running here
-    /// sources. A file without a name is left out of the stack.
+    /// sources. A file without a name is left out of the stack, so its
+    /// errors name the files that source it, as in `a.vim[12]`.
     fn nested(&self, sourced: Sourced) -> Self {
-        let mut file = if self.name.is_empty() {
-            self.file.clone()
+        let stack = if self.name.is_empty() {
+            self.stack.clone()
         } else {
             format!("{}[{}]..", self.file, self.script.line_number())
         };
-        file.push_str(&sourced.name);
+        let file = if sourced.name.is_empty() {
+            stack.strip_suffix("..").unwrap_or(&stack).to_owned()
+        } else {
+            format!("{stack}{}", sourced.name)
+        };
         Self::new(
             Cow::Owned(sourced.name),
             file,
+            stack,
             Cow::Owned(sourced.text),
             sourced.trust,
             self.depth + 1,
@@ -284,6 +294,7 @@ impl super::VimEngine {
         let top = Frame::new(
             Cow::Borrowed(text.name),
             text.name.to_owned(),
+            String::new(),
             Cow::Borrowed(text.text),
             text.trust,
             depth,
