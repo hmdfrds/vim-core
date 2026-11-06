@@ -556,6 +556,9 @@ pub struct UndoTree {
     /// Set after undo/redo, cleared on begin_group. Used by `:undojoin`
     /// to reject E790 ("undojoin is not allowed after undo").
     last_was_undo: bool,
+    /// `last_was_undo` before the pending group began, restored when the
+    /// group is discarded.
+    last_was_undo_before_pending: bool,
 }
 
 impl Default for UndoTree {
@@ -605,6 +608,7 @@ impl UndoTree {
             merging: false,
             merge_depth: 0,
             last_was_undo: false,
+            last_was_undo_before_pending: false,
         }
     }
 
@@ -799,6 +803,7 @@ impl UndoTree {
         last_visual: Option<LastVisualInfo>,
         was_changed: bool,
     ) {
+        self.last_was_undo_before_pending = self.last_was_undo;
         self.last_was_undo = false;
 
         if self.merging {
@@ -1044,12 +1049,29 @@ impl UndoTree {
         self.pending = None;
     }
 
+    /// Discard the pending group if nothing in it changed the text.
+    ///
+    /// Returns `true` when the group was dropped. The tree is then as if the
+    /// group had never begun. A merged group (macro replay) is never dropped
+    /// here: its `end_group` calls only track nesting.
+    pub(crate) fn discard_pending_if_unchanged(&mut self) -> bool {
+        if self.merging {
+            return false;
+        }
+        if self.pending.as_ref().is_some_and(|p| !p.has_edits) {
+            self.pending = None;
+            self.last_was_undo = self.last_was_undo_before_pending;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Commit the current undo group.
     ///
-    /// If no edits were recorded ([`Self::mark_edit`] / [`Self::mark_edit_at`] never
-    /// called), the group is discarded and `None` returned. Otherwise a
-    /// new node is created as a child of `current` and becomes the new
-    /// `current`.
+    /// A new node is created as a child of `current` and becomes the new
+    /// `current`, even when no edits were recorded. To drop an unchanged
+    /// group instead, see `discard_pending_if_unchanged`.
     ///
     /// `text` is the document text BEFORE the undo group's edits were applied
     /// (the "original" or T0 text). It is used to compute line-start offsets

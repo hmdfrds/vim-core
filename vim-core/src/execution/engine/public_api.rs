@@ -338,6 +338,10 @@ impl VimEngine {
             insert_state.push_str(text);
             insert_state.set_had_text_mutation();
         }
+        // The host changed the text, so the Insert's undo group must commit.
+        if !text.is_empty() {
+            self.state.undo_tree_mut().mark_edit();
+        }
         self.append_to_recording(text);
     }
 
