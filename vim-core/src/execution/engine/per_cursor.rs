@@ -107,8 +107,9 @@ impl VimEngine {
         // incorrectly triggers the visual path.
         let pass_selection = self.state.mode().is_visual() || self.state.mode().is_select();
 
-        // Per-cursor execution loop.
-        for (i, &(sel_idx, sel_range)) in cursors_desc.iter().enumerate() {
+        // Per-cursor execution.
+        let mut outputs: Vec<Effects> = Vec::with_capacity(cursors_desc.len());
+        for &(sel_idx, sel_range) in &cursors_desc {
             // Build a fresh InputContext for this cursor's offset/selection.
             let mut ctx_i = InputContext::new(ctx.doc(), sel_range.head().get())
                 .validate_clamped()
@@ -127,8 +128,15 @@ impl VimEngine {
             if sel_idx == original_primary_idx {
                 captured_undo_intent = Some(output_i.undo_intent);
             }
-            let effects_i = output_i.effects;
+            outputs.push(output_i.effects);
+        }
+        let dropped = cursors_swallowed_by_insert_entry(&cursors_desc, &outputs);
 
+        for (i, (&(sel_idx, sel_range), effects_i)) in cursors_desc.iter().zip(outputs).enumerate()
+        {
+            if dropped.get(i).copied().unwrap_or(false) {
+                continue;
+            }
             // Partition this cursor's effects.
             let mut set_cursor_offset: Option<Offset> = None;
             let mut net_delta: i64 = 0;
@@ -255,6 +263,50 @@ impl VimEngine {
             undo_intent,
         }
     }
+}
+
+/// Which cursors, in the descending order of `cursors`, to leave out of a
+/// command that enters Insert mode because a cursor below them changes text
+/// that overlaps theirs, as a counted `cc` or `S` on adjacent lines does.
+/// Several cursors cannot type into one changed region, so the lowest one
+/// keeps it and the cursors above it in that region go.
+fn cursors_swallowed_by_insert_entry(
+    cursors: &[(usize, &SelectionRange)],
+    outputs: &[Effects],
+) -> Vec<bool> {
+    let mut dropped = vec![false; outputs.len()];
+    let enters_insert = outputs.iter().any(|effects| {
+        effects
+            .as_slice()
+            .iter()
+            .any(|e| matches!(e, Effect::BeginInsert { .. }))
+    });
+    if !enters_insert {
+        return dropped;
+    }
+    let mut kept: Vec<(usize, usize)> = Vec::new();
+    for (i, (&(_, sel), effects)) in cursors.iter().zip(outputs).enumerate().rev() {
+        let head = sel.head().get();
+        let span = mutation_span(effects.as_slice()).unwrap_or((head, head));
+        if kept.iter().any(|&(s, e)| span.0 < e && s < span.1) {
+            if let Some(slot) = dropped.get_mut(i) {
+                *slot = true;
+            }
+        } else {
+            kept.push(span);
+        }
+    }
+    dropped
+}
+
+/// The byte range from the first to the last text edit in `effects`.
+pub(super) fn mutation_span(effects: &[Effect]) -> Option<(usize, usize)> {
+    effects
+        .iter()
+        .filter_map(mutation_range)
+        .fold(None, |acc: Option<(usize, usize)>, (s, e)| {
+            Some(acc.map_or((s, e), |(a, b)| (a.min(s), b.max(e))))
+        })
 }
 
 /// Group register entries by name, build multi-entry `RegisterContent` for each,

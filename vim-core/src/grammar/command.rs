@@ -1054,12 +1054,17 @@ impl Command {
             // Standalone action: delegates to Action::is_content_dependent().
             Self::Action { action, .. } => action.is_content_dependent(),
 
-            // Insert entry (i/I/a/A/o/O/s/S): position-independent for
-            // per-cursor dispatch. While some entries read text (o/O for
-            // autoindent, s/S for substitution), they involve mode
-            // transitions and undo group management that must happen
-            // exactly once via algebraic rebase, not per-cursor.
-            Self::InsertEntry { .. } => false,
+            // Insert entry: `o`, `O`, `s` and `S` change text that depends
+            // on the cursor's own line (its indent, its length, the width of
+            // the character under it), as `cc` does. The other entries change
+            // no text.
+            Self::InsertEntry { entry_type, .. } => matches!(
+                entry_type,
+                InsertEntryType::NewLineBelow
+                    | InsertEntryType::NewLineAbove
+                    | InsertEntryType::SubstituteChar
+                    | InsertEntryType::SubstituteLine
+            ),
 
             // Prefix commands: most are PI, but some produce mutating effects
             // that depend on text content.

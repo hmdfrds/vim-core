@@ -528,7 +528,9 @@ impl VimEngine {
         key: KeyEvent,
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
-        if !self.state.mode().is_insert() {
+        // While typing, the host cursor follows the last cursor that moved,
+        // which need not be the primary one.
+        if !self.state.mode().is_insert() && !self.state.mode().is_replace() {
             self.sync_primary_cursor(ctx.cursor_offset_raw());
         }
 

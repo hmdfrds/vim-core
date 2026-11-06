@@ -73,28 +73,43 @@ pub fn repeat_text(
 ) -> (Effects, usize) {
     let mut effects = Effects::new();
     let mut offset = insert_offset;
+    // Where the characters still to be replaced start in `text`.
+    let mut source = insert_offset.min(text.len());
     for _ in 1..count {
         if is_replace {
-            // Delete up to repeat_text.len() chars, but stop at newline or end of text
-            let remaining = &text[offset.min(text.len())..];
-            let mut del_len = 0;
-            for ch in remaining.chars() {
-                if ch == '\n' || del_len >= repeat_text.len() {
-                    break;
-                }
-                del_len += ch.len_utf8();
-            }
+            let del_len = replaced_len(text.get(source..).unwrap_or(""), repeat_text);
             if del_len > 0 {
                 effects = effects.delete(Range::new(
                     Offset::new(offset),
                     Offset::new(offset + del_len),
                 ));
             }
+            source += del_len;
         }
         effects = effects.insert(Offset::new(offset), repeat_text.clone());
         offset += repeat_text.len();
     }
     (effects, offset)
+}
+
+/// How many bytes at the start of `rest`, the line text after the cursor,
+/// typing `typed` in Replace mode removes. Every character but a line break
+/// replaces one character of the line (insert.txt, Replace mode); a line
+/// break replaces nothing and drops the blanks after it, as `<CR>` does.
+fn replaced_len(rest: &str, typed: &str) -> usize {
+    let mut len = 0;
+    for c in typed.chars() {
+        let mut chars = rest.get(len..).unwrap_or("").chars();
+        if c == '\n' {
+            len += chars
+                .take_while(|&b| b == ' ' || b == '\t')
+                .map(char::len_utf8)
+                .sum::<usize>();
+        } else if let Some(next) = chars.next().filter(|&n| n != '\n') {
+            len += next.len_utf8();
+        }
+    }
+    len
 }
 
 /// Build effects for stripping auto-indentation (o/O with no text typed).

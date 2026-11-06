@@ -1150,53 +1150,52 @@ fn per_cursor_insert_after_append_keeps_cursors_apart() {
     assert_eq!(session.cursor_count(), 2);
 }
 
-/// Without formatting, the per-cursor insert path works as it did before
-/// formatting while typing was added, whoever is right: the commands below
-/// take that path through their content, not through formatting.
+/// Without formatting, typing still runs at each cursor as it would alone.
 #[test]
-fn per_cursor_insert_without_formatting_is_unchanged() {
-    // <BS> with the secondary cursor before the primary.
+fn per_cursor_insert_without_formatting() {
+    // <BS> deletes the character before one cursor and the line break
+    // before the other.
     let mut session = session_with_cursors(".\n", &[2, 0]);
     feed(&mut session, "A<BS><Esc>");
-    assert_eq!(session.text(), ".\n");
+    assert_eq!(session.text(), "");
     assert_eq!(session.cursor_offset(), 0);
 
-    // <CR> at two cursors on one line.
+    // `A` moves two cursors on one line to its end, where they merge.
     let mut session = session_with_cursors("nt", &[1, 0]);
     feed(&mut session, "A<CR><Esc>");
-    assert_eq!(session.text(), "n\n\nt");
-    assert_eq!(session.cursor_offset(), 2);
+    assert_eq!(session.text(), "nt\n");
+    assert_eq!(session.cursor_offset(), 3);
+    assert_eq!(session.cursor_count(), 1);
 
-    // An expanded <Tab>.
+    // An expanded <Tab> reaches the next tab stop of each line.
     let mut session = session_with_cursors("n\n", &[2, 0]);
     let mut opts = session.options().clone();
     opts.set_expandtab(true);
     opts.set_tabstop(8);
     session.set_options(opts);
     feed(&mut session, "A\t<Esc>");
-    assert_eq!(session.text(), "                n\n");
+    assert_eq!(session.text(), "n       \n        ");
     assert_eq!(session.cursor_offset(), 7);
 }
 
-/// Without formatting, insert entry and `<Esc>` move the other cursors as
-/// the primary cursor moves, as before formatting while typing was added,
-/// whoever is right.
+/// Without formatting, insert entry and `<Esc>` put each cursor where the
+/// command puts a cursor on that line alone.
 #[test]
-fn insert_entry_and_exit_without_formatting_are_unchanged() {
-    // `A` shifts the other cursor by the primary cursor's move.
+fn insert_entry_and_exit_without_formatting() {
+    // `A` appends at the end of each line.
     let mut session = session_with_cursors("h\n//hat is long enough", &[0, 9]);
     feed(&mut session, "Ax<Esc>");
-    assert_eq!(session.text(), "hx\n//hat isx long enough");
+    assert_eq!(session.text(), "hx\n//hat is long enoughx");
 
-    // `<Esc>` leaves the other cursor where it typed.
+    // `<Esc>` steps each cursor back onto its last typed character.
     let mut session = session_with_cursors("t\n    line two ur", &[0, 14]);
     feed(&mut session, "i x 日本 #<Esc> bar<Esc>");
     assert_eq!(session.text(), " x 日本 #rt\n    line two x 日本 #r ur");
 
-    // A counted insert leaves the other cursor where it started.
+    // After a counted insert, `I` finds each line's own first character.
     let mut session = session_with_cursors("h\n", &[0, 2]);
     feed(&mut session, "3Itic <Esc>I<BS><Esc>");
-    assert_eq!(session.text(), "tic tic tic h\ntic tic tic ");
+    assert_eq!(session.text(), "tic tic tic htic tic tic ");
 }
 
 // =============================================================================
