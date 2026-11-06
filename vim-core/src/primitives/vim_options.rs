@@ -2037,6 +2037,25 @@ mod tests {
     use super::super::option_scope::{OptionId, OptionOverrides, OptionValue};
     use super::*;
 
+    #[cfg(feature = "serde")]
+    #[test]
+    fn options_saved_without_langremap_load_with_it_on() {
+        // optiondefs.h: 'langremap' is on by default; a saved value stays.
+        let mut json = serde_json::to_value(VimOptions::default()).expect("serialize");
+        let fields = json.as_object_mut().expect("an object");
+        assert_eq!(
+            fields.remove("langremap"),
+            Some(serde_json::Value::Bool(true))
+        );
+        let options: VimOptions = serde_json::from_value(json.clone()).expect("deserialize");
+        assert!(options.langremap());
+
+        let fields = json.as_object_mut().expect("an object");
+        fields.insert("langremap".into(), serde_json::Value::Bool(false));
+        let options: VimOptions = serde_json::from_value(json).expect("deserialize");
+        assert!(!options.langremap());
+    }
+
     #[test]
     fn test_defaults() {
         let opts = VimOptions::default();
