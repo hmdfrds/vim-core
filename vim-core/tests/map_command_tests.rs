@@ -516,3 +516,39 @@ fn map_of_visual_or_select_mode_replaces_that_mode_only() {
         ["E227: Mapping already exists for z"]
     );
 }
+
+#[test]
+fn ctrl_v_in_host_and_expr_mappings_makes_the_next_character_a_key() {
+    // replace_termcodes() reads every right-hand side, so a Ctrl-V in the
+    // keys of a host mapping or of an <expr> result takes the next
+    // character as it is: "^V<CR>" is the four keys "<CR>".
+    use vim_core::execution::{HostMapping, HostResult};
+
+    let mut session = HostSession::new("");
+    session.register_host_mappings(
+        "ext",
+        &[HostMapping {
+            modes: smallvec::smallvec![MappingMode::Normal],
+            lhs: "x".into(),
+            rhs: "a\x16<CR><Esc>".into(),
+            recursive: false,
+            silent: false,
+            description: None,
+        }],
+    );
+    type_keys(&mut session, "x");
+    assert_eq!(session.text(), "<CR>");
+
+    let mut session = HostSession::new("");
+    let _ = session.source_config("nnoremap <expr> y Keys()\n");
+    let response = session.process_key_host(KeyEvent::char('y'));
+    let [request] = response.host_requests.as_slice() else {
+        panic!("{:?}", response.host_requests);
+    };
+    let _ = session.complete_request_host(&HostResult::Data {
+        id: request.id(),
+        data: "a\x16<CR><Esc>".into(),
+        offset: None,
+    });
+    assert_eq!(session.text(), "<CR>");
+}
