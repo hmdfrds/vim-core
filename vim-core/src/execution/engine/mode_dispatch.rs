@@ -2396,11 +2396,13 @@ impl VimEngine {
         // After process_effects_with_text and sticky column correction,
         // update selections so subsequent commands see correct positions.
         if let Some(ref deltas) = per_cursor_deltas {
-            // Per-cursor re-execution path: use pre-computed deltas.
+            // Per-cursor re-execution path: use pre-computed deltas. A
+            // command that enters Insert mode leaves insert cursors.
+            let keep_anchors = !self.state.mode().is_insert() && !self.state.mode().is_replace();
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
-                true,
+                keep_anchors,
             );
         }
         // Note: the algebraic rebase selection update is deferred to after

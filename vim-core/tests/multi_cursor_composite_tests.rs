@@ -327,3 +327,11 @@ fn esc_steps_back_at_each_cursor() {
     assert_composite(&["é", "ab", "日本"], &[0, 0, 3], "a<Esc>x", false);
     assert_composite(&["日本", "ab"], &[3, 1], "i<Esc>x", false);
 }
+
+#[test]
+fn open_and_substitute_entries_match_composite() {
+    let lines = ["    a", "b", "\té"];
+    for keys in ["ox<Esc>", "Ox<Esc>", "sé<Esc>", "Sx<Esc>", "2sx<Esc>"] {
+        assert_composite(&lines, &[4, 0, 1], keys, true);
+    }
+}
