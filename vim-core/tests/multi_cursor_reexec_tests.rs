@@ -1192,10 +1192,10 @@ fn insert_entry_and_exit_without_formatting() {
     feed(&mut session, "i x 日本 #<Esc> bar<Esc>");
     assert_eq!(session.text(), " x 日本 #rt\n    line two x 日本 #r ur");
 
-    // A counted insert leaves the other cursor where it started.
+    // After a counted insert, `I` finds each line's own first character.
     let mut session = session_with_cursors("h\n", &[0, 2]);
     feed(&mut session, "3Itic <Esc>I<BS><Esc>");
-    assert_eq!(session.text(), "tic tic tic h\ntic tic tic ");
+    assert_eq!(session.text(), "tic tic tic htic tic tic ");
 }
 
 // =============================================================================

@@ -1406,12 +1406,13 @@ impl VimEngine {
     }
 
     /// The positional exit effects of every cursor, in descending order of
-    /// the cursor heads, when formatting is active and a counted insert
-    /// repeats its text at several cursors. Each cursor repeats the text and
-    /// formats it with its own insert start, as it would alone. `None` when
-    /// the repeat is replicated from the primary cursor. The entry for the
-    /// primary cursor, at the host cursor `cursor`, is empty: its effects
-    /// come from the regular exit.
+    /// the cursor heads, when the exit edits text at several cursors: a
+    /// counted insert repeats its text, or `o` and `O` with nothing typed
+    /// remove the indent. Each cursor does that as it would alone: it
+    /// overwrites its own line in Replace mode, formats with its own insert
+    /// start and removes its own indent. `None` when the exit edits nothing.
+    /// The entry for the primary cursor, at the host cursor `cursor`, is
+    /// empty: its effects come from the regular exit.
     fn per_cursor_exit_repeats(
         &self,
         text: &str,
@@ -1421,12 +1422,14 @@ impl VimEngine {
             crate::commands::insert::wrap::FormatPolicy::from_options(&self.resolved_options);
         let mc = self.state.multi_cursor();
         let is = self.state.insert_state()?;
-        if !mc.is_active()
-            || !policy.is_active()
-            || is.count().get() <= 1
-            || is.block_insert().is_some()
-            || is.accumulated_text().is_empty()
-        {
+        let repeats = is.count().get() > 1 && !is.accumulated_text().is_empty();
+        let opened_empty = is.accumulated_text().is_empty()
+            && matches!(
+                is.entry_type(),
+                crate::primitives::InsertEntryType::NewLineBelow
+                    | crate::primitives::InsertEntryType::NewLineAbove
+            );
+        if !mc.is_active() || is.block_insert().is_some() || !(repeats || opened_empty) {
             return None;
         }
         // The primary cursor is the host cursor: the cursor there, or else
@@ -1446,16 +1449,26 @@ impl VimEngine {
                 out.push((head, Vec::new()));
                 continue;
             }
-            let line = crate::commands::helpers::line_of(text, head.min(text.len()));
+            let at = head.min(text.len());
+            let line = crate::commands::helpers::line_of(text, at);
             let start = is.cursor_start(Offset::new(head), line);
+            // With nothing typed, the blanks before the cursor on its opened
+            // line are its own indent.
+            let own_indent = text
+                .get(..at)
+                .unwrap_or("")
+                .bytes()
+                .rev()
+                .take_while(|&b| b == b' ' || b == b'\t')
+                .count();
             let (effects, _) =
                 crate::dispatch::build_insert_exit_effects(&crate::dispatch::InsertExitParams {
                     text,
                     accumulated_text: is.accumulated_text(),
-                    cursor: Offset::new(head.min(text.len())),
+                    cursor: Offset::new(at),
                     count: is.count().get(),
                     entry_type: is.entry_type(),
-                    auto_indent_len: is.auto_indent_len(),
+                    auto_indent_len: own_indent,
                     block_insert: None,
                     mark_dot_override_pos: is.mark_dot_override_pos(),
                     entry_offset: None,
@@ -1597,9 +1610,8 @@ impl VimEngine {
             is.block_insert()
                 .map(|bc| (bc.lines_below(), is.accumulated_text().len()))
         });
-        // With several cursors the counted repeat is replicated from the
-        // primary cursor. Formatting breaks each cursor's line on its own,
-        // so each cursor then repeats the text as it would alone.
+        // With several cursors each cursor repeats a counted insert as it
+        // would alone.
         let per_cursor_repeats = self.per_cursor_exit_repeats(text, cursor);
         let (mut response, exit_info) = super::super::insert_handler::handle_insert_exit(
             &mut self.state,

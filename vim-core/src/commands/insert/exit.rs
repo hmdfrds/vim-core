@@ -140,9 +140,10 @@ pub fn build_insert_exit_effects(
 ) -> (crate::effects::Effects, usize) {
     let mut all_effects = crate::effects::Effects::new();
     let mut insert_offset = params.cursor.get();
-    // The buffer once the formatted repeats are in, when formatting broke
-    // their lines: the exit cursor is found in it.
-    let mut formatted_text: Option<String> = None;
+    // The buffer once the repeats are in: the exit cursor is found in it,
+    // as the end of the repeats can be on another line in the buffer
+    // before them.
+    let mut repeated_text: Option<String> = None;
 
     // 1. Repeat accumulated text count-1 more times
     if params.count > 1 {
@@ -178,17 +179,9 @@ pub fn build_insert_exit_effects(
                     overwritten,
                 ) {
                     new_offset = cursor;
-                    formatted_text =
-                        super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
-                } else if policy.is_active() {
-                    // Another cursor can have broken a line below this one,
-                    // so the end of the repeats can be a line start in the
-                    // buffer before them: the exit cursor is found in the
-                    // buffer with the repeats in.
-                    formatted_text =
-                        super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
                 }
             }
+            repeated_text = super::wrap::apply_text_effects(params.text, repeat_fx.as_slice());
             all_effects.extend(repeat_fx);
             // For counted inserts (3iX<Esc>), mark '.' should point to
             // the last character of the repeated text. sync_change_marks
@@ -282,7 +275,7 @@ pub fn build_insert_exit_effects(
     }
 
     // 4. Compute exit cursor position
-    let final_cursor = match formatted_text.as_deref() {
+    let final_cursor = match repeated_text.as_deref() {
         Some(text) => compute_exit_cursor(&InsertExitContext { text, ..exit_ctx }),
         None => compute_exit_cursor(&exit_ctx),
     };

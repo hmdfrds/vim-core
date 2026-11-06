@@ -393,3 +393,19 @@ fn replace_mode_matches_composite() {
         assert_composite(&lines, &[0, 0, 3], keys, false);
     }
 }
+
+#[test]
+fn counted_insert_and_empty_open_match_composite() {
+    let lines = ["日本", "    ab"];
+    for keys in [
+        "3ix<Esc>",
+        "2Ay<Esc>",
+        "oé<BS><Esc>",
+        "3Ox<Esc>",
+        "2Ré<Esc>",
+    ] {
+        assert_composite(&lines, &[3, 5], keys, true);
+    }
+    // Each cursor ends on its own last repeated character.
+    assert_composite(&["a", "short"], &[0, 4], "3ax<CR>é<Esc>x", true);
+}
