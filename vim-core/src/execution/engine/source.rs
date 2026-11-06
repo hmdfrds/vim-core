@@ -16,7 +16,7 @@ use crate::execution::config::{
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, HostRequest, InputContext};
-use crate::grammar::ex_parser::{parse_ex_piece, vim_command_parts};
+use crate::grammar::ex_parser::{parse_config_modifiers, parse_ex_piece, vim_command_parts};
 use crate::grammar::script::{script_command, Control, Line, Script, ScriptCommand};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, Reach, SetAssignment};
@@ -388,7 +388,7 @@ impl super::VimEngine {
         if let Some(body) = body {
             frame.rest = body.tail;
             fails = body.fails;
-            let (modifiers, _) = parse_ex_piece(piece);
+            let (modifiers, _) = parse_config_modifiers(piece);
             for (number, error) in body.errors {
                 let at_error = response.effects().len();
                 show_config_errors(modifiers | frame.modifiers, [error], response);
@@ -610,8 +610,10 @@ impl super::VimEngine {
         piece: &str,
         response: &mut Response,
     ) -> Result<Checked, Then> {
-        let inherited = frame.modifiers;
-        match vim_command_parts(piece) {
+        // Deviation: the modifiers only a config takes change nothing.
+        let (modifiers, text) = parse_config_modifiers(piece);
+        let inherited = frame.modifiers | modifiers;
+        match vim_command_parts(text) {
             Some((modifiers, "echo", argument)) => {
                 let command = ExCommand::Echo {
                     message: argument.into(),
@@ -629,7 +631,7 @@ impl super::VimEngine {
             }
             _ => {}
         }
-        let (modifiers, parsed) = parse_ex_piece(piece);
+        let (modifiers, parsed) = parse_ex_piece(text);
         let modifiers = modifiers | inherited;
         let command = match parsed {
             Ok(command) => command,
@@ -2378,6 +2380,44 @@ mod tests {
         let response = session.process_key_host(crate::keymap::KeyEvent::enter());
         let kinds: Vec<_> = response.host_requests.iter().map(|r| r.kind()).collect();
         assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
+    }
+
+    /// Vim applies them (ex_docmd.c `parse_command_modifiers()`); vim-core
+    /// has no meaning for them and runs the command.
+    #[test]
+    fn source_config_runs_a_command_after_a_modifier_only_a_config_takes() {
+        let mut engine = VimEngine::new();
+        let config = "verbose set tw=33\n3verbose set ic | noa set ts=3\nkeepmarks set sw=2\n\
+                      lefta set et\nrightbelow set ai\nunsilent echo 'x'\nsilent! verbose set nosuch\n";
+        let response = engine.source_config_text(config);
+        assert_eq!(errors(&response), Vec::<String>::new());
+        assert_eq!(infos(&response), ["x", "Config file sourced"]);
+        let options = engine.options();
+        assert_eq!(
+            (options.textwidth(), options.tabstop(), options.shiftwidth()),
+            (33, 3, 2)
+        );
+        assert!(options.ignorecase() && options.expandtab() && options.autoindent());
+    }
+
+    #[test]
+    fn source_config_still_refuses_a_lacking_command_after_such_a_modifier() {
+        let mut engine = VimEngine::new();
+        let response = engine.source_config_text("verbose syntax on | set ic\nsandbox set tw=3\n");
+        let syntax = "E319: Sorry, the command is not available in this version: verbose syntax on";
+        let sandbox = "E319: Sorry, the command is not available in this version: sandbox set tw=3";
+        assert_eq!(errors(&response), [syntax, sandbox]);
+        assert!(!engine.options().ignorecase());
+    }
+
+    #[test]
+    fn a_typed_command_after_a_modifier_only_a_config_takes_still_goes_to_the_host() {
+        let mut session = HostSession::new("a");
+        type_keys(&mut session, ":verbose set tw=33");
+        let response = session.process_key_host(crate::keymap::KeyEvent::enter());
+        let kinds: Vec<_> = response.host_requests.iter().map(|r| r.kind()).collect();
+        assert_eq!(kinds, [HostRequestKind::CustomExCommand]);
+        assert_eq!(session.options().textwidth(), 0);
     }
 
     #[test]

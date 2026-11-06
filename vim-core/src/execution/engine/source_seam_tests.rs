@@ -534,14 +534,18 @@ fn the_modifiers_of_a_command_reach_the_host() {
     }
     let mut host = Modifiers(Vec::new());
     let mut engine = VimEngine::new();
-    let text = ConfigText::new("a.vim", "silent! set tw=1\nsilent source b.vim\n");
+    let text = ConfigText::new(
+        "a.vim",
+        "silent! set tw=1\nsilent source b.vim\n3verbose noa set ts=2\n",
+    );
     let _ = engine.source_script(text, &mut host);
     assert_eq!(
         host.0,
         [
             ModifierFlags::SILENT | ModifierFlags::SILENT_BANG,
             ModifierFlags::SILENT,
-            ModifierFlags::SILENT
+            ModifierFlags::SILENT,
+            ModifierFlags::VERBOSE | ModifierFlags::NOAUTOCMD,
         ]
     );
 }
