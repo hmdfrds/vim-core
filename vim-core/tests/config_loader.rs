@@ -5,6 +5,7 @@ use vim_core::execution::{
     ConfigHost, ConfigText, HostRequest, HostSession, Response, SourceReply, SourceRequest,
     TrustTag, VimEngine,
 };
+use vim_core::state::StatusMessage;
 
 /// The text of each error the response shows.
 fn errors(response: &Response) -> Vec<String> {
@@ -764,6 +765,40 @@ fn a_session_sources_a_script_through_its_host() {
     assert!(session.options().ignorecase());
     assert_eq!(sourced.outcome.errors, 1);
     assert!(sourced.response.host_requests.is_empty());
+}
+
+#[test]
+fn a_session_shows_the_last_message_of_a_config() {
+    // do_source_ext() adds nothing after a file, so the message line holds
+    // what the config showed last; source_config() says it is sourced.
+    let mut session = HostSession::new("a");
+    let sourced = session.source_script(
+        ConfigText::new("a.vim", "set nosuch\nset tw?\n"),
+        &mut Features(&[]),
+    );
+    assert_eq!(
+        sourced.response.message,
+        Some(StatusMessage::Info("textwidth=0".into()))
+    );
+    let sourced = session.source_script(
+        ConfigText::new("a.vim", "set tw?\nset nosuch\n"),
+        &mut Features(&[]),
+    );
+    assert_eq!(
+        sourced.response.message,
+        Some(StatusMessage::Error("E518: Unknown option: nosuch".into()))
+    );
+    // A config that shows nothing leaves the message before it.
+    let sourced = session.source_script(ConfigText::new("a.vim", "set ic\n"), &mut Features(&[]));
+    assert_eq!(
+        sourced.response.message,
+        Some(StatusMessage::Error("E518: Unknown option: nosuch".into()))
+    );
+    let response = session.source_config("set nosuch\n");
+    assert_eq!(
+        response.message,
+        Some(StatusMessage::Info("Config file sourced".into()))
+    );
 }
 
 // ── where errors are raised ───────────────────────────────────────────

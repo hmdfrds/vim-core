@@ -906,7 +906,7 @@ impl VimSession<SessionHost> {
 
     /// Source a config string (sequence of ex commands), as
     /// [`VimEngine::source_config_text`](crate::execution::VimEngine::source_config_text)
-    /// does.
+    /// does. The response's `message` is its last, "Config file sourced".
     pub fn source_config(&mut self, text: &str) -> HostResponse {
         self.host_mut().frame_id += 1;
         self.host_mut().clipboard_dirty = false;
@@ -917,6 +917,11 @@ impl VimSession<SessionHost> {
     /// Source a config the host has read, as
     /// [`VimEngine::source_script`](crate::execution::VimEngine::source_script)
     /// does, and say what it came to.
+    ///
+    /// The response's `message` is the last message or error the config
+    /// showed, as Vim says nothing once a file is sourced; when it showed
+    /// none, the message shown before it stays. A typed `:source` the
+    /// host answers with the file's text ends with "Config file sourced".
     pub fn source_script(
         &mut self,
         text: crate::execution::ConfigText<'_>,
