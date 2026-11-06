@@ -1284,11 +1284,13 @@ impl VimEngine {
 
         // CD insert selection update: use per-cursor deltas to update
         // selections after process_effects and sticky column correction.
+        // A line break can move a cursor past where the next one started,
+        // so the cursors go by their order before the command.
         if let Some(ref deltas) = insert_cd_deltas {
             super::per_cursor::update_selections_from_deltas(
                 self.state.multi_cursor_mut().selections_mut(),
                 deltas,
-                !format_active,
+                false,
             );
         }
 

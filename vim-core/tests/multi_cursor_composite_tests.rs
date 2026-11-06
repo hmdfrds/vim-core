@@ -266,6 +266,47 @@ fn multicursor_insert_full_composite() {
     );
 }
 
+/// With 'autoindent', each cursor's `A<CR><CR>z` keeps its own typed lines.
+/// Vim: edit.c ins_eol() and open_line() in change.c; the indent of an empty
+/// autoindented line is removed when another line is opened.
+#[test]
+fn autoindent_open_twice_three_cursors_matches_composite() {
+    let case = Case {
+        lines: vec!["x".into(), "    a".into(), "    b".into()],
+        rows: vec![0, 1, 2],
+        cols: vec![0, 4, 4],
+        keys: "A<CR><CR>z<Esc>".into(),
+        ai: true,
+        et: false,
+        ts: 8,
+    };
+    for which in [&[0usize, 1, 2][..], &[0, 1], &[1, 2]] {
+        let sub = Case {
+            lines: which.iter().map(|&j| case.lines[j].clone()).collect(),
+            rows: (0..which.len()).collect(),
+            cols: which.iter().map(|&j| case.cols[j]).collect(),
+            ..case.clone()
+        };
+        let singles: Vec<String> = (0..which.len()).map(|j| run(&sub, &[j])).collect();
+        let expected = composite(&sub, &singles).expect("single runs stay local");
+        let all: Vec<usize> = (0..which.len()).collect();
+        assert_eq!(run(&sub, &all), expected, "cursors on {:?}", sub.lines);
+    }
+}
+
+/// A line break before an indent moves a cursor further than the start of
+/// the next cursor's line; the cursors keep their order.
+#[test]
+fn autoindented_line_break_keeps_cursor_order() {
+    assert_composite(&["    a", ""], &[0, 0], "Ax<CR>y<Esc>", true);
+    assert_composite(
+        &["  two spaces", ""],
+        &[5, 0],
+        "A<CR><CR>  foo x<Esc>",
+        true,
+    );
+}
+
 /// Checks `keys` with a cursor at `cols[i]` on line `i` against the
 /// composite of the single-cursor runs.
 fn assert_composite(lines: &[&str], cols: &[usize], keys: &str, ai: bool) {
