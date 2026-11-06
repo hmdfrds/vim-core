@@ -92,6 +92,8 @@ mod host_session;
 mod key_notation;
 pub mod multi_cursor;
 mod multi_cursor_executor;
+#[cfg(test)]
+mod reach_tests;
 pub mod session_host;
 pub use host_callbacks::HostCallbacks;
 pub use host_response::{

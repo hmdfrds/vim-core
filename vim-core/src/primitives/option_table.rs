@@ -84,6 +84,40 @@ pub(crate) fn known_option(name: &str) -> Option<&'static KnownOption> {
         .find(|row| row.name == name || row.short.contains(&name))
 }
 
+/// What a name in `:set` or `&name` stands for, as a host judging a config
+/// sees it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OptionName {
+    /// The full name, for an option of vim-core or of Vim; `None` for a
+    /// name neither has.
+    pub(crate) full: Option<&'static str>,
+    /// vim-core has the option.
+    pub(crate) known: bool,
+    /// Vim's `P_SECURE`.
+    pub(crate) secure: bool,
+}
+
+/// The option `name` names, a full or short name with no `no` or `inv`
+/// before it: one of vim-core's, or else one of Vim's table that vim-core
+/// lacks.
+pub(crate) fn option_name(name: &str) -> OptionName {
+    if let Some(row) = known_option(name) {
+        return OptionName {
+            full: Some(row.name),
+            known: true,
+            secure: row.secure,
+        };
+    }
+    let vim = super::vim_option_names::OPTIONS
+        .iter()
+        .find(|row| row.name == name || (!row.short.is_empty() && row.short == name));
+    OptionName {
+        full: vim.map(|row| row.name),
+        known: false,
+        secure: vim.is_some_and(|row| row.secure),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,5 +236,31 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), all);
+    }
+
+    #[test]
+    fn option_name_reads_vim_s_options_vim_core_lacks() {
+        let tw = option_name("tw");
+        assert_eq!(
+            (tw.full, tw.known, tw.secure),
+            (Some("textwidth"), true, false)
+        );
+        let lmap = option_name("lmap");
+        assert_eq!(
+            (lmap.full, lmap.known, lmap.secure),
+            (Some("langmap"), true, true)
+        );
+        let sh = option_name("sh");
+        assert_eq!((sh.full, sh.known, sh.secure), (Some("shell"), false, true));
+        let mouse = option_name("mouse");
+        assert_eq!(
+            (mouse.full, mouse.known, mouse.secure),
+            (Some("mouse"), false, false)
+        );
+        let nosuch = option_name("nosuch");
+        assert_eq!(
+            (nosuch.full, nosuch.known, nosuch.secure),
+            (None, false, false)
+        );
     }
 }

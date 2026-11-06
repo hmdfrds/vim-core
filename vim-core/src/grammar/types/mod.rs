@@ -19,6 +19,7 @@ mod ex_command;
 mod ex_range;
 mod mark;
 mod motion;
+mod reach;
 mod textobject;
 
 pub use action::Action;
@@ -30,6 +31,7 @@ pub use ex_command::{
 pub use ex_range::{ExRange, LineSpec, RangeSeparator};
 pub use mark::MarkType;
 pub use motion::Motion;
+pub use reach::Reach;
 pub use textobject::{SeekDirection, TextObject, TextObjectKind, TextObjectScope};
 
 // Re-exported from primitives (canonical location).
