@@ -558,6 +558,24 @@ fn finish_with_an_argument_is_an_error_and_the_file_goes_on() {
     assert_eq!(errors, ["E488: Trailing characters: x"]);
 }
 
+#[test]
+fn langnoremap_is_langremap_inverted() {
+    // optiondefs.h has both; did_set_langnoremap() and did_set_langremap()
+    // keep each the inverse of the other.
+    let mut engine = VimEngine::new();
+    let config = "set langnoremap\necho &lrm &lnr exists('+langnoremap')\n";
+    let response = engine.source_config_text(config);
+    assert!(errors(&response).is_empty(), "{:?}", errors(&response));
+    assert_eq!(infos(&response)[0], "0 1 1");
+    assert!(!engine.options().langremap());
+    let _ = engine.source_config_text("let &lnr = 0\n");
+    assert!(engine.options().langremap());
+    let _ = engine.source_config_text("set invlnr\n");
+    assert!(!engine.options().langremap());
+    let _ = engine.source_config_text("set lnr!\n");
+    assert!(engine.options().langremap());
+}
+
 // ── what vim-core lacks ───────────────────────────────────────────────
 
 #[test]
