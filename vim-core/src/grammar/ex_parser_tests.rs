@@ -5912,3 +5912,21 @@ fn set_term_code_names_take_two_characters() {
         ]
     );
 }
+
+/// Trailing blanks do not change the command (ex_docmd.c
+/// `separate_nextcmd()`, `del_trailing_spaces()`).
+#[test]
+fn trailing_blank_keeps_the_command() {
+    for (line, bare) in [
+        ("t. ", "t."),
+        ("co$\t", "co$"),
+        ("m0  ", "m0"),
+        ("@a ", "@a"),
+    ] {
+        assert_eq!(parse_ex_command(line), parse_ex_command(bare), "{line:?}");
+    }
+    assert!(matches!(
+        parse_ex_command("t. "),
+        Ok(ExCommand::Copy { .. })
+    ));
+}

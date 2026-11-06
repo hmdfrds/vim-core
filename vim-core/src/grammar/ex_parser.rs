@@ -206,7 +206,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
         let mut chars = reg_suffix.chars();
         if let Some(ch) = chars.next() {
             // Only accept a single-char register name immediately after `@`.
-            if chars.next().is_none() {
+            if chars.as_str().trim_start_matches(BLANKS).is_empty() {
                 if let Some(register) = crate::primitives::RegisterName::new(ch) {
                     return Ok(ExCommand::ExecuteRegister { register });
                 }
@@ -937,11 +937,14 @@ fn parse_let_command(tail: &str) -> ExCommand {
 
 fn split_head(input: &str) -> (&str, &str) {
     let trimmed = input.trim_start_matches(BLANKS);
-    // First try splitting on a blank
-    if let Some(idx) = trimmed.find(BLANKS) {
+    // First try splitting on a blank; trailing blanks alone leave the
+    // compact form below, so `:t. ` is `:t.`.
+    let tail_start = trimmed.find(BLANKS);
+    if let Some(idx) = tail_start.filter(|&idx| !trimmed[idx..].trim_matches(BLANKS).is_empty()) {
         let (head, tail) = trimmed.split_at(idx);
         (head, tail.trim_matches(BLANKS))
     } else {
+        let trimmed = &trimmed[..tail_start.unwrap_or(trimmed.len())];
         // No whitespace found — try splitting at alpha/non-alpha boundary
         // This handles Vim's compact syntax like "co3" → ("co", "3"), "m$" → ("m", "$")
         if let Some((idx, _)) = trimmed
