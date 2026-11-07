@@ -63,7 +63,7 @@ fn unknown_posix_class_span_and_name() {
     match &err.kind {
         VimRegexErrorKind::UnknownPosixClass { span, name } => {
             assert_eq!(span.start, 0);
-            assert_eq!(name.as_str(), "bogus");
+            assert_eq!(&**name, "bogus");
         }
         other => panic!("expected UnknownPosixClass, got {other:?}"),
     }
@@ -436,12 +436,10 @@ fn percent_escape_display_format() {
 // InternalError variant tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
-use compact_str::CompactString;
-
 #[test]
 fn internal_error_display() {
     let err = VimRegexError::from(VimRegexErrorKind::InternalError {
-        detail: CompactString::from("test internal failure"),
+        detail: Box::from("test internal failure"),
     });
     let display = err.to_string();
     assert!(display.contains("Internal regex error"), "got: {display}");
@@ -451,7 +449,7 @@ fn internal_error_display() {
 #[test]
 fn internal_error_has_no_span() {
     let err = VimRegexError::from(VimRegexErrorKind::InternalError {
-        detail: CompactString::from("test"),
+        detail: Box::from("test"),
     });
     assert!(err.span().is_none());
 }
@@ -459,7 +457,7 @@ fn internal_error_has_no_span() {
 #[test]
 fn internal_error_display_includes_error_code() {
     let err = VimRegexError::from(VimRegexErrorKind::InternalError {
-        detail: CompactString::from("cascade exhausted"),
+        detail: Box::from("cascade exhausted"),
     });
     let display = err.to_string();
     assert!(display.starts_with("E342:"), "got: {display}");

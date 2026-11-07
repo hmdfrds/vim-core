@@ -27,14 +27,12 @@ pub(super) struct PatternModifiers {
 /// Returns `(stripped_pattern, modifiers)`. The stripped pattern is
 /// heap-allocated only when `\c`/`\C` appears mid-pattern; prefix-only
 /// modifiers return a borrowed slice (zero allocation).
-pub(super) fn parse_search_modifiers(
-    pattern: &str,
-) -> (compact_str::CompactString, PatternModifiers) {
+pub(super) fn parse_search_modifiers(pattern: &str) -> (crate::VimString, PatternModifiers) {
     let mut mods = PatternModifiers::default();
 
     // Fast path: no backslash → no modifiers.
     if !pattern.contains('\\') {
-        return (compact_str::CompactString::from(pattern), mods);
+        return (crate::VimString::from(pattern), mods);
     }
 
     // Phase 1: strip leading \v/\V/\m/\M/\c/\C prefix modifiers.
@@ -45,11 +43,11 @@ pub(super) fn parse_search_modifiers(
     if !after_prefix.contains('\\')
         || (!after_prefix.contains("\\c") && !after_prefix.contains("\\C"))
     {
-        return (compact_str::CompactString::from(after_prefix), mods);
+        return (crate::VimString::from(after_prefix), mods);
     }
 
     // There are mid/suffix \c or \C occurrences — build a stripped copy.
-    let mut result = compact_str::CompactString::with_capacity(after_prefix.len());
+    let mut result = crate::VimString::with_capacity(after_prefix.len());
     let mut chars = after_prefix.chars();
     while let Some(ch) = chars.next() {
         if ch == '\\' {

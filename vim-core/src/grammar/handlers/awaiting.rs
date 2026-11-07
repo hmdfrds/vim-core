@@ -5,7 +5,7 @@
 use crate::grammar::types::Operator;
 use crate::keymap::KeyEvent;
 use crate::primitives::{MarkName, RegisterName};
-use compact_str::CompactString;
+use crate::VimString;
 use std::num::NonZeroU32;
 
 use crate::grammar::command::{count_or_default, Command, InsertKind, MacroKind, PrefixCommand};
@@ -103,7 +103,7 @@ impl Parser {
             // '=' enters expression input mode: collect expression until <CR>
             if c == '=' {
                 return GrammarResult::Continue(InputState::AwaitingInsertExpression {
-                    collected: CompactString::new(""),
+                    collected: VimString::new(""),
                 });
             }
             if let Some(reg) = RegisterName::new(c) {
@@ -122,7 +122,7 @@ impl Parser {
     /// `<Esc>` cancels the expression input.
     pub(crate) fn handle_awaiting_insert_expression(
         key: KeyEvent,
-        mut collected: CompactString,
+        mut collected: VimString,
     ) -> GrammarResult {
         use crate::keymap::Key;
 
@@ -346,7 +346,7 @@ impl Parser {
             // ASCII characters execute immediately (combining marks after
             // ASCII are extremely rare; avoiding the one-key delay is better UX).
             if !c.is_ascii() {
-                let mut grapheme = CompactString::new("");
+                let mut grapheme = VimString::new("");
                 grapheme.push(c);
                 return GrammarResult::Continue(InputState::AwaitingComposingChars {
                     grapheme,
@@ -356,7 +356,7 @@ impl Parser {
                     char_command,
                 });
             }
-            let mut target = CompactString::new("");
+            let mut target = VimString::new("");
             target.push(c);
             GrammarResult::Execute(Command::CharCommand {
                 count: count_or_default(count),
@@ -382,7 +382,7 @@ impl Parser {
     /// where `vgetc()` internally accumulates combining marks and returns
     /// the complete grapheme as a single key event.
     pub(crate) fn handle_awaiting_composing_chars(
-        grapheme: &CompactString,
+        grapheme: &VimString,
         count: Option<u32>,
         register: Option<RegisterName>,
         operator: Option<Operator>,
@@ -1770,10 +1770,10 @@ mod tests {
     fn composing_pending_display() {
         // Verify pending_display for AwaitingComposingChars state
         use crate::grammar::input_state::InputState;
-        use compact_str::CompactString;
+        use crate::VimString;
 
         let s = InputState::AwaitingComposingChars {
-            grapheme: CompactString::from("\u{0915}\u{093E}"),
+            grapheme: VimString::from("\u{0915}\u{093E}"),
             count: Some(2),
             register: None,
             operator: None,
@@ -1786,10 +1786,10 @@ mod tests {
     #[test]
     fn composing_expects_literal_char() {
         use crate::grammar::input_state::InputState;
-        use compact_str::CompactString;
+        use crate::VimString;
 
         let s = InputState::AwaitingComposingChars {
-            grapheme: CompactString::from("e"),
+            grapheme: VimString::from("e"),
             count: None,
             register: None,
             operator: None,

@@ -29,7 +29,7 @@ use crate::execution::{ExecutionContext, InputContext, Validated};
 use crate::grammar::Command;
 use crate::primitives::byte_delta;
 use crate::primitives::{MotionType, Offset, RegisterName, SelectionRange, Selections};
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 /// Result of per-cursor re-execution.
@@ -88,7 +88,7 @@ impl VimEngine {
         let mut cursor_deltas: Vec<(usize, Offset, i64)> = Vec::new();
         // Register entries collected from ALL cursors in descending offset order.
         // Will be reversed to ascending (selection order) for consolidation.
-        let mut register_entries: Vec<(RegisterName, CompactString, MotionType)> = Vec::new();
+        let mut register_entries: Vec<(RegisterName, VimString, MotionType)> = Vec::new();
 
         // Collect cursors sorted descending by head offset.
         let mut cursors_desc: Vec<(usize, &SelectionRange)> =
@@ -313,7 +313,7 @@ pub(super) fn mutation_span(effects: &[Effect]) -> Option<(usize, usize)> {
 /// emit `SetRegister` effects into `all_effects`, and return the override data.
 fn consolidate_registers(
     all_effects: &mut Vec<Effect>,
-    register_entries: &mut Vec<(RegisterName, CompactString, MotionType)>,
+    register_entries: &mut Vec<(RegisterName, VimString, MotionType)>,
 ) -> Option<PerCursorRegisterOverride> {
     if register_entries.is_empty() {
         return None;
@@ -322,7 +322,7 @@ fn consolidate_registers(
     register_entries.reverse(); // now ascending by cursor offset
 
     // Group entries by register name, preserving per-cursor order.
-    let mut groups: Vec<(RegisterName, SmallVec<[CompactString; 1]>, MotionType)> = Vec::new();
+    let mut groups: Vec<(RegisterName, SmallVec<[VimString; 1]>, MotionType)> = Vec::new();
     for (name, text, mt) in register_entries.iter() {
         if let Some(group) = groups.iter_mut().find(|(n, _, _)| *n == *name) {
             group.1.push(text.clone());
@@ -346,7 +346,7 @@ fn consolidate_registers(
         // way it would for single-cursor execution.
         all_effects.push(Effect::SetRegister {
             name,
-            text: CompactString::from(content.entry(0)),
+            text: VimString::from(content.entry(0)),
             motion_type,
         });
         override_pairs.push((name, content));

@@ -12,8 +12,8 @@
 
 use std::fmt;
 
+use crate::VimString;
 use bitflags::bitflags;
-use compact_str::CompactString;
 use unicode_width::UnicodeWidthChar;
 
 /// Vim's default `comments` value (`:help 'comments'`, Vim 9.1).
@@ -98,7 +98,7 @@ impl std::error::Error for CommentsError {}
 pub struct CommentPart {
     flags: CommentFlags,
     offset: i32,
-    string: CompactString,
+    string: VimString,
 }
 
 impl CommentPart {
@@ -154,7 +154,7 @@ pub struct CommentContinuation {
     pub indent: usize,
     /// The leader text that follows the indent, including the white space
     /// that separates it from the text.
-    pub leader: CompactString,
+    pub leader: VimString,
 }
 
 const fn is_white(b: u8) -> bool {
@@ -319,7 +319,7 @@ impl CommentSpec {
                 Some(CommentPart {
                     flags,
                     offset,
-                    string: CompactString::from(string),
+                    string: VimString::from(string),
                 })
             })
             .collect();
@@ -543,7 +543,7 @@ impl LeaderMatch {
         }
         Some(CommentContinuation {
             indent,
-            leader: CompactString::from(leader),
+            leader: VimString::from(leader),
         })
     }
 }

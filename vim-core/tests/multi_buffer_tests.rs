@@ -4,7 +4,7 @@
 //! the `MultiBufferView` API surface, `CrossBufferEdit` effect emission,
 //! and capability gating.
 
-use compact_str::CompactString;
+use vim_core::VimString;
 
 use vim_core::document::{BufferLens, BufferMeta, BufferScope, Document};
 use vim_core::effects::Effect;
@@ -91,7 +91,7 @@ impl BufferScope for SimpleMockScope {
             let doc = &self.docs[idx];
             BufferMeta {
                 id,
-                path: Some(CompactString::from(format!("file_{}.rs", id.get()))),
+                path: Some(VimString::from(format!("file_{}.rs", id.get()))),
                 line_count: doc.line_count(),
                 byte_len: doc.len(),
                 modified: false,
@@ -105,7 +105,7 @@ impl BufferScope for SimpleMockScope {
             let doc = &self.docs[idx];
             let meta = BufferMeta {
                 id,
-                path: Some(CompactString::from(format!("file_{}.rs", id.get()))),
+                path: Some(VimString::from(format!("file_{}.rs", id.get()))),
                 line_count: doc.line_count(),
                 byte_len: doc.len(),
                 modified: false,
@@ -173,7 +173,7 @@ fn multi_buffer_view_meta() {
     assert_eq!(meta.line_count, 2);
     assert_eq!(meta.byte_len, 11);
     assert!(!meta.modified);
-    assert_eq!(meta.path, Some(CompactString::from("file_1.rs")));
+    assert_eq!(meta.path, Some(VimString::from("file_1.rs")));
 
     let meta2 = view.meta(BufferId::new(2)).unwrap();
     assert_eq!(meta2.line_count, 1);
@@ -219,12 +219,12 @@ fn cross_buffer_edit_emitted() {
         TextEdit {
             start: 0,
             end: 5,
-            text: CompactString::from("replaced"),
+            text: VimString::from("replaced"),
         },
         TextEdit {
             start: 10,
             end: 10,
-            text: CompactString::from(" inserted"),
+            text: VimString::from(" inserted"),
         },
     ];
 
@@ -280,7 +280,7 @@ fn cross_buffer_edit_requires_mutating_tier() {
     let edits = vec![TextEdit {
         start: 0,
         end: 1,
-        text: CompactString::from("X"),
+        text: VimString::from("X"),
     }];
 
     let result = api.emit().cross_buffer_edit(BufferId::new(1), &edits);
@@ -343,7 +343,7 @@ fn buffer_lens_slice_and_line_of_offset() {
 fn buffer_meta_equality() {
     let meta1 = BufferMeta {
         id: BufferId::new(1),
-        path: Some(CompactString::from("a.rs")),
+        path: Some(VimString::from("a.rs")),
         line_count: 10,
         byte_len: 100,
         modified: false,

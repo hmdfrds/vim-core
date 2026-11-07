@@ -36,7 +36,7 @@
 //! `primitives`, `std` and sibling `state` modules; must not import
 //! `commands`, `effects`, `execution` or `dispatch`.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::VimState;
 use crate::primitives::Mode;
@@ -121,11 +121,11 @@ pub struct StateSnapshot {
     /// Marks version counter at snapshot time.
     marks_version: u64,
     /// Search pattern at snapshot time.
-    search_pattern: Option<CompactString>,
+    search_pattern: Option<VimString>,
     /// Search direction at snapshot time.
     search_direction: crate::primitives::SearchDirection,
     /// Command-line input text at snapshot time.
-    command_line_text: CompactString,
+    command_line_text: VimString,
     /// Whether visual mode was active at snapshot time.
     visual_active: bool,
     /// Jumplist length at snapshot time.
@@ -151,9 +151,9 @@ impl StateSnapshot {
             mode: state.mode(),
             register_version: state.registers().version(),
             marks_version: state.marks().version(),
-            search_pattern: state.search().pattern().map(CompactString::from),
+            search_pattern: state.search().pattern().map(VimString::from),
             search_direction: state.search().direction(),
-            command_line_text: CompactString::from(state.command_line().input()),
+            command_line_text: VimString::from(state.command_line().input()),
             visual_active: state.mode().is_visual(),
             jumplist_len: state.jump_list().len(),
             jumplist_position: state.jump_list().position(),

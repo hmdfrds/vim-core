@@ -39,7 +39,7 @@
 
 use std::ops::Range;
 
-use compact_str::CompactString;
+use crate::VimString;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::commands::helpers::{column_of, grapheme_display_width, line_of, line_start_for_offset};
@@ -113,7 +113,7 @@ pub struct FormatEdit {
     /// Byte range replaced, in the buffer as it is when this edit applies.
     pub range: Range<usize>,
     /// Replacement text.
-    pub text: CompactString,
+    pub text: VimString,
 }
 
 /// The line breaks formatting adds after some text was typed.
@@ -693,7 +693,7 @@ impl Formatter<'_, '_> {
                 buf.replace_range(range.clone(), "");
                 self.edits.push(FormatEdit {
                     range,
-                    text: CompactString::default(),
+                    text: VimString::default(),
                 });
             }
             let range = ls + split..ls + col;
@@ -738,7 +738,7 @@ impl Formatter<'_, '_> {
         leader: Option<LeaderMatch>,
         split: usize,
         first_line: bool,
-    ) -> CompactString {
+    ) -> VimString {
         let policy = self.policy;
         let continuation = leader.and_then(|m| {
             m.continuation(
@@ -752,11 +752,10 @@ impl Formatter<'_, '_> {
         let continues = continuation.is_some();
         let (mut indent, mut leader_text) = match continuation {
             Some(cont) => (cont.indent, cont.leader),
-            None if policy.autoindent => (
-                indent_width(line0, policy.tabstop),
-                CompactString::default(),
-            ),
-            None => (0, CompactString::default()),
+            None if policy.autoindent => {
+                (indent_width(line0, policy.tabstop), VimString::default())
+            }
+            None => (0, VimString::default()),
         };
         if let Some(call) = self.operator {
             match call.second_indent {
@@ -768,7 +767,7 @@ impl Formatter<'_, '_> {
                 _ => {}
             }
         }
-        let mut text = CompactString::from("\n");
+        let mut text = VimString::from("\n");
         text.push_str(&build_indent_string(
             indent,
             !policy.expandtab,

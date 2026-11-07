@@ -3869,7 +3869,7 @@ fn expr_mapping_noremap_round_trip() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("MyExpr()")),
+        Some(crate::VimString::from("MyExpr()")),
     );
 
     // Step 1: Process the trigger key 'g'
@@ -3911,7 +3911,7 @@ fn expr_mapping_noremap_round_trip() {
     let request_id = req.id();
     let completion = engine.complete_host_request(&HostResult::Data {
         id: request_id,
-        data: compact_str::CompactString::from("j"),
+        data: crate::VimString::from("j"),
         offset: None,
     });
 
@@ -3956,7 +3956,7 @@ fn expr_mapping_recursive_emits_recursive_flag() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("MyExpr()")),
+        Some(crate::VimString::from("MyExpr()")),
     );
 
     // Process the trigger key
@@ -3999,7 +3999,7 @@ fn expr_mapping_preserves_expression_text() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from(expr_text)),
+        Some(crate::VimString::from(expr_text)),
     );
 
     let response = process_key(&mut engine, &doc, KeyEvent::char('j'));
@@ -4034,7 +4034,7 @@ fn expr_mapping_host_failure_produces_error() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("BadExpr()")),
+        Some(crate::VimString::from("BadExpr()")),
     );
 
     let response = process_key(&mut engine, &doc, KeyEvent::char('g'));
@@ -4044,7 +4044,7 @@ fn expr_mapping_host_failure_produces_error() {
     // Complete with failure
     let result = engine.complete_host_request(&HostResult::Failure {
         id: request_id,
-        error: compact_str::CompactString::from("E123: Undefined function"),
+        error: crate::VimString::from("E123: Undefined function"),
     });
 
     // Should produce an error effect (ShowError / SetMessage)
@@ -4075,7 +4075,7 @@ fn expr_mapping_empty_result_produces_no_pending_keys() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("EmptyExpr()")),
+        Some(crate::VimString::from("EmptyExpr()")),
     );
 
     let response = process_key(&mut engine, &doc, KeyEvent::char('g'));
@@ -4084,7 +4084,7 @@ fn expr_mapping_empty_result_produces_no_pending_keys() {
     // Complete with empty data
     let _result = engine.complete_host_request(&HostResult::Data {
         id: request_id,
-        data: compact_str::CompactString::from(""),
+        data: crate::VimString::from(""),
         offset: None,
     });
 
@@ -4117,7 +4117,7 @@ fn silent_expr_mapping_suppresses_messages() {
             silent: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("MyExpr()")),
+        Some(crate::VimString::from("MyExpr()")),
     );
 
     // Step 1: Process the trigger key 'g'
@@ -4152,7 +4152,7 @@ fn silent_expr_mapping_suppresses_messages() {
     let request_id = req.id();
     let completion = engine.complete_host_request(&HostResult::Data {
         id: request_id,
-        data: compact_str::CompactString::from("<C-g>"),
+        data: crate::VimString::from("<C-g>"),
         offset: None,
     });
     assert!(completion.consumed(), "completion should be consumed");
@@ -4196,7 +4196,7 @@ fn non_silent_expr_mapping_preserves_messages() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("MyExpr()")),
+        Some(crate::VimString::from("MyExpr()")),
     );
 
     let response = process_key(&mut engine, &doc, KeyEvent::char('g'));
@@ -4214,7 +4214,7 @@ fn non_silent_expr_mapping_preserves_messages() {
     let request_id = req.id();
     let _completion = engine.complete_host_request(&HostResult::Data {
         id: request_id,
-        data: compact_str::CompactString::from("<C-g>"),
+        data: crate::VimString::from("<C-g>"),
         offset: None,
     });
 
@@ -5060,7 +5060,7 @@ fn expr_mapping_result_resolves_action_name() {
             expr: true,
             ..MappingFlags::default()
         },
-        Some(compact_str::CompactString::from("MyExpr()")),
+        Some(crate::VimString::from("MyExpr()")),
     );
 
     // Step 1: Trigger the expr mapping
@@ -5077,7 +5077,7 @@ fn expr_mapping_result_resolves_action_name() {
     let request_id = response.host_requests()[0].id();
     let completion = engine.complete_host_request(&HostResult::Data {
         id: request_id,
-        data: compact_str::CompactString::from("<Action>(TestExprAction)"),
+        data: crate::VimString::from("<Action>(TestExprAction)"),
         offset: None,
     });
     assert!(completion.consumed(), "completion should be consumed");
@@ -9668,7 +9668,7 @@ fn filetype_changed_sets_filetype() {
     assert_eq!(engine.filetype(), None);
     let response =
         engine.process_notification(crate::execution::HostNotification::FileTypeChanged {
-            filetype: compact_str::CompactString::from("rust"),
+            filetype: crate::VimString::from("rust"),
         });
     assert_eq!(response.kind(), crate::execution::ResponseKind::Consumed);
     assert_eq!(engine.filetype(), Some("rust"));
@@ -9689,7 +9689,7 @@ fn completion_done_acknowledged() {
     let mut engine = VimEngine::new();
     let response =
         engine.process_notification(crate::execution::HostNotification::CompletionDone {
-            item: compact_str::CompactString::from("println!"),
+            item: crate::VimString::from("println!"),
         });
     assert_eq!(response.kind(), crate::execution::ResponseKind::Consumed);
     assert!(response.effects().is_empty());

@@ -3,8 +3,6 @@
 //! Implements the strategy cascade for forward searches, the find_all
 //! loop, and the is_match shortcut.
 
-use compact_str::CompactString;
-
 use crate::cache::bloom::{extract_trigrams, LineBloomFilter};
 use crate::cache::Cache;
 use crate::common::advance_one_codepoint;
@@ -178,7 +176,7 @@ pub(crate) fn search_internal(
 
     // EngineDispatch never declines — if we reach here, the strategy list is misconfigured.
     Err(VimRegexError::new(VimRegexErrorKind::InternalError {
-        detail: CompactString::from("strategy cascade exhausted: EngineDispatch must be the last strategy and never declines"),
+        detail: Box::from("strategy cascade exhausted: EngineDispatch must be the last strategy and never declines"),
     }))
 }
 

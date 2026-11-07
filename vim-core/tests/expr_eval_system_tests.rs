@@ -12,7 +12,7 @@ use vim_core::execution::{
 use vim_core::primitives::{CallerId, CapabilityTier, VarScope, VimValue};
 use vim_core::state::VariableStore;
 
-use compact_str::CompactString;
+use vim_core::VimString;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,11 +77,11 @@ fn eval_string_literals_double_quotes() {
 
     assert_eq!(
         rt.eval_expression("\"hello\"", &ctx).unwrap(),
-        VimValue::String(CompactString::from("hello"))
+        VimValue::String(VimString::from("hello"))
     );
     assert_eq!(
         rt.eval_expression("\"\"", &ctx).unwrap(),
-        VimValue::String(CompactString::from(""))
+        VimValue::String(VimString::from(""))
     );
 }
 
@@ -93,7 +93,7 @@ fn eval_string_literals_single_quotes() {
 
     assert_eq!(
         rt.eval_expression("'world'", &ctx).unwrap(),
-        VimValue::String(CompactString::from("world"))
+        VimValue::String(VimString::from("world"))
     );
 }
 
@@ -217,7 +217,7 @@ fn eval_string_concatenation() {
 
     assert_eq!(
         rt.eval_expression("\"hello\" . \" world\"", &ctx).unwrap(),
-        VimValue::String(CompactString::from("hello world"))
+        VimValue::String(VimString::from("hello world"))
     );
 }
 
@@ -296,7 +296,7 @@ fn eval_buffer_variable() {
     store.set(
         VarScope::Buffer,
         "name",
-        VimValue::String(CompactString::from("test.rs")),
+        VimValue::String(VimString::from("test.rs")),
     );
 
     let ctx = make_context(&store);
@@ -304,7 +304,7 @@ fn eval_buffer_variable() {
 
     assert_eq!(
         rt.eval_expression("b:name", &ctx).unwrap(),
-        VimValue::String(CompactString::from("test.rs"))
+        VimValue::String(VimString::from("test.rs"))
     );
 }
 
@@ -482,7 +482,7 @@ fn vim_api_expr_context_reads_variables() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("counter"),
+        name: VimString::from("counter"),
         value: VimValue::Int(7),
     });
 
@@ -506,12 +506,12 @@ fn vim_api_expr_context_after_variable_set() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("x"),
+        name: VimString::from("x"),
         value: VimValue::Int(5),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("y"),
+        name: VimString::from("y"),
         value: VimValue::Int(3),
     });
 
@@ -543,7 +543,7 @@ fn system_test_ctrl_r_eq_simulation() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("width"),
+        name: VimString::from("width"),
         value: VimValue::Int(80),
     });
 
@@ -567,7 +567,7 @@ fn system_test_conditional_expression() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("enabled"),
+        name: VimString::from("enabled"),
         value: VimValue::Bool(true),
     });
 

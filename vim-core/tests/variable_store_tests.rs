@@ -120,13 +120,13 @@ fn set_variable_effect_kind() {
 
 #[test]
 fn variable_set_and_get_global_via_engine() {
-    use compact_str::CompactString;
     use vim_core::execution::VimEngine;
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("myvar"),
+        name: VimString::from("myvar"),
         value: VimValue::Int(123),
     });
 
@@ -141,14 +141,14 @@ fn variable_set_and_get_global_via_engine() {
 
 #[test]
 fn variable_set_and_get_buffer_via_engine() {
-    use compact_str::CompactString;
     use vim_core::execution::VimEngine;
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("bufvar"),
-        value: VimValue::String(CompactString::from("hello")),
+        name: VimString::from("bufvar"),
+        value: VimValue::String(VimString::from("hello")),
     });
 
     assert_eq!(
@@ -156,24 +156,24 @@ fn variable_set_and_get_buffer_via_engine() {
             .state()
             .variable_store()
             .get(VarScope::Buffer, "bufvar"),
-        Some(&VimValue::String(CompactString::from("hello")))
+        Some(&VimValue::String(VimString::from("hello")))
     );
 }
 
 #[test]
 fn variable_scope_isolation_via_engine() {
-    use compact_str::CompactString;
     use vim_core::execution::VimEngine;
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("x"),
+        name: VimString::from("x"),
         value: VimValue::Int(1),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("x"),
+        name: VimString::from("x"),
         value: VimValue::Int(2),
     });
 
@@ -189,13 +189,13 @@ fn variable_scope_isolation_via_engine() {
 
 #[test]
 fn variable_delete_via_engine() {
-    use compact_str::CompactString;
     use vim_core::execution::VimEngine;
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("del_me"),
+        name: VimString::from("del_me"),
         value: VimValue::Bool(true),
     });
     assert!(engine
@@ -205,7 +205,7 @@ fn variable_delete_via_engine() {
 
     engine.apply_effect(&Effect::DeleteVariable {
         scope: VarScope::Global,
-        name: CompactString::from("del_me"),
+        name: VimString::from("del_me"),
     });
     assert!(!engine
         .state()
@@ -215,18 +215,18 @@ fn variable_delete_via_engine() {
 
 #[test]
 fn variable_overwrite_via_engine() {
-    use compact_str::CompactString;
     use vim_core::execution::VimEngine;
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("ow"),
+        name: VimString::from("ow"),
         value: VimValue::Int(1),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("ow"),
+        name: VimString::from("ow"),
         value: VimValue::Int(99),
     });
     assert_eq!(
@@ -241,8 +241,8 @@ fn variable_overwrite_via_engine() {
 
 #[test]
 fn variable_buffer_switch() {
-    use compact_str::CompactString;
     use vim_core::execution::{BufferLocalState, VimEngine};
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
 
@@ -250,7 +250,7 @@ fn variable_buffer_switch() {
     engine.on_buffer_enter(BufferLocalState::default());
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("foo"),
+        name: VimString::from("foo"),
         value: VimValue::Int(10),
     });
     assert_eq!(
@@ -289,15 +289,15 @@ fn variable_buffer_switch() {
 
 #[test]
 fn variable_global_survives_buffer_switch() {
-    use compact_str::CompactString;
     use vim_core::execution::{BufferLocalState, VimEngine};
+    use vim_core::VimString;
 
     let mut engine = VimEngine::new();
 
     // Set g:keep
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("keep"),
+        name: VimString::from("keep"),
         value: VimValue::Float(3.14),
     });
 

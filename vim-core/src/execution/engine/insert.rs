@@ -82,7 +82,7 @@ pub(super) fn precompute_insert(
                     let after_cursor = &text[cursor..];
                     let trailing_strip_len = after_cursor.len()
                         - after_cursor.trim_start_matches([' ', '\t']).len();
-                    let insert_text = compact_str::format_compact!("\n{saved}");
+                    let insert_text = crate::format_vim!("\n{saved}");
                     let insert_len = insert_text.len();
                     InsertPrecomputed::Newline {
                         insert_text,
@@ -116,7 +116,7 @@ pub(super) fn precompute_insert(
                         )
                     };
                     let base = nl.insert_text.as_str();
-                    nl.insert_text = compact_str::format_compact!("{base}{extra}");
+                    nl.insert_text = crate::format_vim!("{base}{extra}");
                     nl.insert_len += extra.len();
                 }
                 InsertPrecomputed::Newline {
@@ -156,7 +156,7 @@ pub(super) fn precompute_insert(
                         ch: *char,
                         strip_start,
                         strip_end,
-                        new_indent: compact_str::CompactString::from(new_indent),
+                        new_indent: crate::VimString::from(new_indent),
                     }
                 } else {
                     InsertPrecomputed::Char(*char)
@@ -228,7 +228,7 @@ pub(super) fn precompute_insert(
             if last.is_empty() {
                 InsertPrecomputed::None
             } else {
-                InsertPrecomputed::Text(compact_str::CompactString::from(last))
+                InsertPrecomputed::Text(crate::VimString::from(last))
             }
         }
         Command::Insert(InsertKind::Register { register }) => {
@@ -238,7 +238,7 @@ pub(super) fn precompute_insert(
                 if last.is_empty() {
                     InsertPrecomputed::None
                 } else {
-                    InsertPrecomputed::Text(compact_str::CompactString::from(last))
+                    InsertPrecomputed::Text(crate::VimString::from(last))
                 }
             } else if *register == crate::primitives::RegisterName::FILENAME {
                 // '%' register: current filename. If not set, Vim shows E32.
@@ -247,7 +247,7 @@ pub(super) fn precompute_insert(
                     if reg_text.is_empty() {
                         InsertPrecomputed::Error(crate::errors::VimError::HostFailure("E32: No file name".into()))
                     } else {
-                        InsertPrecomputed::Text(compact_str::CompactString::from(reg_text))
+                        InsertPrecomputed::Text(crate::VimString::from(reg_text))
                     }
                 } else {
                     InsertPrecomputed::Error(crate::errors::VimError::HostFailure("E32: No file name".into()))
@@ -257,7 +257,7 @@ pub(super) fn precompute_insert(
                 if reg_text.is_empty() {
                     InsertPrecomputed::None
                 } else {
-                    InsertPrecomputed::Text(compact_str::CompactString::from(reg_text))
+                    InsertPrecomputed::Text(crate::VimString::from(reg_text))
                 }
             } else {
                 InsertPrecomputed::None
@@ -276,7 +276,7 @@ pub(super) fn precompute_insert(
             if text.is_empty() {
                 InsertPrecomputed::None
             } else {
-                InsertPrecomputed::Text(compact_str::CompactString::from(text))
+                InsertPrecomputed::Text(crate::VimString::from(text))
             }
         }
         // Insert-specific commands that need no precomputation:
@@ -292,7 +292,7 @@ pub(super) fn precompute_insert(
             if result.is_empty() {
                 InsertPrecomputed::None
             } else {
-                InsertPrecomputed::Text(compact_str::CompactString::from(result))
+                InsertPrecomputed::Text(crate::VimString::from(result))
             }
         }
         Command::Insert(InsertKind::InsertWordUnderCursor) => {
@@ -303,7 +303,7 @@ pub(super) fn precompute_insert(
             if word.is_empty() {
                 InsertPrecomputed::None
             } else {
-                InsertPrecomputed::Text(compact_str::CompactString::from(word))
+                InsertPrecomputed::Text(crate::VimString::from(word))
             }
         }
         Command::Insert(InsertKind::InsertWORDUnderCursor) => {
@@ -320,7 +320,7 @@ pub(super) fn precompute_insert(
             if word.is_empty() {
                 InsertPrecomputed::None
             } else {
-                InsertPrecomputed::Text(compact_str::CompactString::from(word))
+                InsertPrecomputed::Text(crate::VimString::from(word))
             }
         }
         Command::Insert(InsertKind::InsertCurrentLine) => {
@@ -328,7 +328,7 @@ pub(super) fn precompute_insert(
             if line.is_empty() {
                 InsertPrecomputed::None
             } else {
-                InsertPrecomputed::Text(compact_str::CompactString::from(line))
+                InsertPrecomputed::Text(crate::VimString::from(line))
             }
         }
         Command::Insert(

@@ -14,7 +14,7 @@
 //! requires adding a corresponding `HostEvent` variant here, and updating
 //! the `From<Effect>` impl (see `host_event_convert.rs`).
 
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 use crate::effects::{HighlightStyle, InfoMessage, SelectionTag};
@@ -46,7 +46,7 @@ pub enum HostEvent {
         /// Byte offset where text should be inserted.
         offset: Offset,
         /// The text content to insert.
-        text: CompactString,
+        text: VimString,
     },
     /// Delete a range of text.
     Delete {
@@ -58,7 +58,7 @@ pub enum HostEvent {
         /// The byte range to replace.
         range: Range,
         /// The replacement text.
-        text: CompactString,
+        text: VimString,
     },
 
     // ── Cursor + Selection ───────────────────────────────────────────────
@@ -196,7 +196,7 @@ pub enum HostEvent {
     /// Set the search pattern and direction.
     SetSearchPattern {
         /// The regex pattern to search for.
-        pattern: CompactString,
+        pattern: VimString,
         /// Search direction (forward `/` or backward `?`).
         direction: Direction,
     },
@@ -227,7 +227,7 @@ pub enum HostEvent {
     /// Show a warning message.
     ShowWarning {
         /// Warning message text.
-        text: CompactString,
+        text: VimString,
     },
     /// Show an error message.
     ShowError {
@@ -243,7 +243,7 @@ pub enum HostEvent {
         /// Register name.
         name: RegisterName,
         /// The text content to store.
-        text: CompactString,
+        text: VimString,
         /// Whether the content is characterwise or linewise.
         motion_type: MotionType,
     },
@@ -255,7 +255,7 @@ pub enum HostEvent {
     /// Copy text to system clipboard.
     CopyToClipboard {
         /// Text to copy to clipboard.
-        text: CompactString,
+        text: VimString,
         /// Target register (`*` or `+`).
         register: RegisterName,
     },
@@ -328,7 +328,7 @@ pub enum HostEvent {
         /// Document byte range of the current match to highlight.
         match_range: Range,
         /// The replacement string that would be applied.
-        replacement: CompactString,
+        replacement: VimString,
         /// 1-based index of the current match.
         match_index: u32,
         /// Total number of matches found.
@@ -345,7 +345,7 @@ pub enum HostEvent {
         /// Byte offset within the line where the virtual text is anchored.
         col: Offset,
         /// The virtual text content to display.
-        text: CompactString,
+        text: VimString,
         /// Where to render relative to the anchor position.
         position: VirtualTextPosition,
     },
@@ -415,20 +415,20 @@ pub enum HostEvent {
     /// Set a highlight region for a named owner and highlight group.
     SetHighlightRange {
         /// Owner identifier (e.g., "exchange", "surround").
-        owner: CompactString,
+        owner: VimString,
         /// The byte range to highlight.
         range: Range,
         /// Highlight group name (e.g., "pending", "target").
-        group: CompactString,
+        group: VimString,
         /// Render shape: char (trapezoid), line (full-width), or block (rectangular).
         shape: SelectionShape,
     },
     /// Clear highlights for a named owner.
     ClearHighlightRange {
         /// Owner identifier whose highlights to clear.
-        owner: CompactString,
+        owner: VimString,
         /// Optional group to clear. `None` clears all groups.
-        group: Option<CompactString>,
+        group: Option<VimString>,
     },
 
     // ── Misc ─────────────────────────────────────────────────────────────

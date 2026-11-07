@@ -225,6 +225,13 @@
 //! - `effects` is data-only — it must not depend on `grammar`
 //! - `errors` is data-only — it must not depend on `state`
 //!
+//! ## Strings
+//!
+//! Owned text in the API is [`VimString`]: build one with `.into()` from any
+//! std string type or with [`format_vim!`], and read it as a `&str`. The
+//! crate that stores it is a private dependency. No public item names it, so
+//! its releases are not part of this crate's API.
+//!
 //! ## Usage
 //!
 //! ```ignore
@@ -290,7 +297,9 @@ mod static_checks; // Compile-time size guards
 pub mod test_utils; // Shared test infrastructure (SimpleDocument, etc.)
 
 // Top-level re-exports for external crates.
-pub use primitives::{IncCommandMode, MagicMode, SearchFlags, SelectionMode, VimOptions};
+pub use primitives::{
+    IncCommandMode, MagicMode, SearchFlags, SelectionMode, VimOptions, VimString,
+};
 
 /// Prelude for convenient imports.
 ///
@@ -302,4 +311,5 @@ pub mod prelude {
     pub use crate::keymap::KeyEvent;
     pub use crate::primitives::Mode;
     pub use crate::primitives::VimOptions;
+    pub use crate::primitives::VimString;
 }

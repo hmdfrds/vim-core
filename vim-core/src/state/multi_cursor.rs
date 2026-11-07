@@ -9,7 +9,7 @@
 //! (from `primitives`) and the command enum for cursor manipulation.
 //! No execution logic lives here.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::primitives::{Direction, Offset, Selections};
 
@@ -92,7 +92,7 @@ impl MultiCursorState {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MatchSearchState {
     /// The locked search pattern (e.g., word or last search pattern).
-    pub pattern: CompactString,
+    pub pattern: VimString,
     /// Byte offset of the last match that was added or skipped.
     pub last_match_offset: usize,
     /// Whether the pattern requires whole-word matching (`\<...\>` boundaries).

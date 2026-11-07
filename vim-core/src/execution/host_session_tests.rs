@@ -1264,11 +1264,8 @@ fn changeset_to_edit_ops_empty() {
 #[test]
 fn changeset_to_edit_ops_retain_then_insert() {
     use crate::primitives::TextOp;
-    use compact_str::CompactString;
-    let ops = changeset_to_edit_ops(&[
-        TextOp::Retain(5),
-        TextOp::Insert(CompactString::from("abc")),
-    ]);
+    use crate::VimString;
+    let ops = changeset_to_edit_ops(&[TextOp::Retain(5), TextOp::Insert(VimString::from("abc"))]);
     assert_eq!(ops.len(), 1);
     assert_eq!(ops[0].offset, 5);
     assert_eq!(ops[0].delete, 0);
@@ -1288,8 +1285,8 @@ fn changeset_to_edit_ops_retain_then_delete() {
 #[test]
 fn changeset_to_edit_ops_insert_at_zero() {
     use crate::primitives::TextOp;
-    use compact_str::CompactString;
-    let ops = changeset_to_edit_ops(&[TextOp::Insert(CompactString::from("hello"))]);
+    use crate::VimString;
+    let ops = changeset_to_edit_ops(&[TextOp::Insert(VimString::from("hello"))]);
     assert_eq!(ops.len(), 1);
     assert_eq!(ops[0].offset, 0);
     assert_eq!(ops[0].delete, 0);
@@ -1299,13 +1296,13 @@ fn changeset_to_edit_ops_insert_at_zero() {
 #[test]
 fn changeset_to_edit_ops_mixed_sequence() {
     use crate::primitives::TextOp;
-    use compact_str::CompactString;
+    use crate::VimString;
     // [Retain(2), Delete(1), Retain(3), Insert("X")]
     let ops = changeset_to_edit_ops(&[
         TextOp::Retain(2),
         TextOp::Delete(1),
         TextOp::Retain(3),
-        TextOp::Insert(CompactString::from("X")),
+        TextOp::Insert(VimString::from("X")),
     ]);
     assert_eq!(ops.len(), 2);
     // First: delete 1 byte at offset 2

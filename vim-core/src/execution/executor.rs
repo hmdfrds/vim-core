@@ -1555,7 +1555,7 @@ fn execute_yank_trimmed<D: Document>(
                     .join("\n");
                 result.push(Effect::SetRegister {
                     name,
-                    text: compact_str::CompactString::from(trimmed_text),
+                    text: crate::VimString::from(trimmed_text),
                     motion_type,
                 });
             }

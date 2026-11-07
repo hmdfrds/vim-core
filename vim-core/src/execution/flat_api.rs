@@ -17,7 +17,7 @@
 
 #![allow(clippy::redundant_closure_for_method_calls)]
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::execution::api::VimApi;
 use crate::primitives::byte_delta::{offset_from_i64, to_i64};
@@ -29,7 +29,7 @@ use crate::primitives::{MotionType, VarScope, VimValue};
 /// - Rhai: `Dynamic` / exception
 /// - FFI: error code + out-param
 /// - WASM: JSON envelope
-pub type FlatResult<T> = Result<T, CompactString>;
+pub type FlatResult<T> = Result<T, VimString>;
 
 /// Flat API projection — wraps [`VimApi`] domain accessors as flat functions.
 ///
@@ -70,7 +70,7 @@ impl FlatApi {
         api.buffer()
             .line(offset_from_i64(n))
             .map(str::to_owned)
-            .ok_or_else(|| CompactString::from("line out of range"))
+            .ok_or_else(|| VimString::from("line out of range"))
     }
 
     /// Content of the line containing `offset` (without trailing newline).
@@ -117,7 +117,7 @@ impl FlatApi {
         api.buffer()
             .char_at(offset_from_i64(offset))
             .map(|c| c.to_string())
-            .ok_or_else(|| CompactString::from("offset out of range"))
+            .ok_or_else(|| VimString::from("offset out of range"))
     }
 
     /// UTF-8 byte length of the character at `offset`.
@@ -167,7 +167,7 @@ impl FlatApi {
         api.buffer()
             .word_at(offset_from_i64(offset))
             .map(|(s, e)| (to_i64(s), to_i64(e)))
-            .ok_or_else(|| CompactString::from("no word at offset"))
+            .ok_or_else(|| VimString::from("no word at offset"))
     }
 
     /// Count of leading whitespace bytes on line `n`.
@@ -203,7 +203,7 @@ impl FlatApi {
         api.state()
             .search_pattern()
             .map(str::to_owned)
-            .ok_or_else(|| CompactString::from("no search pattern"))
+            .ok_or_else(|| VimString::from("no search pattern"))
     }
 
     /// Whether a macro is currently being recorded.
@@ -281,11 +281,11 @@ impl FlatApi {
         let ch = name
             .chars()
             .next()
-            .ok_or_else(|| CompactString::from("empty register name"))?;
+            .ok_or_else(|| VimString::from("empty register name"))?;
         api.registers()
             .get(ch)
             .map(str::to_owned)
-            .ok_or_else(|| CompactString::from("register empty or not found"))
+            .ok_or_else(|| VimString::from("register empty or not found"))
     }
 
     // ── Mark domain ────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ impl FlatApi {
         api.variables()
             .get(scope, name)
             .cloned()
-            .ok_or_else(|| CompactString::from("variable not found"))
+            .ok_or_else(|| VimString::from("variable not found"))
     }
 
     /// Check whether a variable exists in the given scope.
@@ -349,7 +349,7 @@ impl FlatApi {
     pub fn emit_insert(api: &VimApi<'_>, offset: i64, text: &str) -> FlatResult<()> {
         api.emit()
             .insert(offset_from_i64(offset), text)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Delete the range `start..end`.
@@ -363,7 +363,7 @@ impl FlatApi {
     pub fn emit_delete(api: &VimApi<'_>, start: i64, end: i64) -> FlatResult<()> {
         api.emit()
             .delete(offset_from_i64(start), offset_from_i64(end))
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Replace the range `start..end` with `text`.
@@ -377,7 +377,7 @@ impl FlatApi {
     pub fn emit_replace(api: &VimApi<'_>, start: i64, end: i64, text: &str) -> FlatResult<()> {
         api.emit()
             .replace(offset_from_i64(start), offset_from_i64(end), text)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Set cursor to `offset`.
@@ -391,7 +391,7 @@ impl FlatApi {
     pub fn emit_cursor(api: &VimApi<'_>, offset: i64) -> FlatResult<()> {
         api.emit()
             .set_cursor(offset_from_i64(offset))
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Show an informational message.
@@ -405,7 +405,7 @@ impl FlatApi {
     pub fn emit_message(api: &VimApi<'_>, text: &str) -> FlatResult<()> {
         api.emit()
             .message(text)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Show an error message.
@@ -419,7 +419,7 @@ impl FlatApi {
     pub fn emit_error(api: &VimApi<'_>, text: &str) -> FlatResult<()> {
         api.emit()
             .error(text)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Set register content.
@@ -445,7 +445,7 @@ impl FlatApi {
         let ch = name
             .chars()
             .next()
-            .ok_or_else(|| CompactString::from("empty register name"))?;
+            .ok_or_else(|| VimString::from("empty register name"))?;
         let motion_type = if linewise {
             MotionType::LineWise
         } else {
@@ -453,7 +453,7 @@ impl FlatApi {
         };
         api.emit()
             .set_register(ch, text, motion_type)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Set a mark to the given offset.
@@ -473,10 +473,10 @@ impl FlatApi {
         let ch = name
             .chars()
             .next()
-            .ok_or_else(|| CompactString::from("empty mark name"))?;
+            .ok_or_else(|| VimString::from("empty mark name"))?;
         api.emit()
             .set_mark(ch, offset_from_i64(offset))
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Set a variable in the given scope.
@@ -502,7 +502,7 @@ impl FlatApi {
         let scope = parse_scope(scope)?;
         api.emit()
             .set_variable(scope, name, value)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Delete a variable in the given scope.
@@ -523,7 +523,7 @@ impl FlatApi {
         let scope = parse_scope(scope)?;
         api.emit()
             .delete_variable(scope, name)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Set a highlight over a byte range.
@@ -548,7 +548,7 @@ impl FlatApi {
     ) -> FlatResult<()> {
         api.emit()
             .set_highlight(offset_from_i64(start), offset_from_i64(end), group)
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// Begin an undo group.
@@ -562,7 +562,7 @@ impl FlatApi {
     pub fn emit_begin_undo(api: &VimApi<'_>) -> FlatResult<()> {
         api.emit()
             .begin_undo_group()
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 
     /// End an undo group.
@@ -576,7 +576,7 @@ impl FlatApi {
     pub fn emit_end_undo(api: &VimApi<'_>) -> FlatResult<()> {
         api.emit()
             .end_undo_group()
-            .map_err(|e| CompactString::from(e.to_string()))
+            .map_err(|e| VimString::from(e.to_string()))
     }
 }
 
@@ -587,7 +587,7 @@ fn parse_scope(s: &str) -> FlatResult<VarScope> {
     match s {
         "g" | "global" => Ok(VarScope::Global),
         "b" | "buffer" => Ok(VarScope::Buffer),
-        _ => Err(CompactString::from(format!("unknown scope: {s}"))),
+        _ => Err(VimString::from(format!("unknown scope: {s}"))),
     }
 }
 

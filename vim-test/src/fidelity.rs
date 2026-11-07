@@ -4,7 +4,7 @@
 //! Neovim-compatible host requests, viewport tracking, auto-escape, and
 //! persistent error message accumulation.
 
-use compact_str::CompactString;
+use vim_core::VimString;
 
 use vim_core::dispatch::ViewportInfo;
 use vim_core::effects::Effect;
@@ -240,7 +240,7 @@ fn handle_neovim_request(session: &HostSession, request: &HostRequest) -> HostRe
 
             HostResult::FilteredRange {
                 id: meta.id,
-                replacement: CompactString::from(result),
+                replacement: VimString::from(result),
                 cursor_offset: Some(cursor),
                 stderr: None,
                 mark_dot_offset: mark_dot,

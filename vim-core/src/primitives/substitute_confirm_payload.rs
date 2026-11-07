@@ -1,4 +1,4 @@
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::primitives::{Offset, Range, SubFlags};
 
@@ -13,7 +13,7 @@ pub struct ConfirmMatchPayload {
     /// Byte offset of the line start.
     pub line_start: Offset,
     /// Full line text (pre-replacement).
-    pub line_text: CompactString,
+    pub line_text: VimString,
 }
 
 /// Initialization data for a `:s///c` confirm session.
@@ -27,9 +27,9 @@ pub struct SubstituteConfirmPayload {
     /// All match ranges.
     pub matches: Vec<ConfirmMatchPayload>,
     /// Replacement string.
-    pub replacement: CompactString,
+    pub replacement: VimString,
     /// Compiled pattern string form.
-    pub pattern: CompactString,
+    pub pattern: VimString,
     /// Flags from the original `:s` command.
     pub flags: SubFlags,
     /// Whether gdefault was active.

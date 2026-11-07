@@ -6,7 +6,7 @@
 //! handles text mutations.
 
 use crate::primitives::SelectionRange;
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 /// Notification from the host about external state changes.
@@ -78,7 +78,7 @@ pub enum HostNotification {
     /// `VimEvent::FileTypeChanged` in the future.
     FileTypeChanged {
         /// The new filetype identifier (e.g., "rust", "python").
-        filetype: CompactString,
+        filetype: VimString,
     },
     /// External diagnostic state was updated (e.g., LSP diagnostics).
     ///
@@ -94,7 +94,7 @@ pub enum HostNotification {
     /// a `VimEvent::CompletionDone` in the future.
     CompletionDone {
         /// The text of the completed item.
-        item: CompactString,
+        item: VimString,
     },
     /// The terminal/editor window was resized.
     ///
@@ -118,7 +118,7 @@ pub enum HostNotification {
         /// appropriate handler based on the id.
         id: u32,
         /// Optional payload (stringified for simplicity).
-        payload: CompactString,
+        payload: VimString,
     },
 }
 
@@ -167,18 +167,18 @@ mod tests {
     #[test]
     fn filetype_changed_variant() {
         let n = HostNotification::FileTypeChanged {
-            filetype: CompactString::from("rust"),
+            filetype: VimString::from("rust"),
         };
         assert_eq!(
             n,
             HostNotification::FileTypeChanged {
-                filetype: CompactString::from("rust")
+                filetype: VimString::from("rust")
             }
         );
         assert_ne!(
             n,
             HostNotification::FileTypeChanged {
-                filetype: CompactString::from("python")
+                filetype: VimString::from("python")
             }
         );
     }
@@ -193,12 +193,12 @@ mod tests {
     #[test]
     fn completion_done_variant() {
         let n = HostNotification::CompletionDone {
-            item: CompactString::from("println!"),
+            item: VimString::from("println!"),
         };
         assert_eq!(
             n,
             HostNotification::CompletionDone {
-                item: CompactString::from("println!")
+                item: VimString::from("println!")
             }
         );
     }
@@ -223,20 +223,20 @@ mod tests {
     fn async_event_variant() {
         let n = HostNotification::AsyncEvent {
             id: 42,
-            payload: CompactString::from("test_payload"),
+            payload: VimString::from("test_payload"),
         };
         assert_eq!(
             n,
             HostNotification::AsyncEvent {
                 id: 42,
-                payload: CompactString::from("test_payload")
+                payload: VimString::from("test_payload")
             }
         );
         assert_ne!(
             n,
             HostNotification::AsyncEvent {
                 id: 99,
-                payload: CompactString::from("other")
+                payload: VimString::from("other")
             }
         );
         let debug = format!("{n:?}");

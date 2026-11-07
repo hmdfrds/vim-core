@@ -3,7 +3,7 @@
 //! [`ExpressionEval`] wraps an [`ExprContext`] and a [`ExprEngine`] to
 //! evaluate expressions for `Ctrl-R =` insertion and `:if`/`:while` conditions.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::execution::api::VimApi;
 use crate::execution::api_error::ApiError;
@@ -49,7 +49,7 @@ impl<'a> ExpressionEval<'a> {
     pub fn evaluate(&self, expr: &str) -> Result<VimValue, ApiError> {
         self.runtime
             .eval_expression(expr, &self.context)
-            .map_err(|e| ApiError::RuntimeError(CompactString::from(e.to_string())))
+            .map_err(|e| ApiError::RuntimeError(VimString::from(e.to_string())))
     }
 
     /// Evaluate an expression and convert the result to a string.

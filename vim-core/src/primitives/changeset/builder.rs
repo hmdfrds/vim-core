@@ -11,7 +11,7 @@
 //!
 //! The builder is `pub(super)` — only changeset internals use it.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::text_op::TextOp;
 
@@ -55,7 +55,7 @@ impl ChangeSetBuilder {
     ///
     /// Enforces canonical ordering: if the last op is a `Delete`, swap so
     /// `Insert` comes first. This is critical for compose correctness.
-    pub(super) fn insert(&mut self, text: CompactString) {
+    pub(super) fn insert(&mut self, text: VimString) {
         if text.is_empty() {
             return;
         }
@@ -135,42 +135,36 @@ mod tests {
     #[test]
     fn insert_coalesces() {
         let mut b = ChangeSetBuilder::new();
-        b.insert(CompactString::from("he"));
-        b.insert(CompactString::from("llo"));
+        b.insert(VimString::from("he"));
+        b.insert(VimString::from("llo"));
         let ops = b.finish();
-        assert_eq!(ops, vec![TextOp::Insert(CompactString::from("hello"))]);
+        assert_eq!(ops, vec![TextOp::Insert(VimString::from("hello"))]);
     }
 
     #[test]
     fn canonical_ordering_insert_before_delete() {
         let mut b = ChangeSetBuilder::new();
         b.delete(3);
-        b.insert(CompactString::from("abc"));
+        b.insert(VimString::from("abc"));
         let ops = b.finish();
         // Insert must come before Delete
         assert_eq!(
             ops,
-            vec![
-                TextOp::Insert(CompactString::from("abc")),
-                TextOp::Delete(3),
-            ]
+            vec![TextOp::Insert(VimString::from("abc")), TextOp::Delete(3),]
         );
     }
 
     #[test]
     fn canonical_ordering_coalesces_insert_through_delete() {
         let mut b = ChangeSetBuilder::new();
-        b.insert(CompactString::from("ab"));
+        b.insert(VimString::from("ab"));
         b.delete(3);
-        b.insert(CompactString::from("cd"));
+        b.insert(VimString::from("cd"));
         let ops = b.finish();
         // Second insert should coalesce with first (before the delete)
         assert_eq!(
             ops,
-            vec![
-                TextOp::Insert(CompactString::from("abcd")),
-                TextOp::Delete(3),
-            ]
+            vec![TextOp::Insert(VimString::from("abcd")), TextOp::Delete(3),]
         );
     }
 
@@ -179,7 +173,7 @@ mod tests {
         let mut b = ChangeSetBuilder::new();
         b.retain(0);
         b.delete(0);
-        b.insert(CompactString::from(""));
+        b.insert(VimString::from(""));
         b.retain(5);
         let ops = b.finish();
         assert_eq!(ops, vec![TextOp::Retain(5)]);
@@ -190,14 +184,14 @@ mod tests {
         let mut b = ChangeSetBuilder::new();
         b.retain(5);
         b.delete(3);
-        b.insert(CompactString::from("hello"));
+        b.insert(VimString::from("hello"));
         b.retain(10);
         let ops = b.finish();
         assert_eq!(
             ops,
             vec![
                 TextOp::Retain(5),
-                TextOp::Insert(CompactString::from("hello")),
+                TextOp::Insert(VimString::from("hello")),
                 TextOp::Delete(3),
                 TextOp::Retain(10),
             ]

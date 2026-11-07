@@ -343,7 +343,7 @@ mod tests {
     use super::*;
     use crate::effects::effect::Effect;
     use crate::primitives::{Mode, Offset, Range, SelectionShape};
-    use compact_str::CompactString;
+    use crate::VimString;
 
     // ── Insert preconditions ──────────────────────────────────────────────
 
@@ -351,7 +351,7 @@ mod tests {
     fn insert_at_start_valid() {
         let effect = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         assert!(precondition(&effect, 10));
     }
@@ -360,7 +360,7 @@ mod tests {
     fn insert_at_middle_valid() {
         let effect = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         assert!(precondition(&effect, 10));
     }
@@ -369,7 +369,7 @@ mod tests {
     fn insert_at_end_valid() {
         let effect = Effect::Insert {
             offset: Offset::new(10),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         assert!(precondition(&effect, 10));
     }
@@ -378,7 +378,7 @@ mod tests {
     fn insert_past_end_invalid() {
         let effect = Effect::Insert {
             offset: Offset::new(11),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         assert!(!precondition(&effect, 10));
     }
@@ -387,7 +387,7 @@ mod tests {
     fn insert_into_empty_doc_at_zero_valid() {
         let effect = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("a"),
+            text: VimString::new("a"),
         };
         assert!(precondition(&effect, 0));
     }
@@ -396,7 +396,7 @@ mod tests {
     fn insert_into_empty_doc_past_zero_invalid() {
         let effect = Effect::Insert {
             offset: Offset::new(1),
-            text: CompactString::new("a"),
+            text: VimString::new("a"),
         };
         assert!(!precondition(&effect, 0));
     }
@@ -405,7 +405,7 @@ mod tests {
     fn insert_empty_text_at_end_valid() {
         let effect = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         assert!(precondition(&effect, 5));
     }
@@ -474,7 +474,7 @@ mod tests {
     fn replace_valid_range() {
         let effect = Effect::Replace {
             range: Range::from_raw(2, 5),
-            text: CompactString::new("xyz"),
+            text: VimString::new("xyz"),
         };
         assert!(precondition(&effect, 10));
     }
@@ -483,7 +483,7 @@ mod tests {
     fn replace_range_end_exceeds_doc_len() {
         let effect = Effect::Replace {
             range: Range::from_raw(5, 11),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         assert!(!precondition(&effect, 10));
     }
@@ -492,7 +492,7 @@ mod tests {
     fn replace_empty_range_valid() {
         let effect = Effect::Replace {
             range: Range::from_raw(3, 3),
-            text: CompactString::new("inserted"),
+            text: VimString::new("inserted"),
         };
         assert!(precondition(&effect, 10));
     }
@@ -501,7 +501,7 @@ mod tests {
     fn replace_entire_doc() {
         let effect = Effect::Replace {
             range: Range::from_raw(0, 5),
-            text: CompactString::new("replacement"),
+            text: VimString::new("replacement"),
         };
         assert!(precondition(&effect, 5));
     }
@@ -712,7 +712,7 @@ mod tests {
     #[test]
     fn show_info_always_passes() {
         let effect = Effect::ShowInfo {
-            info: crate::effects::InfoMessage::Text(CompactString::new("test")),
+            info: crate::effects::InfoMessage::Text(VimString::new("test")),
         };
         assert!(precondition(&effect, 0));
     }
@@ -723,7 +723,7 @@ mod tests {
     fn violation_message_insert() {
         let effect = Effect::Insert {
             offset: Offset::new(100),
-            text: CompactString::new("abc"),
+            text: VimString::new("abc"),
         };
         let msg = violation_message(&effect, 50);
         assert!(msg.contains("Insert"), "should mention Insert: {msg}");
@@ -746,7 +746,7 @@ mod tests {
     fn violation_message_replace_end_exceeds() {
         let effect = Effect::Replace {
             range: Range::from_raw(0, 20),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         let msg = violation_message(&effect, 10);
         assert!(msg.contains("Replace"), "should mention Replace: {msg}");
@@ -831,7 +831,7 @@ mod tests {
         let effects = vec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             },
             Effect::SetCursor {
                 offset: Offset::new(4),
@@ -867,7 +867,7 @@ mod tests {
     fn verify_effects_panics_insert_violation() {
         let effects = vec![Effect::Insert {
             offset: Offset::new(100),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         }];
         verify_effects(&effects, 10);
     }
@@ -886,7 +886,7 @@ mod tests {
     fn verify_effects_panics_replace_violation() {
         let effects = vec![Effect::Replace {
             range: Range::from_raw(0, 20),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         }];
         verify_effects(&effects, 10);
     }
@@ -898,15 +898,15 @@ mod tests {
         // In a 1-byte doc, offset 0 and 1 are both valid for insert.
         let at_0 = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         let at_1 = Effect::Insert {
             offset: Offset::new(1),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         let at_2 = Effect::Insert {
             offset: Offset::new(2),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         assert!(precondition(&at_0, 1));
         assert!(precondition(&at_1, 1));
@@ -950,7 +950,7 @@ mod tests {
             Effect::set_mode(Mode::Insert),
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             },
             Effect::ClearMessage,
         ];
@@ -969,7 +969,7 @@ mod tests {
         let mut effects = vec![
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             },
             Effect::SetCursor {
                 offset: Offset::new(4),
@@ -988,7 +988,7 @@ mod tests {
     fn bounds_clamp_insert_past_end() {
         let mut effects = vec![Effect::Insert {
             offset: Offset::new(20),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         }];
         let count = bounds_check_and_clamp(&mut effects, 10);
         assert_eq!(count, 1);
@@ -1003,7 +1003,7 @@ mod tests {
         // Insert at doc_len is valid (appending).
         let mut effects = vec![Effect::Insert {
             offset: Offset::new(10),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         }];
         assert_eq!(bounds_check_and_clamp(&mut effects, 10), 0);
         match &effects[0] {
@@ -1110,7 +1110,7 @@ mod tests {
     fn bounds_clamp_replace_range_end_exceeds() {
         let mut effects = vec![Effect::Replace {
             range: Range::from_raw(3, 15),
-            text: CompactString::new("new"),
+            text: VimString::new("new"),
         }];
         let count = bounds_check_and_clamp(&mut effects, 10);
         assert_eq!(count, 1);
@@ -1192,12 +1192,12 @@ mod tests {
             // Valid: insert at end.
             Effect::Insert {
                 offset: Offset::new(10),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             },
             // Invalid: insert past end.
             Effect::Insert {
                 offset: Offset::new(20),
-                text: CompactString::new("y"),
+                text: VimString::new("y"),
             },
             // Valid: mode change (always valid).
             Effect::set_mode(Mode::Insert),
@@ -1262,7 +1262,7 @@ mod tests {
         let mut effects = vec![
             Effect::Insert {
                 offset: Offset::new(100),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             },
             Effect::SetCursor {
                 offset: Offset::new(50),
@@ -1272,7 +1272,7 @@ mod tests {
             },
             Effect::Replace {
                 range: Range::from_raw(5, 25),
-                text: CompactString::new("new"),
+                text: VimString::new("new"),
             },
             Effect::ScrollTo {
                 offset: Offset::new(20),

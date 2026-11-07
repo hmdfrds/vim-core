@@ -40,7 +40,7 @@ use crate::primitives::{
     CommentFlags, CommentPart, CommentSpec, FormatFlags, LeaderMatch, MarkName, Offset, Range,
     VimOptions,
 };
-use compact_str::CompactString;
+use crate::VimString;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Width `gq` formats at when `textwidth` is 0 (Vim's `comp_textwidth()`
@@ -116,10 +116,7 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     let mark_dot = Offset::new(formatted.change_end());
     let effects = Effects::new()
         .begin_undo_force_entry()
-        .replace(
-            formatted.replaced_range(),
-            CompactString::new(&formatted.text),
-        )
+        .replace(formatted.replaced_range(), VimString::new(&formatted.text))
         .set_mark(MarkName::CHANGE_START, mark_start, None)
         .set_mark(MarkName::CHANGE_END, new_cursor, None)
         .set_mark(MarkName::LAST_CHANGE, mark_dot, None)
@@ -277,10 +274,7 @@ pub fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
 
     let effects = Effects::new()
         .begin_undo_force_entry()
-        .replace(
-            formatted.replaced_range(),
-            CompactString::new(&formatted.text),
-        )
+        .replace(formatted.replaced_range(), VimString::new(&formatted.text))
         .set_mark(MarkName::CHANGE_START, mark_start, None)
         .set_mark(MarkName::CHANGE_END, mark_end, None)
         .set_cursor(cursor)
@@ -303,10 +297,9 @@ fn from_empty_last_line(ctx: &OperatorContext<'_>) -> bool {
 fn undo_step_without_change(
     formatted: &Formatted<'_>,
 ) -> Effects<crate::effects::undo_state::UndoOpen> {
-    Effects::new().begin_undo_force_entry().replace(
-        formatted.replaced_range(),
-        CompactString::new(&formatted.text),
-    )
+    Effects::new()
+        .begin_undo_force_entry()
+        .replace(formatted.replaced_range(), VimString::new(&formatted.text))
 }
 
 // ── Range ────────────────────────────────────────────────────────────────────

@@ -18,10 +18,10 @@
 //! This module only depends on:
 //! - `primitives` — `ChangeSet`, `Offset`, `Range`
 //! - sibling `effect` module — `Effect`
-//! - `compact_str` — `CompactString` (same as `effect.rs`)
+//! - `crate::VimString`, the owned string type (same as `effect.rs`)
 //! - `smallvec` — `SmallVec` (crate-wide dependency)
 
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 use crate::effects::effect::Effect;
@@ -147,7 +147,7 @@ pub fn changeset_to_effects(cs: &ChangeSet) -> SmallVec<[Effect; 4]> {
                 let adjusted_pos = adjust_offset(from, delta);
                 result.push(Effect::Insert {
                     offset: Offset::new(adjusted_pos),
-                    text: CompactString::from(ins_text),
+                    text: VimString::from(ins_text),
                 });
                 delta += ins_text.len().cast_signed();
             }
@@ -164,7 +164,7 @@ pub fn changeset_to_effects(cs: &ChangeSet) -> SmallVec<[Effect; 4]> {
                 // After the delete, insert at the same position
                 result.push(Effect::Insert {
                     offset: Offset::new(adjusted_from),
-                    text: CompactString::from(ins_text),
+                    text: VimString::from(ins_text),
                 });
                 delta += ins_text.len().cast_signed();
             }
@@ -221,7 +221,7 @@ mod tests {
     fn single_insert_to_changeset() {
         let effects = [Effect::Insert {
             offset: Offset::new(3),
-            text: CompactString::from("XY"),
+            text: VimString::from("XY"),
         }];
         let cs = effects_to_changeset(&effects, 10);
 
@@ -263,7 +263,7 @@ mod tests {
     fn single_replace_to_changeset() {
         let effects = [Effect::Replace {
             range: Range::from_raw(1, 4),
-            text: CompactString::from("HELLO"),
+            text: VimString::from("HELLO"),
         }];
         let cs = effects_to_changeset(&effects, 10);
 
@@ -289,7 +289,7 @@ mod tests {
         let effects = [
             Effect::Insert {
                 offset: Offset::new(3),
-                text: CompactString::from("XY"),
+                text: VimString::from("XY"),
             },
             Effect::Delete {
                 range: Range::from_raw(5, 8),
@@ -343,7 +343,7 @@ mod tests {
         let doc_len = original.len();
         let effects = [Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::from(" beautiful"),
+            text: VimString::from(" beautiful"),
         }];
 
         // Forward: effects -> changeset
@@ -379,7 +379,7 @@ mod tests {
         let doc_len = original.len();
         let effects = [Effect::Replace {
             range: Range::from_raw(0, 5),
-            text: CompactString::from("goodbye"),
+            text: VimString::from("goodbye"),
         }];
 
         let cs = effects_to_changeset(&effects, doc_len);
@@ -399,7 +399,7 @@ mod tests {
         let effects = [
             Effect::Insert {
                 offset: Offset::new(2),
-                text: CompactString::from("XX"),
+                text: VimString::from("XX"),
             },
             Effect::Delete {
                 range: Range::from_raw(6, 9),
@@ -436,7 +436,7 @@ mod tests {
     fn insert_at_beginning() {
         let effects = [Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::from("prefix"),
+            text: VimString::from("prefix"),
         }];
         let cs = effects_to_changeset(&effects, 5);
 
@@ -451,7 +451,7 @@ mod tests {
     fn insert_at_end() {
         let effects = [Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::from("suffix"),
+            text: VimString::from("suffix"),
         }];
         let cs = effects_to_changeset(&effects, 5);
 
@@ -479,7 +479,7 @@ mod tests {
     fn insert_into_empty_document() {
         let effects = [Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::from("hello"),
+            text: VimString::from("hello"),
         }];
         let cs = effects_to_changeset(&effects, 0);
 
@@ -495,7 +495,7 @@ mod tests {
             Effect::set_mode(Mode::Insert),
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::from("X"),
+                text: VimString::from("X"),
             },
             Effect::SetCursor {
                 offset: Offset::new(1),
@@ -647,7 +647,7 @@ mod tests {
         // "hello" (5 bytes) -> insert "世界" (6 bytes) at position 2
         let effects = [Effect::Insert {
             offset: Offset::new(2),
-            text: CompactString::from("世界"),
+            text: VimString::from("世界"),
         }];
         let cs = effects_to_changeset(&effects, 5);
 
@@ -667,15 +667,15 @@ mod tests {
         let effects = [
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::from("A"),
+                text: VimString::from("A"),
             },
             Effect::Insert {
                 offset: Offset::new(1),
-                text: CompactString::from("B"),
+                text: VimString::from("B"),
             },
             Effect::Insert {
                 offset: Offset::new(2),
-                text: CompactString::from("C"),
+                text: VimString::from("C"),
             },
         ];
         let cs = effects_to_changeset(&effects, 3);
@@ -691,7 +691,7 @@ mod tests {
     fn replace_with_shorter_text() {
         let effects = [Effect::Replace {
             range: Range::from_raw(0, 10),
-            text: CompactString::from("hi"),
+            text: VimString::from("hi"),
         }];
         let cs = effects_to_changeset(&effects, 10);
 
@@ -709,7 +709,7 @@ mod tests {
     fn replace_with_same_length_text() {
         let effects = [Effect::Replace {
             range: Range::from_raw(2, 5),
-            text: CompactString::from("XYZ"),
+            text: VimString::from("XYZ"),
         }];
         let cs = effects_to_changeset(&effects, 10);
 

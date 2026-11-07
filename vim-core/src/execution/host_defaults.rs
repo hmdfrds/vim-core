@@ -29,7 +29,7 @@
 //! auto-handling is enabled,
 //! so most integrators never need to call these functions directly.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::host::{HostRequest, HostRequestKind, HostResult};
 
@@ -173,20 +173,20 @@ pub fn default_result(request: &HostRequest) -> Option<HostResult> {
         HostRequestKind::EvaluateExpression | HostRequestKind::EvaluateMapping => {
             Some(HostResult::Failure {
                 id,
-                error: CompactString::from("Expression evaluation not supported"),
+                error: VimString::from("Expression evaluation not supported"),
             })
         }
 
         HostRequestKind::FilterDocumentRange | HostRequestKind::ReindentRange => {
             Some(HostResult::Failure {
                 id,
-                error: CompactString::from("Filter/reindent not supported"),
+                error: VimString::from("Filter/reindent not supported"),
             })
         }
 
         HostRequestKind::ExternalCommand => Some(HostResult::Failure {
             id,
-            error: CompactString::from("Shell commands not supported"),
+            error: VimString::from("Shell commands not supported"),
         }),
 
         // ── Requires host action ────────────────────────────────────────

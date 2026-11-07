@@ -230,7 +230,7 @@ mod tests {
     use super::*;
     use crate::effects::Effect;
     use crate::primitives::{Offset, Range, SelectionRange, Selections, UndoCursorStrategy};
-    use compact_str::CompactString;
+    use crate::VimString;
 
     const CLOSED: UndoIntent = UndoIntent::Closed {
         strategy: UndoCursorStrategy::FirstEdit,
@@ -277,7 +277,7 @@ mod tests {
             slice[1],
             Effect::Insert {
                 offset: Offset::new(15),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             }
         );
         assert_eq!(
@@ -292,7 +292,7 @@ mod tests {
             slice[3],
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             }
         );
         assert_eq!(

@@ -32,7 +32,7 @@ pub use crate::commands::insert::{
 use crate::commands::CommandResult;
 use crate::grammar::{Command, InsertKind};
 use crate::primitives::InsertEntryType;
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Dispatch an `InsertEntry` command to `entry::execute`.
 ///
@@ -100,7 +100,7 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
                     let n = (*spaces).min(MAX_TAB);
                     let effects = insert_effects::insert_text_and_advance(
                         cursor,
-                        CompactString::from(&SPACES[..n]),
+                        VimString::from(&SPACES[..n]),
                         cursor + n,
                     );
                     CommandResult::effects_only(effects)
@@ -122,7 +122,7 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
                     effects = effects
                         .insert(
                             crate::primitives::Offset::new(cursor),
-                            CompactString::from(&SPACES[..n]),
+                            VimString::from(&SPACES[..n]),
                         )
                         .set_cursor(crate::primitives::Offset::new(cursor + n));
                     CommandResult::effects_only(effects)
@@ -144,7 +144,7 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
                     }
                     let effects = insert_effects::insert_text_and_advance(
                         cursor,
-                        CompactString::from(&*ch.encode_utf8(&mut [0u8; 4])),
+                        VimString::from(&*ch.encode_utf8(&mut [0u8; 4])),
                         cursor + ch.len_utf8(),
                     );
                     CommandResult::effects_only(effects)
@@ -171,7 +171,7 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
                     }
                     effects = effects.insert(
                         crate::primitives::Offset::new(insert_pos),
-                        CompactString::from(&*ch.encode_utf8(&mut [0u8; 4])),
+                        VimString::from(&*ch.encode_utf8(&mut [0u8; 4])),
                     );
                     effects = effects
                         .set_cursor(crate::primitives::Offset::new(insert_pos + ch.len_utf8()));
@@ -193,7 +193,7 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
             let cursor = ctx.cursor_usize();
             let effects = insert_effects::insert_text_and_advance(
                 cursor,
-                CompactString::from(&*char.encode_utf8(&mut [0u8; 4])),
+                VimString::from(&*char.encode_utf8(&mut [0u8; 4])),
                 cursor + char.len_utf8(),
             );
             CommandResult::effects_only(effects)
@@ -294,7 +294,7 @@ pub fn dispatch_insert(cmd: &Command, ctx: &InsertContext<'_>) -> CommandResult 
                     let cursor = ctx.cursor_usize();
                     let effects = insert_effects::insert_text_and_advance(
                         cursor,
-                        CompactString::from(&*ch.encode_utf8(&mut [0u8; 4])),
+                        VimString::from(&*ch.encode_utf8(&mut [0u8; 4])),
                         cursor + ch.len_utf8(),
                     );
                     CommandResult::effects_only(effects)
@@ -410,7 +410,7 @@ mod tests {
     fn test_dispatch_insert_char_newline() {
         let ctx = InsertContext::new("hello", Offset::new(5)).with_precomputed(
             InsertPrecomputed::Newline {
-                insert_text: CompactString::from("\nhello"),
+                insert_text: VimString::from("\nhello"),
                 trailing_strip_len: 0,
                 leading_strip_len: 0,
                 cursor_advance: 11,
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn test_dispatch_last_inserted_with_text() {
         let ctx = InsertContext::new("hello", Offset::new(5))
-            .with_precomputed(InsertPrecomputed::Text(CompactString::from("world")));
+            .with_precomputed(InsertPrecomputed::Text(VimString::from("world")));
         let cmd = Command::Insert(InsertKind::LastInserted);
         let result = dispatch_insert(&cmd, &ctx);
         assert!(!result.is_empty());
@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn test_dispatch_register_with_text() {
         let ctx = InsertContext::new("hello", Offset::new(5))
-            .with_precomputed(InsertPrecomputed::Text(CompactString::from("reg_content")));
+            .with_precomputed(InsertPrecomputed::Text(VimString::from("reg_content")));
         let cmd = Command::Insert(InsertKind::Register {
             register: crate::primitives::RegisterName::UNNAMED,
         });
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn test_dispatch_host_inserted_with_text() {
         let ctx = InsertContext::new("hello", Offset::new(5))
-            .with_precomputed(InsertPrecomputed::Text(CompactString::from("completion")));
+            .with_precomputed(InsertPrecomputed::Text(VimString::from("completion")));
         let cmd = Command::Insert(InsertKind::HostInserted);
         let result = dispatch_insert(&cmd, &ctx);
         assert!(!result.is_empty());

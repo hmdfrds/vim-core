@@ -4,7 +4,7 @@
 
 use std::fmt::Write;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::range::resolve_range;
 use super::types::{ExContext, ExResult};
@@ -50,7 +50,7 @@ pub fn print_lines(range: &ExRange, number: bool, list: bool, ctx: &ExContext) -
         }
     }
 
-    let mut effects = Effects::new().show_message(CompactString::from(output));
+    let mut effects = Effects::new().show_message(VimString::from(output));
     if let Some(last_offset) = ctx.line_start_offset(resolved.end()) {
         effects = effects.set_cursor(last_offset);
     }
@@ -122,7 +122,7 @@ pub fn z_window(
         ZWindowStyle::PrevWindow => start,
         _ => end,
     };
-    let mut effects = Effects::new().show_message(CompactString::from(output));
+    let mut effects = Effects::new().show_message(VimString::from(output));
     if let Some(offset) = ctx.line_start_offset(cursor_line.min(last_line)) {
         effects = effects.set_cursor(offset);
     }

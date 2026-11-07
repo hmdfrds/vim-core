@@ -4,8 +4,6 @@
 //! character codes (`\%d`, `\%x`, `\%o`, `\%u`, `\%U`), non-capturing groups
 //! (`\%(`), and optional sequences (`\%[`).
 
-use compact_str::CompactString;
-
 use crate::ir::{ColumnSpec, LineSpec, MarkRel, PercentEscapeContext};
 
 use super::{Parser, VimPatternNode, VimRegexError, VimRegexErrorKind};
@@ -427,7 +425,7 @@ impl Parser {
             _ => {
                 return Err(VimRegexErrorKind::InvalidCharCode {
                     span: self.span_from(backslash_pos),
-                    detail: CompactString::from("unknown base character"),
+                    detail: Box::from("unknown base character"),
                 }
                 .into())
             }
@@ -459,7 +457,7 @@ impl Parser {
         if count == 0 {
             return Err(VimRegexErrorKind::InvalidCharCode {
                 span: self.span_from(backslash_pos),
-                detail: CompactString::from("no digits after base specifier"),
+                detail: Box::from("no digits after base specifier"),
             }
             .into());
         }

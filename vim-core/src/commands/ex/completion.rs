@@ -22,7 +22,7 @@ use std::ops::Range;
 
 use crate::primitives::VimOptions;
 use crate::state::CompletionCandidate;
-use compact_str::CompactString;
+use crate::VimString;
 
 /// What kind of completion is appropriate at the current cursor position.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -711,11 +711,11 @@ pub fn complete_setting_name(prefix: &str, options: &VimOptions) -> Vec<Completi
 fn make_setting_candidate(name: &str, options: &VimOptions) -> CompletionCandidate {
     let canonical = canonical_option_name(name);
     let value_display = format_option_value(name, options);
-    let detail = option_description(canonical).map(CompactString::from);
+    let detail = option_description(canonical).map(VimString::from);
 
     CompletionCandidate {
-        text: CompactString::from(name),
-        description: Some(CompactString::from(value_display)),
+        text: VimString::from(name),
+        description: Some(VimString::from(value_display)),
         detail,
     }
 }
@@ -732,12 +732,11 @@ fn make_no_setting_candidate(
     } else {
         "[already off]".to_owned()
     };
-    let detail =
-        option_description(bool_name).map(|d| CompactString::from(format!("Disable: {d}")));
+    let detail = option_description(bool_name).map(|d| VimString::from(format!("Disable: {d}")));
 
     CompletionCandidate {
-        text: CompactString::from(no_name),
-        description: Some(CompactString::from(value_display)),
+        text: VimString::from(no_name),
+        description: Some(VimString::from(value_display)),
         detail,
     }
 }
@@ -803,22 +802,22 @@ pub fn complete_setting_value(
 
             if name_text.starts_with(prefix) {
                 candidates.push(CompletionCandidate {
-                    text: CompactString::from(name_text),
+                    text: VimString::from(name_text),
                     description: if name_display.is_empty() {
                         None
                     } else {
-                        Some(CompactString::from(name_display))
+                        Some(VimString::from(name_display))
                     },
                     detail: None,
                 });
             }
             if no_text.starts_with(prefix) {
                 candidates.push(CompletionCandidate {
-                    text: CompactString::from(no_text),
+                    text: VimString::from(no_text),
                     description: if no_display.is_empty() {
                         None
                     } else {
-                        Some(CompactString::from(no_display))
+                        Some(VimString::from(no_display))
                     },
                     detail: None,
                 });
@@ -841,13 +840,13 @@ fn enum_value_candidates(values: &[&str], current: &str, prefix: &str) -> Vec<Co
             let is_current = v == current;
             let display_text = if v.is_empty() { "(empty)" } else { v };
             CompletionCandidate {
-                text: CompactString::from(v),
+                text: VimString::from(v),
                 description: if is_current {
-                    Some(CompactString::from("[current]"))
+                    Some(VimString::from("[current]"))
                 } else {
                     None
                 },
-                detail: Some(CompactString::from(display_text)),
+                detail: Some(VimString::from(display_text)),
             }
         })
         .collect()

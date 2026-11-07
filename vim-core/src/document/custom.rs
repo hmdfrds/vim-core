@@ -226,7 +226,7 @@ pub enum CustomOperatorResult {
     /// Replace the target range with the given text.
     ///
     /// Dispatch converts this to `Effect::Replace { range, text }`.
-    Replace(compact_str::CompactString),
+    Replace(crate::VimString),
     /// Delete the target range entirely.
     ///
     /// Dispatch converts this to `Effect::Delete { range }`.

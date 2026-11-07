@@ -20,7 +20,7 @@
 //! ```
 
 use crate::primitives::{AutoPairs, Offset, ReplacedChar, WordCharSet, WordEraseStyle};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Replace-mode backspace restoration action.
 ///
@@ -69,7 +69,7 @@ pub enum InsertPrecomputed {
     /// Newline with pre-computed autoindent.
     Newline {
         /// The newline + indentation string to insert.
-        insert_text: CompactString,
+        insert_text: VimString,
         /// Bytes of trailing whitespace to strip before inserting.
         trailing_strip_len: usize,
         /// Bytes of autoindent-only whitespace to strip before cursor.
@@ -132,11 +132,11 @@ pub enum InsertPrecomputed {
         /// Byte offset where leading whitespace ends.
         strip_end: usize,
         /// The replacement indent string (may be empty for `#`).
-        new_indent: CompactString,
+        new_indent: VimString,
     },
 
     /// Pre-computed text to insert (Ctrl-A last inserted, Ctrl-R register).
-    Text(CompactString),
+    Text(VimString),
 
     /// Error to show instead of inserting (e.g. E32 for empty filename register).
     Error(crate::errors::VimError),
@@ -327,7 +327,7 @@ pub struct InsertExitContext<'text> {
 #[derive(Debug, Clone)]
 pub struct NewlineInsert {
     /// The text to insert (newline + indentation).
-    pub insert_text: CompactString,
+    pub insert_text: VimString,
     /// Byte length of insert_text.
     pub insert_len: usize,
     /// Number of bytes of trailing whitespace to strip after cursor.

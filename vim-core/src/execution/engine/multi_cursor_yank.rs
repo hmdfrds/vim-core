@@ -18,7 +18,7 @@ use crate::effects::Effect;
 use crate::grammar::Command;
 use crate::primitives::{MotionType, RegisterContent, RegisterName, Selections, VimOptions};
 use crate::state::VimState;
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -204,7 +204,7 @@ pub(super) fn override_registers_with_multi_cursor_entries(
     }
 
     // Build per-cursor text entries.
-    let mut entries: SmallVec<[CompactString; 1]> = SmallVec::with_capacity(selections.len());
+    let mut entries: SmallVec<[VimString; 1]> = SmallVec::with_capacity(selections.len());
 
     for sel in selections.iter() {
         let cursor_offset = sel.head().get();
@@ -353,24 +353,24 @@ fn extract_text_at_range(
     start: usize,
     end: usize,
     motion_type: MotionType,
-) -> CompactString {
+) -> VimString {
     if end <= doc_text.len() && start <= end {
         let raw = &doc_text[start..end];
         if motion_type == MotionType::LineWise {
-            let mut s = CompactString::from(raw);
+            let mut s = VimString::from(raw);
             if !s.ends_with('\n') {
                 s.push('\n');
             }
             s
         } else {
-            CompactString::from(raw)
+            VimString::from(raw)
         }
     } else {
         // Range out of bounds — use empty string (safe fallback).
         if motion_type == MotionType::LineWise {
-            CompactString::from("\n")
+            VimString::from("\n")
         } else {
-            CompactString::new("")
+            VimString::new("")
         }
     }
 }
@@ -382,9 +382,9 @@ fn extract_text_at_range(
 /// Content needed for paste-zipping: per-cursor text entries from register.
 pub(super) struct PasteZipContent {
     /// The primary cursor's paste text (used to identify matching Inserts).
-    primary_text: CompactString,
+    primary_text: VimString,
     /// Per-entry text from the multi-entry register, in selection iteration order.
-    entries: SmallVec<[CompactString; 1]>,
+    entries: SmallVec<[VimString; 1]>,
     /// Paste count (e.g., 3 for `3p`). When > 1, the Insert text is
     /// `primary_text.repeat(count)` and each entry must be repeated too.
     count: u32,
@@ -437,8 +437,8 @@ pub(super) fn detect_paste_zip_content(
         return None;
     }
 
-    let primary_text = CompactString::from(content.text());
-    let entries: SmallVec<[CompactString; 1]> = content.entries().iter().cloned().collect();
+    let primary_text = VimString::from(content.text());
+    let entries: SmallVec<[VimString; 1]> = content.entries().iter().cloned().collect();
 
     Some(PasteZipContent {
         primary_text,
@@ -495,7 +495,7 @@ pub(super) fn apply_paste_zip(
     // When count > 1, the Insert text is primary_text repeated count times.
     // Build the match text ONCE (loop-invariant).
     let match_text = if zip.count > 1 {
-        CompactString::from(zip.primary_text.repeat(zip.count as usize))
+        VimString::from(zip.primary_text.repeat(zip.count as usize))
     } else {
         zip.primary_text.clone()
     };
@@ -513,7 +513,7 @@ pub(super) fn apply_paste_zip(
                     let clamped_idx = entry_idx.min(zip.entries.len().saturating_sub(1));
                     let entry_text = &zip.entries[clamped_idx];
                     let replacement = if zip.count > 1 {
-                        CompactString::from(entry_text.repeat(zip.count as usize))
+                        VimString::from(entry_text.repeat(zip.count as usize))
                     } else {
                         entry_text.clone()
                     };
@@ -687,7 +687,7 @@ mod tests {
             // Cursor at 25 (entry index 2)
             Effect::Insert {
                 offset: Offset::new(26),
-                text: CompactString::from("AAA"),
+                text: VimString::from("AAA"),
             },
             Effect::SetCursor {
                 offset: Offset::new(28),
@@ -695,7 +695,7 @@ mod tests {
             // Cursor at 15 (entry index 1)
             Effect::Insert {
                 offset: Offset::new(16),
-                text: CompactString::from("AAA"),
+                text: VimString::from("AAA"),
             },
             Effect::SetCursor {
                 offset: Offset::new(18),
@@ -703,7 +703,7 @@ mod tests {
             // Cursor at 5 (entry index 0, primary)
             Effect::Insert {
                 offset: Offset::new(6),
-                text: CompactString::from("AAA"),
+                text: VimString::from("AAA"),
             },
             Effect::SetCursor {
                 offset: Offset::new(8),
@@ -714,11 +714,11 @@ mod tests {
         .collect();
 
         let zip = PasteZipContent {
-            primary_text: CompactString::from("AAA"),
+            primary_text: VimString::from("AAA"),
             entries: smallvec::smallvec![
-                CompactString::from("AAA"),
-                CompactString::from("BBB"),
-                CompactString::from("CCC"),
+                VimString::from("AAA"),
+                VimString::from("BBB"),
+                VimString::from("CCC"),
             ],
             count: 1,
         };
@@ -731,7 +731,7 @@ mod tests {
             slice[1],
             Effect::Insert {
                 offset: Offset::new(26),
-                text: CompactString::from("CCC"),
+                text: VimString::from("CCC"),
             }
         );
 
@@ -740,7 +740,7 @@ mod tests {
             slice[3],
             Effect::Insert {
                 offset: Offset::new(16),
-                text: CompactString::from("BBB"),
+                text: VimString::from("BBB"),
             }
         );
 
@@ -749,7 +749,7 @@ mod tests {
             slice[5],
             Effect::Insert {
                 offset: Offset::new(6),
-                text: CompactString::from("AAA"),
+                text: VimString::from("AAA"),
             }
         );
     }
@@ -770,8 +770,8 @@ mod tests {
         let mut state = VimState::default();
         let options = VimOptions::default();
 
-        let entries: SmallVec<[CompactString; 1]> =
-            smallvec::smallvec![CompactString::from("foo"), CompactString::from("bar"),];
+        let entries: SmallVec<[VimString; 1]> =
+            smallvec::smallvec![VimString::from("foo"), VimString::from("bar"),];
         state.registers_mut().set(
             RegisterName::UNNAMED,
             RegisterContent::from_entries(entries, MotionType::CharWise),

@@ -8,9 +8,9 @@ use super::{
     TrieLookup, CORE_KEYMAP,
 };
 use crate::primitives::Mode;
+use crate::VimString;
 use ahash::AHashMap;
 use arrayvec::ArrayVec;
-use compact_str::CompactString;
 use smart_default::SmartDefault;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,11 +295,11 @@ pub struct Keymap {
     /// Each entry maps a file type (e.g., "rust", "python") to per-mode
     /// mapping tries. Active when the engine's current filetype matches.
     #[default(AHashMap::new())]
-    filetype_maps: AHashMap<CompactString, ModeMap<MappingTrie>>,
+    filetype_maps: AHashMap<VimString, ModeMap<MappingTrie>>,
     /// Currently active file type for filetype-specific mapping lookup.
     /// Set by the engine via `set_filetype()`.
     #[default(None)]
-    active_filetype: Option<CompactString>,
+    active_filetype: Option<VimString>,
 }
 
 /// The most bytes a leader can have, as in Vim.
@@ -753,7 +753,7 @@ impl Keymap {
         to: Vec<KeyEvent>,
         kind: MappingKind,
         flags: MappingFlags,
-        expr_text: Option<CompactString>,
+        expr_text: Option<VimString>,
     ) {
         let resolved = self.resolve_leader(from);
         self.user_table_mut(mm)
@@ -1175,7 +1175,7 @@ impl Keymap {
         to: Vec<KeyEvent>,
         kind: MappingKind,
         flags: MappingFlags,
-        expr_text: Option<CompactString>,
+        expr_text: Option<VimString>,
     ) {
         let resolved = self.resolve_leader(from);
         self.buf_table_mut(mm)
@@ -1246,7 +1246,7 @@ impl Keymap {
     /// Set the currently active file type.
     ///
     /// Affects filetype-specific mapping lookup. Pass `None` to clear.
-    pub fn set_filetype(&mut self, filetype: Option<CompactString>) {
+    pub fn set_filetype(&mut self, filetype: Option<VimString>) {
         self.active_filetype = filetype;
     }
 
@@ -1282,12 +1282,12 @@ impl Keymap {
         to: Vec<KeyEvent>,
         kind: MappingKind,
         flags: MappingFlags,
-        expr_text: Option<CompactString>,
+        expr_text: Option<VimString>,
     ) {
         let resolved = self.resolve_leader(from);
         let ft_maps = self
             .filetype_maps
-            .entry(CompactString::from(filetype))
+            .entry(VimString::from(filetype))
             .or_default();
         ft_maps[mm].insert(&resolved, build_entry(to, kind, flags, expr_text));
     }
@@ -1398,7 +1398,7 @@ fn build_entry(
     to: Vec<KeyEvent>,
     kind: MappingKind,
     flags: MappingFlags,
-    expr_text: Option<CompactString>,
+    expr_text: Option<VimString>,
 ) -> MappingEntry {
     let sequence = if flags.expr { Vec::new() } else { to };
     let expression = if flags.expr {

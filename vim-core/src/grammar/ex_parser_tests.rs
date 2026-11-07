@@ -4376,7 +4376,7 @@ fn delmarks_parses_marks_string() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from("abc"),
+            marks: VimString::from("abc"),
             clear_all: false,
         }
     );
@@ -4388,7 +4388,7 @@ fn delm_abbreviation_works() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from("xy"),
+            marks: VimString::from("xy"),
             clear_all: false,
         }
     );
@@ -4400,7 +4400,7 @@ fn delmarks_bang_clears_all() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from(""),
+            marks: VimString::from(""),
             clear_all: true,
         }
     );
@@ -4412,7 +4412,7 @@ fn delmarks_bang_with_space_clears_all() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from("ignored"),
+            marks: VimString::from("ignored"),
             clear_all: true,
         }
     );
@@ -4530,7 +4530,7 @@ fn update_with_path() {
     assert_eq!(
         cmd,
         ExCommand::Update {
-            path: Some(CompactString::from("/tmp/file.txt")),
+            path: Some(VimString::from("/tmp/file.txt")),
             force: false,
         }
     );
@@ -4696,7 +4696,7 @@ fn delmarks_single_mark() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from("a"),
+            marks: VimString::from("a"),
             clear_all: false,
         }
     );
@@ -4709,7 +4709,7 @@ fn delmarks_mixed_marks() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from("aB1"),
+            marks: VimString::from("aB1"),
             clear_all: false,
         }
     );
@@ -4723,7 +4723,7 @@ fn delmarks_range_notation_passes_raw() {
     assert_eq!(
         cmd,
         ExCommand::DelMarks {
-            marks: CompactString::from("a-z"),
+            marks: VimString::from("a-z"),
             clear_all: false,
         }
     );
@@ -4771,7 +4771,7 @@ fn update_up_abbreviation_with_path() {
     assert_eq!(
         cmd,
         ExCommand::Update {
-            path: Some(CompactString::from("/tmp/out.txt")),
+            path: Some(VimString::from("/tmp/out.txt")),
             force: false,
         }
     );
@@ -5265,7 +5265,7 @@ fn task_9_set_strips_trailing_comment() {
             );
             assert_eq!(
                 assignments[0],
-                SetAssignment::SetBool(compact_str::CompactString::from("number"))
+                SetAssignment::SetBool(crate::VimString::from("number"))
             );
         }
         other => panic!("expected Set, got {other:?}"),
@@ -5323,8 +5323,8 @@ fn task_9_set_no_comment_no_change() {
             assert_eq!(
                 assignments[0],
                 SetAssignment::Assign(
-                    compact_str::CompactString::from("tabstop"),
-                    compact_str::CompactString::from("4"),
+                    crate::VimString::from("tabstop"),
+                    crate::VimString::from("4"),
                 )
             );
         }
@@ -5763,8 +5763,8 @@ fn set_args(line: &str) -> Vec<SetAssignment> {
     }
 }
 
-fn cs(s: &str) -> compact_str::CompactString {
-    compact_str::CompactString::from(s)
+fn cs(s: &str) -> crate::VimString {
+    crate::VimString::from(s)
 }
 
 #[test]

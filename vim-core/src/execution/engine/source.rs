@@ -22,7 +22,7 @@ use crate::grammar::script::{script_command, Control, Line, Script, ScriptComman
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, Reach, SetAssignment};
 use crate::primitives::{Offset, OptionValue, Position, VarScope};
-use compact_str::CompactString;
+use crate::VimString;
 use std::borrow::Cow;
 
 /// Most files that run at once: `do_cmdline()` refuses a level past 200.
@@ -275,7 +275,7 @@ impl super::VimEngine {
         let mut response =
             self.run_script(config, &mut TrustAll, depth, &mut ConfigOutcome::default());
         let from = response.effects().len();
-        response.extend_effects(ex_effects::show_message(CompactString::from(
+        response.extend_effects(ex_effects::show_message(VimString::from(
             "Config file sourced",
         )));
         self.settle(&mut response, from);
@@ -498,7 +498,7 @@ impl super::VimEngine {
                 };
                 let opened = blocks.open_never_active(block);
                 if opened.is_ok() && !skipping {
-                    let mut form = CompactString::from(kind.name());
+                    let mut form = VimString::from(kind.name());
                     if !argument.is_empty() {
                         form.push(' ');
                         form.push_str(argument);
@@ -674,7 +674,7 @@ impl super::VimEngine {
             return Err(Then::Next);
         }
         if command.needs_buffer() {
-            let error = VimError::NotAllowedHere(CompactString::from(piece.trim()));
+            let error = VimError::NotAllowedHere(VimString::from(piece.trim()));
             show_config_errors(modifiers, [error], response);
             return Err(Then::Next);
         }
@@ -774,7 +774,7 @@ impl super::VimEngine {
             SourceReply::Defer => {
                 let request = HostRequest::ReadConfigFile {
                     meta: self.host.sequencer.next_meta(),
-                    path: path.map(CompactString::from),
+                    path: path.map(VimString::from),
                 };
                 self.host.source_depths.insert(request.id(), depth);
                 response.host_requests.push(request);
@@ -839,7 +839,7 @@ impl super::VimEngine {
     ) -> Option<Checked> {
         let argument = argument.trim_start_matches([' ', '\t']);
         let Some(assignment) = script_expr::parse_let(argument) else {
-            let form = CompactString::from(format!("let {argument}"));
+            let form = VimString::from(format!("let {argument}"));
             show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
             return None;
         };
@@ -850,7 +850,7 @@ impl super::VimEngine {
             return None;
         };
         let written = || ExCommand::Custom {
-            command: CompactString::from(format!("let {argument}")),
+            command: VimString::from(format!("let {argument}")),
         };
         let checked = match assignment.target {
             Target::Variable(variable) => {
@@ -943,7 +943,7 @@ impl super::VimEngine {
                 None => Err(VimError::UnknownOptionToSet(name.into())),
             };
         };
-        let name = CompactString::from(name);
+        let name = VimString::from(name);
         let assignment = match current {
             OptionValue::Str(old) => {
                 if let Some(op) = op.filter(|&op| op != '.') {
@@ -955,7 +955,7 @@ impl super::VimEngine {
                 let mut text = if op.is_some() {
                     old
                 } else {
-                    CompactString::default()
+                    VimString::default()
                 };
                 text.push_str(&value.text());
                 // :set takes the value without the backslash before each
@@ -977,7 +977,7 @@ impl super::VimEngine {
                 match number {
                     OptionValue::Bool(_) if n != 0 => SetAssignment::SetBool(name),
                     OptionValue::Bool(_) => SetAssignment::UnsetBool(name),
-                    _ => SetAssignment::Assign(name, CompactString::from(n.to_string())),
+                    _ => SetAssignment::Assign(name, VimString::from(n.to_string())),
                 }
             }
         };
@@ -1012,7 +1012,7 @@ impl super::VimEngine {
         }
         while !rest.is_empty() {
             let Some((variable, end)) = script_expr::variable_name(rest) else {
-                let form = CompactString::from(format!("unlet{argument}"));
+                let form = VimString::from(format!("unlet{argument}"));
                 return show_config_errors(modifiers, [VimError::NotAvailable(form)], response);
             };
             let after = rest.get(end..).unwrap_or_default();
@@ -1319,7 +1319,7 @@ fn check_config_unlet(
         return None;
     }
     let command = ExCommand::Custom {
-        command: CompactString::from(format!("unlet{argument}")),
+        command: VimString::from(format!("unlet{argument}")),
     };
     Some(Checked::new(
         modifiers,
@@ -1363,7 +1363,7 @@ fn source_config_lacking(
     if name == "scriptencoding" {
         return false;
     }
-    let error = VimError::NotAvailable(CompactString::from(piece.trim()));
+    let error = VimError::NotAvailable(VimString::from(piece.trim()));
     show_config_errors(modifiers, [error], response);
     // Deviation: Vim reads the rest of the file as Vim9 script, which the
     // engine does not read.

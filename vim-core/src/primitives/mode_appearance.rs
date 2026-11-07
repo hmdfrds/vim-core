@@ -4,7 +4,7 @@
 //! color hints for each editing mode. Hosts can use these as defaults when no
 //! user theme override is configured.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::mode::{Mode, VisualType};
 
@@ -16,7 +16,7 @@ use super::mode::{Mode, VisualType};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ModeAppearance {
     /// Short display name (e.g. "NORMAL", "INSERT").
-    pub name: CompactString,
+    pub name: VimString,
     /// Optional foreground color `[r, g, b]`.
     pub fg: Option<[u8; 3]>,
     /// Optional background color `[r, g, b]`.
@@ -29,57 +29,57 @@ impl ModeAppearance {
     pub const fn for_mode(mode: Mode) -> Self {
         match mode {
             Mode::Normal => Self {
-                name: CompactString::new_inline("NORMAL"),
+                name: VimString::from_static("NORMAL"),
                 fg: None,
                 bg: None,
             },
             Mode::Insert => Self {
-                name: CompactString::new_inline("INSERT"),
+                name: VimString::from_static("INSERT"),
                 fg: None,
                 bg: Some([80, 161, 79]), // green-ish
             },
             Mode::Visual(VisualType::Char) => Self {
-                name: CompactString::new_inline("VISUAL"),
+                name: VimString::from_static("VISUAL"),
                 fg: None,
                 bg: Some([64, 120, 199]), // blue-ish
             },
             Mode::Visual(VisualType::Line) => Self {
-                name: CompactString::new_inline("V-LINE"),
+                name: VimString::from_static("V-LINE"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Visual(VisualType::Block) => Self {
-                name: CompactString::new_inline("V-BLOCK"),
+                name: VimString::from_static("V-BLOCK"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Select(VisualType::Char) => Self {
-                name: CompactString::new_inline("SELECT"),
+                name: VimString::from_static("SELECT"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Select(VisualType::Line) => Self {
-                name: CompactString::new_inline("S-LINE"),
+                name: VimString::from_static("S-LINE"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Select(VisualType::Block) => Self {
-                name: CompactString::new_inline("S-BLOCK"),
+                name: VimString::from_static("S-BLOCK"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Replace | Mode::VirtualReplace => Self {
-                name: CompactString::new_inline("REPLACE"),
+                name: VimString::from_static("REPLACE"),
                 fg: None,
                 bg: Some([204, 51, 51]), // red-ish
             },
             Mode::CommandLine => Self {
-                name: CompactString::new_inline("COMMAND"),
+                name: VimString::from_static("COMMAND"),
                 fg: None,
                 bg: None,
             },
             Mode::OperatorPending(_) => Self {
-                name: CompactString::new_inline("OP-PENDING"),
+                name: VimString::from_static("OP-PENDING"),
                 fg: None,
                 bg: None,
             },

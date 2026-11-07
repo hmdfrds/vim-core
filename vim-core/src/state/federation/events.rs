@@ -6,7 +6,7 @@
 
 use super::backend::GlobalMark;
 use crate::primitives::{MarkName, Mode, Offset, RegisterContent, RegisterName, SearchDirection};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Origin of a state change event.
 ///
@@ -67,7 +67,7 @@ pub enum StateEvent {
     /// The current search pattern or direction changed.
     SearchPatternChanged {
         /// The new search pattern string.
-        pattern: CompactString,
+        pattern: VimString,
         /// The search direction.
         direction: SearchDirection,
         /// Where this change originated.
@@ -93,7 +93,7 @@ pub enum StateEvent {
         /// The byte offset that was pushed onto the jump list.
         offset: Offset,
         /// A hint identifying the file (path or buffer name), if known.
-        file_hint: Option<CompactString>,
+        file_hint: Option<VimString>,
     },
 
     /// The undo tree branched at a specific point.

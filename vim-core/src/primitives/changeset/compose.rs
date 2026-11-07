@@ -16,7 +16,7 @@
 //! | `Insert(s)` | `Retain(j)` | `Insert(s[..min])`, push back remainder |
 //! | `Insert(s)` | `Delete(j)` | Cancellation — skip min bytes from both |
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::builder::ChangeSetBuilder;
 use super::change_set::ChangeSet;
@@ -148,8 +148,8 @@ impl ChangeSet {
                     } else {
                         // Split the insert
                         let boundary = find_char_boundary(&s, j);
-                        b.insert(CompactString::from(&s[..boundary]));
-                        head_a = Some(TextOp::Insert(CompactString::from(&s[boundary..])));
+                        b.insert(VimString::from(&s[..boundary]));
+                        head_a = Some(TextOp::Insert(VimString::from(&s[boundary..])));
                         head_b = iter_b.next();
                     }
                 }
@@ -169,7 +169,7 @@ impl ChangeSet {
                     } else {
                         // Delete consumes part of the insert
                         let boundary = find_char_boundary(&s, j);
-                        head_a = Some(TextOp::Insert(CompactString::from(&s[boundary..])));
+                        head_a = Some(TextOp::Insert(VimString::from(&s[boundary..])));
                         head_b = iter_b.next();
                     }
                 }

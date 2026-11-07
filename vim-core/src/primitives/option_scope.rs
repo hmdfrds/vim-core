@@ -4,8 +4,8 @@
 //! scoping semantics. Options can be global, buffer-local, window-local,
 //! or global-with-local-fallback.
 
+use crate::VimString;
 use ahash::AHashMap;
-use compact_str::CompactString;
 
 use super::VimOptions;
 
@@ -247,7 +247,7 @@ pub enum OptionValue {
     /// Signed integer option; `-1` is the conventional sentinel meaning "inherit global".
     Signed(i64),
     /// String option (e.g. `clipboard`, `iskeyword`). `""` is the conventional sentinel.
-    Str(CompactString),
+    Str(VimString),
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -517,9 +517,7 @@ mod tests {
 
     #[test]
     fn test_is_sentinel_empty_str() {
-        assert!(is_sentinel(&OptionValue::Str(CompactString::new_inline(
-            ""
-        ))));
+        assert!(is_sentinel(&OptionValue::Str(VimString::from_static(""))));
     }
 
     #[test]
@@ -531,7 +529,7 @@ mod tests {
         assert!(!is_sentinel(&OptionValue::Unsigned(5)));
         assert!(!is_sentinel(&OptionValue::Bool(true)));
         assert!(!is_sentinel(&OptionValue::Bool(false)));
-        assert!(!is_sentinel(&OptionValue::Str(CompactString::new_inline(
+        assert!(!is_sentinel(&OptionValue::Str(VimString::from_static(
             "foo"
         ))));
     }
@@ -607,14 +605,14 @@ mod tests {
         ov.set(OptionId::Number, OptionValue::Bool(true));
         ov.set(
             OptionId::Clipboard,
-            OptionValue::Str(CompactString::new_inline("unnamed")),
+            OptionValue::Str(VimString::from_static("unnamed")),
         );
 
         assert_eq!(ov.get(OptionId::TabStop), Some(&OptionValue::Unsigned(2)));
         assert_eq!(ov.get(OptionId::Number), Some(&OptionValue::Bool(true)));
         assert_eq!(
             ov.get(OptionId::Clipboard),
-            Some(&OptionValue::Str(CompactString::new_inline("unnamed")))
+            Some(&OptionValue::Str(VimString::from_static("unnamed")))
         );
     }
 }

@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 arrayvec = "0.7"
-compact_str = "0.8"
+compact_str.workspace = true
 memchr = "2.7"
 bitflags = "2"
 

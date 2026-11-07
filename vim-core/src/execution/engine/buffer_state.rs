@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::keymap::BufferMappings;
 use crate::primitives::{LastVisualInfo, OptionId, OptionOverrides, VimValue, VirtualColumn};
@@ -450,7 +450,7 @@ pub struct BufferLocalState {
     /// Saved/restored per-buffer — undo history is buffer-specific.
     pub undo_tree: UndoTree,
     /// Buffer-local (b:) variables saved during buffer switch.
-    pub buffer_variables: BTreeMap<CompactString, VimValue>,
+    pub buffer_variables: BTreeMap<VimString, VimValue>,
 }
 
 impl BufferLocalState {

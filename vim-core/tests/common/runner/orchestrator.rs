@@ -474,7 +474,7 @@ fn apply_response(
                     // Sync to engine registers so drain_next_key() can read it
                     engine.apply_effect(&Effect::SetRegister {
                         name: vim_core::primitives::RegisterName::new(reg).unwrap(),
-                        text: compact_str::CompactString::from(content),
+                        text: vim_core::VimString::from(content),
                         motion_type: vim_core::primitives::MotionType::CharWise,
                     });
                     macro_buffer.clear();

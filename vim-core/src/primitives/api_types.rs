@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 /// A single text edit for cross-buffer operations.
 ///
@@ -21,7 +21,7 @@ pub struct TextEdit {
     /// Byte offset past the end of the range to replace (exclusive).
     pub end: usize,
     /// Replacement text.
-    pub text: CompactString,
+    pub text: VimString,
 }
 
 /// The capability tier required to call an API function.
@@ -59,7 +59,7 @@ pub struct AutocmdId(pub u64);
 /// and expression evaluation.
 ///
 /// `BTreeMap` is used for maps to ensure deterministic iteration order.
-/// `CompactString` is used for strings to avoid heap allocation for short values.
+/// `VimString` is used for strings to avoid heap allocation for short values.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[non_exhaustive]
@@ -73,11 +73,11 @@ pub enum VimValue {
     /// A 64-bit floating-point number.
     Float(f64),
     /// A UTF-8 string.
-    String(CompactString),
+    String(VimString),
     /// An ordered list of values.
     List(Vec<VimValue>),
     /// A string-keyed map of values with deterministic iteration order.
-    Map(BTreeMap<CompactString, VimValue>),
+    Map(BTreeMap<VimString, VimValue>),
 }
 
 /// Identifies who is issuing an API call.

@@ -7,7 +7,7 @@
 //! computed on an [`OwnedDocument`] that has the effects before them
 //! applied, and the engine's state is synced after each command.
 
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 use super::cmdline_judge::PieceVerdict;
@@ -238,7 +238,7 @@ fn moves_in_undo(piece: &str, depth: u8) -> bool {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct PendingLine {
     /// `None` once it ran the last command line.
-    line: Option<CompactString>,
+    line: Option<VimString>,
     /// The tags of the line.
     tags: Tags,
     /// Its `:normal` commands the host has yet to complete.
@@ -277,7 +277,7 @@ impl VimEngine {
         }
         let effects = self.store_last_line();
         self.pending_line = PendingLine {
-            line: Some(CompactString::from(line)),
+            line: Some(VimString::from(line)),
             tags: tags.clone(),
             norms: 0,
         };
@@ -381,8 +381,7 @@ impl VimEngine {
             run.effects.extend(end);
         }
         if run.dot {
-            self.state
-                .set_last_ex_for_dot(Some(CompactString::from(line)));
+            self.state.set_last_ex_for_dot(Some(VimString::from(line)));
         }
         if !run.tags.is_empty()
             && run

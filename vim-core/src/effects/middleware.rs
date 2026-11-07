@@ -241,7 +241,7 @@ mod tests {
     };
     use crate::effects::effect::Effect;
     use crate::primitives::{Mode, Offset, Range};
-    use compact_str::CompactString;
+    use crate::VimString;
     use smallvec::SmallVec;
 
     /// Helper: build a `SmallVec<[Effect; 4]>` from a vec literal.
@@ -613,7 +613,7 @@ mod tests {
         let mut effects = sv(vec![
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             },
             Effect::SetCursor {
                 offset: Offset::new(9),
@@ -635,7 +635,7 @@ mod tests {
         let mw = VerifyMiddleware::new(10);
         let mut effects = sv(vec![Effect::Insert {
             offset: Offset::new(100),
-            text: CompactString::new("bad"),
+            text: VimString::new("bad"),
         }]);
 
         mw.process(&mut effects);

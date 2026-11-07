@@ -15,7 +15,7 @@
 use crate::dispatch::{build_insert_exit_effects, InsertExitParams};
 use crate::execution::response::Response;
 use crate::state::VimState;
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Information about the insert session needed for post-exit mark correction.
 pub(crate) struct InsertExitInfo {
@@ -61,7 +61,7 @@ pub(crate) fn handle_insert_exit(
     ) = if let Some(insert_state) = state.insert_state() {
         (
             insert_state.count().get(),
-            CompactString::from(insert_state.accumulated_text()),
+            VimString::from(insert_state.accumulated_text()),
             insert_state.entry_type(),
             insert_state.auto_indent_len(),
             insert_state.block_insert().cloned(),
@@ -76,7 +76,7 @@ pub(crate) fn handle_insert_exit(
     } else {
         (
             1,
-            CompactString::default(),
+            VimString::default(),
             InsertEntryType::BeforeCursor,
             0,
             None,

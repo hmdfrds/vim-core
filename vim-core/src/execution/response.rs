@@ -12,7 +12,7 @@
 use crate::effects::undo_state::EffectState;
 use crate::effects::{Effect, EffectProvenance, Effects};
 use crate::execution::host::HostRequest;
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 /// How the engine handled a key.
@@ -49,7 +49,7 @@ pub struct Response {
     /// How the engine handled the key.
     pub(crate) kind: ResponseKind,
     /// Optional status message.
-    pub(crate) message: Option<CompactString>,
+    pub(crate) message: Option<VimString>,
     /// Provenance metadata: which command produced these effects and when.
     ///
     /// `None` for pending, ignored, and cancelled responses (no command executed).
@@ -267,7 +267,7 @@ impl Response {
 
     /// Add message to response.
     #[inline]
-    pub fn with_message(mut self, msg: impl Into<CompactString>) -> Self {
+    pub fn with_message(mut self, msg: impl Into<VimString>) -> Self {
         self.message = Some(msg.into());
         self
     }

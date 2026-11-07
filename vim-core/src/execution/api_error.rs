@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::execution::host_api::HostCapability;
 use crate::primitives::{BufferId, CapabilityTier, VarScope};
@@ -60,7 +60,7 @@ pub enum ApiError {
         /// The scope that was searched.
         scope: VarScope,
         /// The variable name that was not found.
-        name: CompactString,
+        name: VimString,
     },
 
     /// No register with the given name exists.
@@ -70,7 +70,7 @@ pub enum ApiError {
     MarkNotFound(char),
 
     /// No option with the given name exists.
-    OptionNotFound(CompactString),
+    OptionNotFound(VimString),
 
     /// An undo group was opened while another was already open.
     NestedUndoGroup,
@@ -90,7 +90,7 @@ pub enum ApiError {
     },
 
     /// Expression evaluation failed.
-    RuntimeError(CompactString),
+    RuntimeError(VimString),
 }
 
 impl fmt::Display for ApiError {

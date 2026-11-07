@@ -105,7 +105,7 @@ pub struct VimState {
     /// Last inserted text from previous insert session.
     /// Used for Ctrl-A (insert last inserted) and `.` repeat.
     /// Stored when exiting insert mode.
-    last_inserted_text: compact_str::CompactString,
+    last_inserted_text: crate::VimString,
 
     /// Entry type of the last completed insert session.
     /// Used by dot-repeat to know whether the original command was Replace
@@ -123,7 +123,7 @@ pub struct VimState {
     /// then sends `InsertKind::HostInserted`. Precomputation reads and clears
     /// this field. This indirection keeps `InsertKind` trivially-destructible
     /// so `Command` can be used in `const fn` contexts.
-    pending_host_insert: compact_str::CompactString,
+    pending_host_insert: crate::VimString,
 
     /// Last expression text evaluated via `<C-r>=` or `"=`.
     ///
@@ -131,7 +131,7 @@ pub struct VimState {
     /// dot-repeat can re-evaluate the expression instead of replaying
     /// the stale cached result.
     #[cfg_attr(feature = "serde", serde(default))]
-    last_expression_text: Option<compact_str::CompactString>,
+    last_expression_text: Option<crate::VimString>,
 
     /// Last visual mode info.
     /// Stored when exiting visual mode for `gv` and `.` repeat.
@@ -146,7 +146,7 @@ pub struct VimState {
     /// The `.` command checks this before `last_command` so that ex edits
     /// can be replayed.
     #[cfg_attr(feature = "serde", serde(skip))]
-    last_ex_for_dot: Option<compact_str::CompactString>,
+    last_ex_for_dot: Option<crate::VimString>,
 
     /// Cached search count result. Keyed by pattern hash — invalidated when
     /// search pattern changes or text is edited. Avoids O(n) rescan on every n/N.
@@ -473,7 +473,7 @@ impl VimState {
     /// Store text from a completed insert session for Ctrl-A and dot-repeat.
     #[inline]
     pub fn store_last_inserted_text(&mut self, text: &str) {
-        self.last_inserted_text = compact_str::CompactString::from(text);
+        self.last_inserted_text = crate::VimString::from(text);
     }
 
     /// Get the last inserted text (for Ctrl-A).
@@ -525,7 +525,7 @@ impl VimState {
     /// Call this before sending the `HostInserted` command through the pipeline.
     #[inline]
     pub fn stage_host_insert(&mut self, text: &str) {
-        self.pending_host_insert = compact_str::CompactString::from(text);
+        self.pending_host_insert = crate::VimString::from(text);
     }
 
     /// Read the staged host-insert text (without clearing).
@@ -537,7 +537,7 @@ impl VimState {
 
     /// Take the staged host-insert text (returns and clears it).
     #[inline]
-    pub(crate) fn take_pending_host_insert(&mut self) -> compact_str::CompactString {
+    pub(crate) fn take_pending_host_insert(&mut self) -> crate::VimString {
         std::mem::take(&mut self.pending_host_insert)
     }
 
@@ -549,7 +549,7 @@ impl VimState {
     /// dot-repeat can re-evaluate the expression instead of replaying
     /// the stale cached result.
     #[inline]
-    pub fn store_last_expression_text(&mut self, text: impl Into<compact_str::CompactString>) {
+    pub fn store_last_expression_text(&mut self, text: impl Into<crate::VimString>) {
         self.last_expression_text = Some(text.into());
     }
 
@@ -617,7 +617,7 @@ impl VimState {
 
     /// Set the last text-mutating ex command for dot-repeat.
     #[inline]
-    pub fn set_last_ex_for_dot(&mut self, cmd: Option<compact_str::CompactString>) {
+    pub fn set_last_ex_for_dot(&mut self, cmd: Option<crate::VimString>) {
         self.last_ex_for_dot = cmd;
     }
 
@@ -1264,6 +1264,15 @@ mod tests {
         let state = populated_state_for_serde();
         let json = serde_json::to_string(&state).expect("serialize VimState");
         let restored: VimState = serde_json::from_str(&json).expect("deserialize VimState");
+        assert_roundtripped_state(&restored);
+    }
+
+    /// A state saved by v0.9.0, before `VimString`, still loads.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_serde_loads_v090_state() {
+        let json = include_str!("../../tests/fixtures/vimstate-v090.json");
+        let restored: VimState = serde_json::from_str(json).expect("deserialize VimState");
         assert_roundtripped_state(&restored);
     }
 

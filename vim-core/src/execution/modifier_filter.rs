@@ -77,7 +77,7 @@ mod tests {
     use crate::effects::InfoMessage;
     use crate::errors::VimError;
     use crate::primitives::{Direction, MarkName, MotionType, Offset};
-    use compact_str::CompactString;
+    use crate::VimString;
 
     /// Build an `Effects` from a vec of raw effects.
     fn effects_from(items: Vec<Effect>) -> Effects {
@@ -88,13 +88,13 @@ mod tests {
 
     fn make_show_info() -> Effect {
         Effect::ShowInfo {
-            info: InfoMessage::Text(CompactString::from("hello")),
+            info: InfoMessage::Text(VimString::from("hello")),
         }
     }
 
     fn make_show_error() -> Effect {
         Effect::ShowError {
-            error: VimError::PatternNotFound(CompactString::from("test")),
+            error: VimError::PatternNotFound(VimString::from("test")),
             source: None,
         }
     }
@@ -107,14 +107,14 @@ mod tests {
 
     fn make_set_search_pattern() -> Effect {
         Effect::SetSearchPattern {
-            pattern: CompactString::from("foo"),
+            pattern: VimString::from("foo"),
             direction: Direction::Forward,
         }
     }
 
     fn make_set_substitute_pattern() -> Effect {
         Effect::SetSubstitutePattern {
-            pattern: CompactString::from("bar"),
+            pattern: VimString::from("bar"),
         }
     }
 
@@ -135,7 +135,7 @@ mod tests {
     fn make_set_alternate_register() -> Effect {
         Effect::SetRegister {
             name: RegisterName::ALTERNATE,
-            text: CompactString::from("/tmp/other.txt"),
+            text: VimString::from("/tmp/other.txt"),
             motion_type: MotionType::CharWise,
         }
     }
@@ -208,7 +208,7 @@ mod tests {
     fn keepalt_removes_alternate_register_only() {
         let normal_register = Effect::SetRegister {
             name: RegisterName::new('a').unwrap(),
-            text: CompactString::from("text"),
+            text: VimString::from("text"),
             motion_type: MotionType::CharWise,
         };
         let mut effects = effects_from(vec![
@@ -447,7 +447,7 @@ mod tests {
         // Simulates `:keeppatterns /foo/` — SetSearchPattern from the search
         // command should be stripped, leaving only the cursor movement.
         let search_pattern = Effect::SetSearchPattern {
-            pattern: CompactString::from("foo"),
+            pattern: VimString::from("foo"),
             direction: Direction::Forward,
         };
         let cursor = Effect::SetCursor {
@@ -514,7 +514,7 @@ mod tests {
         // `:silent` should not affect cursor, marks, registers, etc.
         let normal_register = Effect::SetRegister {
             name: RegisterName::new('a').unwrap(),
-            text: CompactString::from("text"),
+            text: VimString::from("text"),
             motion_type: MotionType::CharWise,
         };
         let mut effects = effects_from(vec![
@@ -552,10 +552,10 @@ mod tests {
     fn task_8_7_silent_bang_strips_multiple_messages() {
         // Multiple ShowInfo and ShowError effects should all be stripped.
         let info2 = Effect::ShowInfo {
-            info: InfoMessage::Text(CompactString::from("world")),
+            info: InfoMessage::Text(VimString::from("world")),
         };
         let error2 = Effect::ShowError {
-            error: VimError::PatternNotFound(CompactString::from("test2")),
+            error: VimError::PatternNotFound(VimString::from("test2")),
             source: None,
         };
         let mut effects = effects_from(vec![

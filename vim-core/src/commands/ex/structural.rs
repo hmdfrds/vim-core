@@ -12,7 +12,7 @@ use crate::errors::VimError;
 use crate::grammar::types::ExCommand;
 use crate::primitives::{Range, StructuralFlags};
 use crate::regex::{MatchContext, VimRegex};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Execute structural extract: apply sub-command to each regex match.
 ///
@@ -36,7 +36,7 @@ pub fn execute_structural_extract(
     let matches = re.find_all(&ctx).unwrap_or_default();
 
     if matches.is_empty() {
-        return Err(VimError::PatternNotFound(CompactString::from(pattern)));
+        return Err(VimError::PatternNotFound(VimString::from(pattern)));
     }
 
     match sub_command {
@@ -46,7 +46,7 @@ pub fn execute_structural_extract(
             for m in matches.iter().rev() {
                 effects = effects.delete(Range::from_raw(m.range.start, m.range.end));
             }
-            effects = effects.show_message(CompactString::from(format!(
+            effects = effects.show_message(VimString::from(format!(
                 "{} regions deleted",
                 matches.len()
             )));
@@ -54,7 +54,7 @@ pub fn execute_structural_extract(
         }
         // TODO: Support Substitute sub-command (`:sx/pat/s/old/new/`)
         // TODO: Support other sub-commands
-        _ => Err(VimError::NotEditorCommand(CompactString::from(
+        _ => Err(VimError::NotEditorCommand(VimString::from(
             "structural regex: only :d sub-command is currently supported",
         ))),
     }
@@ -83,7 +83,7 @@ pub fn execute_structural_complement(
     let matches = re.find_all(&ctx).unwrap_or_default();
 
     if matches.is_empty() {
-        return Err(VimError::PatternNotFound(CompactString::from(pattern)));
+        return Err(VimError::PatternNotFound(VimString::from(pattern)));
     }
 
     // Compute gap regions: [0..first_match_start, first_match_end..second_match_start, ...]
@@ -100,7 +100,7 @@ pub fn execute_structural_complement(
     }
 
     if gaps.is_empty() {
-        return Ok(Effects::new().show_message(CompactString::from("No gap regions found")));
+        return Ok(Effects::new().show_message(VimString::from("No gap regions found")));
     }
 
     match sub_command {
@@ -110,7 +110,7 @@ pub fn execute_structural_complement(
             for &(start, end) in gaps.iter().rev() {
                 effects = effects.delete(Range::from_raw(start, end));
             }
-            effects = effects.show_message(CompactString::from(format!(
+            effects = effects.show_message(VimString::from(format!(
                 "{} gap regions deleted",
                 gaps.len()
             )));
@@ -118,7 +118,7 @@ pub fn execute_structural_complement(
         }
         // TODO: Support Substitute sub-command
         // TODO: Support other sub-commands
-        _ => Err(VimError::NotEditorCommand(CompactString::from(
+        _ => Err(VimError::NotEditorCommand(VimString::from(
             "structural regex: only :d sub-command is currently supported",
         ))),
     }

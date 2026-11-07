@@ -29,7 +29,7 @@ pub(super) use super::word_boundary::strip_word_boundaries;
 use crate::commands::helpers::next_char_boundary;
 use crate::primitives::{Direction, MotionInclusivity, Offset, SearchFlags};
 use crate::state::SearchOffset;
-use compact_str::CompactString;
+use crate::VimString;
 impl SearchMotion {
     /// Compute the target offset (requires search state in context).
     ///
@@ -101,9 +101,9 @@ impl SearchMotion {
                 }
 
                 // Wrap in \<...\> for whole-word matching (Vim * and #).
-                // Use CompactString SSO (24 bytes inline) to avoid heap
+                // Use VimString SSO (24 bytes inline) to avoid heap
                 // allocation for typical word lengths (<=20 chars).
-                let mut bounded = CompactString::with_capacity(word.len() + 4);
+                let mut bounded = VimString::with_capacity(word.len() + 4);
                 bounded.push_str("\\<");
                 bounded.push_str(word);
                 bounded.push_str("\\>");

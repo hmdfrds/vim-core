@@ -9,7 +9,7 @@
 //! Stores the last N messages emitted via `ShowMessage` / `ShowError` effects
 //! so that the user can review them via `:messages`.
 
-use compact_str::CompactString;
+use crate::VimString;
 use std::collections::VecDeque;
 
 /// Maximum number of messages retained in the history ring.
@@ -33,7 +33,7 @@ pub enum MessageKind {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageEntry {
     /// Message text.
-    pub text: CompactString,
+    pub text: VimString,
     /// Severity / classification.
     pub kind: MessageKind,
     /// Monotonic sequence counter — assigned at push time.
@@ -46,7 +46,7 @@ pub struct MessageEntry {
 impl MessageEntry {
     /// Construct a new entry.
     #[must_use]
-    pub const fn new(text: CompactString, kind: MessageKind, sequence: u64) -> Self {
+    pub const fn new(text: VimString, kind: MessageKind, sequence: u64) -> Self {
         Self {
             text,
             kind,
@@ -72,7 +72,7 @@ pub struct MessageHistory {
     next_sequence: u64,
     /// The file of the last error raised in one, as Vim's `msg_source()`
     /// remembers it.
-    last_file: Option<CompactString>,
+    last_file: Option<VimString>,
     /// The line of the last line label.
     last_line: u32,
 }
@@ -91,17 +91,17 @@ impl MessageHistory {
     }
 
     /// Push an informational message into the history.
-    pub fn push_info(&mut self, text: impl Into<CompactString>) {
+    pub fn push_info(&mut self, text: impl Into<VimString>) {
         self.push(text.into(), MessageKind::Info);
     }
 
     /// Push a warning message into the history.
-    pub fn push_warning(&mut self, text: impl Into<CompactString>) {
+    pub fn push_warning(&mut self, text: impl Into<VimString>) {
         self.push(text.into(), MessageKind::Warning);
     }
 
     /// Push an error message into the history.
-    pub fn push_error(&mut self, text: impl Into<CompactString>) {
+    pub fn push_error(&mut self, text: impl Into<VimString>) {
         self.push(text.into(), MessageKind::Error);
     }
 
@@ -148,7 +148,7 @@ impl MessageHistory {
     /// Internal push: appends an entry, evicting the oldest if at capacity.
     ///
     /// Eviction is O(1) via `VecDeque::pop_front`.
-    fn push(&mut self, text: CompactString, kind: MessageKind) {
+    fn push(&mut self, text: VimString, kind: MessageKind) {
         if self.entries.len() == MAX_MESSAGES {
             self.entries.pop_front();
         }
@@ -283,7 +283,7 @@ mod tests {
         let mut h = MessageHistory::new();
         // Fill to capacity.
         for i in 0..MAX_MESSAGES {
-            h.push_info(CompactString::from(format!("msg {i}")));
+            h.push_info(VimString::from(format!("msg {i}")));
         }
         assert_eq!(h.len(), MAX_MESSAGES);
 

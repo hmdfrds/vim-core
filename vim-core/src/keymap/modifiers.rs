@@ -2,8 +2,8 @@
 //!
 //! Supports Ctrl, Alt, Shift, and Meta modifier keys.
 
+use crate::VimString;
 use bitflags::bitflags;
-use compact_str::CompactString;
 
 bitflags! {
     /// Keyboard modifiers.
@@ -71,11 +71,11 @@ impl Modifiers {
 
     /// Convert to Vim modifier prefix.
     ///
-    /// Returns a `CompactString` — maximum output is `"C-D-M-S-"` (8 bytes),
+    /// Returns a `VimString` — maximum output is `"C-D-M-S-"` (8 bytes),
     /// always fits in SSO without heap allocation.
     #[must_use]
-    pub fn to_vim_prefix(&self) -> CompactString {
-        let mut result = CompactString::default();
+    pub fn to_vim_prefix(&self) -> VimString {
+        let mut result = VimString::default();
 
         if self.contains(Self::CTRL) {
             result.push_str("C-");

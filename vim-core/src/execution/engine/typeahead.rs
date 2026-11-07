@@ -27,7 +27,7 @@ use std::collections::VecDeque;
 use crate::keymap::MappingFlags;
 use crate::keymap::{Key, KeyEvent, Keymap, MappingKind, MappingMode, TrieLookup};
 use crate::primitives::{Mode, Tags};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Maximum LHS key sequence length we buffer for mapping prefix matching.
 ///
@@ -80,7 +80,7 @@ pub(in crate::execution::engine) enum ResolveResult {
     /// the evaluated key sequence.
     ExprMapping {
         /// The expression text (the mapping's RHS) to be evaluated by the host.
-        expression: CompactString,
+        expression: VimString,
         /// The mapping kind (recursive vs non-recursive).
         kind: MappingKind,
         /// The mapping mode in which the mapping was triggered.
@@ -716,11 +716,11 @@ impl TypeaheadBuffer {
     /// Format the pending keys as a Vim notation string for status bar display.
     ///
     /// Returns an empty string if no keys are pending.
-    pub(in crate::execution::engine) fn pending_display(&self) -> CompactString {
+    pub(in crate::execution::engine) fn pending_display(&self) -> VimString {
         if self.pending.is_empty() {
-            return CompactString::default();
+            return VimString::default();
         }
-        let mut out = CompactString::default();
+        let mut out = VimString::default();
         for key in &self.pending {
             out.push_str(&key.to_vim_notation());
         }
@@ -2635,7 +2635,7 @@ mod tests {
                 expr: true,
                 ..MappingFlags::default()
             },
-            Some(CompactString::from(expression)),
+            Some(VimString::from(expression)),
         );
         km
     }
@@ -2840,7 +2840,7 @@ mod tests {
                 expr: true,
                 ..MappingFlags::default()
             },
-            Some(CompactString::from("TimeoutExpr()")),
+            Some(VimString::from("TimeoutExpr()")),
         );
         km.map(
             MappingMode::Normal,
@@ -2911,7 +2911,7 @@ mod tests {
                 expr: true,
                 ..MappingFlags::default()
             },
-            Some(CompactString::from("InsertExpr()")),
+            Some(VimString::from("InsertExpr()")),
         );
 
         let result = buf.resolve_key(

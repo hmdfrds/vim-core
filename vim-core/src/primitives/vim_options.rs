@@ -4,7 +4,7 @@
 //! Lives in `primitives/` so all layers can reference the type without
 //! violating the architecture's downward-only dependency rule.
 
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 use std::fmt;
 use std::sync::Arc;
@@ -275,7 +275,7 @@ pub struct VimOptions {
     /// - `t`: auto-wrap text using textwidth
     /// - `c`: auto-wrap comments using textwidth
     /// Neovim default: "tcqj" (Vim's is "tcq")
-    formatoptions: CompactString,
+    formatoptions: VimString,
     /// Parsed flags from `formatoptions`. Rebuilt when formatoptions changes.
     #[cfg_attr(feature = "serde", serde(skip))]
     format_flags: FormatFlags,
@@ -286,11 +286,11 @@ pub struct VimOptions {
 
     // ── Navigation behavior ──────────────────────────────────────────────
     /// Which keys wrap to next/prev line (e.g. "b,s,<,>,[,]").
-    whichwrap: CompactString,
+    whichwrap: VimString,
     /// What backspace can delete over ("indent,eol,start").
-    backspace: CompactString,
+    backspace: VimString,
     /// Where virtual editing is allowed ("", "block", "insert", "all", "onemore").
-    virtualedit: CompactString,
+    virtualedit: VimString,
 
     // ── Selection ────────────────────────────────────────────────────────
     /// Selection behavior: inclusive, exclusive, or old.
@@ -298,14 +298,14 @@ pub struct VimOptions {
 
     // ── Clipboard ────────────────────────────────────────────────────────
     /// Clipboard integration: "", "unnamed", "unnamedplus".
-    clipboard: CompactString,
+    clipboard: VimString,
 
     // ── Commenting ────────────────────────────────────────────────────────
     /// Comment string format (e.g., `"// %s"`, `"# %s"`).
     /// `%s` is replaced with the line content.
-    commentstring: CompactString,
+    commentstring: VimString,
     /// Comment leaders for formatting (Vim `comments`), e.g. `"b:#,://"`.
-    comments: CompactString,
+    comments: VimString,
     /// Parsed `comments`. Rebuilt when comments changes; shared so that
     /// resolving options per buffer does not copy the parts.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -322,7 +322,7 @@ pub struct VimOptions {
 
     // ── Word boundaries ──────────────────────────────────────────────────
     /// Characters that are part of keywords (Vim iskeyword format).
-    iskeyword: CompactString,
+    iskeyword: VimString,
     /// Precomputed bitmap from `iskeyword`. Rebuilt when iskeyword changes.
     #[cfg_attr(feature = "serde", serde(skip))]
     word_char_set: WordCharSet,
@@ -338,7 +338,7 @@ pub struct VimOptions {
 
     // ── Langmap ─────────────────────────────────────────────────────────
     /// Raw langmap string from `:set langmap=...`. Parsed into LangmapTable on the engine.
-    langmap: CompactString,
+    langmap: VimString,
     /// Whether langmap applies to characters from mapping expansion.
     /// Default: true, as in Vim.
     langremap: bool,
@@ -399,7 +399,7 @@ pub struct VimOptions {
     // ── Quote escape ─────────────────────────────────────────────────────
     /// Characters used to escape the quote character in quote text objects.
     /// Default: `"\\"` (single backslash). Buffer-local.
-    quoteescape: CompactString,
+    quoteescape: VimString,
 
     // ── Ed compatibility ──────────────────────────────────────────────────
     /// When true, substitute flags are persistent across `:s` calls.
@@ -872,7 +872,7 @@ impl VimOptions {
     /// not acted on yet (`r`, `o`, `/`, `a`, `n`, `m`, `]`); see
     /// [`FormatFlags`].
     #[inline]
-    pub fn set_formatoptions(&mut self, value: impl Into<CompactString>) {
+    pub fn set_formatoptions(&mut self, value: impl Into<VimString>) {
         self.formatoptions = value.into();
         self.format_flags = FormatFlags::parse_lossy(&self.formatoptions);
     }
@@ -885,19 +885,19 @@ impl VimOptions {
 
     /// Set whichwrap.
     #[inline]
-    pub fn set_whichwrap(&mut self, value: impl Into<CompactString>) {
+    pub fn set_whichwrap(&mut self, value: impl Into<VimString>) {
         self.whichwrap = value.into();
     }
 
     /// Set quoteescape.
     #[inline]
-    pub fn set_quoteescape(&mut self, value: impl Into<CompactString>) {
+    pub fn set_quoteescape(&mut self, value: impl Into<VimString>) {
         self.quoteescape = value.into();
     }
 
     /// Set backspace. Invalid values are silently ignored.
     #[inline]
-    pub fn set_backspace(&mut self, value: impl Into<CompactString>) {
+    pub fn set_backspace(&mut self, value: impl Into<VimString>) {
         let v = value.into();
         let valid = matches!(v.as_str(), "" | "0" | "1" | "2" | "3")
             || v.split(',')
@@ -909,7 +909,7 @@ impl VimOptions {
 
     /// Set virtualedit. Invalid values are silently ignored.
     #[inline]
-    pub fn set_virtualedit(&mut self, value: impl Into<CompactString>) {
+    pub fn set_virtualedit(&mut self, value: impl Into<VimString>) {
         let v = value.into();
         let valid = v.is_empty()
             || v.split(',')
@@ -935,7 +935,7 @@ impl VimOptions {
 
     /// Set clipboard mode. Invalid values are silently ignored.
     #[inline]
-    pub fn set_clipboard(&mut self, value: impl Into<CompactString>) {
+    pub fn set_clipboard(&mut self, value: impl Into<VimString>) {
         let v = value.into();
         let valid = v.is_empty()
             || v.split(',')
@@ -947,7 +947,7 @@ impl VimOptions {
 
     /// Set commentstring.
     #[inline]
-    pub fn set_commentstring(&mut self, value: impl Into<CompactString>) {
+    pub fn set_commentstring(&mut self, value: impl Into<VimString>) {
         self.commentstring = value.into();
     }
 
@@ -957,14 +957,14 @@ impl VimOptions {
     /// matching; `:set` rejects a malformed value with E524, E525 or E539
     /// before it gets here.
     #[inline]
-    pub fn set_comments(&mut self, value: impl Into<CompactString>) {
+    pub fn set_comments(&mut self, value: impl Into<VimString>) {
         self.comments = value.into();
         self.comment_spec = Arc::new(CommentSpec::parse_lossy(&self.comments));
     }
 
     /// Set iskeyword. Rebuilds the cached `WordCharSet` bitmap.
     #[inline]
-    pub fn set_iskeyword(&mut self, value: impl Into<CompactString>) {
+    pub fn set_iskeyword(&mut self, value: impl Into<VimString>) {
         self.iskeyword = value.into();
         self.word_char_set = WordCharSet::from_iskeyword(&self.iskeyword);
     }
@@ -1434,16 +1434,16 @@ impl VimOptions {
             OptionId::SoftTabStop => OptionValue::Signed(i64::from(self.softtabstop())),
 
             // String options
-            OptionId::WhichWrap => OptionValue::Str(CompactString::from(self.whichwrap())),
-            OptionId::Backspace => OptionValue::Str(CompactString::from(self.backspace())),
-            OptionId::VirtualEdit => OptionValue::Str(CompactString::from(self.virtualedit())),
-            OptionId::Selection => OptionValue::Str(CompactString::from(self.selection())),
-            OptionId::Clipboard => OptionValue::Str(CompactString::from(self.clipboard())),
-            OptionId::IsKeyword => OptionValue::Str(CompactString::from(self.iskeyword())),
-            OptionId::CommentString => OptionValue::Str(CompactString::from(self.commentstring())),
+            OptionId::WhichWrap => OptionValue::Str(VimString::from(self.whichwrap())),
+            OptionId::Backspace => OptionValue::Str(VimString::from(self.backspace())),
+            OptionId::VirtualEdit => OptionValue::Str(VimString::from(self.virtualedit())),
+            OptionId::Selection => OptionValue::Str(VimString::from(self.selection())),
+            OptionId::Clipboard => OptionValue::Str(VimString::from(self.clipboard())),
+            OptionId::IsKeyword => OptionValue::Str(VimString::from(self.iskeyword())),
+            OptionId::CommentString => OptionValue::Str(VimString::from(self.commentstring())),
             OptionId::FormatOptions => OptionValue::Str(self.formatoptions.clone()),
             OptionId::Comments => OptionValue::Str(self.comments.clone()),
-            OptionId::IncCommand => OptionValue::Str(CompactString::from(self.inccommand())),
+            OptionId::IncCommand => OptionValue::Str(VimString::from(self.inccommand())),
 
             // Special: undolevels is Option<usize>; -1 means unlimited
             OptionId::UndoLevels => {
@@ -1799,28 +1799,28 @@ impl Default for VimOptions {
             number: false,
             relativenumber: false,
             textwidth: 0,
-            formatoptions: CompactString::new_inline("tcqj"),
+            formatoptions: VimString::from_static("tcqj"),
             format_flags: FormatFlags::WRAP_TEXT
                 .union(FormatFlags::WRAP_COMMENTS)
                 .union(FormatFlags::FORMAT_COMMENTS)
                 .union(FormatFlags::REMOVE_COMMENT_LEADER),
             timeoutlen_ms: 500,
-            whichwrap: CompactString::new_inline("b,s"),
-            backspace: CompactString::new("indent,eol,start"),
-            virtualedit: CompactString::new_inline(""),
+            whichwrap: VimString::from_static("b,s"),
+            backspace: VimString::new("indent,eol,start"),
+            virtualedit: VimString::from_static(""),
             selection: SelectionMode::Inclusive,
-            clipboard: CompactString::new_inline(""),
-            commentstring: CompactString::new_inline("// %s"),
-            comments: CompactString::new(DEFAULT_COMMENTS),
+            clipboard: VimString::from_static(""),
+            commentstring: VimString::from_static("// %s"),
+            comments: VimString::new(DEFAULT_COMMENTS),
             comment_spec: Arc::new(CommentSpec::parse_lossy(DEFAULT_COMMENTS)),
             inccommand: IncCommandMode::NoSplit,
-            iskeyword: CompactString::new("@,48-57,_,192-255"),
+            iskeyword: VimString::new("@,48-57,_,192-255"),
             word_char_set: WordCharSet::default_vim(),
             gdefault: false,
             undolevels: None,
-            quoteescape: CompactString::new_inline("\\"),
+            quoteescape: VimString::from_static("\\"),
             auto_pairs: None,
-            langmap: CompactString::default(),
+            langmap: VimString::default(),
             langremap: true,
             subword_config: SubwordConfig::default(),
             use_system_clipboard: UseSystemClipboard::Never,
@@ -1871,24 +1871,24 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             relativenumber: bool,
             textwidth: usize,
             #[serde(default = "default_formatoptions")]
-            formatoptions: CompactString,
+            formatoptions: VimString,
             timeoutlen_ms: u32,
-            whichwrap: CompactString,
-            backspace: CompactString,
-            virtualedit: CompactString,
+            whichwrap: VimString,
+            backspace: VimString,
+            virtualedit: VimString,
             selection: SelectionMode,
-            clipboard: CompactString,
-            commentstring: CompactString,
+            clipboard: VimString,
+            commentstring: VimString,
             #[serde(default = "default_comments")]
-            comments: CompactString,
+            comments: VimString,
             inccommand: IncCommandMode,
-            iskeyword: CompactString,
+            iskeyword: VimString,
             gdefault: bool,
             undolevels: Option<usize>,
             #[serde(default = "default_quoteescape")]
-            quoteescape: CompactString,
+            quoteescape: VimString,
             #[serde(default)]
-            langmap: CompactString,
+            langmap: VimString,
             #[serde(default = "default_langremap")]
             langremap: bool,
             #[serde(default)]
@@ -1943,14 +1943,14 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
         fn default_report() -> u32 {
             2
         }
-        fn default_formatoptions() -> CompactString {
-            CompactString::new_inline("tcqj")
+        fn default_formatoptions() -> VimString {
+            VimString::from_static("tcqj")
         }
-        fn default_comments() -> CompactString {
-            CompactString::new(DEFAULT_COMMENTS)
+        fn default_comments() -> VimString {
+            VimString::new(DEFAULT_COMMENTS)
         }
-        fn default_quoteescape() -> CompactString {
-            CompactString::new_inline("\\")
+        fn default_quoteescape() -> VimString {
+            VimString::from_static("\\")
         }
         fn default_langremap() -> bool {
             true
@@ -2491,12 +2491,12 @@ mod tests {
         o.set_clipboard("unnamed");
         assert_eq!(
             o.get_option(OptionId::Clipboard),
-            OptionValue::Str(CompactString::from("unnamed"))
+            OptionValue::Str(VimString::from("unnamed"))
         );
         o.set_iskeyword("@,48-57");
         assert_eq!(
             o.get_option(OptionId::IsKeyword),
-            OptionValue::Str(CompactString::from("@,48-57"))
+            OptionValue::Str(VimString::from("@,48-57"))
         );
     }
 
@@ -2536,7 +2536,7 @@ mod tests {
         let mut o = VimOptions::default();
         o.set_option(
             OptionId::CommentString,
-            &OptionValue::Str(CompactString::from("# %s")),
+            &OptionValue::Str(VimString::from("# %s")),
         );
         assert_eq!(o.commentstring(), "# %s");
     }
@@ -2609,10 +2609,7 @@ mod tests {
         global.set_backspace("indent,eol,start");
         let mut buffer = OptionOverrides::new();
         // Sentinel empty string for GlobalOrLocalBuffer should not override
-        buffer.set(
-            OptionId::Backspace,
-            OptionValue::Str(CompactString::from("")),
-        );
+        buffer.set(OptionId::Backspace, OptionValue::Str(VimString::from("")));
         let window = OptionOverrides::new();
 
         let resolved = VimOptions::resolve_all(&global, &buffer, &window);
@@ -2638,7 +2635,7 @@ mod tests {
         // WhichWrap is GlobalOrLocalBuffer — non-sentinel value should apply
         buffer.set(
             OptionId::WhichWrap,
-            OptionValue::Str(CompactString::from("b,s,<,>")),
+            OptionValue::Str(VimString::from("b,s,<,>")),
         );
         let window = OptionOverrides::new();
 

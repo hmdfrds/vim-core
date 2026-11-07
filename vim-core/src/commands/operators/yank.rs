@@ -40,7 +40,7 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     // Uses shared linewise normalization (handles EOF separator vs blank line content).
     let yanked_text = extract_range_text(ctx.text, ctx.range);
     let yanked_text = if is_linewise {
-        compact_str::CompactString::from(normalize_linewise_register(
+        crate::VimString::from(normalize_linewise_register(
             yanked_text.as_str(),
             ctx.text,
             ctx.range,
@@ -110,9 +110,9 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
 
     // Emit yank highlight effect (gated by HostCapability::YankHighlight at session layer)
     effects.push(crate::effects::Effect::SetHighlightRange {
-        owner: compact_str::CompactString::from(crate::effects::HIGHLIGHT_OWNER_YANK),
+        owner: crate::VimString::from(crate::effects::HIGHLIGHT_OWNER_YANK),
         range: ctx.range,
-        group: compact_str::CompactString::new_inline("yank"),
+        group: crate::VimString::from_static("yank"),
         shape: match ctx.motion_type {
             MotionType::LineWise => crate::primitives::SelectionShape::Line,
             _ => crate::primitives::SelectionShape::Char,

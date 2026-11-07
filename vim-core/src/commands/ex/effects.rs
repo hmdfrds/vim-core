@@ -10,7 +10,7 @@ use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::primitives::Mode;
 use crate::primitives::{Direction, MarkName, MotionType, Offset, Range, RegisterName};
-use compact_str::CompactString;
+use crate::VimString;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Command-line mode transitions
@@ -33,7 +33,7 @@ pub fn cancel_command_line() -> Effects {
 /// Set search pattern and direction.
 pub fn set_search_pattern(pattern: &str, direction: Direction) -> Effects {
     Effects::new()
-        .set_search_pattern(CompactString::from(pattern), direction)
+        .set_search_pattern(VimString::from(pattern), direction)
         .set_register(
             RegisterName::SEARCH,
             pattern.to_owned(),
@@ -84,7 +84,7 @@ pub fn missing_pattern() -> Effects {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Save ex command to the `:` register.
-pub fn register_ex_command(command: CompactString) -> Effects {
+pub fn register_ex_command(command: VimString) -> Effects {
     Effects::new().set_register(RegisterName::LAST_COMMAND, command, MotionType::CharWise)
 }
 
@@ -105,12 +105,7 @@ pub fn visual_exit_marks(selection: &crate::primitives::SelectionRange) -> Effec
 }
 
 /// `:normal` command effects.
-pub fn norm_command(
-    start_line: usize,
-    end_line: usize,
-    keys: CompactString,
-    remap: bool,
-) -> Effects {
+pub fn norm_command(start_line: usize, end_line: usize, keys: VimString, remap: bool) -> Effects {
     use crate::primitives::LineNumber;
     Effects::new().norm_command(
         LineNumber::new(start_line),
@@ -128,18 +123,18 @@ pub fn goto_line(offset: usize) -> Effects {
 /// `:join` result (replace text, set cursor, show line count).
 pub fn join_result(
     range: Range,
-    joined_text: CompactString,
+    joined_text: VimString,
     cursor: Offset,
     line_count: usize,
 ) -> Effects {
     Effects::new()
         .replace(range, joined_text)
         .set_cursor(cursor)
-        .show_message(CompactString::from(format!("{line_count} lines joined")))
+        .show_message(VimString::from(format!("{line_count} lines joined")))
 }
 
 /// Read-file completion (insert text, set cursor).
-pub fn read_file_completion(offset: usize, data: CompactString) -> Effects {
+pub fn read_file_completion(offset: usize, data: VimString) -> Effects {
     let insert_offset = Offset::new(offset);
     Effects::new()
         .insert(insert_offset, data)
@@ -149,7 +144,7 @@ pub fn read_file_completion(offset: usize, data: CompactString) -> Effects {
 /// Filter completion (replace range, optionally set cursor).
 pub fn filter_completion(
     range: Range,
-    replacement: CompactString,
+    replacement: VimString,
     cursor_offset: Option<usize>,
 ) -> Effects {
     let mut effects = Effects::new().begin_undo().replace(range, replacement);
@@ -211,6 +206,6 @@ pub fn show_error(error: VimError) -> Effects {
 }
 
 /// Show an informational message.
-pub fn show_message(text: CompactString) -> Effects {
+pub fn show_message(text: VimString) -> Effects {
     Effects::new().show_message(text)
 }

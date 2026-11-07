@@ -3,7 +3,7 @@
 //! Types for register names and content (not storage implementation).
 
 use crate::primitives::{ClipboardMetadata, MotionType};
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 use smart_default::SmartDefault;
 use std::fmt::Write as _;
@@ -262,7 +262,7 @@ pub enum RegisterCategory {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegisterContent {
     /// Text entries. Single-cursor: 1 entry (inline). Multi-cursor: N entries.
-    entries: SmallVec<[CompactString; 1]>,
+    entries: SmallVec<[VimString; 1]>,
     /// How the content was yanked/deleted.
     motion_type: MotionType,
     /// Optional clipboard metadata for intelligent paste behavior.
@@ -282,7 +282,7 @@ pub struct RegisterContent {
 impl Default for RegisterContent {
     fn default() -> Self {
         Self {
-            entries: SmallVec::from_elem(CompactString::default(), 1),
+            entries: SmallVec::from_elem(VimString::default(), 1),
             motion_type: MotionType::default(),
             metadata: None,
             timestamp: 0,
@@ -301,7 +301,7 @@ impl RegisterContent {
     /// This matches Neovim's `op_yank` behavior where linewise register content
     /// unconditionally terminates with a newline.
     #[must_use]
-    pub fn new(text: impl Into<CompactString>, motion_type: MotionType) -> Self {
+    pub fn new(text: impl Into<VimString>, motion_type: MotionType) -> Self {
         let mut text = text.into();
         if motion_type == MotionType::LineWise && !text.ends_with('\n') {
             text.push('\n');
@@ -324,7 +324,7 @@ impl RegisterContent {
     ///
     /// Panics if `entries` is empty (at least one entry is required).
     #[must_use]
-    pub fn from_entries(entries: SmallVec<[CompactString; 1]>, motion_type: MotionType) -> Self {
+    pub fn from_entries(entries: SmallVec<[VimString; 1]>, motion_type: MotionType) -> Self {
         assert!(
             !entries.is_empty(),
             "RegisterContent requires at least one entry"
@@ -341,21 +341,21 @@ impl RegisterContent {
     /// Create character-wise content.
     #[inline]
     #[must_use]
-    pub fn char_wise(text: impl Into<CompactString>) -> Self {
+    pub fn char_wise(text: impl Into<VimString>) -> Self {
         Self::new(text, MotionType::CharWise)
     }
 
     /// Create line-wise content.
     #[inline]
     #[must_use]
-    pub fn line_wise(text: impl Into<CompactString>) -> Self {
+    pub fn line_wise(text: impl Into<VimString>) -> Self {
         Self::new(text, MotionType::LineWise)
     }
 
     /// Create block-wise content.
     #[inline]
     #[must_use]
-    pub fn block_wise(text: impl Into<CompactString>) -> Self {
+    pub fn block_wise(text: impl Into<VimString>) -> Self {
         Self::new(text, MotionType::BlockWise)
     }
 
@@ -376,7 +376,7 @@ impl RegisterContent {
     /// Multi-cursor yank: returns a slice of length N.
     #[inline]
     #[must_use]
-    pub fn entries(&self) -> &[CompactString] {
+    pub fn entries(&self) -> &[VimString] {
         &self.entries
     }
 
@@ -754,12 +754,12 @@ mod tests {
     #[test]
     fn with_metadata_sets_metadata() {
         use crate::primitives::ClipboardMetadata;
-        use compact_str::CompactString;
+        use crate::VimString;
 
         let meta = ClipboardMetadata {
             is_entire_line: true,
             first_line_indent: 4,
-            source_path: Some(CompactString::from("test.rs")),
+            source_path: Some(VimString::from("test.rs")),
         };
         let c = RegisterContent::char_wise("hello").with_metadata(meta.clone());
         let got = c.metadata().expect("metadata should be Some");
@@ -793,16 +793,16 @@ mod tests {
         assert_eq!(c.text(), "hello");
         assert_eq!(c.entry_count(), 1);
         assert_eq!(c.entry(0), "hello");
-        assert_eq!(c.entries(), &[CompactString::from("hello")]);
+        assert_eq!(c.entries(), &[VimString::from("hello")]);
     }
 
     #[test]
     fn from_entries_multi() {
         use smallvec::smallvec;
-        let entries: SmallVec<[CompactString; 1]> = smallvec![
-            CompactString::from("alpha"),
-            CompactString::from("beta"),
-            CompactString::from("gamma"),
+        let entries: SmallVec<[VimString; 1]> = smallvec![
+            VimString::from("alpha"),
+            VimString::from("beta"),
+            VimString::from("gamma"),
         ];
         let c = RegisterContent::from_entries(entries, MotionType::CharWise);
         assert_eq!(c.entry_count(), 3);
@@ -816,8 +816,8 @@ mod tests {
     #[test]
     fn entry_index_past_end_clamps_to_last() {
         use smallvec::smallvec;
-        let entries: SmallVec<[CompactString; 1]> =
-            smallvec![CompactString::from("first"), CompactString::from("second"),];
+        let entries: SmallVec<[VimString; 1]> =
+            smallvec![VimString::from("first"), VimString::from("second"),];
         let c = RegisterContent::from_entries(entries, MotionType::CharWise);
         // Index within bounds
         assert_eq!(c.entry(0), "first");
@@ -831,10 +831,8 @@ mod tests {
     fn from_entries_linewise_no_auto_newline() {
         // from_entries does NOT auto-append newline (caller is responsible)
         use smallvec::smallvec;
-        let entries: SmallVec<[CompactString; 1]> = smallvec![
-            CompactString::from("line1\n"),
-            CompactString::from("line2\n"),
-        ];
+        let entries: SmallVec<[VimString; 1]> =
+            smallvec![VimString::from("line1\n"), VimString::from("line2\n"),];
         let c = RegisterContent::from_entries(entries, MotionType::LineWise);
         assert_eq!(c.text(), "line1\n");
         assert_eq!(c.entry(1), "line2\n");
@@ -843,8 +841,8 @@ mod tests {
     #[test]
     fn multi_entry_is_empty_checks_primary() {
         use smallvec::smallvec;
-        let entries: SmallVec<[CompactString; 1]> =
-            smallvec![CompactString::from(""), CompactString::from("non-empty"),];
+        let entries: SmallVec<[VimString; 1]> =
+            smallvec![VimString::from(""), VimString::from("non-empty"),];
         let c = RegisterContent::from_entries(entries, MotionType::CharWise);
         // is_empty checks primary entry only
         assert!(c.is_empty());
@@ -856,8 +854,8 @@ mod tests {
         use crate::primitives::ClipboardMetadata;
         use smallvec::smallvec;
 
-        let entries: SmallVec<[CompactString; 1]> =
-            smallvec![CompactString::from("a"), CompactString::from("b"),];
+        let entries: SmallVec<[VimString; 1]> =
+            smallvec![VimString::from("a"), VimString::from("b"),];
         let meta = ClipboardMetadata {
             is_entire_line: false,
             first_line_indent: 2,
@@ -872,13 +870,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "at least one entry")]
     fn from_entries_empty_panics() {
-        let entries: SmallVec<[CompactString; 1]> = SmallVec::new();
+        let entries: SmallVec<[VimString; 1]> = SmallVec::new();
         RegisterContent::from_entries(entries, MotionType::CharWise);
     }
 
     #[test]
     fn single_entry_inline_no_heap() {
-        // SmallVec<[CompactString; 1]> stores 1 element inline
+        // SmallVec<[VimString; 1]> stores 1 element inline
         let c = RegisterContent::char_wise("test");
         assert_eq!(c.entry_count(), 1);
         // Verify it behaves correctly (inline storage is an implementation detail)
@@ -890,7 +888,7 @@ mod tests {
     fn append_on_multi_entry_modifies_primary() {
         use smallvec::smallvec;
         let mut a = RegisterContent::from_entries(
-            smallvec![CompactString::from("hello"), CompactString::from("world")],
+            smallvec![VimString::from("hello"), VimString::from("world")],
             MotionType::CharWise,
         );
         let b = RegisterContent::char_wise(" suffix");
@@ -995,7 +993,7 @@ mod tests {
         use smallvec::smallvec;
         let via_new = RegisterContent::new("hello world", MotionType::CharWise);
         let via_from = RegisterContent::from_entries(
-            smallvec![CompactString::from("hello world")],
+            smallvec![VimString::from("hello world")],
             MotionType::CharWise,
         );
         assert_eq!(via_new, via_from);
@@ -1013,7 +1011,7 @@ mod tests {
         // So to be identical, the from_entries caller must provide the \n.
         let via_new = RegisterContent::new("some line", MotionType::LineWise);
         let via_from = RegisterContent::from_entries(
-            smallvec![CompactString::from("some line\n")],
+            smallvec![VimString::from("some line\n")],
             MotionType::LineWise,
         );
         assert_eq!(via_new, via_from);
@@ -1025,9 +1023,9 @@ mod tests {
     fn from_entries_preserves_linewise_without_adding_newline() {
         use smallvec::smallvec;
         // from_entries treats entries as pre-normalized: no trailing \n appended
-        let entries: SmallVec<[CompactString; 1]> = smallvec![
-            CompactString::from("no newline here"),
-            CompactString::from("also none"),
+        let entries: SmallVec<[VimString; 1]> = smallvec![
+            VimString::from("no newline here"),
+            VimString::from("also none"),
         ];
         let c = RegisterContent::from_entries(entries, MotionType::LineWise);
         assert_eq!(c.motion_type(), MotionType::LineWise);
@@ -1051,9 +1049,9 @@ mod tests {
         use smallvec::smallvec;
         let c = RegisterContent::from_entries(
             smallvec![
-                CompactString::from("primary"),
-                CompactString::from("secondary"),
-                CompactString::from("tertiary"),
+                VimString::from("primary"),
+                VimString::from("secondary"),
+                VimString::from("tertiary"),
             ],
             MotionType::BlockWise,
         );
@@ -1066,10 +1064,10 @@ mod tests {
         use smallvec::smallvec;
         let original = RegisterContent::from_entries(
             smallvec![
-                CompactString::from("alpha"),
-                CompactString::from("beta"),
-                CompactString::from("gamma"),
-                CompactString::from("delta"),
+                VimString::from("alpha"),
+                VimString::from("beta"),
+                VimString::from("gamma"),
+                VimString::from("delta"),
             ],
             MotionType::CharWise,
         );
@@ -1087,11 +1085,11 @@ mod tests {
     fn partial_eq_multi_entry_same() {
         use smallvec::smallvec;
         let a = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("y")],
+            smallvec![VimString::from("x"), VimString::from("y")],
             MotionType::CharWise,
         );
         let b = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("y")],
+            smallvec![VimString::from("x"), VimString::from("y")],
             MotionType::CharWise,
         );
         assert_eq!(a, b);
@@ -1101,11 +1099,11 @@ mod tests {
     fn partial_eq_multi_entry_different_content() {
         use smallvec::smallvec;
         let a = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("y")],
+            smallvec![VimString::from("x"), VimString::from("y")],
             MotionType::CharWise,
         );
         let b = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("z")],
+            smallvec![VimString::from("x"), VimString::from("z")],
             MotionType::CharWise,
         );
         assert_ne!(a, b);
@@ -1115,13 +1113,11 @@ mod tests {
     fn partial_eq_multi_entry_different_count() {
         use smallvec::smallvec;
         let a = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("y")],
+            smallvec![VimString::from("x"), VimString::from("y")],
             MotionType::CharWise,
         );
-        let b = RegisterContent::from_entries(
-            smallvec![CompactString::from("x")],
-            MotionType::CharWise,
-        );
+        let b =
+            RegisterContent::from_entries(smallvec![VimString::from("x")], MotionType::CharWise);
         assert_ne!(a, b);
     }
 
@@ -1129,11 +1125,11 @@ mod tests {
     fn partial_eq_multi_entry_different_motion_type() {
         use smallvec::smallvec;
         let a = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("y")],
+            smallvec![VimString::from("x"), VimString::from("y")],
             MotionType::CharWise,
         );
         let b = RegisterContent::from_entries(
-            smallvec![CompactString::from("x"), CompactString::from("y")],
+            smallvec![VimString::from("x"), VimString::from("y")],
             MotionType::BlockWise,
         );
         assert_ne!(a, b);
@@ -1144,9 +1140,9 @@ mod tests {
         use smallvec::smallvec;
         let c = RegisterContent::from_entries(
             smallvec![
-                CompactString::from("short"),
-                CompactString::from("a much longer second entry"),
-                CompactString::from("third"),
+                VimString::from("short"),
+                VimString::from("a much longer second entry"),
+                VimString::from("third"),
             ],
             MotionType::CharWise,
         );
@@ -1163,13 +1159,13 @@ mod tests {
         let meta = ClipboardMetadata {
             is_entire_line: true,
             first_line_indent: 8,
-            source_path: Some(CompactString::from("/src/main.rs")),
+            source_path: Some(VimString::from("/src/main.rs")),
         };
         let c = RegisterContent::from_entries(
             smallvec![
-                CompactString::from("line1\n"),
-                CompactString::from("line2\n"),
-                CompactString::from("line3\n"),
+                VimString::from("line1\n"),
+                VimString::from("line2\n"),
+                VimString::from("line3\n"),
             ],
             MotionType::LineWise,
         )
@@ -1192,9 +1188,9 @@ mod tests {
 
         let original = RegisterContent::from_entries(
             smallvec![
-                CompactString::from("cursor1_text"),
-                CompactString::from("cursor2_text"),
-                CompactString::from("cursor3_text"),
+                VimString::from("cursor1_text"),
+                VimString::from("cursor2_text"),
+                VimString::from("cursor3_text"),
             ],
             MotionType::BlockWise,
         );
@@ -1219,10 +1215,10 @@ mod tests {
         let meta = ClipboardMetadata {
             is_entire_line: false,
             first_line_indent: 4,
-            source_path: Some(CompactString::from("lib.rs")),
+            source_path: Some(VimString::from("lib.rs")),
         };
         let original = RegisterContent::from_entries(
-            smallvec![CompactString::from("a"), CompactString::from("b")],
+            smallvec![VimString::from("a"), VimString::from("b")],
             MotionType::CharWise,
         )
         .with_metadata(meta.clone());

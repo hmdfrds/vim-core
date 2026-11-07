@@ -34,6 +34,10 @@ jobs:
           shared-key: ${{ github.job }}
       # A step, not a job: it takes seconds and rustfmt comes with the toolchain.
       - run: cargo fmt --all --check
+      # compact_str is a private dependency: only VimString's own file may
+      # name it, so its majors never reach the API.
+      - name: compact_str stays inside vim_string.rs
+        run: "! git grep -n compact_str -- vim-core/src vim-core/tests ':!vim-core/src/primitives/vim_string.rs'"
       - run: cargo build --workspace --locked
 
   # The suite does not pass, and is not meant to -- see README.md. Asserting

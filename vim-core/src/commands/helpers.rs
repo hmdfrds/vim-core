@@ -981,8 +981,8 @@ pub fn compute_block_geometry(
 ///
 /// Escapes: `.` `*` `^` `$` `~` `[` `]` `\` `/`
 #[must_use]
-pub fn vim_regex_escape(word: &str) -> compact_str::CompactString {
-    use compact_str::CompactString;
+pub fn vim_regex_escape(word: &str) -> crate::VimString {
+    use crate::VimString;
 
     // Fast path: no metacharacters (common case for identifiers)
     if !word.bytes().any(|b| {
@@ -991,10 +991,10 @@ pub fn vim_regex_escape(word: &str) -> compact_str::CompactString {
             b'.' | b'*' | b'^' | b'$' | b'~' | b'[' | b']' | b'\\' | b'/'
         )
     }) {
-        return CompactString::from(word);
+        return VimString::from(word);
     }
 
-    let mut escaped = CompactString::with_capacity(word.len() + 4);
+    let mut escaped = VimString::with_capacity(word.len() + 4);
     for c in word.chars() {
         match c {
             '.' | '*' | '^' | '$' | '~' | '[' | ']' | '\\' | '/' => {

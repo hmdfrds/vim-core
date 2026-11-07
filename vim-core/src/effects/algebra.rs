@@ -16,11 +16,11 @@
 //! - `primitives` — `Offset`, `Range`, `Mode`, `RegisterName`, `RegisterContent`,
 //!   `MarkName`, `Mark`, `LastFind`, `SelectionRange`, `SearchDirection`
 //! - sibling `effect` module — `Effect`
-//! - `compact_str` — `CompactString` (same as `effect.rs`)
+//! - `crate::VimString`, the owned string type (same as `effect.rs`)
 //!
 //! It does NOT import `state`, `commands`, `execution`, or any other layer.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::effects::effect::Effect;
 use crate::primitives::byte_delta;
@@ -46,11 +46,11 @@ use crate::primitives::{
 pub struct InverseContext {
     /// Text that was deleted by a `Delete` effect (the content of the range
     /// before deletion). Required for `Delete` inverses.
-    pub deleted_text: Option<CompactString>,
+    pub deleted_text: Option<VimString>,
 
     /// Text that was replaced by a `Replace` effect (the original content of
     /// the range before replacement). Required for `Replace` inverses.
-    pub replaced_text: Option<CompactString>,
+    pub replaced_text: Option<VimString>,
 
     /// Cursor position before the effect was applied.
     /// Required for `SetCursor` inverses.
@@ -75,7 +75,7 @@ pub struct InverseContext {
     /// Search pattern and direction before a `SetSearchPattern` effect.
     ///
     /// The tuple is `(pattern, direction)` capturing the previous search state.
-    pub search_pattern_before: Option<(CompactString, SearchDirection)>,
+    pub search_pattern_before: Option<(VimString, SearchDirection)>,
 
     /// Last-find state before a `SetLastFind` effect.
     pub last_find_before: Option<LastFind>,
@@ -103,7 +103,7 @@ impl InverseContext {
     /// Create a context for a `Delete` effect.
     #[inline]
     #[must_use]
-    pub fn for_delete(deleted_text: impl Into<CompactString>) -> Self {
+    pub fn for_delete(deleted_text: impl Into<VimString>) -> Self {
         Self {
             deleted_text: Some(deleted_text.into()),
             ..Self::default()
@@ -113,7 +113,7 @@ impl InverseContext {
     /// Create a context for a `Replace` effect.
     #[inline]
     #[must_use]
-    pub fn for_replace(replaced_text: impl Into<CompactString>) -> Self {
+    pub fn for_replace(replaced_text: impl Into<VimString>) -> Self {
         Self {
             replaced_text: Some(replaced_text.into()),
             ..Self::default()
@@ -143,7 +143,7 @@ impl InverseContext {
     /// Builder: set deleted text.
     #[inline]
     #[must_use]
-    pub fn with_deleted_text(mut self, text: impl Into<CompactString>) -> Self {
+    pub fn with_deleted_text(mut self, text: impl Into<VimString>) -> Self {
         self.deleted_text = Some(text.into());
         self
     }
@@ -151,7 +151,7 @@ impl InverseContext {
     /// Builder: set replaced text.
     #[inline]
     #[must_use]
-    pub fn with_replaced_text(mut self, text: impl Into<CompactString>) -> Self {
+    pub fn with_replaced_text(mut self, text: impl Into<VimString>) -> Self {
         self.replaced_text = Some(text.into());
         self
     }
@@ -196,7 +196,7 @@ impl InverseContext {
     #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
-    pub fn with_search_before(mut self, pattern: CompactString, dir: SearchDirection) -> Self {
+    pub fn with_search_before(mut self, pattern: VimString, dir: SearchDirection) -> Self {
         self.search_pattern_before = Some((pattern, dir));
         self
     }
@@ -351,7 +351,7 @@ pub fn inverse(effect: &Effect, ctx: &InverseContext) -> Option<Effect> {
             match prev_content {
                 Some(prev) => Some(Effect::SetRegister {
                     name: *reg_name,
-                    text: CompactString::from(prev.text()),
+                    text: VimString::from(prev.text()),
                     motion_type: prev.motion_type(),
                 }),
                 None => Some(Effect::ClearNamedRegister {
@@ -366,7 +366,7 @@ pub fn inverse(effect: &Effect, ctx: &InverseContext) -> Option<Effect> {
             match prev_content {
                 Some(prev) => Some(Effect::SetRegister {
                     name: *reg_name,
-                    text: CompactString::from(prev.text()),
+                    text: VimString::from(prev.text()),
                     motion_type: prev.motion_type(),
                 }),
                 None => Some(Effect::Noop),
@@ -507,10 +507,10 @@ pub fn make_reversible(effect: &Effect, ctx: &InverseContext) -> Option<Reversib
 /// ```
 /// use vim_core::effects::{Effect, algebra::adjust_offset};
 /// use vim_core::primitives::{Offset, Range};
-/// use compact_str::CompactString;
+/// use vim_core::VimString;
 ///
 /// // Insert 3 bytes at position 5 — offsets >= 5 shift right.
-/// let ins = Effect::Insert { offset: Offset::new(5), text: CompactString::new("abc") };
+/// let ins = Effect::Insert { offset: Offset::new(5), text: VimString::new("abc") };
 /// assert_eq!(adjust_offset(Offset::new(8), &ins), Offset::new(11));
 /// assert_eq!(adjust_offset(Offset::new(4), &ins), Offset::new(4));
 ///
@@ -595,10 +595,10 @@ pub fn adjust_offset(offset: Offset, effect: &Effect) -> Offset {
 /// ```
 /// use vim_core::effects::{Effect, algebra::compute_length_change};
 /// use vim_core::primitives::{Offset, Range};
-/// use compact_str::CompactString;
+/// use vim_core::VimString;
 ///
 /// let effects = vec![
-///     Effect::Insert { offset: Offset::new(0), text: CompactString::new("hello") }, // +5
+///     Effect::Insert { offset: Offset::new(0), text: VimString::new("hello") }, // +5
 ///     Effect::Delete { range: Range::from_raw(0, 2) },                              // -2
 /// ];
 /// assert_eq!(compute_length_change(&effects), 3);
@@ -805,7 +805,7 @@ fn verify_round_trip(before: &str, effect: &Effect, inv: &Effect) -> bool {
 mod tests {
     use super::*;
     use crate::primitives::{Mode, Offset, Range};
-    use compact_str::CompactString;
+    use crate::VimString;
 
     // ── Insert ↔ Delete round-trip ──────────────────────────────────────
 
@@ -813,7 +813,7 @@ mod tests {
     fn insert_inverse_is_delete() {
         let effect = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).expect("Insert should have an inverse");
@@ -832,7 +832,7 @@ mod tests {
         let before = "Hello, world!";
         let effect = Effect::Insert {
             offset: Offset::new(7),
-            text: CompactString::new("beautiful "),
+            text: VimString::new("beautiful "),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -845,7 +845,7 @@ mod tests {
         let before = "world";
         let effect = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("Hello "),
+            text: VimString::new("Hello "),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -858,7 +858,7 @@ mod tests {
         let before = "Hello";
         let effect = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new(" world"),
+            text: VimString::new(" world"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -871,7 +871,7 @@ mod tests {
         let before = "abc";
         let effect = Effect::Insert {
             offset: Offset::new(1),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -900,7 +900,7 @@ mod tests {
             inv,
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             }
         );
     }
@@ -958,7 +958,7 @@ mod tests {
         // Replace "world" (bytes 7..12) with "Rust" in "Hello, world!"
         let effect = Effect::Replace {
             range: Range::from_raw(7, 12),
-            text: CompactString::new("Rust"),
+            text: VimString::new("Rust"),
         };
         let ctx = InverseContext::for_replace("world");
         let inv = inverse(&effect, &ctx).expect("Replace with context should have inverse");
@@ -968,7 +968,7 @@ mod tests {
             inv,
             Effect::Replace {
                 range: Range::from_raw(7, 11),
-                text: CompactString::new("world"),
+                text: VimString::new("world"),
             }
         );
     }
@@ -978,7 +978,7 @@ mod tests {
         let before = "Hello, world!";
         let effect = Effect::Replace {
             range: Range::from_raw(7, 12),
-            text: CompactString::new("Rust"),
+            text: VimString::new("Rust"),
         };
         let ctx = InverseContext::for_replace("world");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -991,7 +991,7 @@ mod tests {
         let before = "ab";
         let effect = Effect::Replace {
             range: Range::from_raw(0, 2),
-            text: CompactString::new("xyzw"),
+            text: VimString::new("xyzw"),
         };
         let ctx = InverseContext::for_replace("ab");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1001,7 +1001,7 @@ mod tests {
             inv,
             Effect::Replace {
                 range: Range::from_raw(0, 4),
-                text: CompactString::new("ab"),
+                text: VimString::new("ab"),
             }
         );
         assert!(verify_round_trip(before, &effect, &inv));
@@ -1012,7 +1012,7 @@ mod tests {
         let before = "abcdef";
         let effect = Effect::Replace {
             range: Range::from_raw(1, 5),
-            text: CompactString::new("X"),
+            text: VimString::new("X"),
         };
         let ctx = InverseContext::for_replace("bcde");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1022,7 +1022,7 @@ mod tests {
             inv,
             Effect::Replace {
                 range: Range::from_raw(1, 2),
-                text: CompactString::new("bcde"),
+                text: VimString::new("bcde"),
             }
         );
         assert!(verify_round_trip(before, &effect, &inv));
@@ -1033,7 +1033,7 @@ mod tests {
         let before = "Hello";
         let effect = Effect::Replace {
             range: Range::from_raw(0, 5),
-            text: CompactString::new("World"),
+            text: VimString::new("World"),
         };
         let ctx = InverseContext::for_replace("Hello");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1043,7 +1043,7 @@ mod tests {
             inv,
             Effect::Replace {
                 range: Range::from_raw(0, 5),
-                text: CompactString::new("Hello"),
+                text: VimString::new("Hello"),
             }
         );
         assert!(verify_round_trip(before, &effect, &inv));
@@ -1053,7 +1053,7 @@ mod tests {
     fn replace_without_context_returns_none() {
         let effect = Effect::Replace {
             range: Range::from_raw(0, 3),
-            text: CompactString::new("X"),
+            text: VimString::new("X"),
         };
         let ctx = InverseContext::empty();
         assert!(inverse(&effect, &ctx).is_none());
@@ -1066,7 +1066,7 @@ mod tests {
         let before = "abcdef";
         let effect = Effect::Replace {
             range: Range::from_raw(2, 4),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         let ctx = InverseContext::for_replace("cd");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1076,7 +1076,7 @@ mod tests {
             inv,
             Effect::Replace {
                 range: Range::from_raw(2, 2),
-                text: CompactString::new("cd"),
+                text: VimString::new("cd"),
             }
         );
         assert!(verify_round_trip(before, &effect, &inv));
@@ -1088,7 +1088,7 @@ mod tests {
         let before = "ab";
         let effect = Effect::Replace {
             range: Range::from_raw(1, 1),
-            text: CompactString::new("XY"),
+            text: VimString::new("XY"),
         };
         let ctx = InverseContext::for_replace("");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1098,7 +1098,7 @@ mod tests {
             inv,
             Effect::Replace {
                 range: Range::from_raw(1, 3),
-                text: CompactString::new(""),
+                text: VimString::new(""),
             }
         );
         assert!(verify_round_trip(before, &effect, &inv));
@@ -1154,7 +1154,7 @@ mod tests {
     #[test]
     fn show_info_has_no_inverse() {
         let effect = Effect::ShowInfo {
-            info: crate::effects::InfoMessage::Text(CompactString::new("3 lines yanked")),
+            info: crate::effects::InfoMessage::Text(VimString::new("3 lines yanked")),
         };
         let ctx = InverseContext::empty();
         assert!(inverse(&effect, &ctx).is_none());
@@ -1249,7 +1249,7 @@ mod tests {
         use crate::primitives::{MotionType, RegisterContent, RegisterName};
         let effect = Effect::SetRegister {
             name: RegisterName::new_unchecked('a'),
-            text: CompactString::new("new text"),
+            text: VimString::new("new text"),
             motion_type: MotionType::CharWise,
         };
         let prev = RegisterContent::char_wise("old text");
@@ -1260,7 +1260,7 @@ mod tests {
             inv,
             Effect::SetRegister {
                 name: RegisterName::new_unchecked('a'),
-                text: CompactString::new("old text"),
+                text: VimString::new("old text"),
                 motion_type: MotionType::CharWise,
             }
         );
@@ -1271,7 +1271,7 @@ mod tests {
         use crate::primitives::{MotionType, RegisterName};
         let effect = Effect::SetRegister {
             name: RegisterName::new_unchecked('b'),
-            text: CompactString::new("something"),
+            text: VimString::new("something"),
             motion_type: MotionType::CharWise,
         };
         let ctx =
@@ -1290,7 +1290,7 @@ mod tests {
         use crate::primitives::{MotionType, RegisterName};
         let effect = Effect::SetRegister {
             name: RegisterName::new_unchecked('a'),
-            text: CompactString::new("text"),
+            text: VimString::new("text"),
             motion_type: MotionType::CharWise,
         };
         let ctx = InverseContext::empty();
@@ -1311,7 +1311,7 @@ mod tests {
             inv,
             Effect::SetRegister {
                 name: RegisterName::new_unchecked('c'),
-                text: CompactString::new("saved\n"),
+                text: VimString::new("saved\n"),
                 motion_type: MotionType::LineWise,
             }
         );
@@ -1441,17 +1441,17 @@ mod tests {
     fn set_search_pattern_inverse() {
         use crate::primitives::{Direction, SearchDirection};
         let effect = Effect::SetSearchPattern {
-            pattern: CompactString::new("new_pat"),
+            pattern: VimString::new("new_pat"),
             direction: Direction::Forward,
         };
         let ctx = InverseContext::empty()
-            .with_search_before(CompactString::new("old_pat"), SearchDirection::Backward);
+            .with_search_before(VimString::new("old_pat"), SearchDirection::Backward);
         let inv =
             inverse(&effect, &ctx).expect("SetSearchPattern with context should have inverse");
         assert_eq!(
             inv,
             Effect::SetSearchPattern {
-                pattern: CompactString::new("old_pat"),
+                pattern: VimString::new("old_pat"),
                 direction: Direction::Backward,
             }
         );
@@ -1461,7 +1461,7 @@ mod tests {
     fn set_search_pattern_without_context_returns_none() {
         use crate::primitives::Direction;
         let effect = Effect::SetSearchPattern {
-            pattern: CompactString::new("foo"),
+            pattern: VimString::new("foo"),
             direction: Direction::Forward,
         };
         let ctx = InverseContext::empty();
@@ -1596,7 +1596,7 @@ mod tests {
                 MarkName::new_unchecked('b'),
                 Some(Mark::new(Offset::new(10))),
             )
-            .with_search_before(CompactString::new("pat"), SearchDirection::Forward)
+            .with_search_before(VimString::new("pat"), SearchDirection::Forward)
             .with_last_find_before(prev_find)
             .with_selection_before(SelectionRange::new(Offset::new(0), Offset::new(5)));
 
@@ -1613,7 +1613,7 @@ mod tests {
     fn make_reversible_insert() {
         let effect = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("abc"),
+            text: VimString::new("abc"),
         };
         let ctx = InverseContext::empty();
         let rev = make_reversible(&effect, &ctx).expect("Insert should be reversible");
@@ -1640,7 +1640,7 @@ mod tests {
             rev.inverse,
             Effect::Insert {
                 offset: Offset::new(2),
-                text: CompactString::new("xyz"),
+                text: VimString::new("xyz"),
             }
         );
     }
@@ -1667,7 +1667,7 @@ mod tests {
     fn insert_double_inverse_is_identity() {
         let original = Effect::Insert {
             offset: Offset::new(3),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&original, &ctx).unwrap();
@@ -1700,7 +1700,7 @@ mod tests {
         // Replace "abc" (0..3) with "XY" → document changes from "abc..." to "XY..."
         let original = Effect::Replace {
             range: Range::from_raw(0, 3),
-            text: CompactString::new("XY"),
+            text: VimString::new("XY"),
         };
         let ctx = InverseContext::for_replace("abc");
         let inv = inverse(&original, &ctx).unwrap();
@@ -1720,7 +1720,7 @@ mod tests {
         let effect = Effect::Insert {
             offset: Offset::new(4),
             // 2-byte UTF-8 character
-            text: CompactString::new("\u{0301}"),
+            text: VimString::new("\u{0301}"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1748,8 +1748,8 @@ mod tests {
     fn replace_multibyte_round_trip() {
         let before = "\u{00E9}lite"; // "elite" with e-acute (2 bytes)
         let effect = Effect::Replace {
-            range: Range::from_raw(0, 2),  // replace 2-byte char
-            text: CompactString::new("e"), // with 1-byte char
+            range: Range::from_raw(0, 2), // replace 2-byte char
+            text: VimString::new("e"),    // with 1-byte char
         };
         let ctx = InverseContext::for_replace("\u{00E9}");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1821,7 +1821,7 @@ mod tests {
     fn reversible_effect_new() {
         let fwd = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         let inv = Effect::Delete {
             range: Range::from_raw(0, 1),
@@ -1838,7 +1838,7 @@ mod tests {
         let before = "";
         let effect = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1861,7 +1861,7 @@ mod tests {
         let before = "abc";
         let effect = Effect::Replace {
             range: Range::from_raw(0, 3),
-            text: CompactString::new("longer replacement text"),
+            text: VimString::new("longer replacement text"),
         };
         let ctx = InverseContext::for_replace("abc");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1898,7 +1898,7 @@ mod tests {
         let before = "line1line2";
         let effect = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("\n"),
+            text: VimString::new("\n"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1921,7 +1921,7 @@ mod tests {
         let before = "abc";
         let effect = Effect::Replace {
             range: Range::from_raw(1, 2),
-            text: CompactString::new("\n\n\n"),
+            text: VimString::new("\n\n\n"),
         };
         let ctx = InverseContext::for_replace("b");
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1935,7 +1935,7 @@ mod tests {
         let before = "fn main() {\n}\n";
         let effect = Effect::Insert {
             offset: Offset::new(12),
-            text: CompactString::new("    println!(\"Hello\");\n"),
+            text: VimString::new("    println!(\"Hello\");\n"),
         };
         let ctx = InverseContext::empty();
         let inv = inverse(&effect, &ctx).unwrap();
@@ -1961,7 +1961,7 @@ mod tests {
     fn adjust_offset_insert_before_offset_shifts_right() {
         let ins = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("abc"),
+            text: VimString::new("abc"),
         };
         // offset 8 >= at 5 → shifts right by 3 → 11
         assert_eq!(super::adjust_offset(Offset::new(8), &ins), Offset::new(11));
@@ -1971,7 +1971,7 @@ mod tests {
     fn adjust_offset_insert_after_offset_unchanged() {
         let ins = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("abc"),
+            text: VimString::new("abc"),
         };
         // offset 3 < at 5 → unchanged
         assert_eq!(super::adjust_offset(Offset::new(3), &ins), Offset::new(3));
@@ -1982,7 +1982,7 @@ mod tests {
         // offset == at → shifts right (>= check)
         let ins = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         };
         assert_eq!(super::adjust_offset(Offset::new(5), &ins), Offset::new(6));
     }
@@ -2017,7 +2017,7 @@ mod tests {
     fn adjust_offset_replace_before_range_unchanged() {
         let rep = Effect::Replace {
             range: Range::from_raw(5, 10),
-            text: CompactString::new("ab"),
+            text: VimString::new("ab"),
         };
         assert_eq!(super::adjust_offset(Offset::new(3), &rep), Offset::new(3));
     }
@@ -2028,7 +2028,7 @@ mod tests {
         // offset 7 → after delete: clamped to 5 → after insert: 5 >= 5, +2 → 7
         let rep = Effect::Replace {
             range: Range::from_raw(5, 10),
-            text: CompactString::new("ab"),
+            text: VimString::new("ab"),
         };
         assert_eq!(super::adjust_offset(Offset::new(7), &rep), Offset::new(7));
     }
@@ -2039,7 +2039,7 @@ mod tests {
         // offset 12 → after delete: 12 - 5 = 7 → after insert: 7 >= 5, +2 → 9
         let rep = Effect::Replace {
             range: Range::from_raw(5, 10),
-            text: CompactString::new("ab"),
+            text: VimString::new("ab"),
         };
         assert_eq!(super::adjust_offset(Offset::new(12), &rep), Offset::new(9));
     }
@@ -2075,7 +2075,7 @@ mod tests {
     fn compute_length_change_insert_only() {
         let effects = vec![Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         }];
         assert_eq!(super::compute_length_change(&effects), 5);
     }
@@ -2093,7 +2093,7 @@ mod tests {
         // Replace 5 bytes with 2 → net -3
         let effects = vec![Effect::Replace {
             range: Range::from_raw(0, 5),
-            text: CompactString::new("ab"),
+            text: VimString::new("ab"),
         }];
         assert_eq!(super::compute_length_change(&effects), -3);
     }
@@ -2103,7 +2103,7 @@ mod tests {
         let effects = vec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             }, // +5
             Effect::Delete {
                 range: Range::from_raw(0, 2),
@@ -2134,14 +2134,14 @@ mod tests {
     fn rebase_effects_by_delta_positive_insert() {
         let effects = vec![Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("x"),
+            text: VimString::new("x"),
         }];
         let result = super::rebase_effects_by_delta(&effects, 3);
         assert_eq!(
             result[0],
             Effect::Insert {
                 offset: Offset::new(8),
-                text: CompactString::new("x")
+                text: VimString::new("x")
             }
         );
     }
@@ -2150,14 +2150,14 @@ mod tests {
     fn rebase_effects_by_delta_negative_insert() {
         let effects = vec![Effect::Insert {
             offset: Offset::new(10),
-            text: CompactString::new("y"),
+            text: VimString::new("y"),
         }];
         let result = super::rebase_effects_by_delta(&effects, -4);
         assert_eq!(
             result[0],
             Effect::Insert {
                 offset: Offset::new(6),
-                text: CompactString::new("y")
+                text: VimString::new("y")
             }
         );
     }
@@ -2201,7 +2201,7 @@ mod tests {
     fn rebase_effects_by_delta_saturates_at_zero() {
         let effects = vec![Effect::Insert {
             offset: Offset::new(2),
-            text: CompactString::new("a"),
+            text: VimString::new("a"),
         }];
         // delta -10 would underflow usize — saturate at 0
         let result = super::rebase_effects_by_delta(&effects, -10);
@@ -2209,7 +2209,7 @@ mod tests {
             result[0],
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("a")
+                text: VimString::new("a")
             }
         );
     }

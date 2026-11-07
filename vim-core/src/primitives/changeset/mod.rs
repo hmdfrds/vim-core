@@ -11,7 +11,7 @@
 //! # Architecture
 //!
 //! This module lives in `primitives/` — zero internal dependencies.
-//! Only imports `std` and `compact_str`.
+//! Only imports `std` and `VimString`, which lives in `primitives` too.
 
 mod apply;
 mod builder;

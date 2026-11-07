@@ -11,7 +11,7 @@
 //! This eliminates the entire class of double-application bugs.
 
 use crate::primitives::Offset;
-use compact_str::CompactString;
+use crate::VimString;
 
 /// A message to display in the status bar.
 ///
@@ -22,9 +22,9 @@ use compact_str::CompactString;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum StatusMessage {
     /// Informational message (e.g., "2 lines yanked").
-    Info(CompactString),
+    Info(VimString),
     /// Error message (e.g., "E486: Pattern not found").
-    Error(CompactString),
+    Error(VimString),
 }
 
 /// A scroll intent for the host to execute.

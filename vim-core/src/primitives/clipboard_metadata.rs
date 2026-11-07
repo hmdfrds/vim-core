@@ -1,6 +1,6 @@
 //! Clipboard metadata for intelligent paste behavior.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Metadata attached to clipboard/register content for intelligent paste behavior.
 ///
@@ -15,5 +15,5 @@ pub struct ClipboardMetadata {
     /// The indentation level (in columns) of the first line when it was copied.
     pub first_line_indent: u32,
     /// The file path the text was copied from, if known.
-    pub source_path: Option<CompactString>,
+    pub source_path: Option<VimString>,
 }

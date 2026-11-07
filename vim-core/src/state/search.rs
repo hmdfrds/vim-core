@@ -33,7 +33,7 @@
 //!    └── reads state.search().pattern() → finds next match → applies offset
 //! ```
 
-use compact_str::CompactString;
+use crate::VimString;
 use std::collections::VecDeque;
 
 use crate::primitives::SubFlags;
@@ -115,17 +115,17 @@ impl Default for SearchOffset {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SearchState {
     /// Current search pattern (raw string, shell compiles to regex).
-    pattern: Option<CompactString>,
+    pattern: Option<VimString>,
     /// Current search direction.
     direction: SearchDirection,
     /// Post-match cursor offset (`/pat/e`, `/pat/+3`, etc.).
     offset: SearchOffset,
     /// Search history ring (most recent first).
-    history: VecDeque<CompactString>,
+    history: VecDeque<VimString>,
     /// Current position in history navigation (0 = latest, None = not navigating).
     history_pos: Option<usize>,
     /// Last substitute replacement string (for `~` in patterns and replacements).
-    last_substitute_string: Option<CompactString>,
+    last_substitute_string: Option<VimString>,
     /// Flags from the most recent `:s` command (for `:&&` repeat-with-flags).
     ///
     /// `None` when no substitute command has been run yet.  Stores the full
@@ -136,7 +136,7 @@ pub struct SearchState {
     ///
     /// Distinct from `last_substitute_string` which stores the REPLACEMENT text
     /// (used for `~` expansion). This stores the search PATTERN used by `:s`.
-    substitute_pattern: Option<CompactString>,
+    substitute_pattern: Option<VimString>,
     /// Which pattern store was used most recently (Neovim's `RE_LAST` pointer).
     last_used: LastPatternKind,
 }
@@ -184,7 +184,7 @@ impl SearchState {
     /// Sets `last_used` to `Search` (Neovim's `RE_LAST = RE_SEARCH`).
     pub fn set_pattern_with_offset(
         &mut self,
-        pattern: impl Into<CompactString>,
+        pattern: impl Into<VimString>,
         direction: SearchDirection,
         offset: SearchOffset,
     ) {
@@ -201,7 +201,7 @@ impl SearchState {
     ///
     /// Convenience for `*`/`#` and other non-command-line searches.
     #[inline]
-    pub fn set_pattern(&mut self, pattern: impl Into<CompactString>, direction: SearchDirection) {
+    pub fn set_pattern(&mut self, pattern: impl Into<VimString>, direction: SearchDirection) {
         self.set_pattern_with_offset(pattern, direction, SearchOffset::NONE);
     }
 
@@ -230,7 +230,7 @@ impl SearchState {
         }
         // Remove duplicate if it exists anywhere in history.
         self.history.retain(|p| p.as_str() != pattern);
-        self.history.push_front(CompactString::new(pattern));
+        self.history.push_front(VimString::new(pattern));
         if self.history.len() > SEARCH_HISTORY_CAP {
             self.history.pop_back();
         }
@@ -248,7 +248,7 @@ impl SearchState {
             None => 0,
         };
         self.history_pos = Some(pos);
-        self.history.get(pos).map(CompactString::as_str)
+        self.history.get(pos).map(VimString::as_str)
     }
 
     /// Navigate to a newer history entry (Down arrow in search prompt).
@@ -263,7 +263,7 @@ impl SearchState {
             Some(p) => {
                 let new_pos = p - 1;
                 self.history_pos = Some(new_pos);
-                self.history.get(new_pos).map(CompactString::as_str)
+                self.history.get(new_pos).map(VimString::as_str)
             }
         }
     }
@@ -276,7 +276,7 @@ impl SearchState {
 
     /// Get the full search history (most recent first).
     #[must_use]
-    pub const fn history(&self) -> &VecDeque<CompactString> {
+    pub const fn history(&self) -> &VecDeque<VimString> {
         &self.history
     }
 
@@ -293,7 +293,7 @@ impl SearchState {
     ///
     /// Called when `:s/pattern/replacement/` uses an explicit pattern.
     /// Sets Neovim's `RE_LAST = RE_SUBST`.
-    pub fn set_substitute_pattern(&mut self, pattern: impl Into<CompactString>) {
+    pub fn set_substitute_pattern(&mut self, pattern: impl Into<VimString>) {
         self.substitute_pattern = Some(pattern.into());
         self.last_used = LastPatternKind::Substitute;
     }
@@ -337,7 +337,7 @@ impl SearchState {
     /// Set the last substitute replacement string (for `~`).
     #[inline]
     pub fn set_last_substitute(&mut self, s: &str) {
-        self.last_substitute_string = Some(CompactString::new(s));
+        self.last_substitute_string = Some(VimString::new(s));
     }
 
     /// Get the flags from the most recent `:s` command (for `:&&`).
@@ -483,10 +483,7 @@ mod tests {
         state.set_pattern("foo", SearchDirection::Forward);
         state.set_pattern("bar", SearchDirection::Forward);
         assert_eq!(state.history().len(), 2);
-        assert_eq!(
-            state.history().front().map(CompactString::as_str),
-            Some("bar")
-        );
+        assert_eq!(state.history().front().map(VimString::as_str), Some("bar"));
     }
 
     #[test]
@@ -497,10 +494,7 @@ mod tests {
         state.set_pattern("foo", SearchDirection::Forward);
         // "foo" should only appear once (most recent position)
         assert_eq!(state.history().len(), 2);
-        assert_eq!(
-            state.history().front().map(CompactString::as_str),
-            Some("foo")
-        );
+        assert_eq!(state.history().front().map(VimString::as_str), Some("foo"));
     }
 
     #[test]

@@ -19,7 +19,7 @@ use crate::primitives::{
     MotionType, OptionId, OptionOverrides, OptionValue, Range, RegisterContent, RegisterName,
     VimValue,
 };
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 use super::script_expr;
@@ -65,8 +65,8 @@ pub(crate) enum MappingChange {
     /// Define a new mapping.
     Define {
         modes: SmallVec<[crate::keymap::MappingMode; 4]>,
-        lhs_raw: CompactString,
-        rhs_raw: CompactString,
+        lhs_raw: VimString,
+        rhs_raw: VimString,
         kind: crate::keymap::MappingKind,
         flags: crate::keymap::MappingFlags,
         /// In the current buffer's mappings.
@@ -75,7 +75,7 @@ pub(crate) enum MappingChange {
     /// Remove a mapping.
     Remove {
         modes: SmallVec<[crate::keymap::MappingMode; 4]>,
-        lhs_raw: CompactString,
+        lhs_raw: VimString,
         buffer: bool,
     },
     /// Clear all mappings for the given modes.
@@ -94,15 +94,15 @@ pub(crate) enum MappingChange {
 pub(crate) enum AbbrevChange {
     /// Define or list an abbreviation.
     Define {
-        trigger: Option<CompactString>,
-        replacement: Option<CompactString>,
+        trigger: Option<VimString>,
+        replacement: Option<VimString>,
         mode: crate::primitives::AbbrevMode,
         noremap: bool,
         unique: bool,
     },
     /// Remove an abbreviation.
     Remove {
-        trigger: CompactString,
+        trigger: VimString,
         mode: crate::primitives::AbbrevMode,
     },
     /// Take a mode off every abbreviation.
@@ -183,12 +183,12 @@ pub(crate) struct ExExecutionOutput {
     ///
     /// Only text-mutating ex commands set this. The engine saves it so that
     /// `.` can replay the ex command with the current line as implicit range.
-    pub last_ex_for_dot: Option<CompactString>,
+    pub last_ex_for_dot: Option<VimString>,
     /// A `:g` or `:v`, which the engine runs one marked line at a time.
     pub global: Option<GlobalCommand>,
     /// The lines of a `:@r` register, which the engine runs as command
     /// lines, one after another.
-    pub ex_lines: Vec<CompactString>,
+    pub ex_lines: Vec<VimString>,
     /// The register of `ex_lines`.
     pub ex_register: Option<RegisterName>,
     /// The modifiers of the command, applied to its effects already, and
@@ -202,9 +202,9 @@ pub(crate) struct GlobalCommand {
     /// The lines it searches.
     pub range: ExRange,
     /// The pattern a line must match, or with `invert` must not.
-    pub pattern: CompactString,
+    pub pattern: VimString,
     /// The command line run on each line.
-    pub commands: CompactString,
+    pub commands: VimString,
     /// `:v` or `:g!`.
     pub invert: bool,
 }
@@ -225,7 +225,7 @@ pub(crate) fn execute_ex_piece<D: Document>(
     let result = parsed.and_then(|command| {
         let mut output = execute_ex_command(&command, ctx, sequencer)?;
         if command.mutates_text() && output.last_ex_for_dot.is_none() {
-            output.last_ex_for_dot = Some(CompactString::from(piece));
+            output.last_ex_for_dot = Some(VimString::from(piece));
         }
         Ok(output)
     });
@@ -535,7 +535,7 @@ pub(crate) fn execute_ex_command<D: Document>(
             name: name.clone(),
             count: None,
             register: None,
-            mode: CompactString::from("COMMAND"),
+            mode: VimString::from("COMMAND"),
             selection_anchor: None,
             selection_head: None,
         }),
@@ -848,9 +848,10 @@ pub(crate) fn execute_ex_command<D: Document>(
                 return Err(VimError::NoPreviousCommandLine);
             }
             if text.is_empty() {
-                return effects_only(Ok(Effects::new().show_message(CompactString::from(
-                    format!("Register @{} is empty", register.char()),
-                ))));
+                return effects_only(Ok(Effects::new().show_message(VimString::from(format!(
+                    "Register @{} is empty",
+                    register.char()
+                )))));
             }
             // A line ending in a backslash continues on the next one.
             let mut ex_lines = Vec::new();
@@ -863,11 +864,11 @@ pub(crate) fn execute_ex_command<D: Document>(
                 continuation.push_str(raw_line);
                 let line = std::mem::take(&mut continuation);
                 if !line.trim().is_empty() {
-                    ex_lines.push(CompactString::from(line));
+                    ex_lines.push(VimString::from(line));
                 }
             }
             if !continuation.is_empty() {
-                ex_lines.push(CompactString::from(continuation));
+                ex_lines.push(VimString::from(continuation));
             }
             Ok(ExExecutionOutput {
                 ex_lines,
@@ -906,7 +907,7 @@ pub(crate) fn execute_ex_command<D: Document>(
         }),
         // Only a sourced file runs script blocks.
         ExCommand::Block { kind, argument } => {
-            let mut form = CompactString::from(kind.name());
+            let mut form = VimString::from(kind.name());
             if !argument.is_empty() {
                 form.push(' ');
                 form.push_str(argument);
@@ -1620,19 +1621,19 @@ fn let_leader<D: Document>(
 /// normalize it the way Vim stores it.
 ///
 /// Returns the error message without the trailing `: {arg}`.
-fn validate_string_value(id: OptionId, value: &str) -> Result<CompactString, String> {
+fn validate_string_value(id: OptionId, value: &str) -> Result<VimString, String> {
     match id {
         OptionId::FormatOptions => {
             let normalized = crate::primitives::FormatFlags::normalize(value);
             crate::primitives::FormatFlags::parse(&normalized)
                 .map_err(|c| format!("E539: Illegal character <{c}>"))?;
-            Ok(CompactString::from(normalized))
+            Ok(VimString::from(normalized))
         }
         OptionId::Comments => {
             crate::primitives::CommentSpec::validate(value).map_err(|e| e.to_string())?;
-            Ok(CompactString::from(value))
+            Ok(VimString::from(value))
         }
-        _ => Ok(CompactString::from(value)),
+        _ => Ok(VimString::from(value)),
     }
 }
 
@@ -1742,7 +1743,7 @@ pub(crate) fn option_value(
     name: &str,
 ) -> Option<(&'static str, OptionValue)> {
     use OptionValue::{Bool, Signed, Str, Unsigned};
-    let text = |s: &str| Str(CompactString::from(s));
+    let text = |s: &str| Str(VimString::from(s));
     Some(match name {
         "tabstop" | "ts" => ("tabstop", Unsigned(options.tabstop())),
         "shiftwidth" | "sw" => ("shiftwidth", Unsigned(options.shiftwidth())),
@@ -1954,7 +1955,7 @@ fn format_line_spec(spec: &LineSpec) -> String {
 }
 
 /// Build read-file completion effects from host result payload.
-pub(crate) fn complete_read_file(offset: Option<usize>, data: &CompactString) -> Effects {
+pub(crate) fn complete_read_file(offset: Option<usize>, data: &VimString) -> Effects {
     ex_effects::read_file_completion(offset.unwrap_or(0), data.clone())
 }
 
@@ -2175,8 +2176,8 @@ fn execute_map_command(
     Ok(ExExecutionOutput {
         mapping_changes: smallvec::smallvec![MappingChange::Define {
             modes,
-            lhs_raw: CompactString::from(lhs),
-            rhs_raw: CompactString::from(nop_as_nothing(rhs)),
+            lhs_raw: VimString::from(lhs),
+            rhs_raw: VimString::from(nop_as_nothing(rhs)),
             kind,
             flags,
             buffer,
@@ -2199,7 +2200,7 @@ fn execute_unmap_command(
     Ok(ExExecutionOutput {
         mapping_changes: smallvec::smallvec![MappingChange::Remove {
             modes,
-            lhs_raw: CompactString::from(lhs),
+            lhs_raw: VimString::from(lhs),
             buffer,
         }],
         ..ExExecutionOutput::default()
@@ -2240,13 +2241,13 @@ fn execute_mapclear_command(
 )]
 pub(crate) fn execute_sethandler(
     key_notation: Option<&str>,
-    assignments: &[(CompactString, CompactString)],
+    assignments: &[(VimString, VimString)],
 ) -> Result<ExExecutionOutput, VimError> {
     // Parse the key notation into a KeyEvent if provided.
     let key_event = match key_notation {
         Some(notation) => {
             let ke = KeyEvent::from_vim_notation(notation).ok_or_else(|| {
-                VimError::InvalidArgument(CompactString::from(format!(
+                VimError::InvalidArgument(VimString::from(format!(
                     "Invalid key notation: {notation}"
                 )))
             })?;
@@ -2263,7 +2264,7 @@ pub(crate) fn execute_sethandler(
             "vim" => Handler::Vim,
             "ide" | "host" => Handler::Host,
             _ => {
-                return Err(VimError::InvalidArgument(CompactString::from(format!(
+                return Err(VimError::InvalidArgument(VimString::from(format!(
                     "Unknown handler: {handler_name} (expected vim, ide, or host)"
                 ))));
             }
@@ -2325,7 +2326,7 @@ fn parse_sethandler_modes(mode_chars: &str) -> Result<SmallVec<[MappingMode; 4]>
                     return Ok(modes);
                 }
                 _ => {
-                    return Err(VimError::InvalidArgument(CompactString::from(format!(
+                    return Err(VimError::InvalidArgument(VimString::from(format!(
                         "Unknown mode character: '{ch}' (expected n, i, v, x, o, or a)"
                     ))));
                 }
@@ -2334,7 +2335,7 @@ fn parse_sethandler_modes(mode_chars: &str) -> Result<SmallVec<[MappingMode; 4]>
     }
 
     if modes.is_empty() {
-        return Err(VimError::InvalidArgument(CompactString::from(
+        return Err(VimError::InvalidArgument(VimString::from(
             "No mode characters specified",
         )));
     }
@@ -2350,7 +2351,7 @@ fn parse_sethandler_modes(mode_chars: &str) -> Result<SmallVec<[MappingMode; 4]>
 /// indicating a host protocol violation.
 pub(crate) fn completion_effects_for_data(
     request: &HostRequest,
-    data: &CompactString,
+    data: &VimString,
     offset: Option<usize>,
 ) -> Effects {
     match request {
@@ -2825,7 +2826,7 @@ mod tests {
         use crate::execution::host::HostRequestId;
         let result = HostResult::Success {
             id: HostRequestId::new(1),
-            message: Some(CompactString::from("done")),
+            message: Some(VimString::from("done")),
         };
         let meta = HostRequestMeta {
             id: HostRequestId::new(1),
@@ -2852,7 +2853,7 @@ mod tests {
         use crate::execution::host::HostRequestId;
         let result = HostResult::Failure {
             id: HostRequestId::new(1),
-            error: CompactString::from("oops"),
+            error: VimString::from("oops"),
         };
         let meta = HostRequestMeta {
             id: HostRequestId::new(1),

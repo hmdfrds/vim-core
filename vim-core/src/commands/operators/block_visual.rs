@@ -105,9 +105,9 @@ pub fn execute_block_operator(
                 let first_start = line_ranges.first().map_or(0, |r| r.0);
                 let last_end = line_ranges.last().map_or(0, |r| r.1);
                 effects.push(Effect::SetHighlightRange {
-                    owner: compact_str::CompactString::from(crate::effects::HIGHLIGHT_OWNER_YANK),
+                    owner: crate::VimString::from(crate::effects::HIGHLIGHT_OWNER_YANK),
                     range: Range::from_raw(first_start, last_end),
-                    group: compact_str::CompactString::new_inline("yank"),
+                    group: crate::VimString::from_static("yank"),
                     shape: crate::primitives::SelectionShape::Block,
                 });
             }
@@ -133,7 +133,7 @@ pub fn execute_block_operator(
         for pad in pad_info.iter().rev() {
             effects.push(Effect::Insert {
                 offset: Offset::new(pad.insert_at),
-                text: compact_str::CompactString::from(" ".repeat(pad.pad_count)),
+                text: crate::VimString::from(" ".repeat(pad.pad_count)),
             });
         }
     }

@@ -8,7 +8,7 @@
 //! line_spec = "." | "$" | "%" | number | "'" mark_name
 //! ```
 
-use compact_str::CompactString;
+use crate::VimString;
 use smart_default::SmartDefault;
 
 use crate::primitives::MarkName;
@@ -54,9 +54,9 @@ pub enum LineSpec {
     /// Line of a mark (`'a`, `'<`, `'>`).
     Mark(MarkName),
     /// Search forward for pattern (`/pat/`).
-    SearchForward(CompactString),
+    SearchForward(VimString),
     /// Search backward for pattern (`?pat?`).
-    SearchBackward(CompactString),
+    SearchBackward(VimString),
     /// Relative offset from current position (`+3`, `-2`).
     Relative(i32),
     /// A base line spec with an additional line offset (e.g. `.+1`, `$-2`, `'a+3`).

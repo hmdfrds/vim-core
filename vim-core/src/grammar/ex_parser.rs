@@ -9,7 +9,7 @@ use crate::grammar::types::{
     SetAssignment, SortOptions, TimeAmount,
 };
 use crate::primitives::{AbbrevMode, MarkName, SubFlags};
-use compact_str::CompactString;
+use crate::VimString;
 use std::borrow::Cow;
 
 use super::command_meta;
@@ -197,7 +197,7 @@ fn parse_ex_command_inner(input: &str, depth: u8) -> Result<ExCommand, VimError>
         if let Some(range) = range {
             return Ok(ExCommand::GotoLine { range });
         }
-        return Err(VimError::NotEditorCommand(CompactString::new("")));
+        return Err(VimError::NotEditorCommand(VimString::new("")));
     }
 
     if let Some(cmd) = rest.strip_prefix('!') {
@@ -205,7 +205,7 @@ fn parse_ex_command_inner(input: &str, depth: u8) -> Result<ExCommand, VimError>
         if command.is_empty() {
             return Err(VimError::NoPreviousCommand);
         }
-        let command = CompactString::from(command);
+        let command = VimString::from(command);
         return Ok(if let Some(range) = range {
             ExCommand::Filter { range, command }
         } else {
@@ -410,7 +410,7 @@ fn parse_named_command(
             filter: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
         })
     } else if matches_abbrev(name, "ma", "mark") {
@@ -422,7 +422,7 @@ fn parse_named_command(
             filter: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
         })
     } else if matches_abbrev(name, "ju", "jumps") {
@@ -553,7 +553,7 @@ fn parse_named_command(
             path: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
             force,
         })
@@ -575,7 +575,7 @@ fn parse_named_command(
         }
         Ok(ExCommand::Norm {
             range: line_range,
-            keys: CompactString::from(raw_tail),
+            keys: VimString::from(raw_tail),
             remap,
         })
     } else if name.eq_ignore_ascii_case("action") {
@@ -585,7 +585,7 @@ fn parse_named_command(
             filter: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
         })
     } else if matches_abbrev(name, "so", "source") {
@@ -611,7 +611,7 @@ fn parse_named_command(
         } else {
             let seq: u64 = trimmed
                 .parse()
-                .map_err(|_| VimError::InvalidArgument(CompactString::from(trimmed)))?;
+                .map_err(|_| VimError::InvalidArgument(VimString::from(trimmed)))?;
             Ok(ExCommand::UndoSequence { seq })
         }
     // Buffer navigation
@@ -641,7 +641,7 @@ fn parse_named_command(
             path: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
         })
     } else if matches_abbrev(name, "tabn", "tabnext") {
@@ -657,7 +657,7 @@ fn parse_named_command(
     // Display / Misc
     } else if matches_abbrev(name, "ec", "echo") {
         Ok(ExCommand::Echo {
-            message: CompactString::from(tail),
+            message: VimString::from(tail),
         })
     } else if name.eq_ignore_ascii_case("let") {
         Ok(parse_let_command(tail))
@@ -695,7 +695,7 @@ fn parse_named_command(
             path: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
         })
     } else if matches_abbrev(name, "vs", "vsplit") {
@@ -703,7 +703,7 @@ fn parse_named_command(
             path: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
         })
     // Diagnostic navigation — must come before clo[se] to avoid prefix clash.
@@ -746,7 +746,7 @@ fn parse_named_command(
             target: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail.trim()))
+                Some(VimString::from(tail.trim()))
             },
         })
     } else if matches_abbrev(name, "bw", "bwipeout") {
@@ -755,13 +755,13 @@ fn parse_named_command(
             target: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail.trim()))
+                Some(VimString::from(tail.trim()))
             },
         })
     // ── Delete marks ──────────────────────────────────────────────────────
     } else if matches_abbrev(name, "delm", "delmarks") {
         Ok(ExCommand::DelMarks {
-            marks: CompactString::from(tail.trim()),
+            marks: VimString::from(tail.trim()),
             clear_all: force,
         })
     // ── Quit with error code ──────────────────────────────────────────────
@@ -778,7 +778,7 @@ fn parse_named_command(
             path: if tail.is_empty() {
                 None
             } else {
-                Some(CompactString::from(tail))
+                Some(VimString::from(tail))
             },
             force,
         })
@@ -801,21 +801,21 @@ fn parse_named_command(
         let command = parse_first_command(nested, depth)?;
         Ok(ExCommand::WinDo {
             command: Box::new(command),
-            source: compact_str::CompactString::from(nested),
+            source: crate::VimString::from(nested),
         })
     } else if matches_abbrev(name, "bufdo", "bufdo") {
         let nested = tail.trim();
         let command = parse_first_command(nested, depth)?;
         Ok(ExCommand::BufDo {
             command: Box::new(command),
-            source: compact_str::CompactString::from(nested),
+            source: crate::VimString::from(nested),
         })
     } else if matches_abbrev(name, "tabdo", "tabdo") {
         let nested = tail.trim();
         let command = parse_first_command(nested, depth)?;
         Ok(ExCommand::TabDo {
             command: Box::new(command),
-            source: compact_str::CompactString::from(nested),
+            source: crate::VimString::from(nested),
         })
     // ── :undojoin ────────────────────────────────────────────────────
     } else if matches_abbrev(name, "undoj", "undojoin") {
@@ -825,7 +825,7 @@ fn parse_named_command(
         Ok(ExCommand::MkVimrc { force })
     } else {
         Ok(ExCommand::Custom {
-            command: CompactString::from(rest),
+            command: VimString::from(rest),
         })
     }
 }
@@ -891,7 +891,7 @@ fn parse_source(tail: &str, bang: bool, has_range: bool) -> Result<ExCommand, Vi
             return Err(VimError::ArgumentRequired);
         }
         if has_range {
-            return Err(VimError::NotAvailable(CompactString::from("[range]source")));
+            return Err(VimError::NotAvailable(VimString::from("[range]source")));
         }
         return Ok(ExCommand::Source { path: None });
     }
@@ -899,21 +899,21 @@ fn parse_source(tail: &str, bang: bool, has_range: bool) -> Result<ExCommand, Vi
         return Err(VimError::NoRangeAllowed);
     }
     if bang {
-        return Err(VimError::NotAvailable(CompactString::from("source!")));
+        return Err(VimError::NotAvailable(VimString::from("source!")));
     }
     Ok(ExCommand::Source {
-        path: Some(CompactString::from(tail)),
+        path: Some(VimString::from(tail)),
     })
 }
 
 fn parse_required_path_command<F>(tail: &str, builder: F) -> Result<ExCommand, VimError>
 where
-    F: FnOnce(CompactString) -> ExCommand,
+    F: FnOnce(VimString) -> ExCommand,
 {
     if tail.is_empty() {
         return Err(VimError::ArgumentRequired);
     }
-    Ok(builder(CompactString::from(tail)))
+    Ok(builder(VimString::from(tail)))
 }
 
 /// Parse a time amount for `:earlier` / `:later`.
@@ -936,12 +936,12 @@ fn parse_time_amount(tail: &str) -> Result<TimeAmount, VimError> {
             if last == b'f' {
                 let n: u32 = num_str
                     .parse()
-                    .map_err(|_| VimError::InvalidArgument(CompactString::from(tail)))?;
+                    .map_err(|_| VimError::InvalidArgument(VimString::from(tail)))?;
                 return Ok(TimeAmount::FileSaves(n));
             }
             let n: u64 = num_str
                 .parse()
-                .map_err(|_| VimError::InvalidArgument(CompactString::from(tail)))?;
+                .map_err(|_| VimError::InvalidArgument(VimString::from(tail)))?;
             // Outer match guarantees last is s/m/h.
             Ok(match last {
                 b's' => TimeAmount::Seconds(n),
@@ -954,7 +954,7 @@ fn parse_time_amount(tail: &str) -> Result<TimeAmount, VimError> {
             // Pure number = change count
             let n: u32 = tail
                 .parse()
-                .map_err(|_| VimError::InvalidArgument(CompactString::from(tail)))?;
+                .map_err(|_| VimError::InvalidArgument(VimString::from(tail)))?;
             Ok(TimeAmount::Changes(n))
         }
     }
@@ -968,7 +968,7 @@ fn parse_count_arg(tail: &str) -> Result<u32, VimError> {
     }
     trimmed
         .parse::<u32>()
-        .map_err(|_| VimError::InvalidArgument(CompactString::from(trimmed)))
+        .map_err(|_| VimError::InvalidArgument(VimString::from(trimmed)))
 }
 
 /// Parse an optional count argument, defaulting to 1.
@@ -1005,7 +1005,7 @@ fn parse_let_command(tail: &str) -> ExCommand {
             value: value.into(),
         };
     }
-    let mut cmd = CompactString::from("let ");
+    let mut cmd = VimString::from("let ");
     cmd.push_str(tail);
     ExCommand::Custom { command: cmd }
 }
@@ -1085,8 +1085,8 @@ fn parse_substitute(input: &str, range: ExRange) -> Result<ExCommand, VimError> 
 
     Ok(ExCommand::Substitute {
         range,
-        pattern: CompactString::from(pattern),
-        replacement: CompactString::from(replacement),
+        pattern: VimString::from(pattern),
+        replacement: VimString::from(replacement),
         flags: substitute_flags(flags)?,
     })
 }
@@ -1132,8 +1132,8 @@ fn parse_global_from_delim(
     }
     Ok(ExCommand::Global {
         range,
-        pattern: CompactString::from(pattern),
-        commands: CompactString::from(commands),
+        pattern: VimString::from(pattern),
+        commands: VimString::from(commands),
         invert,
     })
 }
@@ -1238,7 +1238,7 @@ fn parse_line_spec_prefix(input: &str) -> Result<Option<(LineSpec, usize)>, VimE
             let (pattern, rest) = take_delimited(&input[1..], '/')?;
             let consumed = input.len() - rest.len();
             return Ok(Some((
-                LineSpec::SearchForward(CompactString::from(pattern)),
+                LineSpec::SearchForward(VimString::from(pattern)),
                 consumed,
             )));
         }
@@ -1246,7 +1246,7 @@ fn parse_line_spec_prefix(input: &str) -> Result<Option<(LineSpec, usize)>, VimE
             let (pattern, rest) = take_delimited(&input[1..], '?')?;
             let consumed = input.len() - rest.len();
             return Ok(Some((
-                LineSpec::SearchBackward(CompactString::from(pattern)),
+                LineSpec::SearchBackward(VimString::from(pattern)),
                 consumed,
             )));
         }
@@ -1385,8 +1385,8 @@ fn parse_map_command(
     let (lhs, rhs) = split_map_keys(rest);
     Ok(ExCommand::Map {
         mode_prefix,
-        lhs: CompactString::from(lhs),
-        rhs: (!rhs.is_empty()).then(|| CompactString::from(rhs)),
+        lhs: VimString::from(lhs),
+        rhs: (!rhs.is_empty()).then(|| VimString::from(rhs)),
         kind,
         flags: map_args.flags,
         buffer: map_args.buffer,
@@ -1422,7 +1422,7 @@ fn parse_unmap_command(args: &str, mode_prefix: MapModePrefix) -> Result<ExComma
     }
     Ok(ExCommand::Unmap {
         mode_prefix,
-        lhs: CompactString::from(lhs),
+        lhs: VimString::from(lhs),
         buffer: map_args.buffer,
     })
 }
@@ -1506,7 +1506,7 @@ fn parse_set_argument(arg: &str) -> (SetAssignment, usize) {
     let (prefix, rest) = arg.split_at(prefix_len);
     let (name, after_name) = rest.split_at(set_name_len(rest));
     let name_end = prefix_len + name.len();
-    let written = CompactString::from(format!("{prefix}{name}"));
+    let written = VimString::from(format!("{prefix}{name}"));
     // do_set_option(): blanks may come before what follows the name.
     let after = after_name.trim_start_matches(BLANKS);
     let next = arg.len() - after.len();
@@ -1517,7 +1517,7 @@ fn parse_set_argument(arg: &str) -> (SetAssignment, usize) {
         let value = after.get(op.len()..).unwrap_or_default();
         let (value, _) = value.split_at(set_value_len(value));
         let end = next + op.len() + value.len();
-        let value = CompactString::from(value);
+        let value = VimString::from(value);
         let assignment = match op {
             "+=" => SetAssignment::Append(written, value),
             "-=" => SetAssignment::Remove(written, value),
@@ -1581,7 +1581,7 @@ fn set_value_len(text: &str) -> usize {
 /// A bare option name with its `no` or `inv` prefix.
 fn set_bare(prefix: &str, name: &str) -> SetAssignment {
     if name.is_empty() {
-        return SetAssignment::SetBool(CompactString::from(prefix));
+        return SetAssignment::SetBool(VimString::from(prefix));
     }
     match prefix {
         "no" => SetAssignment::UnsetBool(name.into()),
@@ -1628,9 +1628,9 @@ fn parse_sethandler(args: &str) -> Result<ExCommand, VimError> {
     let first = tokens.next().unwrap_or("");
 
     // If the first token starts with '<', it's a key notation
-    let (key, assignments_iter): (Option<CompactString>, Box<dyn Iterator<Item = &str> + '_>) =
+    let (key, assignments_iter): (Option<VimString>, Box<dyn Iterator<Item = &str> + '_>) =
         if first.starts_with('<') {
-            (Some(CompactString::from(first)), Box::new(tokens))
+            (Some(VimString::from(first)), Box::new(tokens))
         } else {
             // No key — first token is a mode:handler assignment
             (None, Box::new(std::iter::once(first).chain(tokens)))
@@ -1640,19 +1640,16 @@ fn parse_sethandler(args: &str) -> Result<ExCommand, VimError> {
     for token in assignments_iter {
         // Each token is "mode-chars:handler" (e.g., "n:vim", "n-v:ide", "a:host")
         let Some((mode_part, handler_part)) = token.split_once(':') else {
-            return Err(VimError::InvalidArgument(CompactString::from(format!(
+            return Err(VimError::InvalidArgument(VimString::from(format!(
                 "Expected mode:handler, got: {token}"
             ))));
         };
         if mode_part.is_empty() || handler_part.is_empty() {
-            return Err(VimError::InvalidArgument(CompactString::from(format!(
+            return Err(VimError::InvalidArgument(VimString::from(format!(
                 "Empty mode or handler in: {token}"
             ))));
         }
-        assignments.push((
-            CompactString::from(mode_part),
-            CompactString::from(handler_part),
-        ));
+        assignments.push((VimString::from(mode_part), VimString::from(handler_part)));
     }
 
     if assignments.is_empty() {
@@ -1675,7 +1672,7 @@ fn parse_structural(input: &str, complement: bool, depth: u8) -> Result<ExComman
     let (pattern, rest) = take_delimited(remainder, delim)?;
     let nested = rest.trim();
     if nested.is_empty() {
-        return Err(VimError::NotEditorCommand(CompactString::from(
+        return Err(VimError::NotEditorCommand(VimString::from(
             "structural regex: missing sub-command",
         )));
     }
@@ -1685,13 +1682,13 @@ fn parse_structural(input: &str, complement: bool, depth: u8) -> Result<ExComman
 
     if complement {
         Ok(ExCommand::StructuralComplement {
-            pattern: CompactString::from(pattern),
+            pattern: VimString::from(pattern),
             command: Box::new(sub_command),
             flags,
         })
     } else {
         Ok(ExCommand::StructuralExtract {
-            pattern: CompactString::from(pattern),
+            pattern: VimString::from(pattern),
             command: Box::new(sub_command),
             flags,
         })
@@ -1977,8 +1974,8 @@ fn parse_abbreviate_command(
     }
     let (trigger, replacement) = split_map_keys(rest);
     Ok(ExCommand::Abbreviate {
-        trigger: (!trigger.is_empty()).then(|| CompactString::from(trigger)),
-        replacement: (!replacement.is_empty()).then(|| CompactString::from(replacement)),
+        trigger: (!trigger.is_empty()).then(|| VimString::from(trigger)),
+        replacement: (!replacement.is_empty()).then(|| VimString::from(replacement)),
         mode,
         noremap: noremap || map_args.script,
         unique: map_args.flags.unique,
@@ -2002,7 +1999,7 @@ fn parse_unabbreviate_command(
         return Err(VimError::ArgumentRequired);
     }
     Ok(ExCommand::Unabbreviate {
-        trigger: CompactString::from(trigger),
+        trigger: VimString::from(trigger),
         mode,
     })
 }
@@ -2020,7 +2017,7 @@ fn parse_abclear_command(args: &str, mode: AbbrevMode) -> Result<ExCommand, VimE
 
 fn abbreviation_not_available(name: &str, args: &str) -> VimError {
     let args = args.trim_matches(BLANKS);
-    VimError::NotAvailable(CompactString::from(format!("{name} {args}")))
+    VimError::NotAvailable(VimString::from(format!("{name} {args}")))
 }
 
 /// Split an Ex command line into its commands, as Vim does.

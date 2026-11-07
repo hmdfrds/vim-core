@@ -16,7 +16,7 @@ use crate::commands::helpers::{
 use crate::commands::CommandResult;
 use crate::effects::Effects;
 use crate::primitives::{MarkName, Offset};
-use compact_str::CompactString;
+use crate::VimString;
 use unicode_width::UnicodeWidthChar;
 use unicode_width::UnicodeWidthStr;
 
@@ -136,7 +136,7 @@ pub(super) fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
         let mark_dot = Offset::new(formatted_end - extra_preserved_newlines);
         let effects = Effects::new()
             .begin_undo()
-            .replace(ctx.range, CompactString::new(&formatted))
+            .replace(ctx.range, VimString::new(&formatted))
             .set_mark(MarkName::CHANGE_START, mark_start, None)
             .set_mark(MarkName::CHANGE_END, new_cursor, None)
             .set_mark(MarkName::LAST_CHANGE, mark_dot, None)
@@ -208,7 +208,7 @@ pub(super) fn execute_keep_cursor(ctx: &OperatorContext<'_>) -> CommandResult {
 
         let effects = Effects::new()
             .begin_undo()
-            .replace(ctx.range, CompactString::new(&formatted))
+            .replace(ctx.range, VimString::new(&formatted))
             .set_mark(MarkName::CHANGE_START, mark_start, None)
             .set_mark(MarkName::CHANGE_END, mark_end_changed, None)
             .set_cursor(ctx.cursor)

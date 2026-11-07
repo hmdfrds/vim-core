@@ -116,7 +116,7 @@ impl super::VimEngine {
                 self.parser.set_recording(None);
                 response.effects.push(Effect::StopRecording);
                 response.effects.push(Effect::ShowInfo {
-                    info: crate::effects::InfoMessage::Text(compact_str::CompactString::new(
+                    info: crate::effects::InfoMessage::Text(crate::VimString::new(
                         "Recording stopped (limit)",
                     )),
                 });

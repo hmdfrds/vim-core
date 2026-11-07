@@ -156,7 +156,7 @@ impl Parser {
             if matches!(&self.state, InputState::AwaitingInsertExpression { .. }) {
                 let collected = match &self.state {
                     InputState::AwaitingInsertExpression { collected } => collected.clone(),
-                    _ => compact_str::CompactString::new(""),
+                    _ => crate::VimString::new(""),
                 };
                 let result = Self::handle_awaiting_insert_expression(key, collected);
                 self.update_state(&result);

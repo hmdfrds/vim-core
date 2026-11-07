@@ -90,30 +90,16 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "compact_str"
-version = "0.7.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f86b9c4c00838774a6d902ef931eff7470720c51d90c2e32cfe15dc304737b3f"
+checksum = "79fcda08c33bb58b97008b2cdada6622500e949e060f5913361763121abd2416"
 dependencies = [
  "castaway",
  "cfg-if",
  "itoa",
- "ryu",
  "serde",
  "static_assertions",
-]
-
-[[package]]
-name = "compact_str"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fd622ebbb56a5b2ccb651b32b911cdeb2a9b4b11776b2473bf26a26a286244e"
-dependencies = [
- "castaway",
- "cfg-if",
- "itoa",
- "rustversion",
- "ryu",
- "static_assertions",
+ "zmij",
 ]
 
 [[package]]
@@ -466,12 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ryu"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
-
-[[package]]
 name = "semver"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -687,7 +667,7 @@ dependencies = [
  "arrayvec",
  "bitflags",
  "cfg-if",
- "compact_str 0.7.1",
+ "compact_str",
  "derive_more",
  "memchr",
  "nonmax",
@@ -714,7 +694,7 @@ dependencies = [
  "ahash",
  "aho-corasick",
  "arbitrary",
- "compact_str 0.7.1",
+ "compact_str",
  "memchr",
  "proptest",
  "serde",
@@ -726,7 +706,6 @@ dependencies = [
 name = "vim-test"
 version = "0.1.0"
 dependencies = [
- "compact_str 0.7.1",
  "serde",
  "serde_json",
  "smart-default",
@@ -740,7 +719,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bitflags",
- "compact_str 0.8.2",
+ "compact_str",
  "memchr",
  "proptest",
 ]

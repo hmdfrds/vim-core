@@ -43,7 +43,7 @@ pub trait IndentProvider: Send {
 /// (e.g., on-enter rules, tree-sitter, etc.) and caches it here. The
 /// engine retrieves it via [`IndentProvider::indent_for_new_line`].
 pub struct CachedIndentHint {
-    indent: compact_str::CompactString,
+    indent: crate::VimString,
 }
 
 impl CachedIndentHint {
@@ -121,18 +121,18 @@ pub enum IndentResult {
     /// Single newline: `\n` + indent + optional append text.
     Simple {
         /// The whitespace prefix for the new line.
-        indent: compact_str::CompactString,
+        indent: crate::VimString,
         /// Optional text appended after indent (e.g. `* ` for JSDoc).
-        append: Option<compact_str::CompactString>,
+        append: Option<crate::VimString>,
     },
     /// Two newlines for bracket pairs (e.g., Enter between `{}`).
     IndentOutdent {
         /// The whitespace prefix for the first (cursor) line.
-        indent: compact_str::CompactString,
+        indent: crate::VimString,
         /// Optional text appended after indent on the cursor line.
-        append: Option<compact_str::CompactString>,
+        append: Option<crate::VimString>,
         /// The whitespace prefix for the closing-bracket line.
-        closing_indent: compact_str::CompactString,
+        closing_indent: crate::VimString,
     },
 }
 
@@ -142,7 +142,7 @@ impl IndentResult {
     pub fn cursor_indent_len(&self) -> usize {
         match self {
             Self::Simple { indent, append } | Self::IndentOutdent { indent, append, .. } => {
-                indent.len() + append.as_ref().map_or(0, compact_str::CompactString::len)
+                indent.len() + append.as_ref().map_or(0, crate::VimString::len)
             }
         }
     }

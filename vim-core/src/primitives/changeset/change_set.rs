@@ -17,7 +17,7 @@
 //!
 //! Each operation lives in its own file for budget compliance.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::builder::ChangeSetBuilder;
 use super::text_op::TextOp;
@@ -108,7 +108,7 @@ impl ChangeSet {
 
         let mut b = ChangeSetBuilder::with_capacity(3);
         b.retain(offset);
-        b.insert(CompactString::from(text));
+        b.insert(VimString::from(text));
         b.retain(doc_len.saturating_sub(offset));
 
         Self {
@@ -175,7 +175,7 @@ impl ChangeSet {
 
         let mut b = ChangeSetBuilder::with_capacity(4);
         b.retain(start);
-        b.insert(CompactString::from(text));
+        b.insert(VimString::from(text));
         b.delete(del_len);
         b.retain(doc_len.saturating_sub(end));
 
@@ -219,7 +219,7 @@ impl ChangeSet {
             let del_len = to - from;
             if let Some(ins_text) = text {
                 if !ins_text.is_empty() {
-                    b.insert(CompactString::from(ins_text));
+                    b.insert(VimString::from(ins_text));
                     output_len += ins_text.len();
                 }
             }
@@ -249,7 +249,7 @@ impl ChangeSet {
     /// string (this ChangeSet is only used for `map_pos`, not text transformation).
     #[must_use]
     pub fn from_edit_len(doc_len: usize, offset: usize, old_len: usize, new_len: usize) -> Self {
-        use compact_str::CompactString;
+        use crate::VimString;
 
         let mut b = super::builder::ChangeSetBuilder::with_capacity(4);
         b.retain(offset);
@@ -259,7 +259,7 @@ impl ChangeSet {
         if new_len > 0 {
             // Build a dummy string of the correct byte length for Insert.
             // We only use this ChangeSet for map_pos, never for apply().
-            let dummy = CompactString::from("x".repeat(new_len));
+            let dummy = VimString::from("x".repeat(new_len));
             b.insert(dummy);
         }
         let tail = doc_len.saturating_sub(offset + old_len);
@@ -360,10 +360,7 @@ mod tests {
         assert!(cs.has_changes());
         assert_eq!(
             cs.ops(),
-            &[
-                TextOp::Insert(CompactString::from("abc")),
-                TextOp::Retain(10),
-            ]
+            &[TextOp::Insert(VimString::from("abc")), TextOp::Retain(10),]
         );
     }
 
@@ -374,10 +371,7 @@ mod tests {
         assert_eq!(cs.output_len(), 13);
         assert_eq!(
             cs.ops(),
-            &[
-                TextOp::Retain(10),
-                TextOp::Insert(CompactString::from("xyz")),
-            ]
+            &[TextOp::Retain(10), TextOp::Insert(VimString::from("xyz")),]
         );
     }
 
@@ -390,7 +384,7 @@ mod tests {
             cs.ops(),
             &[
                 TextOp::Retain(5),
-                TextOp::Insert(CompactString::from("hi")),
+                TextOp::Insert(VimString::from("hi")),
                 TextOp::Retain(5),
             ]
         );
@@ -434,7 +428,7 @@ mod tests {
             cs.ops(),
             &[
                 TextOp::Retain(3),
-                TextOp::Insert(CompactString::from("hello")),
+                TextOp::Insert(VimString::from("hello")),
                 TextOp::Delete(3),
                 TextOp::Retain(4),
             ]
@@ -484,7 +478,7 @@ mod tests {
         let cs = ChangeSet::from_insert(0, 0, "hello");
         assert_eq!(cs.input_len(), 0);
         assert_eq!(cs.output_len(), 5);
-        assert_eq!(cs.ops(), &[TextOp::Insert(CompactString::from("hello"))]);
+        assert_eq!(cs.ops(), &[TextOp::Insert(VimString::from("hello"))]);
     }
 
     #[test]

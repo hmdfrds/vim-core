@@ -4,7 +4,7 @@
 //! who created it. This allows mappings to be removed by owner (e.g.,
 //! when an extension is removed) and helps with conflict reporting.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Identifies who owns a key mapping.
 ///
@@ -21,5 +21,5 @@ pub enum MappingOwner {
     /// Built-in Vim default mapping installed by the engine core.
     Core,
     /// Mapping installed by an embedding host, identified by a tag string.
-    Host(CompactString),
+    Host(VimString),
 }

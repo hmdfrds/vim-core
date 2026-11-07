@@ -5,7 +5,7 @@
 
 use std::cell::Cell;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::effects::Effect;
 use crate::effects::InfoMessage;
@@ -67,7 +67,7 @@ impl EffectEmitter<'_> {
         self.require_mutating()?;
         self.push(Effect::Insert {
             offset: Offset::new(offset),
-            text: CompactString::from(text),
+            text: VimString::from(text),
         });
         Ok(())
     }
@@ -100,7 +100,7 @@ impl EffectEmitter<'_> {
         self.require_mutating()?;
         self.push(Effect::Replace {
             range: Range::new(Offset::new(start), Offset::new(end)),
-            text: CompactString::from(text),
+            text: VimString::from(text),
         });
         Ok(())
     }
@@ -176,7 +176,7 @@ impl EffectEmitter<'_> {
         let reg = RegisterName::new(name).ok_or(ApiError::RegisterNotFound(name))?;
         self.push(Effect::SetRegister {
             name: reg,
-            text: CompactString::from(text),
+            text: VimString::from(text),
             motion_type,
         });
         Ok(())
@@ -296,11 +296,11 @@ impl EffectEmitter<'_> {
     /// `group` are not validated here — an out-of-range or inverted range is
     /// resolved when the effect is applied.
     pub fn set_highlight(&self, start: usize, end: usize, group: &str) -> Result<(), ApiError> {
-        let owner = CompactString::from("__internal__");
+        let owner = VimString::from("__internal__");
         self.push(Effect::SetHighlightRange {
             owner,
             range: Range::new(Offset::new(start), Offset::new(end)),
-            group: CompactString::from(group),
+            group: VimString::from(group),
             shape: crate::primitives::SelectionShape::Char,
         });
         Ok(())
@@ -318,7 +318,7 @@ impl EffectEmitter<'_> {
     /// same signature; clearing highlights is permitted at every tier, and
     /// clearing when nothing is highlighted is a no-op.
     pub fn clear_highlights(&self) -> Result<(), ApiError> {
-        let owner = CompactString::from("__internal__");
+        let owner = VimString::from("__internal__");
         self.push(Effect::ClearHighlightRange { owner, group: None });
         Ok(())
     }
@@ -341,7 +341,7 @@ impl EffectEmitter<'_> {
     pub fn host_action(&self, name: &str) -> Result<(), ApiError> {
         self.require_mutating()?;
         self.push(Effect::HostAction {
-            name: CompactString::from(name),
+            name: VimString::from(name),
         });
         Ok(())
     }
@@ -401,12 +401,12 @@ impl EffectEmitter<'_> {
         if name.is_empty() {
             return Err(ApiError::VariableNotFound {
                 scope,
-                name: CompactString::new_inline(""),
+                name: VimString::from_static(""),
             });
         }
         self.push(Effect::SetVariable {
             scope,
-            name: CompactString::from(name),
+            name: VimString::from(name),
             value,
         });
         Ok(())
@@ -429,12 +429,12 @@ impl EffectEmitter<'_> {
         if name.is_empty() {
             return Err(ApiError::VariableNotFound {
                 scope,
-                name: CompactString::new_inline(""),
+                name: VimString::from_static(""),
             });
         }
         self.push(Effect::DeleteVariable {
             scope,
-            name: CompactString::from(name),
+            name: VimString::from(name),
         });
         Ok(())
     }
