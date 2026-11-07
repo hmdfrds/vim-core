@@ -1056,6 +1056,13 @@ impl Keymap {
         (&mut self.plug_names, &mut self.action_names)
     }
 
+    /// Copies of the `<Plug>` and `<Action>` name registries, for parsing
+    /// keys as [`registries_mut`](Self::registries_mut) would without
+    /// changing them.
+    pub(crate) fn registries(&self) -> (super::NameRegistry, super::NameRegistry) {
+        (self.plug_names.clone(), self.action_names.clone())
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Convenience wrappers (delegate to generic CRUD)
     // ═══════════════════════════════════════════════════════════════════

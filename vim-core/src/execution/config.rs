@@ -318,6 +318,94 @@ pub struct MapDefinition<'a> {
     pub kind: MappingKind,
     /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`.
     pub flags: MappingFlags,
+    /// What its keys can reach when it runs, as
+    /// [`VimEngine::mapping_reach`](crate::execution::VimEngine::mapping_reach)
+    /// gives it.
+    pub reach: &'a MappingReach,
+}
+
+/// What the keys of a mapping can reach when it runs, from
+/// [`VimEngine::mapping_reach`](crate::execution::VimEngine::mapping_reach).
+///
+/// It follows the keys as the engine reads them, in the mode the mapping
+/// starts in: in Insert mode they are text until a key that leaves it; in
+/// a command line they edit it; in any other mode every `:` opens a
+/// command line, and every key after it runs as a command too, since the
+/// `:` may be the argument of the key before it. A key whose effect it
+/// cannot follow is in [`opaque`](Self::opaque), so a host that allows a
+/// mapping by what it reaches should refuse one with any.
+#[non_exhaustive]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MappingReach {
+    /// Each command a command line or `<Cmd>` of the keys can run, once,
+    /// in the order found, with the commands of a `:g` list after it.
+    pub commands: Vec<ReachedCommand>,
+    /// What the keys do that it cannot follow, each kind once.
+    pub opaque: Vec<Opaque>,
+    /// The names of the `<Action>(name)` keys, each once.
+    pub actions: Vec<Box<str>>,
+    /// The names of the `<Plug>(name)` keys, each once. A `<Plug>` key
+    /// runs the mapping of its name even from a non-recursive mapping.
+    pub plugs: Vec<Box<str>>,
+}
+
+impl MappingReach {
+    /// What its commands reach together.
+    #[must_use]
+    pub fn reach(&self) -> Reach {
+        self.commands
+            .iter()
+            .fold(Reach::empty(), |reach, command| reach | command.reach)
+    }
+}
+
+/// A command the keys of a mapping can run, one `|` command of the line
+/// they type.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReachedCommand {
+    /// The command as split from its line, its range and modifiers
+    /// included. A line opened in Visual mode starts with `'<,'>`.
+    pub text: Box<str>,
+    /// The line is still open when the keys end, or may be: the user
+    /// types into it and runs it with Enter. Such a line is also given
+    /// with a blank, a `|` and a digit typed at its cursor and at its end.
+    pub open: bool,
+    /// The command as the engine parses it to run it.
+    pub parsed: Result<(ModifierFlags, ExCommand), crate::errors::VimError>,
+    /// What running it reaches; empty for one that does not parse.
+    pub reach: Reach,
+}
+
+/// What the keys of a mapping do that
+/// [`MappingReach`] cannot follow. A later version may add kinds.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Opaque {
+    /// An `<expr>` mapping: its keys come from an expression when it runs.
+    Expr,
+    /// A recursive mapping: its keys can run other mappings.
+    Recursive,
+    /// `@`, which runs a register as keys, or `@:` the last command line.
+    RegisterExecution,
+    /// `!`, the filter operator, which runs a shell command.
+    FilterOperator,
+    /// `q:`, `q/`, `q?` or `<C-f>`: the command-line window.
+    CommandWindow,
+    /// Completion in a command line, which puts text there.
+    CommandLineCompletion,
+    /// History in a command line, which puts an earlier line there.
+    CommandLineHistory,
+    /// `<C-r>` in Insert mode or a command line, which puts a register
+    /// there.
+    RegisterInsert,
+    /// `:normal`, which runs its keys.
+    NormalKeys,
+    /// A command-line mapping that deletes part of what the user typed
+    /// before it, which is not known.
+    UserText,
+    /// More keys, branches or work than the analysis follows.
+    TooComplex,
 }
 
 /// What running a config came to.

@@ -11,7 +11,8 @@ use crate::effects::{Effect, Effects, SourceContext};
 use crate::errors::VimError;
 use crate::execution::config::{
     ConfigAction, ConfigCommand, ConfigHost, ConfigOutcome, ConfigResponse, ConfigText,
-    MapDefinition, OptionTarget, SourceReply, SourceRequest, TrustAll, TrustTag, Verdict,
+    MapDefinition, MappingReach, OptionTarget, SourceReply, SourceRequest, TrustAll, TrustTag,
+    Verdict,
 };
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
@@ -569,7 +570,19 @@ impl super::VimEngine {
             Err(then) => return then,
         };
         let options = checked.option_targets();
-        let map = map_definition(&checked.command);
+        let mapping_reach = match &checked.command {
+            ExCommand::Map {
+                mode_prefix,
+                rhs: Some(rhs),
+                kind,
+                flags,
+                ..
+            } => Some(self.mapping_reach(*mode_prefix, rhs, *kind, *flags)),
+            _ => None,
+        };
+        let map = mapping_reach
+            .as_ref()
+            .and_then(|reach| map_definition(&checked.command, reach));
         let judged = checked.command.clone();
         let verdict = host.judge(&ConfigCommand {
             file: &frame.name,
@@ -1202,8 +1215,12 @@ fn command_action<'a>(
     }
 }
 
-/// The mapping `command` defines, if it defines one.
-fn map_definition(command: &ExCommand) -> Option<MapDefinition<'_>> {
+/// The mapping `command` defines, if it defines one, whose keys reach
+/// `reach`.
+fn map_definition<'a>(
+    command: &'a ExCommand,
+    reach: &'a MappingReach,
+) -> Option<MapDefinition<'a>> {
     match command {
         ExCommand::Map {
             mode_prefix,
@@ -1218,6 +1235,7 @@ fn map_definition(command: &ExCommand) -> Option<MapDefinition<'_>> {
             rhs,
             kind: *kind,
             flags: *flags,
+            reach,
         }),
         _ => None,
     }

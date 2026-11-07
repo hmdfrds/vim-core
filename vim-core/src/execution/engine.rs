@@ -30,6 +30,7 @@ mod host_completion;
 mod insert;
 mod macro_replay;
 mod mapping;
+mod mapping_reach;
 mod mode_dispatch;
 mod multi_cursor_yank;
 mod per_cursor;

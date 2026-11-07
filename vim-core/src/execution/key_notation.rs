@@ -50,6 +50,16 @@ pub(crate) fn parse_mapping_keys(
     parse_with_keymap(input, keymap, true)
 }
 
+/// [`parse_key_notation_sequence`] with the name registries `plug` and
+/// `action` in place of a keymap's.
+pub(crate) fn parse_key_notation_with(
+    input: &str,
+    plug: &mut NameRegistry,
+    action: &mut NameRegistry,
+) -> Vec<KeyEvent> {
+    parse_impl(input, Some(Registries { plug, action }), false)
+}
+
 fn parse_with_keymap(
     input: &str,
     keymap: Option<&mut crate::keymap::Keymap>,
