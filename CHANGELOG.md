@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.10.1
+
+### Behaviour Changes
+
+- `{` and `}` stop only where Vim's do: at an empty line, a line that
+  starts with a form feed, and a line that starts with an nroff macro of
+  Vim's default 'paragraphs' and 'sections', such as `.PP` or `.SH`. A
+  line that holds only blanks (spaces and Tabs) is part of the paragraph
+  and no longer stops them, nor does a line that holds only a carriage
+  return. So `}`, `d}`, `y}`, `c}` and `gq}` go on past such a line to the
+  next empty one, as in Vim. In an editor that keeps the indent on empty
+  lines, `{` and `}` therefore stop less often.
+- A closed fold still ends a paragraph, a rule of vim-core's own: `{` and
+  `}` stop on the fold's first line once they have passed text. From
+  inside a closed fold they first pass the fold, as in Vim, where `}` went
+  to the fold's next line, and `{` right below a fold now stops on it,
+  where it did not move. Repeating `{` or `}` passes one fold at a time.
+
+### Bug Fixes
+
+- Fixed `d}`, `y}`, `c}` and `gq}` that run into the last line of a text
+  with no newline at its end leaving out the last character. Vim makes `}`
+  inclusive there, so on "aa bb", "cc" `d}` now deletes both lines where
+  it left "c", `y}` yanks "aa bb" and "cc" characterwise, and `gq}` with
+  'textwidth' 5 on "aa bb cc", "d" joins "d" to "cc".
+- Fixed `d)`, `y)` and `c)` that run off the end of the text leaving out
+  its last character: on "abc def" `d)` left "f". As in Vim, `)` is
+  inclusive there.
+- Fixed a delete with a characterwise motion from a line that holds only
+  blanks to a later line, such as `d/)`, deleting whole lines: on "  ",
+  "b) c" from the first line `d/)` deleted both lines where Vim leaves
+  ") c". Vim makes such a delete linewise only when nothing but blanks
+  follows its end, and vim-core now checks the text after the end, not
+  after the start.
+
+### Known Limits
+
+- Short of the last line, `{` and `}` are still linewise for an operator:
+  from the middle of a line above an empty line, `d}` deletes the empty
+  line too and `y}` yanks the rest of the line linewise, where Vim treats
+  `}` as an exclusive characterwise motion and keeps the empty line.
+
+### Tests
+
+- 9 cases recorded from Neovim cover `{` and `}` past lines of blanks and
+  at a form feed and a macro line, and `d}` and `y}` to and on the last
+  line and over lines of blanks. The format fixture gains 3 `gq}` cases
+  and the gate fixture one `}` case in CRLF text, recorded from Vim 9.1.
+  Unit tests with a fold provider cover `{` and `}` at and inside a closed
+  fold.
+
 ## v0.10.0
 
 ### Breaking Changes
