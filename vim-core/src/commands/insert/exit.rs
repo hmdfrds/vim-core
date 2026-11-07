@@ -5,7 +5,7 @@
 
 use super::types::{InsertExitContext, InsertExitParams};
 use crate::primitives::Offset;
-use compact_str::CompactString;
+use crate::VimString;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// Compute the exit cursor position after leaving insert mode.
@@ -70,13 +70,13 @@ pub fn compute_exit_cursor(ctx: &InsertExitContext<'_>) -> usize {
 /// For o/O entry, prepends a newline to each repetition.
 #[must_use]
 pub fn compute_repeat_text(
-    accumulated_text: &CompactString,
+    accumulated_text: &VimString,
     entry_type: crate::primitives::InsertEntryType,
-) -> CompactString {
+) -> VimString {
     match entry_type {
         crate::primitives::InsertEntryType::NewLineBelow
         | crate::primitives::InsertEntryType::NewLineAbove => {
-            CompactString::from(format!("\n{accumulated_text}"))
+            VimString::from(format!("\n{accumulated_text}"))
         }
         _ => accumulated_text.clone(),
     }
@@ -90,7 +90,7 @@ pub fn compute_repeat_text(
 /// (below the primary insert line). Returns offsets in reverse order so
 /// callers can insert bottom-to-top without invalidating byte offsets.
 #[must_use]
-pub fn compute_block_insert_offsets(ctx: &InsertExitContext<'_>) -> Vec<(usize, CompactString)> {
+pub fn compute_block_insert_offsets(ctx: &InsertExitContext<'_>) -> Vec<(usize, VimString)> {
     use crate::commands::helpers::{line_end, line_of, line_start};
 
     let Some(block_ctx) = ctx.block_insert else {
@@ -98,7 +98,7 @@ pub fn compute_block_insert_offsets(ctx: &InsertExitContext<'_>) -> Vec<(usize, 
     };
 
     let insert_offset = ctx.insert_offset.get();
-    let accumulated = CompactString::from(ctx.accumulated_text);
+    let accumulated = VimString::from(ctx.accumulated_text);
     if accumulated.is_empty() || block_ctx.lines_below() == 0 {
         return Vec::new();
     }
@@ -147,10 +147,8 @@ pub fn build_insert_exit_effects(
 
     // 1. Repeat accumulated text count-1 more times
     if params.count > 1 {
-        let repeat_text = compute_repeat_text(
-            &CompactString::from(params.accumulated_text),
-            params.entry_type,
-        );
+        let repeat_text =
+            compute_repeat_text(&VimString::from(params.accumulated_text), params.entry_type);
         if !repeat_text.is_empty() {
             let is_replace = params.entry_type == crate::primitives::InsertEntryType::ReplaceMode;
             let (mut repeat_fx, mut new_offset) = super::effects::repeat_text(
@@ -356,14 +354,14 @@ mod tests {
 
     #[test]
     fn test_repeat_text_for_o() {
-        let text = CompactString::from("abc");
+        let text = VimString::from("abc");
         let result = compute_repeat_text(&text, crate::primitives::InsertEntryType::NewLineBelow);
         assert_eq!(result.as_str(), "\nabc");
     }
 
     #[test]
     fn test_repeat_text_for_normal() {
-        let text = CompactString::from("abc");
+        let text = VimString::from("abc");
         let result = compute_repeat_text(&text, crate::primitives::InsertEntryType::BeforeCursor);
         assert_eq!(result.as_str(), "abc");
     }

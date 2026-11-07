@@ -4,7 +4,7 @@
 //! hosts with multiple open editors implement [`BufferScope`].
 //! Single-buffer hosts (e.g., Godot's TextEdit) ignore this entirely.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::document::Document;
 use crate::primitives::{BufferId, Offset, Position};
@@ -20,7 +20,7 @@ pub struct BufferMeta {
     /// Unique identifier for this buffer.
     pub id: BufferId,
     /// File path, if the buffer is associated with a file on disk.
-    pub path: Option<CompactString>,
+    pub path: Option<VimString>,
     /// Number of lines in the buffer.
     pub line_count: usize,
     /// Total byte length of the buffer text.
@@ -156,7 +156,7 @@ mod tests {
         let doc = TestDoc::new("hello\nworld");
         let meta = BufferMeta {
             id: BufferId::new(1),
-            path: Some(CompactString::from("test.txt")),
+            path: Some(VimString::from("test.txt")),
             line_count: 2,
             byte_len: 11,
             modified: false,
@@ -201,7 +201,7 @@ mod tests {
         let doc = TestDoc::new("abc\ndef\nghi");
         let meta = BufferMeta {
             id: BufferId::new(3),
-            path: Some(CompactString::from("/tmp/foo.rs")),
+            path: Some(VimString::from("/tmp/foo.rs")),
             line_count: 3,
             byte_len: 11,
             modified: false,

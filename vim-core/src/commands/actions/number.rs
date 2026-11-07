@@ -8,7 +8,7 @@ use crate::commands::CommandResult;
 use crate::effects::Effects;
 use crate::primitives::byte_delta;
 use crate::primitives::{Offset, Range};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// A matched number found in the document text.
 struct NumberMatch {
@@ -257,10 +257,10 @@ fn find_boolean(text: &str, cursor: usize) -> Option<(usize, usize, &str)> {
 /// Toggle a boolean keyword, preserving its case pattern.
 ///
 /// Returns `None` if `word` is not a recognized boolean keyword.
-fn toggle_boolean(word: &str) -> Option<CompactString> {
+fn toggle_boolean(word: &str) -> Option<VimString> {
     for &(keyword, toggled) in BOOLEAN_PAIRS {
         if word == keyword {
-            return Some(CompactString::from(toggled));
+            return Some(VimString::from(toggled));
         }
     }
     None

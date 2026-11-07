@@ -706,7 +706,6 @@ dependencies = [
 name = "vim-test"
 version = "0.1.0"
 dependencies = [
- "compact_str",
  "serde",
  "serde_json",
  "smart-default",

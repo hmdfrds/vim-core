@@ -8,11 +8,11 @@
 //! - Three-way composition associativity
 //! - Effect ordering validation for well-formed and malformed streams
 
-use compact_str::CompactString;
 use proptest::prelude::*;
 use vim_core::effects::algebra::*;
 use vim_core::effects::{try_compose, validate_ordering, Effect, OrderingError};
 use vim_core::primitives::{Offset, Range, UndoCursorStrategy};
+use vim_core::VimString;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROPTEST CONFIGURATION
@@ -109,7 +109,7 @@ proptest! {
         let offset = Offset::new(raw_offset % (text.len() + 1));
         let effect = Effect::Insert {
             offset,
-            text: CompactString::from(insert_text.as_str()),
+            text: VimString::from(insert_text.as_str()),
         };
 
         // Apply the effect
@@ -191,11 +191,11 @@ proptest! {
 
         let effect_a = Effect::Insert {
             offset: offset_a,
-            text: CompactString::from(text_a.as_str()),
+            text: VimString::from(text_a.as_str()),
         };
         let effect_b = Effect::Insert {
             offset: offset_b,
-            text: CompactString::from(text_b.as_str()),
+            text: VimString::from(text_b.as_str()),
         };
 
         // Sequential application: apply a then b
@@ -226,7 +226,7 @@ proptest! {
     ) {
         let effect = Effect::Insert {
             offset: Offset::new(insert_offset),
-            text: CompactString::from(&"x".repeat(insert_len)),
+            text: VimString::from(&"x".repeat(insert_len)),
         };
 
         let original_offset = Offset::new(cursor_offset);
@@ -278,7 +278,7 @@ proptest! {
                     let pos = test_text[..pos].len();
                     effects.push(Effect::Insert {
                         offset: Offset::new(pos),
-                        text: CompactString::from("xy"),
+                        text: VimString::from("xy"),
                     });
                     test_text.insert_str(pos, "xy");
                 }
@@ -302,7 +302,7 @@ proptest! {
                         let end = end.min(test_text.len());
                         effects.push(Effect::Replace {
                             range: Range::from_raw(pos, end),
-                            text: CompactString::from("ab"),
+                            text: VimString::from("ab"),
                         });
                         test_text.replace_range(pos..end, "ab");
                     }
@@ -362,7 +362,7 @@ proptest! {
 
         let effect = Effect::Replace {
             range,
-            text: CompactString::from(replacement.as_str()),
+            text: VimString::from(replacement.as_str()),
         };
 
         // Apply the effect
@@ -428,7 +428,7 @@ fn random_effect(text: &str, seed: u64) -> Option<Effect> {
                 .collect();
             Some(Effect::Insert {
                 offset: Offset::new(pos),
-                text: CompactString::from(insert_text.as_str()),
+                text: VimString::from(insert_text.as_str()),
             })
         }
         1 => {
@@ -491,7 +491,7 @@ fn random_effect(text: &str, seed: u64) -> Option<Effect> {
                 .collect();
             Some(Effect::Replace {
                 range: Range::from_raw(start, end),
-                text: CompactString::from(repl_text.as_str()),
+                text: VimString::from(repl_text.as_str()),
             })
         }
         _ => unreachable!(),
@@ -763,7 +763,7 @@ proptest! {
                     let offset = insert_offset.wrapping_add(group_idx * 5) % 100;
                     effects.push(Effect::Insert {
                         offset: Offset::new(offset),
-                        text: CompactString::from(insert_text.as_str()),
+                        text: VimString::from(insert_text.as_str()),
                     });
                 }
                 1 => {
@@ -778,7 +778,7 @@ proptest! {
                     let end = start + 1 + (group_idx % 3);
                     effects.push(Effect::Replace {
                         range: Range::from_raw(start, end),
-                        text: CompactString::from(insert_text.as_str()),
+                        text: VimString::from(insert_text.as_str()),
                     });
                 }
                 _ => unreachable!(),
@@ -821,7 +821,7 @@ proptest! {
             },
             Effect::Insert {
                 offset: Offset::new(insert_offset % 100),
-                text: CompactString::from(insert_text.as_str()),
+                text: VimString::from(insert_text.as_str()),
             },
             Effect::EndUndoGroup { node_id: None },
             Effect::SetCursor {
@@ -863,7 +863,7 @@ proptest! {
                 let mut m = well_formed.clone();
                 m.push(Effect::Insert {
                     offset: Offset::new(0),
-                    text: CompactString::from("trailing"),
+                    text: VimString::from("trailing"),
                 });
                 m
             }
@@ -876,7 +876,7 @@ proptest! {
                     },
                     Effect::Insert {
                         offset: Offset::new(insert_offset % 100),
-                        text: CompactString::from(insert_text.as_str()),
+                        text: VimString::from(insert_text.as_str()),
                     },
                     Effect::EndUndoGroup { node_id: None },
                     Effect::EndUndoGroup { node_id: None }, // extra close
@@ -1124,11 +1124,11 @@ proptest! {
 
         let effect_a = Effect::Replace {
             range: Range::from_raw(a_start, a_end),
-            text: CompactString::from(repl_a.as_str()),
+            text: VimString::from(repl_a.as_str()),
         };
         let effect_b = Effect::Replace {
             range: Range::from_raw(b_start, b_end),
-            text: CompactString::from(repl_b.as_str()),
+            text: VimString::from(repl_b.as_str()),
         };
 
         // Order 1: Apply A first, then B (adjusting B's range for A's size change)
@@ -1138,7 +1138,7 @@ proptest! {
         let adjusted_b_end = (b_end as i64 + delta_a) as usize;
         let effect_b_adjusted = Effect::Replace {
             range: Range::from_raw(adjusted_b_start, adjusted_b_end),
-            text: CompactString::from(repl_b.as_str()),
+            text: VimString::from(repl_b.as_str()),
         };
         let result_ab = apply_to_text(&after_a, &effect_b_adjusted);
 

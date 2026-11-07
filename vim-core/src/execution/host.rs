@@ -5,8 +5,8 @@
 
 use crate::primitives::{BufferId, CompletionKind, RegisterName};
 use crate::state::{CommandLinePrompt, MessageEntry};
+use crate::VimString;
 use crate::{primitives::MotionType, primitives::Offset, primitives::Range};
-use compact_str::CompactString;
 
 /// What category of completion candidates the host should provide
 /// for command-line tab completion.
@@ -322,7 +322,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Optional target path.
-        path: Option<CompactString>,
+        path: Option<VimString>,
         /// Force write.
         force: bool,
     },
@@ -345,7 +345,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Path to open.
-        path: CompactString,
+        path: VimString,
         /// Force open even if the host detects unsaved changes.
         force: bool,
     },
@@ -354,7 +354,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Path to read.
-        path: CompactString,
+        path: VimString,
         /// Line to insert after (1-indexed), None = current line.
         after_line: Option<u32>,
     },
@@ -367,9 +367,9 @@ pub enum HostRequest {
         /// Motion type for register/put semantics.
         motion_type: MotionType,
         /// Input text corresponding to `range`.
-        input_text: CompactString,
+        input_text: VimString,
         /// Filter command.
-        command: CompactString,
+        command: VimString,
     },
     /// Read text from system clipboard.
     ReadClipboard {
@@ -383,14 +383,14 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Command to execute.
-        command: CompactString,
+        command: VimString,
     },
     /// Forward unsupported ex command to host.
     CustomExCommand {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Raw command text.
-        command: CompactString,
+        command: VimString,
     },
     /// Auto-reindent a document range (`={motion}`).
     ReindentRange {
@@ -401,7 +401,7 @@ pub enum HostRequest {
         /// Motion type for register/put semantics.
         motion_type: MotionType,
         /// Input text corresponding to `range`.
-        input_text: CompactString,
+        input_text: VimString,
         /// Column of `oap->start` for mark `[` computation.
         /// See Neovim indent.c:1054.
         start_col: usize,
@@ -424,7 +424,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Optional name filter substring.
-        filter: Option<CompactString>,
+        filter: Option<VimString>,
     },
     /// Read a config file for `:source`.
     ///
@@ -450,7 +450,7 @@ pub enum HostRequest {
         /// The file as typed, unexpanded. `None` for a bare `:source`: the
         /// host picks its default, usually its active config file, and a
         /// host without one fails with E471.
-        path: Option<CompactString>,
+        path: Option<VimString>,
     },
     /// Switch to buffer by number.
     SwitchBuffer {
@@ -493,7 +493,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Optional path to open in new tab.
-        path: Option<CompactString>,
+        path: Option<VimString>,
     },
     /// Switch to next tab.
     TabNext {
@@ -553,7 +553,7 @@ pub enum HostRequest {
         /// Horizontal or vertical split.
         direction: SplitDirection,
         /// Optional path to open in the new split.
-        path: Option<CompactString>,
+        path: Option<VimString>,
         /// If true, open a new empty buffer (`:new` / `:vnew`).
         new_file: bool,
     },
@@ -597,7 +597,7 @@ pub enum HostRequest {
         /// If true, wipeout (remove all traces); if false, just delete.
         wipeout: bool,
         /// Buffer target (number or name); host resolves.
-        target: Option<CompactString>,
+        target: Option<VimString>,
     },
 
     // === Window navigation/sizing (host handles) ===
@@ -699,10 +699,10 @@ pub enum HostRequest {
         /// Which command-line history to show.
         prompt: CommandLinePrompt,
         /// History entries for this prompt kind (oldest first, newest last).
-        history: Vec<CompactString>,
+        history: Vec<VimString>,
         /// Partial input from an active command-line session (`Ctrl-F`).
         /// `None` when opened via `q:` / `q/` / `q?` from normal mode.
-        prefill: Option<CompactString>,
+        prefill: Option<VimString>,
     },
     /// Call the host's operatorfunc on a range (`g@{motion}`).
     ///
@@ -728,7 +728,7 @@ pub enum HostRequest {
         /// End line (0-indexed, inclusive).
         end_line: u32,
         /// Normal-mode keystrokes to execute.
-        keys: CompactString,
+        keys: VimString,
         /// Whether mappings should be expanded while replaying keys.
         remap: bool,
     },
@@ -742,7 +742,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Expression text to evaluate.
-        expression: CompactString,
+        expression: VimString,
     },
     /// Request insert-mode completion from the host.
     ///
@@ -762,7 +762,7 @@ pub enum HostRequest {
         /// Prompt kind.
         prompt: CommandLinePrompt,
         /// Current command-line input.
-        input: CompactString,
+        input: VimString,
         /// Cursor byte offset within `input`.
         cursor: usize,
     },
@@ -791,7 +791,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// The expression text to evaluate (the mapping's RHS).
-        expression: CompactString,
+        expression: VimString,
         /// The mapping mode in which the mapping was triggered.
         mode: crate::keymap::MappingMode,
         /// Whether returned keys should be remappable (`Recursive` for `:map <expr>`)
@@ -848,13 +848,13 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// The action name to execute (e.g. `"editor.action.addSelectionToNextFindMatch"`).
-        name: CompactString,
+        name: VimString,
         /// Count prefix typed before the action key (e.g. `5` in `5<key>`).
         count: Option<u32>,
         /// Register selected before the action key (e.g. `"a` in `"a<key>`).
         register: Option<RegisterName>,
         /// Mode at the time the action was triggered (e.g. `"NORMAL"`, `"VISUAL"`).
-        mode: CompactString,
+        mode: VimString,
         /// Anchor offset of the visual selection, if any.
         selection_anchor: Option<usize>,
         /// Head (cursor) offset of the visual selection, if any.
@@ -873,7 +873,7 @@ pub enum HostRequest {
         /// What category of completion the host should provide.
         kind: CmdlineCompletionKind,
         /// The current text prefix to filter candidates against.
-        prefix: CompactString,
+        prefix: VimString,
         /// Start byte offset of the text to replace in the command line.
         replace_range_start: usize,
         /// End byte offset of the text to replace in the command line.
@@ -891,7 +891,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// Optional target path.
-        path: Option<CompactString>,
+        path: Option<VimString>,
         /// Force write.
         force: bool,
     },
@@ -938,7 +938,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// The ex command text to execute in each window.
-        command: CompactString,
+        command: VimString,
     },
     /// Execute an ex command in each buffer: `:bufdo {cmd}`
     ///
@@ -950,7 +950,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// The ex command text to execute in each buffer.
-        command: CompactString,
+        command: VimString,
     },
     /// Execute an ex command in each tab: `:tabdo {cmd}`
     ///
@@ -962,7 +962,7 @@ pub enum HostRequest {
         /// Correlation metadata.
         meta: HostRequestMeta,
         /// The ex command text to execute in each tab.
-        command: CompactString,
+        command: VimString,
     },
 
     /// Generate a `.godot-vimrc` template file: `:mkvimrc[!]`
@@ -1147,11 +1147,11 @@ impl HostRequest {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CmdlineCompletionEntry {
     /// The completion text to insert.
-    pub text: CompactString,
+    pub text: VimString,
     /// Optional short description (e.g. "directory", "file").
-    pub description: Option<CompactString>,
+    pub description: Option<VimString>,
     /// Optional detail text (e.g. full path).
-    pub detail: Option<CompactString>,
+    pub detail: Option<VimString>,
 }
 
 /// Host completion result.
@@ -1164,21 +1164,21 @@ pub enum HostResult {
         /// Completed request id.
         id: HostRequestId,
         /// Optional host message.
-        message: Option<CompactString>,
+        message: Option<VimString>,
     },
     /// Failure completion.
     Failure {
         /// Failed request id.
         id: HostRequestId,
         /// Error message.
-        error: CompactString,
+        error: VimString,
     },
     /// Data-bearing completion (e.g. `:r`).
     Data {
         /// Completed request id.
         id: HostRequestId,
         /// Returned payload.
-        data: CompactString,
+        data: VimString,
         /// Host-computed insertion offset if applicable.
         offset: Option<usize>,
     },
@@ -1187,18 +1187,18 @@ pub enum HostResult {
         /// Completed request id.
         id: HostRequestId,
         /// Clipboard contents.
-        text: CompactString,
+        text: VimString,
     },
     /// Filter completion payload for range replacement.
     FilteredRange {
         /// Completed request id.
         id: HostRequestId,
         /// Replacement text for the requested range.
-        replacement: CompactString,
+        replacement: VimString,
         /// Optional cursor offset after replacement.
         cursor_offset: Option<usize>,
         /// Optional stderr text from filter execution.
-        stderr: Option<CompactString>,
+        stderr: Option<VimString>,
         /// Optional mark `.` offset (first byte of first changed line).
         ///
         /// Used by `=` (reindent) where mark `.` differs from cursor position.
@@ -1413,7 +1413,7 @@ mod tests {
         };
         let req = HostRequest::EvaluateMapping {
             meta,
-            expression: CompactString::from("v:count ? 'j' : 'gj'"),
+            expression: VimString::from("v:count ? 'j' : 'gj'"),
             mode: crate::keymap::MappingMode::Normal,
             kind: crate::keymap::MappingKind::Recursive,
             silent: false,
@@ -1428,7 +1428,7 @@ mod tests {
         };
         let req = HostRequest::EvaluateMapping {
             meta,
-            expression: CompactString::from("MyExpr()"),
+            expression: VimString::from("MyExpr()"),
             mode: crate::keymap::MappingMode::Insert,
             kind: crate::keymap::MappingKind::NonRecursive,
             silent: false,
@@ -1444,7 +1444,7 @@ mod tests {
         };
         let req = HostRequest::EvaluateMapping {
             meta,
-            expression: CompactString::from("pumvisible() ? '<C-Y>' : '<CR>'"),
+            expression: VimString::from("pumvisible() ? '<C-Y>' : '<CR>'"),
             mode: crate::keymap::MappingMode::Visual,
             kind: crate::keymap::MappingKind::Recursive,
             silent: false,
@@ -1486,7 +1486,7 @@ mod tests {
         for mode in modes {
             let req = HostRequest::EvaluateMapping {
                 meta,
-                expression: CompactString::from("test()"),
+                expression: VimString::from("test()"),
                 mode,
                 kind: crate::keymap::MappingKind::NonRecursive,
                 silent: false,

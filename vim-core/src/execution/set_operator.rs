@@ -7,7 +7,7 @@
 //! Semantics follow `:help :set+=`, `:help :set-=` and `:help :set^=`, and
 //! the edge cases were checked against headless Vim 9.1.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::primitives::{FormatFlags, OptionKind, OptionValue};
 
@@ -133,7 +133,7 @@ pub(crate) fn apply_set_operator(
             let OptionValue::Str(current) = base else {
                 return Err("E474: Invalid argument");
             };
-            Ok(OptionValue::Str(CompactString::from(apply_to_string(
+            Ok(OptionValue::Str(VimString::from(apply_to_string(
                 kind, flag_items, current, op, value,
             ))))
         }
@@ -242,7 +242,7 @@ mod tests {
     use crate::primitives::OptionId;
 
     fn s(v: &str) -> OptionValue {
-        OptionValue::Str(CompactString::from(v))
+        OptionValue::Str(VimString::from(v))
     }
 
     fn apply_id(

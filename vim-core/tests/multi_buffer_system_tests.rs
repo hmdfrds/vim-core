@@ -9,7 +9,7 @@ use vim_core::effects::Effect;
 use vim_core::execution::{HostSession, InvocationContext, VimApi};
 use vim_core::primitives::{BufferId, CallerId, CapabilityTier, Offset, Position, TextEdit};
 
-use compact_str::CompactString;
+use vim_core::VimString;
 
 // ---------------------------------------------------------------------------
 // Mock BufferScope implementation
@@ -92,7 +92,7 @@ impl BufferScope for MockScope {
             .find(|(bid, _, _)| *bid == id)
             .map(|(bid, doc, modified)| BufferMeta {
                 id: *bid,
-                path: Some(CompactString::from(format!("buffer_{}.txt", bid.get()))),
+                path: Some(VimString::from(format!("buffer_{}.txt", bid.get()))),
                 line_count: doc.line_count(),
                 byte_len: doc.text().len(),
                 modified: *modified,
@@ -110,7 +110,7 @@ impl BufferScope for MockScope {
                     doc,
                     BufferMeta {
                         id: *bid,
-                        path: Some(CompactString::from(format!("buffer_{}.txt", bid.get()))),
+                        path: Some(VimString::from(format!("buffer_{}.txt", bid.get()))),
                         line_count: doc.line_count(),
                         byte_len: doc.text().len(),
                         modified: *modified,
@@ -236,12 +236,12 @@ fn cross_buffer_edit_produces_correct_effect() {
         TextEdit {
             start: 0,
             end: 5,
-            text: CompactString::from("goodbye"),
+            text: VimString::from("goodbye"),
         },
         TextEdit {
             start: 10,
             end: 10,
-            text: CompactString::from(" inserted"),
+            text: VimString::from(" inserted"),
         },
     ];
 
@@ -369,7 +369,7 @@ fn system_test_cross_buffer_edit_rename() {
             .map(|&(start, end)| TextEdit {
                 start,
                 end,
-                text: CompactString::from("newName"),
+                text: VimString::from("newName"),
             })
             .collect();
         api.emit().cross_buffer_edit(*buf_id, &edits).unwrap();

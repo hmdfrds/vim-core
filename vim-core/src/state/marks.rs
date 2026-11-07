@@ -22,8 +22,8 @@
 
 use crate::primitives::byte_delta;
 use crate::primitives::{BufferId, Mark, MarkName, Offset};
+use crate::VimString;
 use ahash::AHashMap;
-use compact_str::CompactString;
 
 /// Opaque serialized mark data for host persistence.
 ///
@@ -95,13 +95,13 @@ pub struct GlobalMarkEntry {
     /// When set, hosts can use this to open the correct file when jumping to a
     /// global mark whose buffer is not currently loaded.
     #[cfg_attr(feature = "serde", serde(default))]
-    pub path: Option<CompactString>,
+    pub path: Option<VimString>,
 }
 
 impl GlobalMarkEntry {
     /// Attach a file path to this entry so hosts can open unloaded buffers.
     #[must_use]
-    pub fn with_path(mut self, path: impl Into<CompactString>) -> Self {
+    pub fn with_path(mut self, path: impl Into<VimString>) -> Self {
         self.path = Some(path.into());
         self
     }
@@ -2045,7 +2045,7 @@ mod tests {
             let entry = GlobalMarkEntry {
                 mark: Mark::from_raw(123),
                 buffer_id: bid,
-                path: Some(CompactString::from("src/lib.rs")),
+                path: Some(VimString::from("src/lib.rs")),
             };
 
             let json = serde_json::to_vec(&entry).unwrap();

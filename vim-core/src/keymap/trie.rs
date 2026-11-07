@@ -7,8 +7,8 @@
 
 use super::{KeyEvent, MappingFlags, MappingKind, MappingOwner};
 use crate::primitives::TrustTag;
+use crate::VimString;
 use ahash::AHashMap;
-use compact_str::CompactString;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Types
@@ -32,11 +32,11 @@ pub struct MappingEntry {
     /// When `flags.expr` is `true`, this holds the raw RHS string that the
     /// host must evaluate. The host returns the resulting key sequence,
     /// which is then fed into the typeahead buffer.
-    pub(crate) expression: Option<CompactString>,
+    pub(crate) expression: Option<VimString>,
     /// Who owns this mapping (for lifecycle management and conflict reporting).
     pub(crate) owner: MappingOwner,
     /// Optional human-readable description for which-key display.
-    pub(crate) description: Option<CompactString>,
+    pub(crate) description: Option<VimString>,
     /// The tag of the config that defined it.
     pub(crate) trust: TrustTag,
 }
@@ -62,7 +62,7 @@ impl MappingEntry {
         sequence: Vec<KeyEvent>,
         kind: MappingKind,
         flags: MappingFlags,
-        expression: Option<CompactString>,
+        expression: Option<VimString>,
     ) -> Self {
         Self {
             sequence,
@@ -120,7 +120,7 @@ impl MappingEntry {
     /// The `expression` text is evaluated by the host at expansion time.
     /// The `sequence` field is empty for expr mappings.
     #[must_use]
-    pub const fn new_expr(expression: CompactString, kind: MappingKind) -> Self {
+    pub const fn new_expr(expression: VimString, kind: MappingKind) -> Self {
         Self {
             sequence: Vec::new(),
             kind,
@@ -140,7 +140,7 @@ impl MappingEntry {
 
     /// Create a new `<expr>` mapping entry with `<nowait>`.
     #[must_use]
-    pub const fn new_expr_nowait(expression: CompactString, kind: MappingKind) -> Self {
+    pub const fn new_expr_nowait(expression: VimString, kind: MappingKind) -> Self {
         Self {
             sequence: Vec::new(),
             kind,
@@ -183,7 +183,7 @@ impl MappingEntry {
 
     /// Set an optional human-readable description for which-key display.
     #[must_use]
-    pub fn with_description(mut self, description: Option<CompactString>) -> Self {
+    pub fn with_description(mut self, description: Option<VimString>) -> Self {
         self.description = description;
         self
     }
@@ -969,15 +969,15 @@ mod tests {
     // ── <expr> tests ──────────────────────────────────────────────────────
 
     fn entry_expr(expression: &str) -> MappingEntry {
-        MappingEntry::new_expr(CompactString::from(expression), MappingKind::NonRecursive)
+        MappingEntry::new_expr(VimString::from(expression), MappingKind::NonRecursive)
     }
 
     fn entry_expr_nowait(expression: &str) -> MappingEntry {
-        MappingEntry::new_expr_nowait(CompactString::from(expression), MappingKind::NonRecursive)
+        MappingEntry::new_expr_nowait(VimString::from(expression), MappingKind::NonRecursive)
     }
 
     fn entry_expr_recursive(expression: &str) -> MappingEntry {
-        MappingEntry::new_expr(CompactString::from(expression), MappingKind::Recursive)
+        MappingEntry::new_expr(VimString::from(expression), MappingKind::Recursive)
     }
 
     /// `new_expr()` sets `expr` flag and stores the expression text.
@@ -1116,10 +1116,10 @@ mod tests {
     #[test]
     fn with_owner_host() {
         let e = entry(&[KeyEvent::char('x')])
-            .with_owner(MappingOwner::Host(compact_str::CompactString::from("test")));
+            .with_owner(MappingOwner::Host(crate::VimString::from("test")));
         assert_eq!(
             e.owner(),
-            &MappingOwner::Host(compact_str::CompactString::from("test"))
+            &MappingOwner::Host(crate::VimString::from("test"))
         );
     }
 
@@ -1207,7 +1207,7 @@ mod tests {
     #[test]
     fn with_description() {
         let e = entry(&[KeyEvent::char('x')])
-            .with_description(Some(CompactString::from("Go to definition")));
+            .with_description(Some(VimString::from("Go to definition")));
         assert_eq!(e.description(), Some("Go to definition"));
     }
 

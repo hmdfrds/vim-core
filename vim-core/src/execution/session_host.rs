@@ -8,7 +8,7 @@
 
 use std::borrow::Cow;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::dispatch::ViewportInfo;
 use crate::document::Document;
@@ -107,7 +107,7 @@ pub(crate) fn changeset_to_edit_ops(ops: &[TextOp]) -> Vec<EditOp> {
                 result.push(EditOp {
                     offset,
                     delete: *n,
-                    insert: CompactString::default(),
+                    insert: VimString::default(),
                 });
             }
         }
@@ -272,7 +272,7 @@ impl VimHost for SessionHost {
                     self.pending_edits.push(EditOp {
                         offset: start,
                         delete: end - start,
-                        insert: CompactString::default(),
+                        insert: VimString::default(),
                     });
                     let start_line = self.document.line_of_offset(start);
                     let deleted_text = self.document.slice(start, end);
@@ -1037,7 +1037,7 @@ impl VimSession<SessionHost> {
             for req in requests {
                 let result = HostResult::Failure {
                     id: req.id(),
-                    error: CompactString::from("max host request depth exceeded"),
+                    error: VimString::from("max host request depth exceeded"),
                 };
                 let _ = self.engine_mut().complete_host_request(&result);
             }
@@ -1062,7 +1062,7 @@ impl VimSession<SessionHost> {
         request: &HostRequest,
         callbacks: &mut dyn super::host_callbacks::HostCallbacks,
     ) -> HostResult {
-        use compact_str::CompactString as CS;
+        use crate::VimString as CS;
         let id = request.id();
 
         match request {
@@ -2200,9 +2200,9 @@ impl VimSession<SessionHost> {
                     SelectionShape::Char => format!("{cols}"),
                 };
                 if raw.is_empty() {
-                    CompactString::from(prefix)
+                    VimString::from(prefix)
                 } else {
-                    CompactString::from(format!("{prefix} {raw}"))
+                    VimString::from(format!("{prefix} {raw}"))
                 }
             } else {
                 raw
@@ -2526,7 +2526,7 @@ fn try_evaluate_internal_split(
     };
     Some(HostResult::Data {
         id: request_id,
-        data: CompactString::from(result_str),
+        data: VimString::from(result_str),
         offset: None,
     })
 }

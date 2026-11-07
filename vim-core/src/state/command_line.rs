@@ -13,7 +13,7 @@
 //! - `input` / `saved_input` use **`String`** — actively mutated every keystroke
 //!   via `insert`, `remove`, `replace_range`. SSO has no benefit here because
 //!   each mutation would require a `to_string()` → mutate → reconstruct round-trip.
-//! - `history` uses **`CompactString`** — entries are written once (on commit)
+//! - `history` uses **`VimString`** — entries are written once (on commit)
 //!   and only read afterward. SSO benefits short commands like `:w`, `:q`.
 //!
 //! # Design: Why Editing Methods Live Here
@@ -25,7 +25,7 @@
 //! for no modularity gain. They remain here intentionally.
 
 use crate::primitives::{CommandLineEdit, Direction, Tags};
-use compact_str::CompactString;
+use crate::VimString;
 use std::collections::VecDeque;
 
 /// Maximum history entries to keep.
@@ -45,11 +45,11 @@ pub use crate::primitives::CommandLinePrompt;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CompletionCandidate {
     /// The completion text that would be inserted.
-    pub text: CompactString,
+    pub text: VimString,
     /// Optional short description (e.g. command purpose).
-    pub description: Option<CompactString>,
+    pub description: Option<VimString>,
     /// Optional detail text (e.g. full syntax).
-    pub detail: Option<CompactString>,
+    pub detail: Option<VimString>,
 }
 
 /// Active tab-completion state.
@@ -82,8 +82,8 @@ pub struct CommandLineState {
     input: String,
     /// Cursor position (byte offset in input).
     cursor: usize,
-    /// Ex command (`:`) history (newest last — uses `CompactString` for SSO).
-    ex_history: VecDeque<CompactString>,
+    /// Ex command (`:`) history (newest last — uses `VimString` for SSO).
+    ex_history: VecDeque<VimString>,
     /// The tags of each `ex_history` entry, at the same index.
     #[cfg_attr(feature = "serde", serde(default))]
     ex_history_tags: VecDeque<Tags>,
@@ -91,8 +91,8 @@ pub struct CommandLineState {
     /// the history entries put in it. Kept while it is open.
     #[cfg_attr(feature = "serde", serde(default))]
     tags: Tags,
-    /// Search (`/`, `?`) history (newest last — uses `CompactString` for SSO).
-    search_history: VecDeque<CompactString>,
+    /// Search (`/`, `?`) history (newest last — uses `VimString` for SSO).
+    search_history: VecDeque<VimString>,
     /// Current history navigation index (None = not navigating).
     history_index: Option<usize>,
     /// Saved input when navigating history (actively mutated — uses `String`).
@@ -517,7 +517,7 @@ impl CommandLineState {
     }
 
     /// Get the active history for the current prompt type.
-    const fn active_history(&self) -> &VecDeque<CompactString> {
+    const fn active_history(&self) -> &VecDeque<VimString> {
         match self.prompt {
             CommandLinePrompt::Ex | CommandLinePrompt::ExVisual => &self.ex_history,
             CommandLinePrompt::SearchForward | CommandLinePrompt::SearchBackward => {
@@ -601,7 +601,7 @@ impl CommandLineState {
     /// Check if a history entry matches the prefix filter.
     ///
     /// An empty prefix matches everything.
-    fn entry_matches_prefix(entry: Option<&CompactString>, prefix: &str) -> bool {
+    fn entry_matches_prefix(entry: Option<&VimString>, prefix: &str) -> bool {
         if prefix.is_empty() {
             return true;
         }
@@ -683,7 +683,7 @@ impl CommandLineState {
         let candidates: Vec<CompletionCandidate> = matches
             .iter()
             .map(|&s| CompletionCandidate {
-                text: CompactString::from(s),
+                text: VimString::from(s),
                 description: None,
                 detail: None,
             })
@@ -750,8 +750,8 @@ impl CommandLineState {
                 &mut self.search_history
             };
             // Avoid duplicates
-            if history.back().map(CompactString::as_str) != Some(self.input.as_str()) {
-                history.push_back(CompactString::from(self.input.as_str()));
+            if history.back().map(VimString::as_str) != Some(self.input.as_str()) {
+                history.push_back(VimString::from(self.input.as_str()));
                 let evicted = history.len() > MAX_HISTORY;
                 if evicted {
                     history.pop_front();
@@ -801,14 +801,14 @@ impl CommandLineState {
     /// Get the ex command (`:`) history (newest last).
     #[inline]
     #[must_use]
-    pub const fn ex_history(&self) -> &VecDeque<CompactString> {
+    pub const fn ex_history(&self) -> &VecDeque<VimString> {
         &self.ex_history
     }
 
     /// Get the search (`/`, `?`) history (newest last).
     #[inline]
     #[must_use]
-    pub const fn search_history(&self) -> &VecDeque<CompactString> {
+    pub const fn search_history(&self) -> &VecDeque<VimString> {
         &self.search_history
     }
 
@@ -817,7 +817,7 @@ impl CommandLineState {
     /// Returns ex history for `:` prompts, search history for `/`/`?` prompts.
     #[inline]
     #[must_use]
-    pub const fn history_for_prompt(&self, prompt: CommandLinePrompt) -> &VecDeque<CompactString> {
+    pub const fn history_for_prompt(&self, prompt: CommandLinePrompt) -> &VecDeque<VimString> {
         match prompt {
             CommandLinePrompt::Ex | CommandLinePrompt::ExVisual => &self.ex_history,
             CommandLinePrompt::SearchForward | CommandLinePrompt::SearchBackward => {
@@ -1237,7 +1237,7 @@ mod tests {
         assert_eq!(cl.input(), "set scr");
 
         let candidates = vec![CompletionCandidate {
-            text: CompactString::from("scrolloff"),
+            text: VimString::from("scrolloff"),
             description: None,
             detail: None,
         }];
@@ -1255,7 +1255,7 @@ mod tests {
         }
 
         let candidates = vec![CompletionCandidate {
-            text: CompactString::from("scrolloff"),
+            text: VimString::from("scrolloff"),
             description: None,
             detail: None,
         }];
@@ -1277,12 +1277,12 @@ mod tests {
 
         let candidates = vec![
             CompletionCandidate {
-                text: CompactString::from("scrolloff"),
+                text: VimString::from("scrolloff"),
                 description: None,
                 detail: None,
             },
             CompletionCandidate {
-                text: CompactString::from("shiftwidth"),
+                text: VimString::from("shiftwidth"),
                 description: None,
                 detail: None,
             },
@@ -1309,12 +1309,12 @@ mod tests {
 
         let candidates = vec![
             CompletionCandidate {
-                text: CompactString::from("scrolloff"),
+                text: VimString::from("scrolloff"),
                 description: None,
                 detail: None,
             },
             CompletionCandidate {
-                text: CompactString::from("smartcase"),
+                text: VimString::from("smartcase"),
                 description: None,
                 detail: None,
             },
@@ -1359,7 +1359,7 @@ mod tests {
         }
 
         let candidates = vec![CompletionCandidate {
-            text: CompactString::from("exclusive"),
+            text: VimString::from("exclusive"),
             description: None,
             detail: None,
         }];
@@ -1387,9 +1387,9 @@ mod tests {
         }
 
         let candidates = vec![CompletionCandidate {
-            text: CompactString::from("scrolloff"),
-            description: Some(CompactString::from("[= 5]")),
-            detail: Some(CompactString::from("Min lines above/below cursor")),
+            text: VimString::from("scrolloff"),
+            description: Some(VimString::from("[= 5]")),
+            detail: Some(VimString::from("Min lines above/below cursor")),
         }];
         cl.complete_cycle(Direction::Forward, &candidates, 4..7);
 

@@ -12,7 +12,7 @@ use crate::primitives::{CaseSensitivity, Offset, Range, SubFlags, SubstitutePrev
 use crate::primitives::{ConfirmMatchPayload, SubstituteConfirmPayload};
 use crate::regex::replacement::apply_replacement;
 use crate::regex::{Cache, MatchContext, VimRegex};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Apply a signed offset to a `usize` base, clamping to `[0, max]`.
 #[inline]
@@ -51,7 +51,7 @@ pub fn substitute(
     let used_r_flag = flags.use_last_search();
     let pattern = if used_r_flag {
         ctx.last_search_pattern
-            .ok_or_else(|| crate::errors::VimError::PatternNotFound(CompactString::new("")))?
+            .ok_or_else(|| crate::errors::VimError::PatternNotFound(VimString::new("")))?
     } else {
         pattern
     };
@@ -606,7 +606,7 @@ fn substitute_confirm_start(
                 ),
                 line_idx,
                 line_start,
-                line_text: CompactString::from(line_text),
+                line_text: VimString::from(line_text),
             });
         }
     }
@@ -622,8 +622,8 @@ fn substitute_confirm_start(
     let first_range = all_matches[0].range;
     let payload = SubstituteConfirmPayload {
         matches: all_matches,
-        replacement: CompactString::from(replacement),
-        pattern: CompactString::from(effective_pattern),
+        replacement: VimString::from(replacement),
+        pattern: VimString::from(effective_pattern),
         flags,
         gdefault: ctx.gdefault,
     };
@@ -830,14 +830,14 @@ pub fn compute_preview_matches(
                 SubstitutePreviewMatch::with_original_line(
                     Offset::new(line_start_offset + m.range.start),
                     Offset::new(line_start_offset + m.range.end),
-                    CompactString::from(rep_text),
-                    CompactString::from(line_text),
+                    VimString::from(rep_text),
+                    VimString::from(line_text),
                 )
             } else {
                 SubstitutePreviewMatch::new(
                     Offset::new(line_start_offset + m.range.start),
                     Offset::new(line_start_offset + m.range.end),
-                    CompactString::from(rep_text),
+                    VimString::from(rep_text),
                 )
             };
             results.push(preview_match);

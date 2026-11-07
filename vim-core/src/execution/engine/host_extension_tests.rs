@@ -15,8 +15,8 @@ fn host_mapping(
 ) -> HostMapping {
     HostMapping {
         modes: modes.iter().copied().collect(),
-        lhs: compact_str::CompactString::from(lhs),
-        rhs: compact_str::CompactString::from(rhs),
+        lhs: crate::VimString::from(lhs),
+        rhs: crate::VimString::from(rhs),
         recursive,
         silent,
         description: None,
@@ -79,7 +79,7 @@ fn registered_entry_has_host_owner() {
     };
     assert_eq!(
         entry.owner(),
-        &MappingOwner::Host(compact_str::CompactString::from("test-lsp")),
+        &MappingOwner::Host(crate::VimString::from("test-lsp")),
         "owner must be Host(\"test-lsp\")"
     );
 }

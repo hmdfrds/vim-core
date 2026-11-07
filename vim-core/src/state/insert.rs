@@ -13,7 +13,7 @@
 use std::num::NonZeroU32;
 
 use crate::primitives::{Offset, ReplacedChar};
-use compact_str::CompactString;
+use crate::VimString;
 use smart_default::SmartDefault;
 
 use crate::primitives::InsertEntryType;
@@ -126,7 +126,7 @@ pub struct CursorInsertStart {
 pub struct InsertState {
     /// Text accumulated during this insert session.
     /// Used for `.` repeat and `^A` (insert previous).
-    accumulated_text: CompactString,
+    accumulated_text: VimString,
     /// How insert mode was entered.
     entry_type: InsertEntryType,
     /// Count for repeating text on exit (e.g., 3i inserts "X" then "XX" more on Esc).
@@ -184,7 +184,7 @@ pub struct InsertState {
     /// before being removed. The next newline restores this indent on the new
     /// line and clears it. Cleared on mode exit (InsertState destruction).
     /// Matches Neovim's `can_si_back` + `old_indent` behavior.
-    saved_indent: Option<CompactString>,
+    saved_indent: Option<VimString>,
     /// Insert start for formatting, recorded by the first insert command
     /// and again after the cursor moved (Vim's `stop_arrow()`).
     insert_start: Option<InsertStart>,
@@ -211,7 +211,7 @@ impl InsertState {
     #[must_use]
     pub fn with_count(entry_type: InsertEntryType, count: NonZeroU32) -> Self {
         Self {
-            accumulated_text: CompactString::default(),
+            accumulated_text: VimString::default(),
             entry_type,
             count,
             auto_indent_len: 0,
@@ -363,8 +363,7 @@ impl InsertState {
         if start >= len {
             self.accumulated_text.clear();
         } else {
-            self.accumulated_text =
-                compact_str::CompactString::from(&self.accumulated_text[start..]);
+            self.accumulated_text = crate::VimString::from(&self.accumulated_text[start..]);
         }
     }
 
@@ -614,7 +613,7 @@ impl InsertState {
     /// Get the saved indent (from `^^D` / OutdentTemporary).
     #[inline]
     #[must_use]
-    pub const fn saved_indent(&self) -> Option<&CompactString> {
+    pub const fn saved_indent(&self) -> Option<&VimString> {
         self.saved_indent.as_ref()
     }
 
@@ -622,7 +621,7 @@ impl InsertState {
     ///
     /// Called by `OutdentTemporary` (`^^D`) before removing all indentation.
     #[inline]
-    pub fn set_saved_indent(&mut self, indent: CompactString) {
+    pub fn set_saved_indent(&mut self, indent: VimString) {
         self.saved_indent = Some(indent);
     }
 
@@ -630,7 +629,7 @@ impl InsertState {
     ///
     /// Called by the newline handler to restore indent and clear the saved state.
     #[inline]
-    pub const fn take_saved_indent(&mut self) -> Option<CompactString> {
+    pub const fn take_saved_indent(&mut self) -> Option<VimString> {
         self.saved_indent.take()
     }
 
@@ -810,14 +809,14 @@ mod tests {
     #[test]
     fn test_saved_indent_set_and_get() {
         let mut state = InsertState::new(InsertEntryType::BeforeCursor);
-        state.set_saved_indent(CompactString::from("    "));
+        state.set_saved_indent(VimString::from("    "));
         assert_eq!(state.saved_indent().map(|s| s.as_str()), Some("    "));
     }
 
     #[test]
     fn test_saved_indent_take() {
         let mut state = InsertState::new(InsertEntryType::BeforeCursor);
-        state.set_saved_indent(CompactString::from("\t\t"));
+        state.set_saved_indent(VimString::from("\t\t"));
         let taken = state.take_saved_indent();
         assert_eq!(taken.as_deref(), Some("\t\t"));
         assert!(state.saved_indent().is_none());
@@ -826,7 +825,7 @@ mod tests {
     #[test]
     fn test_saved_indent_clear() {
         let mut state = InsertState::new(InsertEntryType::BeforeCursor);
-        state.set_saved_indent(CompactString::from("  "));
+        state.set_saved_indent(VimString::from("  "));
         state.clear_saved_indent();
         assert!(state.saved_indent().is_none());
     }
@@ -834,7 +833,7 @@ mod tests {
     #[test]
     fn test_saved_indent_cleared_by_clear() {
         let mut state = InsertState::new(InsertEntryType::AfterCursor);
-        state.set_saved_indent(CompactString::from("        "));
+        state.set_saved_indent(VimString::from("        "));
         state.clear();
         assert!(state.saved_indent().is_none());
     }
@@ -848,8 +847,8 @@ mod tests {
     #[test]
     fn test_saved_indent_overwrite() {
         let mut state = InsertState::new(InsertEntryType::BeforeCursor);
-        state.set_saved_indent(CompactString::from("    "));
-        state.set_saved_indent(CompactString::from("\t"));
+        state.set_saved_indent(VimString::from("    "));
+        state.set_saved_indent(VimString::from("\t"));
         assert_eq!(state.saved_indent().map(|s| s.as_str()), Some("\t"));
     }
 

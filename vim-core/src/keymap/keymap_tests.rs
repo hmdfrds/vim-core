@@ -1,6 +1,6 @@
 use super::*;
 use crate::primitives::VisualType;
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Shorthand to create a non-recursive MappingEntry from key events.
 fn noremap_entry(to: Vec<KeyEvent>) -> MappingEntry {
@@ -1141,7 +1141,7 @@ fn list_continuations_filetype_layer() {
         MappingKind::NonRecursive,
         MappingFlags::default(),
     );
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
 
     let continuations = keymap.list_continuations(MappingMode::Normal, &[g_key]);
     assert_eq!(continuations.len(), 1);
@@ -1246,11 +1246,11 @@ fn filetype_mapping_active_when_set() {
     assert!(!keymap.has_user_mapping(KeyEvent::char('q'), Mode::Normal));
 
     // Active when filetype matches
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
     assert!(keymap.has_user_mapping(KeyEvent::char('q'), Mode::Normal));
 
     // Not active for different filetype
-    keymap.set_filetype(Some(CompactString::from("python")));
+    keymap.set_filetype(Some(VimString::from("python")));
     assert!(!keymap.has_user_mapping(KeyEvent::char('q'), Mode::Normal));
 }
 
@@ -1276,7 +1276,7 @@ fn filetype_mapping_priority_over_global() {
     assert_eq!(entry.sequence().first(), Some(&KeyEvent::char('y')));
 
     // With filetype, filetype wins
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
     let entry = keymap
         .get_user_mapping(KeyEvent::char('q'), Mode::Normal)
         .unwrap();
@@ -1303,7 +1303,7 @@ fn buffer_local_wins_over_filetype() {
         MappingKind::NonRecursive,
         MappingFlags::default(),
     );
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
 
     // Buffer-local should win over filetype
     let entry = keymap
@@ -1330,7 +1330,7 @@ fn unmap_filetype() {
         MappingKind::NonRecursive,
         MappingFlags::default(),
     );
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
     assert!(keymap.has_user_mapping(KeyEvent::char('q'), Mode::Normal));
 
     keymap.unmap_filetype("rust", MappingMode::Normal, &[KeyEvent::char('q')]);
@@ -1356,7 +1356,7 @@ fn clear_filetype_per_mode() {
         MappingKind::NonRecursive,
         MappingFlags::default(),
     );
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
 
     // Clear Normal only
     keymap.clear_filetype("rust", MappingMode::Normal);
@@ -1386,9 +1386,9 @@ fn clear_all_filetype_mappings() {
 
     keymap.clear_all_filetype_mappings();
 
-    keymap.set_filetype(Some(CompactString::from("rust")));
+    keymap.set_filetype(Some(VimString::from("rust")));
     assert!(!keymap.has_user_mapping(KeyEvent::char('q'), Mode::Normal));
-    keymap.set_filetype(Some(CompactString::from("python")));
+    keymap.set_filetype(Some(VimString::from("python")));
     assert!(!keymap.has_user_mapping(KeyEvent::char('w'), Mode::Normal));
 }
 
@@ -1419,7 +1419,7 @@ fn filetype_classify_uses_filetype_mapping() {
     );
 
     // With filetype, Q → i → ModeSwitch
-    km.set_filetype(Some(CompactString::from("rust")));
+    km.set_filetype(Some(VimString::from("rust")));
     assert_eq!(
         km.classify(KeyEvent::char('Q'), Mode::Normal),
         KeyClass::ModeSwitch,
@@ -1447,7 +1447,7 @@ fn filetype_lookup_merged_with_global() {
         MappingKind::NonRecursive,
         MappingFlags::default(),
     );
-    km.set_filetype(Some(CompactString::from("rust")));
+    km.set_filetype(Some(VimString::from("rust")));
 
     // lookup(&[j]) should be Prefix (filetype has jj, global has jk)
     let result = km.lookup(MappingMode::Normal, &[KeyEvent::char('j')]);
@@ -1466,7 +1466,7 @@ fn filetype_set_and_get() {
     let mut km = Keymap::default();
     assert_eq!(km.active_filetype(), None);
 
-    km.set_filetype(Some(CompactString::from("rust")));
+    km.set_filetype(Some(VimString::from("rust")));
     assert_eq!(km.active_filetype(), Some("rust"));
 
     km.set_filetype(None);
@@ -1989,7 +1989,7 @@ fn script_local_with_owner_tracking() {
         flags,
         None,
     )
-    .with_owner(MappingOwner::Host(CompactString::from("plugin_a")));
+    .with_owner(MappingOwner::Host(VimString::from("plugin_a")));
 
     km.map_entry(MappingMode::Normal, &[KeyEvent::char('q')], entry);
 
@@ -1999,6 +1999,6 @@ fn script_local_with_owner_tracking() {
     assert!(found.script_local());
     assert_eq!(
         found.owner(),
-        &MappingOwner::Host(CompactString::from("plugin_a"))
+        &MappingOwner::Host(VimString::from("plugin_a"))
     );
 }

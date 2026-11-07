@@ -1,6 +1,6 @@
 //! Abbreviation ex commands: `:abbreviate`, `:unabbreviate`, `:abclear`.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::effects::{Effects, InfoMessage};
 use crate::errors::VimError;
@@ -68,7 +68,7 @@ pub(crate) fn abbreviate_tagged(
             let entries = table.list(mode);
             if entries.is_empty() {
                 return Ok(Effects::new()
-                    .show_info(InfoMessage::Text(CompactString::from("No abbreviations"))));
+                    .show_info(InfoMessage::Text(VimString::from("No abbreviations"))));
             }
             let mut output = String::new();
             for entry in entries {
@@ -83,13 +83,13 @@ pub(crate) fn abbreviate_tagged(
                     mode_str, noremap_str, entry.trigger, entry.replacement
                 ));
             }
-            Ok(Effects::new().show_info(InfoMessage::Text(CompactString::from(output))))
+            Ok(Effects::new().show_info(InfoMessage::Text(VimString::from(output))))
         }
         (Some(trigger), Some(replacement)) => {
             let kind = AbbrevKind::classify(trigger, is_keyword);
             table.add(AbbrevEntry {
-                trigger: CompactString::from(trigger),
-                replacement: CompactString::from(replacement),
+                trigger: VimString::from(trigger),
+                replacement: VimString::from(replacement),
                 mode,
                 kind,
                 noremap,
@@ -108,9 +108,9 @@ pub(crate) fn abbreviate_tagged(
                 }
             }
             if output.is_empty() {
-                return Err(VimError::InvalidArgument(CompactString::from(trigger)));
+                return Err(VimError::InvalidArgument(VimString::from(trigger)));
             }
-            Ok(Effects::new().show_info(InfoMessage::Text(CompactString::from(output))))
+            Ok(Effects::new().show_info(InfoMessage::Text(VimString::from(output))))
         }
         (None, Some(_)) => Err(VimError::ArgumentRequired),
     }

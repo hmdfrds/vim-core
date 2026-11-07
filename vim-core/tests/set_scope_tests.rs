@@ -312,7 +312,7 @@ fn window_override_swap() {
 // Set to "indent,eol" → effective uses local value.
 #[test]
 fn global_or_local_sentinel_behavior() {
-    use compact_str::CompactString;
+    use vim_core::VimString;
 
     let _doc = TestDocument::new("hello", (0, 0));
     let mut engine = VimEngine::new();
@@ -321,14 +321,14 @@ fn global_or_local_sentinel_behavior() {
     let mut overrides = vim_core::primitives::OptionOverrides::new();
     overrides.set(
         OptionId::Backspace,
-        OptionValue::Str(CompactString::const_new("")),
+        OptionValue::Str(VimString::from_static("")),
     );
     engine.set_buffer_overrides(overrides);
 
     // Sentinel should fall through to global ("indent,eol,start").
     assert_eq!(
         engine.effective_option(OptionId::Backspace),
-        OptionValue::Str(CompactString::new("indent,eol,start")),
+        OptionValue::Str(VimString::new("indent,eol,start")),
         "sentinel backspace override should fall through to global value",
     );
 
@@ -336,13 +336,13 @@ fn global_or_local_sentinel_behavior() {
     let mut overrides2 = vim_core::primitives::OptionOverrides::new();
     overrides2.set(
         OptionId::Backspace,
-        OptionValue::Str(CompactString::const_new("indent,eol")),
+        OptionValue::Str(VimString::from_static("indent,eol")),
     );
     engine.set_buffer_overrides(overrides2);
 
     assert_eq!(
         engine.effective_option(OptionId::Backspace),
-        OptionValue::Str(CompactString::const_new("indent,eol")),
+        OptionValue::Str(VimString::from_static("indent,eol")),
         "non-sentinel backspace override should use the local value",
     );
 }

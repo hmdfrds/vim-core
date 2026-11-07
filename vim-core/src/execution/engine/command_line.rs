@@ -11,7 +11,7 @@ use crate::grammar::ex_parser::{parse_ex_command, split_ex_pipeline};
 use crate::grammar::types::{ExCommand, LineSpec};
 use crate::primitives::byte_delta;
 use crate::primitives::{Direction, Range, RegisterName};
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::execution::{InputContext, Validated};
 use crate::grammar::CommandLineIntent;
@@ -196,7 +196,7 @@ impl VimEngine {
                 let candidates: Vec<crate::state::CompletionCandidate> = raw_matches
                     .iter()
                     .map(|&s| crate::state::CompletionCandidate {
-                        text: compact_str::CompactString::from(s),
+                        text: crate::VimString::from(s),
                         description: None,
                         detail: None,
                     })
@@ -251,7 +251,7 @@ impl VimEngine {
                 let request = HostRequest::RequestCmdlineCompletion {
                     meta,
                     kind: CmdlineCompletionKind::FilePath,
-                    prefix: CompactString::from(arg_prefix.as_str()),
+                    prefix: VimString::from(arg_prefix.as_str()),
                     replace_range_start: replace_range.start,
                     replace_range_end: replace_range.end,
                 };
@@ -275,7 +275,7 @@ impl VimEngine {
                 let request = HostRequest::RequestCmdlineCompletion {
                     meta,
                     kind: CmdlineCompletionKind::Buffer,
-                    prefix: CompactString::from(arg_prefix.as_str()),
+                    prefix: VimString::from(arg_prefix.as_str()),
                     replace_range_start: replace_range.start,
                     replace_range_end: replace_range.end,
                 };
@@ -298,7 +298,7 @@ impl VimEngine {
                 let request = HostRequest::RequestCmdlineCompletion {
                     meta,
                     kind: CmdlineCompletionKind::Action,
-                    prefix: CompactString::from(arg_prefix.as_str()),
+                    prefix: VimString::from(arg_prefix.as_str()),
                     replace_range_start: replace_range.start,
                     replace_range_end: replace_range.end,
                 };
@@ -368,7 +368,7 @@ impl VimEngine {
         if !matches.is_empty() {
             let listing = matches.join("\n");
             response.effects.push(crate::effects::Effect::ShowInfo {
-                info: crate::effects::InfoMessage::Text(compact_str::CompactString::from(listing)),
+                info: crate::effects::InfoMessage::Text(crate::VimString::from(listing)),
             });
         }
         response
@@ -601,7 +601,7 @@ impl VimEngine {
         HostRequest::SyncCommandLine {
             meta,
             prompt: self.state.command_line().prompt(),
-            input: CompactString::from(self.state.command_line().input()),
+            input: VimString::from(self.state.command_line().input()),
             cursor: self.state.command_line().cursor(),
         }
     }
@@ -673,8 +673,8 @@ fn parse_substitute_input(
     input: &str,
 ) -> Option<(
     crate::grammar::types::ExRange,
-    CompactString,
-    CompactString,
+    VimString,
+    VimString,
     crate::primitives::SubFlags,
 )> {
     let first = split_ex_pipeline(input).into_iter().next()?;

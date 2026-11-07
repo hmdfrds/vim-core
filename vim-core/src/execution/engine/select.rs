@@ -61,7 +61,7 @@ impl VimEngine {
         // Inject the typed char at EVERY cursor's SetCursor position, not just
         // the last one. Collect all SetCursor offsets (descending order), then
         // inject Insert+SetCursor pairs for each.
-        let char_text = compact_str::CompactString::from(&*ch.encode_utf8(&mut [0u8; 4]));
+        let char_text = crate::VimString::from(&*ch.encode_utf8(&mut [0u8; 4]));
         let char_len = ch.len_utf8();
 
         let cursor_offsets: Vec<crate::primitives::Offset> = response

@@ -8,13 +8,13 @@
 use crate::effects::Effects;
 use crate::primitives::Mode;
 use crate::primitives::{MarkName, Offset, Range, ReplacedChar};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Build effects for inserting text at a position and moving cursor.
 ///
 /// Used for: normal char insert, Ctrl-A (last inserted), Ctrl-R (register),
 /// tab expansion, block insert replication.
-pub fn insert_text_and_advance(offset: usize, text: CompactString, cursor_after: usize) -> Effects {
+pub fn insert_text_and_advance(offset: usize, text: VimString, cursor_after: usize) -> Effects {
     Effects::new()
         .insert(Offset::new(offset), text)
         .set_cursor(Offset::new(cursor_after))
@@ -50,7 +50,7 @@ pub fn newline_with_indent(
         ));
     }
     effects
-        .insert(Offset::new(adj_cursor), CompactString::from(insert_text))
+        .insert(Offset::new(adj_cursor), VimString::from(insert_text))
         .set_cursor(Offset::new(cursor_after))
 }
 
@@ -66,7 +66,7 @@ pub fn newline_with_indent(
 /// Returns the new insert_offset after all repetitions.
 pub fn repeat_text(
     insert_offset: usize,
-    repeat_text: &CompactString,
+    repeat_text: &VimString,
     count: u32,
     is_replace: bool,
     text: &str,
@@ -120,7 +120,7 @@ pub fn strip_indent(insert_offset: usize, auto_indent_len: usize) -> (Effects, u
 }
 
 /// Build effects for block insert replication (visual block I/A).
-pub fn block_replicate(offsets: Vec<(usize, CompactString)>) -> Effects {
+pub fn block_replicate(offsets: Vec<(usize, VimString)>) -> Effects {
     let mut effects = Effects::new();
     for (byte_offset, text) in offsets {
         effects = effects.insert(Offset::new(byte_offset), text);
@@ -370,7 +370,7 @@ pub fn replace_char_at(cursor: usize, ch: char, delete_len: Option<usize>) -> Ef
     }
     effects
         .insert(Offset::new(cursor), {
-            let mut s = CompactString::new("");
+            let mut s = VimString::new("");
             s.push(ch);
             s
         })
@@ -404,7 +404,7 @@ pub fn replace_backspace(prev_pos: usize, cursor: usize, original_char: Replaced
     effects = effects.delete(Range::new(Offset::new(prev_pos), Offset::new(cursor)));
     if let ReplacedChar::Replaced(ch) = original_char {
         effects = effects.insert(Offset::new(prev_pos), {
-            let mut s = CompactString::new("");
+            let mut s = VimString::new("");
             s.push(ch);
             s
         });
@@ -441,7 +441,7 @@ pub fn one_shot_normal() -> Effects {
 ///
 /// Inserts the repeated text at the given position and places the cursor
 /// one grapheme before the end (matching Vim's behavior).
-pub fn repeat_insert(insert_pos: usize, text: CompactString, last_grapheme_len: usize) -> Effects {
+pub fn repeat_insert(insert_pos: usize, text: VimString, last_grapheme_len: usize) -> Effects {
     let text_len = text.len();
     Effects::new()
         .insert(Offset::new(insert_pos), text)
@@ -457,7 +457,7 @@ pub fn repeat_insert(insert_pos: usize, text: CompactString, last_grapheme_len: 
 /// characters past EOL are appended, not replacing the newline).
 pub fn repeat_replace(
     insert_pos: usize,
-    text: CompactString,
+    text: VimString,
     last_grapheme_len: usize,
     doc_text: &str,
 ) -> Effects {

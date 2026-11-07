@@ -10,7 +10,7 @@
 //! - `Insert(t)` → `Delete(t.len())` (undo insertion by deleting)
 //! - `Delete(n)` → `Insert(original[pos..pos+n])` (undo deletion by re-inserting)
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::builder::ChangeSetBuilder;
 use super::change_set::ChangeSet;
@@ -61,7 +61,7 @@ impl ChangeSet {
                         "invert: Delete({n}) at pos {pos} exceeds original length {}",
                         original.len()
                     );
-                    b.insert(CompactString::from(&original[pos..end]));
+                    b.insert(VimString::from(&original[pos..end]));
                     pos = end;
                 }
             }

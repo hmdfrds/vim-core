@@ -53,12 +53,12 @@ pub fn compute_newline_insert_with_ai(
         let indent_len = line_content.len() - line_content.trim_start_matches([' ', '\t']).len();
         let raw_indent = &text[line_start..line_start + indent_len];
         IndentResult::Simple {
-            indent: compact_str::CompactString::from(expand_tabs_to_spaces(raw_indent, tabstop)),
+            indent: crate::VimString::from(expand_tabs_to_spaces(raw_indent, tabstop)),
             append: None,
         }
     } else {
         IndentResult::Simple {
-            indent: compact_str::CompactString::default(),
+            indent: crate::VimString::default(),
             append: None,
         }
     };
@@ -66,7 +66,7 @@ pub fn compute_newline_insert_with_ai(
     let (insert_text, insert_len) = match &indent_result {
         IndentResult::Simple { indent, append } => {
             let append_str = append.as_deref().unwrap_or("");
-            let text = compact_str::format_compact!("\n{indent}{append_str}");
+            let text = crate::format_vim!("\n{indent}{append_str}");
             let len = text.len();
             (text, len)
         }
@@ -76,7 +76,7 @@ pub fn compute_newline_insert_with_ai(
             closing_indent,
         } => {
             let append_str = append.as_deref().unwrap_or("");
-            let text = compact_str::format_compact!("\n{indent}{append_str}\n{closing_indent}");
+            let text = crate::format_vim!("\n{indent}{append_str}\n{closing_indent}");
             // Cursor lands on the first new line (after \n + indent + append),
             // not at the end of the full text.
             let cursor_len = 1 + indent.len() + append_str.len();
@@ -197,13 +197,13 @@ mod tests {
     // ── IndentProvider tests ─────────────────────────────────────────
 
     struct MockIndentProvider {
-        indent: compact_str::CompactString,
+        indent: crate::VimString,
     }
 
     impl MockIndentProvider {
         fn new(indent: &str) -> Self {
             Self {
-                indent: compact_str::CompactString::from(indent),
+                indent: crate::VimString::from(indent),
             }
         }
     }

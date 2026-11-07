@@ -8,7 +8,7 @@
 //! }
 //! ```
 //!
-//! Methods with custom logic (conditional pushes, `impl Into<CompactString>`,
+//! Methods with custom logic (conditional pushes, `impl Into<VimString>`,
 //! hardcoded field values, etc.) remain handwritten in `effects.rs`.
 
 /// Generate builder methods on [`super::Effects<S>`] from a declarative table.
@@ -233,7 +233,7 @@ define_effect_builders! {
     fn set_fold_enable(enabled: bool) => Effect::SetFoldEnable { enabled };
 
     /// Open a command-line history window (`q:`, `q/`, `q?`).
-    fn open_command_window(prompt: crate::primitives::CommandLinePrompt, history: Vec<compact_str::CompactString>, prefill: Option<compact_str::CompactString>) =>
+    fn open_command_window(prompt: crate::primitives::CommandLinePrompt, history: Vec<crate::VimString>, prefill: Option<crate::VimString>) =>
         Effect::OpenCommandWindow { prompt, history, prefill };
 
     // ═══════════════════════════════════════════════════════════════════

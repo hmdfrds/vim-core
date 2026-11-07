@@ -1,8 +1,8 @@
 //! Judging, when it runs, a command line that keys from a tagged mapping
 //! made, through the host's [`CommandLineJudge`].
 
+use crate::VimString;
 use ahash::AHashMap;
-use compact_str::CompactString;
 
 use super::VimEngine;
 use crate::execution::host::HostRequestId;
@@ -43,7 +43,7 @@ pub(super) struct RunTags {
     /// have not completed.
     pub each: Vec<(HostRequestId, Tags)>,
     /// The last command line and its tags.
-    pub last_line: Option<(CompactString, Tags)>,
+    pub last_line: Option<(VimString, Tags)>,
     /// A command window opened, until a line of it runs.
     pub window: Option<Tags>,
 }

@@ -1,6 +1,6 @@
 //! Configurable separators and boundary detection for subword motions.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Configuration for subword motion boundary detection.
 ///
@@ -11,7 +11,7 @@ use compact_str::CompactString;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SubwordConfig {
     /// Characters that act as subword separators (e.g., `_`, `.`, `-`).
-    pub separators: CompactString,
+    pub separators: VimString,
     /// Whether lowercase-to-uppercase transitions are boundaries (camelCase).
     pub detect_case_boundaries: bool,
     /// Whether uppercase-run-to-lowercase transitions are boundaries (XMLParser).
@@ -21,7 +21,7 @@ pub struct SubwordConfig {
 impl Default for SubwordConfig {
     fn default() -> Self {
         Self {
-            separators: CompactString::new("._-"),
+            separators: VimString::new("._-"),
             detect_case_boundaries: true,
             detect_acronyms: true,
         }
@@ -62,7 +62,7 @@ mod tests {
     #[test]
     fn custom_separators() {
         let cfg = SubwordConfig {
-            separators: CompactString::new("_/"),
+            separators: VimString::new("_/"),
             detect_case_boundaries: true,
             detect_acronyms: false,
         };
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn empty_separators() {
         let cfg = SubwordConfig {
-            separators: CompactString::new(""),
+            separators: VimString::new(""),
             detect_case_boundaries: true,
             detect_acronyms: true,
         };

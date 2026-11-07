@@ -6,7 +6,7 @@
 //!
 //! This is an innovation: no other embeddable vim engine provides this.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::{Mode, MotionType, Offset, RegisterName, SearchDirection, VarScope, VimValue};
 
@@ -28,7 +28,7 @@ pub enum UndoDirection {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OptionSetPayload {
     /// Name of the option that changed.
-    pub name: CompactString,
+    pub name: VimString,
     /// Previous value of the option.
     pub old: VimValue,
     /// New value of the option.
@@ -129,7 +129,7 @@ pub enum VimEvent {
         /// Scope of the variable (global or buffer-local).
         scope: VarScope,
         /// Name of the variable that changed.
-        name: CompactString,
+        name: VimString,
     },
     /// An undo or redo operation was performed.
     UndoRedo {

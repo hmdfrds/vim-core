@@ -74,7 +74,7 @@ pub enum SelectionTag {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SourceContext {
     /// The file path being sourced (e.g. `"init.vim"`).
-    pub file: CompactString,
+    pub file: VimString,
     /// The line number within the file where the error occurred.
     pub line: u32,
 }
@@ -96,7 +96,7 @@ use crate::primitives::{
     SelectionRange, SelectionShape, SubstitutePreviewMatch, UndoCursorStrategy, UndoNavStep,
     VirtualTextPosition,
 };
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Stable discriminator for [`Effect`] variants.
 ///
@@ -720,7 +720,7 @@ pub enum Effect {
         /// Byte offset where text should be inserted.
         offset: Offset,
         /// The text content to insert.
-        text: CompactString,
+        text: VimString,
     },
     /// Delete a range of text.
     ///
@@ -737,7 +737,7 @@ pub enum Effect {
         /// The byte range to replace.
         range: Range,
         /// The replacement text.
-        text: CompactString,
+        text: VimString,
     },
 
     // === Cursor Effects ===
@@ -829,7 +829,7 @@ pub enum Effect {
         /// Register name (validated at grammar boundary).
         name: RegisterName,
         /// The text content to store.
-        text: CompactString,
+        text: VimString,
         /// Whether the content is characterwise or linewise.
         motion_type: MotionType,
     },
@@ -964,14 +964,14 @@ pub enum Effect {
     /// Updates the last search pattern and direction.
     SetSearchPattern {
         /// The regex pattern to search for.
-        pattern: CompactString,
+        pattern: VimString,
         /// Search direction (forward `/` or backward `?`).
         direction: Direction,
     },
     /// Set the last substitute replacement string (for `~` in patterns and replacements).
     SetLastSubstitute {
         /// The replacement string from the most recent `:s` command.
-        replacement: CompactString,
+        replacement: VimString,
     },
     /// Store the flags used by the last `:s` command (for `:&&` repeat-with-flags).
     ///
@@ -989,7 +989,7 @@ pub enum Effect {
     /// for hlsearch purposes.
     SetSubstitutePattern {
         /// The regex pattern used by the substitute command.
-        pattern: CompactString,
+        pattern: VimString,
     },
     /// Highlight search matches.
     ///
@@ -1027,7 +1027,7 @@ pub enum Effect {
         /// End line (0-indexed, inclusive).
         end_line: LineNumber,
         /// Normal-mode keystrokes to execute.
-        keys: CompactString,
+        keys: VimString,
         /// Whether mappings should be expanded while replaying keys.
         remap: bool,
     },
@@ -1092,7 +1092,7 @@ pub enum Effect {
     /// like "search hit TOP" or "W10: Changing a readonly file".
     ShowWarning {
         /// Warning message text.
-        text: CompactString,
+        text: VimString,
     },
     /// Show an error message.
     ///
@@ -1176,7 +1176,7 @@ pub enum Effect {
     /// for `clipboard=unnamed`, `+` (system clipboard) for `clipboard=unnamedplus`.
     CopyToClipboard {
         /// Text to copy to clipboard.
-        text: CompactString,
+        text: VimString,
         /// Target register (`*` or `+`).
         register: RegisterName,
     },
@@ -1341,10 +1341,10 @@ pub enum Effect {
         /// Which command-line history to show.
         prompt: crate::primitives::CommandLinePrompt,
         /// History entries for this prompt kind (oldest first, newest last).
-        history: Vec<CompactString>,
+        history: Vec<VimString>,
         /// Partial input from an active command-line session (`Ctrl-F`).
         /// `None` when opened via `q:` / `q/` / `q?` from normal mode.
-        prefill: Option<CompactString>,
+        prefill: Option<VimString>,
     },
 
     // === Extension Effects ===
@@ -1368,7 +1368,7 @@ pub enum Effect {
     /// The host should dispatch to the corresponding editor command.
     HostAction {
         /// The action name (e.g., "ReformatCode", "FindUsages").
-        name: CompactString,
+        name: VimString,
     },
 
     // === Extension State Effects ===
@@ -1378,7 +1378,7 @@ pub enum Effect {
     /// the state blob keyed by owner name. Not passed to the host.
     SetExtState {
         /// Owner identifier (e.g., "exchange", "surround").
-        owner: CompactString,
+        owner: VimString,
         /// Opaque state blob (owner-defined encoding).
         state: Vec<u8>,
     },
@@ -1388,7 +1388,7 @@ pub enum Effect {
     /// the state entry for the owner. Not passed to the host.
     ClearExtState {
         /// Owner identifier whose state to clear.
-        owner: CompactString,
+        owner: VimString,
     },
 
     // === Highlight Range Effects ===
@@ -1401,11 +1401,11 @@ pub enum Effect {
     /// for different groups within the same owner.
     SetHighlightRange {
         /// Owner identifier (e.g., "exchange", "surround").
-        owner: CompactString,
+        owner: VimString,
         /// The byte range to highlight.
         range: Range,
         /// Highlight group name (e.g., "pending", "target").
-        group: CompactString,
+        group: VimString,
         /// Render shape: char (trapezoid), line (full-width), or block (rectangular).
         shape: crate::primitives::SelectionShape,
     },
@@ -1415,9 +1415,9 @@ pub enum Effect {
     /// If `group` is `None`, all highlights for the owner are cleared.
     ClearHighlightRange {
         /// Owner identifier whose highlights to clear.
-        owner: CompactString,
+        owner: VimString,
         /// Optional group to clear. `None` clears all groups.
-        group: Option<CompactString>,
+        group: Option<VimString>,
     },
 
     // === Substitute Preview Effects ===
@@ -1447,7 +1447,7 @@ pub enum Effect {
         /// Document byte range of the current match to highlight.
         match_range: Range,
         /// The replacement string that would be applied.
-        replacement: CompactString,
+        replacement: VimString,
         /// 1-based index of the current match.
         match_index: u32,
         /// Total number of matches found.
@@ -1525,7 +1525,7 @@ pub enum Effect {
         /// Byte offset within the line where the virtual text is anchored.
         col: Offset,
         /// The virtual text content to display.
-        text: CompactString,
+        text: VimString,
         /// Where to render relative to the anchor position.
         position: VirtualTextPosition,
     },
@@ -1714,7 +1714,7 @@ pub enum Effect {
         /// Which scope to store in.
         scope: crate::primitives::VarScope,
         /// Variable name.
-        name: CompactString,
+        name: VimString,
         /// Value to set.
         value: crate::primitives::VimValue,
     },
@@ -1726,7 +1726,7 @@ pub enum Effect {
         /// Which scope to delete from.
         scope: crate::primitives::VarScope,
         /// Variable name.
-        name: CompactString,
+        name: VimString,
     },
 
     // === Cross-Buffer Effects ===
@@ -1948,7 +1948,7 @@ impl Effect {
     /// Create an `Insert` effect.
     #[inline]
     #[must_use]
-    pub fn insert(offset: Offset, text: impl Into<CompactString>) -> Self {
+    pub fn insert(offset: Offset, text: impl Into<VimString>) -> Self {
         Self::Insert {
             offset,
             text: text.into(),
@@ -1965,7 +1965,7 @@ impl Effect {
     /// Create a `Replace` effect.
     #[inline]
     #[must_use]
-    pub fn replace(range: Range, text: impl Into<CompactString>) -> Self {
+    pub fn replace(range: Range, text: impl Into<VimString>) -> Self {
         Self::Replace {
             range,
             text: text.into(),
@@ -1999,7 +1999,7 @@ impl Effect {
     /// Create a `ShowInfo` effect with free text (convenience wrapper).
     #[inline]
     #[must_use]
-    pub fn show_message(text: impl Into<CompactString>) -> Self {
+    pub fn show_message(text: impl Into<VimString>) -> Self {
         Self::ShowInfo {
             info: InfoMessage::Text(text.into()),
         }
@@ -2008,7 +2008,7 @@ impl Effect {
     /// Create a `ShowWarning` effect.
     #[inline]
     #[must_use]
-    pub fn show_warning(text: impl Into<CompactString>) -> Self {
+    pub fn show_warning(text: impl Into<VimString>) -> Self {
         Self::ShowWarning { text: text.into() }
     }
 
@@ -2031,7 +2031,7 @@ impl Effect {
     #[must_use]
     pub fn set_register(
         name: RegisterName,
-        text: impl Into<CompactString>,
+        text: impl Into<VimString>,
         motion_type: MotionType,
     ) -> Self {
         let mut text = text.into();
@@ -2169,21 +2169,21 @@ mod effect_kind_guard_tests {
             BufferId, Direction, FindDirection, InsertEntryType, LineNumber, MarkName, Mode,
             MotionType, Offset, Range, RegisterName, SelectionShape,
         };
-        use compact_str::CompactString;
+        use crate::VimString;
 
         let all_set: HashSet<EffectKind> = EffectKind::ALL.iter().copied().collect();
 
         let representative_effects: Vec<Effect> = vec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new(""),
+                text: VimString::new(""),
             },
             Effect::Delete {
                 range: Range::from_raw(0, 1),
             },
             Effect::Replace {
                 range: Range::from_raw(0, 1),
-                text: CompactString::new(""),
+                text: VimString::new(""),
             },
             Effect::SetCursor {
                 offset: Offset::new(0),
@@ -2216,7 +2216,7 @@ mod effect_kind_guard_tests {
             },
             Effect::SetRegister {
                 name: RegisterName::UNNAMED,
-                text: CompactString::new(""),
+                text: VimString::new(""),
                 motion_type: MotionType::CharWise,
             },
             Effect::SetMark {
@@ -2256,17 +2256,17 @@ mod effect_kind_guard_tests {
                 steps: vec![],
             },
             Effect::SetSearchPattern {
-                pattern: CompactString::new(""),
+                pattern: VimString::new(""),
                 direction: Direction::Forward,
             },
             Effect::SetLastSubstitute {
-                replacement: CompactString::new(""),
+                replacement: VimString::new(""),
             },
             Effect::SetLastSubstituteFlags {
                 flags: SubFlags::default(),
             },
             Effect::SetSubstitutePattern {
-                pattern: CompactString::new(""),
+                pattern: VimString::new(""),
             },
             Effect::HighlightMatches { ranges: vec![] },
             Effect::ClearHighlights,
@@ -2280,7 +2280,7 @@ mod effect_kind_guard_tests {
             Effect::NormCommand {
                 start_line: LineNumber::new(0),
                 end_line: LineNumber::new(0),
-                keys: CompactString::new(""),
+                keys: VimString::new(""),
                 remap: false,
             },
             Effect::OperatorFilter {
@@ -2298,13 +2298,13 @@ mod effect_kind_guard_tests {
             },
             Effect::Bell,
             Effect::ShowInfo {
-                info: InfoMessage::Text(CompactString::new("")),
+                info: InfoMessage::Text(VimString::new("")),
             },
             Effect::ShowWarning {
-                text: CompactString::new("test warning"),
+                text: VimString::new("test warning"),
             },
             Effect::ShowError {
-                error: crate::errors::VimError::NotEditorCommand(CompactString::new("")),
+                error: crate::errors::VimError::NotEditorCommand(VimString::new("")),
                 source: None,
             },
             Effect::ClearMessage,
@@ -2329,7 +2329,7 @@ mod effect_kind_guard_tests {
                 count: 1,
             },
             Effect::CopyToClipboard {
-                text: CompactString::new(""),
+                text: VimString::new(""),
                 register: RegisterName::UNNAMED,
             },
             Effect::SearchMatchInfo {
@@ -2407,25 +2407,25 @@ mod effect_kind_guard_tests {
             Effect::ShowDocumentation,
             // Host action bridge
             Effect::HostAction {
-                name: CompactString::new("Test"),
+                name: VimString::new("Test"),
             },
             // Extension state (engine-internal)
             Effect::SetExtState {
-                owner: CompactString::new("test"),
+                owner: VimString::new("test"),
                 state: vec![1, 2, 3],
             },
             Effect::ClearExtState {
-                owner: CompactString::new("test"),
+                owner: VimString::new("test"),
             },
             // Highlight range effects
             Effect::SetHighlightRange {
-                owner: CompactString::new("test"),
+                owner: VimString::new("test"),
                 range: Range::from_raw(0, 5),
-                group: CompactString::new("pending"),
+                group: VimString::new("pending"),
                 shape: crate::primitives::SelectionShape::Char,
             },
             Effect::ClearHighlightRange {
-                owner: CompactString::new("test"),
+                owner: VimString::new("test"),
                 group: None,
             },
             // Substitute preview
@@ -2449,7 +2449,7 @@ mod effect_kind_guard_tests {
                 namespace: 0,
                 line: LineNumber::new(0),
                 col: Offset::new(0),
-                text: CompactString::new(""),
+                text: VimString::new(""),
                 position: crate::primitives::VirtualTextPosition::Eol,
             },
             Effect::ClearVirtualText { namespace: 0 },
@@ -2507,7 +2507,7 @@ mod effect_kind_guard_tests {
             // Substitute confirm
             Effect::SubstituteConfirmShow {
                 match_range: Range::from_raw(0, 3),
-                replacement: CompactString::new("bar"),
+                replacement: VimString::new("bar"),
                 match_index: 1,
                 total_matches: 3,
             },
@@ -2516,8 +2516,8 @@ mod effect_kind_guard_tests {
             Effect::SetSubstituteConfirmState {
                 payload: Box::new(crate::primitives::SubstituteConfirmPayload {
                     matches: vec![],
-                    replacement: CompactString::new(""),
-                    pattern: CompactString::new(""),
+                    replacement: VimString::new(""),
+                    pattern: VimString::new(""),
                     flags: SubFlags::default(),
                     gdefault: false,
                 }),
@@ -2533,12 +2533,12 @@ mod effect_kind_guard_tests {
             },
             Effect::SetVariable {
                 scope: crate::primitives::VarScope::Global,
-                name: CompactString::new("x"),
+                name: VimString::new("x"),
                 value: crate::primitives::VimValue::Nil,
             },
             Effect::DeleteVariable {
                 scope: crate::primitives::VarScope::Buffer,
-                name: CompactString::new("y"),
+                name: VimString::new("y"),
             },
             Effect::CrossBufferEdit {
                 target: BufferId::new(1),

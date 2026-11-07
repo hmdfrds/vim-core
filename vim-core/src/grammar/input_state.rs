@@ -4,8 +4,8 @@
 
 use super::types::{CharCommand, MarkType, Operator, TextObjectScope};
 use crate::primitives::{MotionType, RegisterName};
+use crate::VimString;
 use arrayvec::ArrayVec;
-use compact_str::CompactString;
 use smart_default::SmartDefault;
 use std::fmt::Write;
 
@@ -230,8 +230,8 @@ pub enum InputState {
     /// an `InsertKind::ExpressionResult` command with the collected text.
     AwaitingInsertExpression {
         /// The expression text accumulated so far.
-        /// Uses `CompactString` for SSO — expression text is typically short.
-        collected: CompactString,
+        /// Uses `VimString` for SSO — expression text is typically short.
+        collected: VimString,
     },
 
     /// Waiting for sub-command after Ctrl-G in insert mode.
@@ -381,7 +381,7 @@ pub enum InputState {
     /// re-processed.
     AwaitingComposingChars {
         /// Accumulated grapheme cluster so far (base + combining marks).
-        grapheme: CompactString,
+        grapheme: VimString,
         /// Accumulated count
         count: Option<u32>,
         /// Selected register
@@ -402,7 +402,7 @@ pub enum InputState {
 }
 
 /// Write the register prefix (`"x`) to the buffer if present.
-fn write_register(buf: &mut CompactString, register: Option<RegisterName>) {
+fn write_register(buf: &mut VimString, register: Option<RegisterName>) {
     if let Some(reg) = register {
         buf.push('"');
         buf.push(reg.char());
@@ -410,14 +410,14 @@ fn write_register(buf: &mut CompactString, register: Option<RegisterName>) {
 }
 
 /// Write the count digits to the buffer if present.
-fn write_count(buf: &mut CompactString, count: Option<u32>) {
+fn write_count(buf: &mut VimString, count: Option<u32>) {
     if let Some(n) = count {
         let _ = write!(buf, "{n}");
     }
 }
 
 /// Write the operator key notation to the buffer if present.
-fn write_operator(buf: &mut CompactString, operator: Option<&Operator>) {
+fn write_operator(buf: &mut VimString, operator: Option<&Operator>) {
     if let Some(op) = operator {
         buf.push_str(op.key_notation());
     }
@@ -443,8 +443,8 @@ impl InputState {
     /// - `"df"` — delete operator, awaiting find-forward target char
     /// - `"^W"` — awaiting window sub-command
     #[must_use]
-    pub fn pending_display(&self) -> CompactString {
-        let mut buf = CompactString::new("");
+    pub fn pending_display(&self) -> VimString {
+        let mut buf = VimString::new("");
 
         match self {
             Self::Ready { count, register } => {

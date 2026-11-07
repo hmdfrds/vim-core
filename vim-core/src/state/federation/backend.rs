@@ -7,7 +7,7 @@
 //! is accessed only from the engine thread via `VimEngine`'s federation API.
 
 use crate::primitives::{MarkName, RegisterContent, RegisterName};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// A saved cross-buffer mark with file context and position.
 ///
@@ -16,7 +16,7 @@ use compact_str::CompactString;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GlobalMark {
     /// Absolute path to the file containing this mark.
-    pub file_path: CompactString,
+    pub file_path: VimString,
     /// Byte offset within the file.
     pub offset: usize,
     /// Line number (1-based) at the marked position.
@@ -58,17 +58,17 @@ pub trait StateBackend: Send {
     /// Load the search history ring from the backend.
     ///
     /// Returns an empty `Vec` if no history is stored.
-    fn load_search_history(&self) -> Vec<CompactString>;
+    fn load_search_history(&self) -> Vec<VimString>;
 
     /// Load the command-line (`:`) history ring from the backend.
     ///
     /// Returns an empty `Vec` if no history is stored.
-    fn load_command_history(&self) -> Vec<CompactString>;
+    fn load_command_history(&self) -> Vec<VimString>;
 
     /// Load a macro from the backend.
     ///
     /// Returns `None` if the macro register is not present in the store.
-    fn load_macro(&self, name: RegisterName) -> Option<CompactString>;
+    fn load_macro(&self, name: RegisterName) -> Option<VimString>;
 
     // ── Store operations ─────────────────────────────────────────────────────
 
@@ -79,10 +79,10 @@ pub trait StateBackend: Send {
     fn store_global_mark(&self, name: MarkName, mark: &GlobalMark);
 
     /// Persist the search history ring to the backend.
-    fn store_search_history(&self, history: &[CompactString]);
+    fn store_search_history(&self, history: &[VimString]);
 
     /// Persist the command-line (`:`) history ring to the backend.
-    fn store_command_history(&self, history: &[CompactString]);
+    fn store_command_history(&self, history: &[VimString]);
 
     /// Persist a macro to the backend.
     fn store_macro(&self, name: RegisterName, content: &str);
@@ -110,7 +110,7 @@ pub trait StateBackend: Send {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FederatedJumpEntry {
     /// Absolute path to the file containing this jump position.
-    pub file_path: CompactString,
+    pub file_path: VimString,
     /// Byte offset within the file.
     pub offset: usize,
     /// Line number (1-based) at the jump position.

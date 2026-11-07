@@ -30,11 +30,11 @@
 //! This module only depends on:
 //! - `primitives` — `Offset`, `Range`, `Mode`
 //! - sibling `effect` module — `Effect`
-//! - `compact_str` — `CompactString` (same as `effect.rs`)
+//! - `crate::VimString`, the owned string type (same as `effect.rs`)
 //!
 //! It does NOT import `state`, `commands`, `execution`, or any other layer.
 
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 use crate::effects::effect::Effect;
@@ -96,7 +96,7 @@ pub fn try_compose(a: &Effect, b: &Effect) -> Option<Effect> {
         ) => {
             let expected_b = offset_a.get() + text_a.len();
             if offset_b.get() == expected_b {
-                let mut fused_text = CompactString::with_capacity(text_a.len() + text_b.len());
+                let mut fused_text = VimString::with_capacity(text_a.len() + text_b.len());
                 fused_text.push_str(text_a);
                 fused_text.push_str(text_b);
                 Some(Effect::Insert {
@@ -354,7 +354,7 @@ fn remove_empty_undo_groups(effects: &mut SmallVec<[Effect; 4]>) {
 mod tests {
     use super::*;
     use crate::primitives::{Mode, Offset, Range};
-    use compact_str::CompactString;
+    use crate::VimString;
     use smallvec::smallvec;
 
     // ── try_compose: Adjacent inserts ────────────────────────────────────
@@ -363,18 +363,18 @@ mod tests {
     fn compose_adjacent_inserts() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("he"),
+            text: VimString::new("he"),
         };
         let b = Effect::Insert {
             offset: Offset::new(7),
-            text: CompactString::new("llo"),
+            text: VimString::new("llo"),
         };
         let fused = try_compose(&a, &b).expect("adjacent inserts should compose");
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             }
         );
     }
@@ -383,18 +383,18 @@ mod tests {
     fn compose_adjacent_inserts_at_zero() {
         let a = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("abc"),
+            text: VimString::new("abc"),
         };
         let b = Effect::Insert {
             offset: Offset::new(3),
-            text: CompactString::new("def"),
+            text: VimString::new("def"),
         };
         let fused = try_compose(&a, &b).expect("should compose");
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("abcdef"),
+                text: VimString::new("abcdef"),
             }
         );
     }
@@ -403,11 +403,11 @@ mod tests {
     fn non_adjacent_inserts_do_not_compose() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("he"),
+            text: VimString::new("he"),
         };
         let b = Effect::Insert {
             offset: Offset::new(10), // gap between 7 and 10
-            text: CompactString::new("llo"),
+            text: VimString::new("llo"),
         };
         assert!(try_compose(&a, &b).is_none());
     }
@@ -417,11 +417,11 @@ mod tests {
         // b starts before the end of a's text
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let b = Effect::Insert {
             offset: Offset::new(3),
-            text: CompactString::new("world"),
+            text: VimString::new("world"),
         };
         assert!(try_compose(&a, &b).is_none());
     }
@@ -430,18 +430,18 @@ mod tests {
     fn compose_insert_with_empty_first_text() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         let b = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let fused = try_compose(&a, &b).expect("empty + text should compose (offset matches)");
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             }
         );
     }
@@ -450,18 +450,18 @@ mod tests {
     fn compose_insert_with_empty_second_text() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let b = Effect::Insert {
             offset: Offset::new(10),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         let fused = try_compose(&a, &b).expect("text + empty should compose");
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             }
         );
     }
@@ -470,18 +470,18 @@ mod tests {
     fn compose_two_empty_inserts_same_offset() {
         let a = Effect::Insert {
             offset: Offset::new(3),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         let b = Effect::Insert {
             offset: Offset::new(3),
-            text: CompactString::new(""),
+            text: VimString::new(""),
         };
         let fused = try_compose(&a, &b).expect("two empty inserts at same offset compose");
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(3),
-                text: CompactString::new(""),
+                text: VimString::new(""),
             }
         );
     }
@@ -491,30 +491,30 @@ mod tests {
         // Simulates typing "abc" one character at a time.
         let a = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("a"),
+            text: VimString::new("a"),
         };
         let b = Effect::Insert {
             offset: Offset::new(1),
-            text: CompactString::new("b"),
+            text: VimString::new("b"),
         };
         let ab = try_compose(&a, &b).unwrap();
         assert_eq!(
             ab,
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("ab"),
+                text: VimString::new("ab"),
             }
         );
         let c = Effect::Insert {
             offset: Offset::new(2),
-            text: CompactString::new("c"),
+            text: VimString::new("c"),
         };
         let abc = try_compose(&ab, &c).unwrap();
         assert_eq!(
             abc,
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("abc"),
+                text: VimString::new("abc"),
             }
         );
     }
@@ -711,7 +711,7 @@ mod tests {
     fn insert_then_delete_same_range_annihilates_to_noop() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let b = Effect::Delete {
             range: Range::from_raw(5, 10),
@@ -727,7 +727,7 @@ mod tests {
     fn insert_then_delete_different_offset_does_not_compose() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let b = Effect::Delete {
             range: Range::from_raw(10, 15),
@@ -742,7 +742,7 @@ mod tests {
     fn insert_then_delete_different_length_does_not_compose() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let b = Effect::Delete {
             range: Range::from_raw(5, 8),
@@ -758,7 +758,7 @@ mod tests {
         let mut effects = smallvec![
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::new("ab"),
+                text: VimString::new("ab"),
             },
             Effect::Delete {
                 range: Range::from_raw(5, 7),
@@ -779,7 +779,7 @@ mod tests {
         };
         let b = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         assert!(try_compose(&a, &b).is_none());
     }
@@ -804,11 +804,11 @@ mod tests {
     fn replace_effects_do_not_compose() {
         let a = Effect::Replace {
             range: Range::from_raw(0, 3),
-            text: CompactString::new("xyz"),
+            text: VimString::new("xyz"),
         };
         let b = Effect::Replace {
             range: Range::from_raw(3, 6),
-            text: CompactString::new("abc"),
+            text: VimString::new("abc"),
         };
         assert!(try_compose(&a, &b).is_none());
     }
@@ -817,7 +817,7 @@ mod tests {
     fn insert_and_set_cursor_do_not_compose() {
         let a = Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
         };
         let b = Effect::SetCursor {
             offset: Offset::new(10),
@@ -881,19 +881,19 @@ mod tests {
         let mut effects = smallvec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("a"),
+                text: VimString::new("a"),
             },
             Effect::Insert {
                 offset: Offset::new(1),
-                text: CompactString::new("b"),
+                text: VimString::new("b"),
             },
             Effect::Insert {
                 offset: Offset::new(2),
-                text: CompactString::new("c"),
+                text: VimString::new("c"),
             },
             Effect::Insert {
                 offset: Offset::new(3),
-                text: CompactString::new("d"),
+                text: VimString::new("d"),
             },
         ];
         compose_effects(&mut effects);
@@ -902,7 +902,7 @@ mod tests {
             effects[0],
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("abcd"),
+                text: VimString::new("abcd"),
             }
         );
     }
@@ -939,7 +939,7 @@ mod tests {
             Effect::set_cursor(Offset::new(2)),
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             },
             Effect::set_mode(Mode::Normal),
             Effect::set_mode(Mode::Insert),
@@ -952,7 +952,7 @@ mod tests {
             effects[1],
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             }
         );
         assert_eq!(effects[2], Effect::set_mode(Mode::Insert));
@@ -964,11 +964,11 @@ mod tests {
         let mut effects = smallvec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("abc"),
+                text: VimString::new("abc"),
             },
             Effect::Insert {
                 offset: Offset::new(10),
-                text: CompactString::new("def"),
+                text: VimString::new("def"),
             },
         ];
         compose_effects(&mut effects);
@@ -981,12 +981,12 @@ mod tests {
         let mut effects = smallvec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("a"),
+                text: VimString::new("a"),
             },
             Effect::set_cursor(Offset::new(1)),
             Effect::Insert {
                 offset: Offset::new(1),
-                text: CompactString::new("b"),
+                text: VimString::new("b"),
             },
         ];
         compose_effects(&mut effects);
@@ -998,7 +998,7 @@ mod tests {
     fn compose_effects_preserves_non_composable_order() {
         let clear = Effect::ClearMessage;
         let show = Effect::ShowInfo {
-            info: crate::effects::InfoMessage::Text(CompactString::new("hello")),
+            info: crate::effects::InfoMessage::Text(VimString::new("hello")),
         };
         let scroll = Effect::ScrollTo {
             offset: Offset::new(0),
@@ -1015,14 +1015,14 @@ mod tests {
         let mut effects = smallvec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("a"),
+                text: VimString::new("a"),
             },
             Effect::Delete {
                 range: Range::from_raw(5, 8),
             },
             Effect::Insert {
                 offset: Offset::new(1),
-                text: CompactString::new("b"),
+                text: VimString::new("b"),
             },
         ];
         compose_effects(&mut effects);
@@ -1035,18 +1035,18 @@ mod tests {
     fn compose_unicode_adjacent_inserts() {
         let a = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("\u{00E9}"), // e-acute: 2 bytes
+            text: VimString::new("\u{00E9}"), // e-acute: 2 bytes
         };
         let b = Effect::Insert {
             offset: Offset::new(2), // byte offset, not char offset
-            text: CompactString::new("lite"),
+            text: VimString::new("lite"),
         };
         let fused = try_compose(&a, &b).expect("unicode inserts should compose by byte offset");
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("\u{00E9}lite"),
+                text: VimString::new("\u{00E9}lite"),
             }
         );
     }
@@ -1055,18 +1055,18 @@ mod tests {
     fn compose_emoji_inserts() {
         let a = Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::new("\u{1F600}"), // 4 bytes
+            text: VimString::new("\u{1F600}"), // 4 bytes
         };
         let b = Effect::Insert {
             offset: Offset::new(4),
-            text: CompactString::new("!"),
+            text: VimString::new("!"),
         };
         let fused = try_compose(&a, &b).unwrap();
         assert_eq!(
             fused,
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("\u{1F600}!"),
+                text: VimString::new("\u{1F600}!"),
             }
         );
     }
@@ -1079,7 +1079,7 @@ mod tests {
         let mut effects: SmallVec<[Effect; 4]> = (0..100)
             .map(|i| Effect::Insert {
                 offset: Offset::new(i),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             })
             .collect();
         compose_effects(&mut effects);
@@ -1088,7 +1088,7 @@ mod tests {
             effects[0],
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new(&"x".repeat(100)),
+                text: VimString::new(&"x".repeat(100)),
             }
         );
     }
@@ -1165,7 +1165,7 @@ mod tests {
             Effect::set_cursor(Offset::new(5)),
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             },
             Effect::set_cursor(Offset::new(10)),
         ];
@@ -1175,7 +1175,7 @@ mod tests {
             effects[0],
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             }
         );
         assert_eq!(effects[1], Effect::set_cursor(Offset::new(10)));
@@ -1205,7 +1205,7 @@ mod tests {
             Effect::set_cursor(Offset::new(5)),
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("a"),
+                text: VimString::new("a"),
             },
             Effect::Delete {
                 range: Range::from_raw(3, 5),
@@ -1306,7 +1306,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             },
             Effect::EndUndoGroup { node_id: None },
         ];
@@ -1340,7 +1340,7 @@ mod tests {
             },
             Effect::Replace {
                 range: Range::from_raw(0, 3),
-                text: CompactString::new("xyz"),
+                text: VimString::new("xyz"),
             },
             Effect::EndUndoGroup { node_id: None },
         ];
@@ -1378,7 +1378,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             },
             Effect::EndUndoGroup { node_id: None },
         ];
@@ -1444,7 +1444,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hello"),
+                text: VimString::new("hello"),
             },
             Effect::EndUndoGroup { node_id: None }, // 7 — kept
             Effect::set_cursor(Offset::new(20)),    // 8 — LAST cursor, kept
@@ -1466,7 +1466,7 @@ mod tests {
             Effect::ClearMessage,
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("hi"),
+                text: VimString::new("hi"),
             },
             Effect::ScrollTo {
                 offset: Offset::new(10),
@@ -1582,7 +1582,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::new("x"),
+                text: VimString::new("x"),
             },
             Effect::EndUndoGroup { node_id: None },
             Effect::EndUndoGroup { node_id: None },

@@ -4,7 +4,7 @@
 //! reconcile those mutations into the core through this contract.
 
 use crate::primitives::{Offset, Range};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Classifies why an external mutation happened.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -46,7 +46,7 @@ pub struct ExternalEdit {
     /// Deleted range in the previous snapshot.
     pub deleted: Range,
     /// Inserted text at `deleted.start()`.
-    pub inserted: CompactString,
+    pub inserted: VimString,
     /// Caret byte offset after the host applied the edit.
     pub caret_after: Offset,
     /// Semantic kind for bookkeeping.
@@ -58,7 +58,7 @@ impl ExternalEdit {
     #[must_use]
     pub fn new(
         deleted: Range,
-        inserted: impl Into<CompactString>,
+        inserted: impl Into<VimString>,
         caret_after: Offset,
         kind: ExternalEditKind,
     ) -> Self {
@@ -80,7 +80,7 @@ impl ExternalEdit {
     /// Inserted text at `deleted.start()`.
     #[inline]
     #[must_use]
-    pub const fn inserted(&self) -> &CompactString {
+    pub const fn inserted(&self) -> &VimString {
         &self.inserted
     }
 

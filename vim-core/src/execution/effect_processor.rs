@@ -38,7 +38,7 @@ pub(crate) struct ProcessResult {
     /// Set when a `SetRegister` effect caused the unnamed (`"`) register to be
     /// updated. The engine uses this to emit `CopyToClipboard` when the
     /// `clipboard=unnamed` or `clipboard=unnamedplus` option is active.
-    pub unnamed_register_written: Option<compact_str::CompactString>,
+    pub unnamed_register_written: Option<crate::VimString>,
     /// Last cursor from an Undo or Redo navigation step.
     ///
     /// Used by the engine to set the sticky column (curswant) after undo/redo.
@@ -299,7 +299,7 @@ pub(crate) fn process_effects_with_text(
         state
             .registers()
             .get(RegisterName::UNNAMED)
-            .map(|c| compact_str::CompactString::from(c.text()))
+            .map(|c| crate::VimString::from(c.text()))
     } else {
         None
     };
@@ -896,7 +896,7 @@ fn process_one_effect(
                 crate::effects::InfoMessage::Text(t) => t.clone(),
                 crate::effects::InfoMessage::Verbose(t) => t.clone(),
                 crate::effects::InfoMessage::LineReport(c) => {
-                    compact_str::CompactString::from(format!("{} lines", c.total()))
+                    crate::VimString::from(format!("{} lines", c.total()))
                 }
                 crate::effects::InfoMessage::Categorized { text, .. } => text.clone(),
             };
@@ -913,7 +913,7 @@ fn process_one_effect(
             EffectDisposition::Keep
         }
         Effect::ShowError { error, source } => {
-            let text = compact_str::CompactString::from(error.to_string());
+            let text = crate::VimString::from(error.to_string());
             let place = source.as_ref().map(|s| (s.file.as_str(), s.line));
             state.message_history_mut().push_error_at(&text, place);
             state.set_message(crate::state::StatusMessage::Error(text));
@@ -1617,7 +1617,7 @@ fn sync_one_effect_readonly(
                 crate::effects::InfoMessage::Text(t) => t.clone(),
                 crate::effects::InfoMessage::Verbose(t) => t.clone(),
                 crate::effects::InfoMessage::LineReport(c) => {
-                    compact_str::CompactString::from(format!("{} lines", c.total()))
+                    crate::VimString::from(format!("{} lines", c.total()))
                 }
                 crate::effects::InfoMessage::Categorized { text, .. } => text.clone(),
             };
@@ -1632,7 +1632,7 @@ fn sync_one_effect_readonly(
             state.set_message(crate::state::StatusMessage::Info(msg_text.clone()));
         }
         Effect::ShowError { error, source } => {
-            let err_text = compact_str::CompactString::from(error.to_string());
+            let err_text = crate::VimString::from(error.to_string());
             let place = source.as_ref().map(|s| (s.file.as_str(), s.line));
             state.message_history_mut().push_error_at(&err_text, place);
             state.set_message(crate::state::StatusMessage::Error(err_text));
@@ -2092,7 +2092,7 @@ const fn handle_set_block_insert(
 fn handle_set_register(
     state: &mut VimState,
     name: RegisterName,
-    text: &compact_str::CompactString,
+    text: &crate::VimString,
     motion_type: crate::primitives::MotionType,
 ) {
     use crate::primitives::RegisterContent;
@@ -2285,7 +2285,7 @@ fn reindent_for_repeat(
     insert_pos: usize,
     _tabstop: usize,
     autoindent: bool,
-) -> compact_str::CompactString {
+) -> crate::VimString {
     let mut result = String::with_capacity(saved_text.len());
     let mut newline_idx = 0;
     let mut chars = saved_text.chars();
@@ -2297,7 +2297,7 @@ fn reindent_for_repeat(
             let orig_indent_len = indent_lens.get(newline_idx).copied().unwrap_or(0);
 
             // Compute new indent from provider or autoindent fallback
-            let new_indent: compact_str::CompactString = if let Some(provider) = indent_provider {
+            let new_indent: crate::VimString = if let Some(provider) = indent_provider {
                 let line = crate::commands::helpers::line_of(doc_text, insert_pos);
                 provider
                     .indent_for_new_line(crate::primitives::LineNumber::from(line))
@@ -2309,9 +2309,9 @@ fn reindent_for_repeat(
                 let line_content = &doc_text[ls..];
                 let ws_len =
                     line_content.len() - line_content.trim_start_matches([' ', '\t']).len();
-                compact_str::CompactString::from(&doc_text[ls..ls + ws_len])
+                crate::VimString::from(&doc_text[ls..ls + ws_len])
             } else {
-                compact_str::CompactString::default()
+                crate::VimString::default()
             };
 
             result.push_str(&new_indent);
@@ -2334,7 +2334,7 @@ fn reindent_for_repeat(
         }
     }
 
-    compact_str::CompactString::from(result)
+    crate::VimString::from(result)
 }
 
 /// The offset of the last `SetCursor` in `effects`.
@@ -2425,12 +2425,12 @@ pub(crate) fn inject_repeat_text(
             autoindent,
         )
     } else {
-        compact_str::CompactString::from(saved_text)
+        crate::VimString::from(saved_text)
     };
 
     // Build repeated text (for counted inserts like 3iX<Esc>)
     let text_clone = if count > 1 {
-        compact_str::CompactString::from(effective_text.repeat(count as usize))
+        crate::VimString::from(effective_text.repeat(count as usize))
     } else {
         effective_text
     };
@@ -2833,10 +2833,10 @@ pub(crate) fn build_repeat_positional_effects(
             autoindent,
         )
     } else {
-        compact_str::CompactString::from(saved_text)
+        crate::VimString::from(saved_text)
     };
     let text_clone = if count > 1 {
-        compact_str::CompactString::from(effective_text.repeat(count as usize))
+        crate::VimString::from(effective_text.repeat(count as usize))
     } else {
         effective_text
     };
@@ -2875,9 +2875,9 @@ pub(crate) fn inject_repeat_global_effects(
     let is_replace =
         state.last_insert_entry_type() == crate::primitives::InsertEntryType::ReplaceMode;
     let text_clone = if count > 1 {
-        compact_str::CompactString::from(saved_text.repeat(count as usize))
+        crate::VimString::from(saved_text.repeat(count as usize))
     } else {
-        compact_str::CompactString::from(saved_text)
+        crate::VimString::from(saved_text)
     };
     let last_grapheme_len = text_clone.graphemes(true).next_back().map_or(0, str::len);
     let insert_pos = primary_insert_pos;
@@ -2983,7 +2983,7 @@ mod tests {
     use crate::primitives::Mode;
     use crate::primitives::{MotionType, Offset, RegisterName};
     use crate::state::VimState;
-    use compact_str::CompactString;
+    use crate::VimString;
 
     /// Helper: create a response with the given effects.
     fn response_with(effects: Vec<Effect>) -> Response {
@@ -3090,14 +3090,14 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::SetRegister {
             name: RegisterName::UNNAMED,
-            text: CompactString::from("yanked"),
+            text: VimString::from("yanked"),
             motion_type: MotionType::CharWise,
         }]);
         let result = process_effects(&mut state, &mut parser, false, &mut response);
 
         assert_eq!(
             result.unnamed_register_written,
-            Some(CompactString::from("yanked")),
+            Some(VimString::from("yanked")),
             "direct UNNAMED write should be captured"
         );
     }
@@ -3109,14 +3109,14 @@ mod tests {
         // NUMBERED_1 routes through on_delete() which always writes unnamed
         let mut response = response_with(vec![Effect::SetRegister {
             name: RegisterName::NUMBERED_1,
-            text: CompactString::from("deleted line"),
+            text: VimString::from("deleted line"),
             motion_type: MotionType::LineWise,
         }]);
         let result = process_effects(&mut state, &mut parser, false, &mut response);
 
         assert_eq!(
             result.unnamed_register_written,
-            Some(CompactString::from("deleted line\n")),
+            Some(VimString::from("deleted line\n")),
             "NUMBERED_1 write should update unnamed and be captured"
         );
     }
@@ -3127,14 +3127,14 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::SetRegister {
             name: RegisterName::SMALL_DELETE,
-            text: CompactString::from("x"),
+            text: VimString::from("x"),
             motion_type: MotionType::CharWise,
         }]);
         let result = process_effects(&mut state, &mut parser, false, &mut response);
 
         assert_eq!(
             result.unnamed_register_written,
-            Some(CompactString::from("x")),
+            Some(VimString::from("x")),
             "SMALL_DELETE write should update unnamed and be captured"
         );
     }
@@ -3146,7 +3146,7 @@ mod tests {
         let named_reg = RegisterName::new('a').unwrap();
         let mut response = response_with(vec![Effect::SetRegister {
             name: named_reg,
-            text: CompactString::from("test"),
+            text: VimString::from("test"),
             motion_type: MotionType::CharWise,
         }]);
         let result = process_effects(&mut state, &mut parser, false, &mut response);
@@ -3180,7 +3180,7 @@ mod tests {
         let mut state = VimState::default();
         let mut parser = Parser::new();
         let reg = RegisterName::new('z').unwrap();
-        let text = CompactString::from("hello");
+        let text = VimString::from("hello");
 
         let effect = Effect::SetRegister {
             name: reg,
@@ -3202,7 +3202,7 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::from("abc"),
+            text: VimString::from("abc"),
         }]);
         process_effects(&mut state, &mut parser, false, &mut response);
 
@@ -3219,7 +3219,7 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::Insert {
             offset: Offset::new(5),
-            text: CompactString::from("abc"),
+            text: VimString::from("abc"),
         }]);
         process_effects(&mut state, &mut parser, false, &mut response);
 
@@ -3320,7 +3320,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(10),
-                text: CompactString::from("abc"),
+                text: VimString::from("abc"),
             },
             Effect::SetCursor {
                 offset: Offset::new(13),
@@ -3389,15 +3389,15 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(20),
-                text: CompactString::from("x"),
+                text: VimString::from("x"),
             },
             Effect::Insert {
                 offset: Offset::new(5),
-                text: CompactString::from("y"),
+                text: VimString::from("y"),
             },
             Effect::Insert {
                 offset: Offset::new(15),
-                text: CompactString::from("z"),
+                text: VimString::from("z"),
             },
             Effect::EndUndoGroup { node_id: None },
         ]);
@@ -3441,7 +3441,7 @@ mod tests {
             },
             Effect::Replace {
                 range: Range::from_raw(7, 9),
-                text: CompactString::from("abc"),
+                text: VimString::from("abc"),
             },
             Effect::EndUndoGroup { node_id: None },
         ]);
@@ -3467,7 +3467,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::from("a"),
+                text: VimString::from("a"),
             },
             Effect::SetCursor {
                 offset: Offset::new(1),
@@ -3487,7 +3487,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(1),
-                text: CompactString::from("b"),
+                text: VimString::from("b"),
             },
             Effect::SetCursor {
                 offset: Offset::new(2),
@@ -3544,7 +3544,7 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::from("hi"),
+            text: VimString::from("hi"),
         }]);
         process_effects(&mut state, &mut parser, false, &mut response);
         assert_eq!(count_events(&response.effects, VimEvent::TextChanged), 1);
@@ -3558,7 +3558,7 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::Insert {
             offset: Offset::new(0),
-            text: CompactString::from("x"),
+            text: VimString::from("x"),
         }]);
         process_effects(&mut state, &mut parser, false, &mut response);
         assert_eq!(count_events(&response.effects, VimEvent::TextChangedI), 1);
@@ -3582,7 +3582,7 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::Replace {
             range: crate::primitives::Range::from_raw(0, 2),
-            text: CompactString::from("ab"),
+            text: VimString::from("ab"),
         }]);
         process_effects(&mut state, &mut parser, false, &mut response);
         assert_eq!(count_events(&response.effects, VimEvent::TextChanged), 1);
@@ -3632,7 +3632,7 @@ mod tests {
         let mut response = response_with(vec![
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::from("x"),
+                text: VimString::from("x"),
             },
             Effect::SetCursor {
                 offset: Offset::new(1),
@@ -3662,7 +3662,7 @@ mod tests {
         let mut parser = Parser::new();
         let mut response = response_with(vec![Effect::Replace {
             range: crate::primitives::Range::from_raw(0, 1),
-            text: CompactString::from("x"),
+            text: VimString::from("x"),
         }]);
         process_effects(&mut state, &mut parser, false, &mut response);
         assert_eq!(count_events(&response.effects, VimEvent::TextChangedI), 1);
@@ -3699,7 +3699,7 @@ mod tests {
             },
             Effect::Insert {
                 offset: Offset::new(0),
-                text: CompactString::from("abc"),
+                text: VimString::from("abc"),
             },
         ]);
         process_effects(&mut state, &mut parser, false, &mut response);

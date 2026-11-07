@@ -6,8 +6,8 @@
 //! The registry is append-only: ids are never reused. Registering the
 //! same name twice returns the existing id (idempotent).
 
+use crate::VimString;
 use ahash::AHashMap;
-use compact_str::CompactString;
 
 /// Bidirectional name ↔ id registry.
 ///
@@ -17,9 +17,9 @@ use compact_str::CompactString;
 #[derive(Debug, Clone, Default)]
 pub struct NameRegistry {
     /// id → name (dense, index = id)
-    names: Vec<CompactString>,
+    names: Vec<VimString>,
     /// name → id (for dedup on register)
-    lookup: AHashMap<CompactString, u32>,
+    lookup: AHashMap<VimString, u32>,
 }
 
 impl NameRegistry {
@@ -41,7 +41,7 @@ impl NameRegistry {
             // Saturate in release — practically unreachable.
             return u32::MAX;
         };
-        let compact = CompactString::from(name);
+        let compact = VimString::from(name);
         self.names.push(compact.clone());
         self.lookup.insert(compact, id);
         id
@@ -50,7 +50,7 @@ impl NameRegistry {
     /// Look up the name for an id.
     #[must_use]
     pub fn get_name(&self, id: u32) -> Option<&str> {
-        self.names.get(id as usize).map(CompactString::as_str)
+        self.names.get(id as usize).map(VimString::as_str)
     }
 
     /// Look up the id for a name.

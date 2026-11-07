@@ -566,7 +566,7 @@ fn completion_response(pending: &HostRequest, result: &HostResult) -> Response {
     }
 }
 
-fn clipboard_completion(cursor_offset: usize, text: &compact_str::CompactString) -> Response {
+fn clipboard_completion(cursor_offset: usize, text: &crate::VimString) -> Response {
     if text.is_empty() {
         return Response::ignored();
     }
@@ -580,7 +580,7 @@ fn clipboard_completion(cursor_offset: usize, text: &compact_str::CompactString)
 
 fn filter_completion(
     range: crate::primitives::Range,
-    replacement: &compact_str::CompactString,
+    replacement: &crate::VimString,
     cursor_offset: Option<usize>,
 ) -> Response {
     let effects = ex_effects::filter_completion(range, replacement.clone(), cursor_offset);
@@ -606,7 +606,7 @@ fn filter_completion(
 /// first changed line (the cursor position after `beginline(BL_SOL|BL_FIX)`).
 fn reindent_completion(
     range: crate::primitives::Range,
-    replacement: &compact_str::CompactString,
+    replacement: &crate::VimString,
     cursor_offset: Option<usize>,
     start_col: usize,
     end_col: usize,

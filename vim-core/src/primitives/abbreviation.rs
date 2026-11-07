@@ -4,7 +4,7 @@
 //! mode applicability, and the table used for O(1) exact-match lookup.
 
 use super::TrustTag;
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 use std::collections::HashMap;
 
@@ -58,9 +58,9 @@ impl AbbrevKind {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AbbrevEntry {
     /// The trigger text that activates the abbreviation.
-    pub trigger: CompactString,
+    pub trigger: VimString,
     /// The text the trigger expands to.
-    pub replacement: CompactString,
+    pub replacement: VimString,
     /// Which mode(s) the abbreviation is active in.
     pub mode: AbbrevMode,
     /// Classification of the trigger based on its character composition.
@@ -109,7 +109,7 @@ impl AbbrevMode {
 /// `:iunabbrev` on an `:abbreviate` entry leaves its command-line part.
 #[derive(Debug, Clone, Default)]
 pub struct AbbrevTable {
-    entries: HashMap<CompactString, SmallVec<[AbbrevEntry; 1]>>,
+    entries: HashMap<VimString, SmallVec<[AbbrevEntry; 1]>>,
 }
 
 impl AbbrevTable {
@@ -235,7 +235,7 @@ impl AbbrevTable {
         text_before_cursor: &str,
         mode: AbbrevMode,
         is_keyword: &dyn Fn(char) -> bool,
-    ) -> Option<(usize, CompactString)> {
+    ) -> Option<(usize, VimString)> {
         if self.entries.is_empty() || text_before_cursor.is_empty() {
             return None;
         }
@@ -327,7 +327,7 @@ impl AbbrevTable {
         inserted_char: char,
         mode: AbbrevMode,
         is_keyword: &dyn Fn(char) -> bool,
-    ) -> Option<(usize, CompactString)> {
+    ) -> Option<(usize, VimString)> {
         if candidate.is_empty() {
             return None;
         }

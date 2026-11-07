@@ -48,7 +48,7 @@ impl VimEngine {
     ///
     /// Returns an empty string if no mapping keys are pending.
     #[must_use]
-    pub fn pending_mapping_display(&self) -> compact_str::CompactString {
+    pub fn pending_mapping_display(&self) -> crate::VimString {
         self.typeahead.buffer.pending_display()
     }
 
@@ -246,7 +246,7 @@ impl VimEngine {
         to: Vec<KeyEvent>,
         kind: MappingKind,
         flags: MappingFlags,
-        expr_text: Option<compact_str::CompactString>,
+        expr_text: Option<crate::VimString>,
     ) {
         self.typeahead.buffer.clear();
         self.keymap

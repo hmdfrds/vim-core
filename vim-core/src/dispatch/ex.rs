@@ -364,8 +364,8 @@ mod tests {
     ) -> crate::effects::Effects {
         let command = ExCommand::Substitute {
             range: crate::grammar::types::ExRange::current_line(),
-            pattern: compact_str::CompactString::from(pattern),
-            replacement: compact_str::CompactString::from("X"),
+            pattern: crate::VimString::from(pattern),
+            replacement: crate::VimString::from("X"),
             flags: SubFlags::parse(flags_str),
         };
         dispatch_ex_core(&command, ctx)

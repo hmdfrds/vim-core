@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::primitives::{VarScope, VimValue};
 
@@ -22,9 +22,9 @@ const MAX_VARIABLES_PER_SCOPE: usize = 10_000;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VariableStore {
     /// Global (g:) variables, shared across all buffers.
-    global: BTreeMap<CompactString, VimValue>,
+    global: BTreeMap<VimString, VimValue>,
     /// Buffer-local (b:) variables, scoped to the active buffer.
-    buffer: BTreeMap<CompactString, VimValue>,
+    buffer: BTreeMap<VimString, VimValue>,
 }
 
 impl VariableStore {
@@ -52,7 +52,7 @@ impl VariableStore {
         if map.len() >= MAX_VARIABLES_PER_SCOPE && !map.contains_key(name) {
             return;
         }
-        map.insert(CompactString::from(name), value);
+        map.insert(VimString::from(name), value);
     }
 
     /// Maximum number of variables per scope before new insertions are ignored.
@@ -102,7 +102,7 @@ impl VariableStore {
     ///
     /// Used by `on_buffer_leave` to extract buffer variables for later restore.
     #[inline]
-    pub fn take_buffer_vars(&mut self) -> BTreeMap<CompactString, VimValue> {
+    pub fn take_buffer_vars(&mut self) -> BTreeMap<VimString, VimValue> {
         std::mem::take(&mut self.buffer)
     }
 
@@ -110,7 +110,7 @@ impl VariableStore {
     ///
     /// Used by `on_buffer_enter` to reinstate a buffer's variables.
     #[inline]
-    pub fn restore_buffer_vars(&mut self, vars: BTreeMap<CompactString, VimValue>) {
+    pub fn restore_buffer_vars(&mut self, vars: BTreeMap<VimString, VimValue>) {
         self.buffer = vars;
     }
 }
@@ -132,11 +132,11 @@ mod tests {
         store.set(
             VarScope::Buffer,
             "bar",
-            VimValue::String(CompactString::from("hello")),
+            VimValue::String(VimString::from("hello")),
         );
         assert_eq!(
             store.get(VarScope::Buffer, "bar"),
-            Some(&VimValue::String(CompactString::from("hello")))
+            Some(&VimValue::String(VimString::from("hello")))
         );
     }
 

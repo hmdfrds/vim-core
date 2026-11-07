@@ -5,7 +5,7 @@
 //! algebra from OT/CRDT literature — no `#[non_exhaustive]` because adding
 //! a fourth variant would break the composition algorithm.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 /// An atomic text-transformation operation.
 ///
@@ -30,9 +30,9 @@ pub enum TextOp {
 
     /// Insert literal text at the current position.
     ///
-    /// Uses `CompactString` for SSO (24-byte inline on 64-bit).
+    /// Uses `VimString` for SSO (24-byte inline on 64-bit).
     /// Invariant: text is non-empty (enforced by the builder).
-    Insert(CompactString),
+    Insert(VimString),
 
     /// Delete (skip) `n` bytes from the input document.
     ///
@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn insert_len() {
-        let op = TextOp::Insert(CompactString::from("hello"));
+        let op = TextOp::Insert(VimString::from("hello"));
         assert_eq!(op.len(), 5);
     }
 
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn empty_ops() {
         assert!(TextOp::Retain(0).is_empty());
-        assert!(TextOp::Insert(CompactString::from("")).is_empty());
+        assert!(TextOp::Insert(VimString::from("")).is_empty());
         assert!(TextOp::Delete(0).is_empty());
         assert!(!TextOp::Retain(1).is_empty());
     }
@@ -131,7 +131,7 @@ mod tests {
         assert!(!TextOp::Retain(5).is_insert());
         assert!(!TextOp::Retain(5).is_delete());
 
-        let ins = TextOp::Insert(CompactString::from("x"));
+        let ins = TextOp::Insert(VimString::from("x"));
         assert!(ins.is_insert());
         assert!(!ins.is_retain());
         assert!(!ins.is_delete());
@@ -145,13 +145,13 @@ mod tests {
     fn display_format() {
         assert_eq!(TextOp::Retain(5).to_string(), "=5");
         assert_eq!(TextOp::Delete(3).to_string(), "-3");
-        let ins = TextOp::Insert(CompactString::from("hi"));
+        let ins = TextOp::Insert(VimString::from("hi"));
         assert_eq!(ins.to_string(), "+\"hi\"");
     }
 
     #[test]
     fn clone_and_eq() {
-        let op = TextOp::Insert(CompactString::from("test"));
+        let op = TextOp::Insert(VimString::from("test"));
         let cloned = op.clone();
         assert_eq!(op, cloned);
     }
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn insert_utf8_multibyte() {
-        let op = TextOp::Insert(CompactString::from("héllo 世界"));
+        let op = TextOp::Insert(VimString::from("héllo 世界"));
         // "héllo 世界" = h(1) + é(2) + l(1) + l(1) + o(1) + space(1) + 世(3) + 界(3) = 13
         assert_eq!(op.len(), 13);
     }

@@ -3,7 +3,7 @@
 //! `HostResponse` is the Rust-native output of `VimSession::process_key()`.
 //! Consumers convert it to their own wire format.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::execution::dirty_tracker::DirtyInfo;
 use crate::execution::host::HostRequest;
@@ -187,7 +187,7 @@ pub struct EditOp {
     /// Number of bytes deleted at `offset`.
     pub delete: usize,
     /// Text inserted at `offset` (after deletion).
-    pub insert: CompactString,
+    pub insert: VimString,
 }
 
 /// A yank-highlight region for visual feedback (vim-highlighted-yank).
@@ -303,7 +303,7 @@ pub struct HostResponse {
     /// Shows the partially-typed command (e.g., `"3d"`, `"ci"`, `"\"af"`)
     /// as the user builds a multi-key command. Empty when no command is
     /// in progress.
-    pub showcmd_text: CompactString,
+    pub showcmd_text: VimString,
 
     // ── Edits ─────────────────────────────────────────────────────────
     /// Byte-level edit operations applied to the document during this key.

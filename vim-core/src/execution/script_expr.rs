@@ -17,7 +17,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::ops::Range;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::errors::VimError;
 use crate::grammar::command_meta::cmd_exists;
@@ -527,7 +527,7 @@ impl<'a> Parser<'a> {
             .get(self.start..)
             .unwrap_or_default()
             .trim_end_matches([' ', '\t']);
-        self.fail(VimError::NotAvailable(CompactString::from(expr)))
+        self.fail(VimError::NotAvailable(VimString::from(expr)))
     }
 
     /// Read one expression from `pos`, as `eval1()` does, and leave `pos`

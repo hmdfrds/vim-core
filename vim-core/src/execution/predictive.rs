@@ -19,7 +19,7 @@
 //!
 //! This module is always compiled (formerly feature-gated as `predictive`).
 
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 // ── Core prediction types ────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ pub struct Prediction {
     /// speculative execution.
     pub affected_range: Option<crate::primitives::Range>,
     /// Human-readable description of the predicted action.
-    pub description: CompactString,
+    pub description: VimString,
     /// Estimated probability that this is the next user action (0.0 – 1.0).
     pub likelihood: f32,
 }
@@ -99,7 +99,7 @@ bitflags::bitflags! {
 /// re-normalised to sum to 1.0.
 #[derive(Debug, Clone)]
 pub struct PredictionWeights {
-    weights: ahash::AHashMap<CompactString, f32>,
+    weights: ahash::AHashMap<VimString, f32>,
 }
 
 impl Default for PredictionWeights {
@@ -270,8 +270,8 @@ impl super::engine::VimEngine {
                 PredictionTrigger::Sequence(keys)
             };
 
-            let description: CompactString = {
-                let mut s = CompactString::new(operator.key_notation());
+            let description: VimString = {
+                let mut s = VimString::new(operator.key_notation());
                 s.push_str(operator.key_notation());
                 s.push_str(" — line repeat");
                 s
@@ -306,7 +306,7 @@ impl super::engine::VimEngine {
                 if predictions.len() >= remaining {
                     break;
                 }
-                let key_str: CompactString = CompactString::from(ch.to_string());
+                let key_str: VimString = VimString::from(ch.to_string());
                 let likelihood = if use_weights {
                     self.prediction_weights().get(&key_str)
                 } else {
@@ -318,7 +318,7 @@ impl super::engine::VimEngine {
                         crate::keymap::Modifiers::empty(),
                     )),
                     affected_range: None,
-                    description: CompactString::from(*desc),
+                    description: VimString::from(*desc),
                     likelihood,
                 });
             }
@@ -350,7 +350,7 @@ impl super::engine::VimEngine {
                 seq.push(second_key);
 
                 // Build the compound key string (e.g. "iw") for weight lookup.
-                let mut compound = CompactString::from("i");
+                let mut compound = VimString::from("i");
                 compound.push(*second);
                 let likelihood = if use_weights {
                     self.prediction_weights().get(&compound)
@@ -361,7 +361,7 @@ impl super::engine::VimEngine {
                 predictions.push(Prediction {
                     trigger: PredictionTrigger::Sequence(seq),
                     affected_range: None,
-                    description: CompactString::from(*desc),
+                    description: VimString::from(*desc),
                     likelihood,
                 });
             }

@@ -7,7 +7,7 @@
 use crate::commands::CommandResult;
 use crate::effects::Effects;
 use crate::primitives::{AutoPairs, Offset, Pair, Range};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Called when a character is typed in insert mode.
 ///
@@ -130,7 +130,7 @@ fn handle_open_bracket(
 
     Some(CommandResult::effects_only(
         Effects::new()
-            .insert(Offset::new(pos), CompactString::from(insert_str))
+            .insert(Offset::new(pos), VimString::from(insert_str))
             .set_cursor(Offset::new(cursor_after)),
     ))
 }
@@ -181,7 +181,7 @@ fn handle_same_char_pair(
 
     Some(CommandResult::effects_only(
         Effects::new()
-            .insert(Offset::new(pos), CompactString::from(insert_str))
+            .insert(Offset::new(pos), VimString::from(insert_str))
             .set_cursor(Offset::new(cursor_after)),
     ))
 }

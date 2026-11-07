@@ -6,7 +6,7 @@
 
 use crate::primitives::byte_delta;
 use crate::primitives::{ConfirmMatchPayload, Offset, Range, SubFlags, SubstituteConfirmPayload};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// A single match in the confirm queue.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +18,7 @@ pub struct SubstituteConfirmMatch {
     /// Byte offset of the line start in the document.
     pub line_start: Offset,
     /// The full line text (pre-replacement).
-    pub line_text: CompactString,
+    pub line_text: VimString,
 }
 
 /// State for an active `:s///c` interactive confirm session.
@@ -31,9 +31,9 @@ pub struct SubstituteConfirmState {
     /// All match ranges (document byte offsets, pre any replacements).
     matches: Vec<SubstituteConfirmMatch>,
     /// The replacement string.
-    replacement: CompactString,
+    replacement: VimString,
     /// The compiled pattern (string form for re-matching).
-    pattern: CompactString,
+    pattern: VimString,
     /// Flags from the original `:s` command.
     flags: SubFlags,
     /// Index of the current match being shown.
@@ -55,8 +55,8 @@ impl SubstituteConfirmState {
     #[must_use]
     pub const fn new(
         matches: Vec<SubstituteConfirmMatch>,
-        replacement: CompactString,
-        pattern: CompactString,
+        replacement: VimString,
+        pattern: VimString,
         flags: SubFlags,
         gdefault: bool,
     ) -> Self {
@@ -159,7 +159,7 @@ impl SubstituteConfirmState {
     ///
     /// Returns the adjusted range and replacement text to apply,
     /// or `None` if no matches remain.
-    pub fn accept(&mut self) -> Option<(Range, CompactString)> {
+    pub fn accept(&mut self) -> Option<(Range, VimString)> {
         let m = self.matches.get(self.current_index)?;
         let adjusted = adjust_range(m.range, self.offset_shift);
 
@@ -188,7 +188,7 @@ impl SubstituteConfirmState {
 
     /// Get all remaining matches from current_index onward,
     /// each adjusted for cumulative offset shift. Used by 'a' (all remaining).
-    pub fn accept_all_remaining(&mut self) -> Vec<(Range, CompactString)> {
+    pub fn accept_all_remaining(&mut self) -> Vec<(Range, VimString)> {
         let mut results = Vec::new();
         while !self.is_done() {
             if let Some(pair) = self.accept() {
@@ -229,7 +229,7 @@ mod tests {
             range: Range::new(Offset::new(start), Offset::new(end)),
             line_idx,
             line_start: Offset::new(0),
-            line_text: CompactString::new(""),
+            line_text: VimString::new(""),
         }
     }
 

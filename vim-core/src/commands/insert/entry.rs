@@ -151,7 +151,7 @@ fn structural_new_line_below(
     let text_to_insert = match &result {
         IndentResult::Simple { indent, append } => {
             let append_str = append.as_deref().unwrap_or("");
-            compact_str::format_compact!("\n{indent}{append_str}")
+            crate::format_vim!("\n{indent}{append_str}")
         }
         IndentResult::IndentOutdent {
             indent,
@@ -159,7 +159,7 @@ fn structural_new_line_below(
             closing_indent,
         } => {
             let append_str = append.as_deref().unwrap_or("");
-            compact_str::format_compact!("\n{indent}{append_str}\n{closing_indent}")
+            crate::format_vim!("\n{indent}{append_str}\n{closing_indent}")
         }
     };
     // Neovim sets mark.. and mark.[ to the start of the new line (past the
@@ -193,7 +193,7 @@ fn structural_new_line_above(
     let text_to_insert = match &result {
         IndentResult::Simple { indent, append } => {
             let append_str = append.as_deref().unwrap_or("");
-            compact_str::format_compact!("{indent}{append_str}\n")
+            crate::format_vim!("{indent}{append_str}\n")
         }
         IndentResult::IndentOutdent {
             indent,
@@ -201,7 +201,7 @@ fn structural_new_line_above(
             closing_indent,
         } => {
             let append_str = append.as_deref().unwrap_or("");
-            compact_str::format_compact!("{indent}{append_str}\n{closing_indent}\n")
+            crate::format_vim!("{indent}{append_str}\n{closing_indent}\n")
         }
     };
     // For O, Neovim sets mark.. and mark.[ to the start of the new line
@@ -430,15 +430,12 @@ fn get_line_indent(
     let indent = if autoindent {
         if let Some(content) = line_content(text, line) {
             let whitespace_len = content.len() - content.trim_start().len();
-            compact_str::CompactString::from(expand_tabs_to_spaces(
-                &content[..whitespace_len],
-                tabstop,
-            ))
+            crate::VimString::from(expand_tabs_to_spaces(&content[..whitespace_len], tabstop))
         } else {
-            compact_str::CompactString::default()
+            crate::VimString::default()
         }
     } else {
-        compact_str::CompactString::default()
+        crate::VimString::default()
     };
     IndentResult::Simple {
         indent,
@@ -529,7 +526,7 @@ mod tests {
     // ── IndentProvider tests ─────────────────────────────────────────
 
     struct MockIndentProvider {
-        indent: compact_str::CompactString,
+        indent: crate::VimString,
     }
 
     impl IndentProvider for MockIndentProvider {
@@ -544,7 +541,7 @@ mod tests {
     #[test]
     fn test_new_line_below_with_indent_provider() {
         let provider = MockIndentProvider {
-            indent: compact_str::CompactString::from("        "),
+            indent: crate::VimString::from("        "),
         }; // 8 spaces
         let result = execute(
             "if true {",
@@ -568,7 +565,7 @@ mod tests {
     #[test]
     fn test_new_line_above_with_indent_provider() {
         let provider = MockIndentProvider {
-            indent: compact_str::CompactString::from("    "),
+            indent: crate::VimString::from("    "),
         }; // 4 spaces
         let result = execute(
             "hello\nworld",

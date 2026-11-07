@@ -11,8 +11,8 @@ use vim_core::execution::{
 use vim_core::keymap::KeyEvent;
 use vim_core::primitives::{CallerId, CapabilityTier, VarScope, VimValue};
 
-use compact_str::CompactString;
 use std::collections::BTreeMap;
+use vim_core::VimString;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,22 +48,22 @@ fn all_vim_value_variants_round_trip() {
         ("float_var", VimValue::Float(3.14159)),
         (
             "string_var",
-            VimValue::String(CompactString::from("hello world")),
+            VimValue::String(VimString::from("hello world")),
         ),
         (
             "list_var",
             VimValue::List(vec![
                 VimValue::Int(1),
                 VimValue::Int(2),
-                VimValue::String(CompactString::from("three")),
+                VimValue::String(VimString::from("three")),
             ]),
         ),
         (
             "map_var",
             VimValue::Map({
                 let mut m = BTreeMap::new();
-                m.insert(CompactString::from("key"), VimValue::Bool(false));
-                m.insert(CompactString::from("count"), VimValue::Int(99));
+                m.insert(VimString::from("key"), VimValue::Bool(false));
+                m.insert(VimString::from("count"), VimValue::Int(99));
                 m
             }),
         ),
@@ -72,7 +72,7 @@ fn all_vim_value_variants_round_trip() {
     for (name, value) in &cases {
         engine.apply_effect(&Effect::SetVariable {
             scope: VarScope::Global,
-            name: CompactString::from(*name),
+            name: VimString::from(*name),
             value: value.clone(),
         });
     }
@@ -91,35 +91,35 @@ fn nested_vim_value_structures() {
     let nested = VimValue::Map({
         let mut m = BTreeMap::new();
         m.insert(
-            CompactString::from("users"),
+            VimString::from("users"),
             VimValue::List(vec![
                 VimValue::Map({
                     let mut u = BTreeMap::new();
                     u.insert(
-                        CompactString::from("name"),
-                        VimValue::String(CompactString::from("Alice")),
+                        VimString::from("name"),
+                        VimValue::String(VimString::from("Alice")),
                     );
-                    u.insert(CompactString::from("age"), VimValue::Int(30));
+                    u.insert(VimString::from("age"), VimValue::Int(30));
                     u
                 }),
                 VimValue::Map({
                     let mut u = BTreeMap::new();
                     u.insert(
-                        CompactString::from("name"),
-                        VimValue::String(CompactString::from("Bob")),
+                        VimString::from("name"),
+                        VimValue::String(VimString::from("Bob")),
                     );
-                    u.insert(CompactString::from("age"), VimValue::Int(25));
+                    u.insert(VimString::from("age"), VimValue::Int(25));
                     u
                 }),
             ]),
         );
-        m.insert(CompactString::from("count"), VimValue::Int(2));
+        m.insert(VimString::from("count"), VimValue::Int(2));
         m
     });
 
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("data"),
+        name: VimString::from("data"),
         value: nested.clone(),
     });
 
@@ -141,17 +141,17 @@ fn variable_view_list_global() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("alpha"),
+        name: VimString::from("alpha"),
         value: VimValue::Int(1),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("beta"),
+        name: VimString::from("beta"),
         value: VimValue::Int(2),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("gamma"),
+        name: VimString::from("gamma"),
         value: VimValue::Int(3),
     });
 
@@ -170,12 +170,12 @@ fn variable_view_list_scopes_independent() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("gvar"),
+        name: VimString::from("gvar"),
         value: VimValue::Int(1),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("bvar"),
+        name: VimString::from("bvar"),
         value: VimValue::Int(2),
     });
 
@@ -198,12 +198,12 @@ fn variable_view_list_through_vim_api() {
     let mut engine = VimEngine::new();
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("x"),
+        name: VimString::from("x"),
         value: VimValue::Int(10),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("y"),
+        name: VimString::from("y"),
         value: VimValue::Int(20),
     });
 
@@ -340,8 +340,8 @@ fn buffer_switch_multiple_buffers() {
     engine.on_buffer_enter(BufferLocalState::default());
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("name"),
-        value: VimValue::String(CompactString::from("A")),
+        name: VimString::from("name"),
+        value: VimValue::String(VimString::from("A")),
     });
     let saved_a = engine.on_buffer_leave(0);
 
@@ -349,8 +349,8 @@ fn buffer_switch_multiple_buffers() {
     engine.on_buffer_enter(BufferLocalState::default());
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("name"),
-        value: VimValue::String(CompactString::from("B")),
+        name: VimString::from("name"),
+        value: VimValue::String(VimString::from("B")),
     });
     let saved_b = engine.on_buffer_leave(0);
 
@@ -361,7 +361,7 @@ fn buffer_switch_multiple_buffers() {
             .state()
             .variable_store()
             .get(VarScope::Buffer, "name"),
-        Some(&VimValue::String(CompactString::from("A")))
+        Some(&VimValue::String(VimString::from("A")))
     );
     let saved_a = engine.on_buffer_leave(0);
 
@@ -372,7 +372,7 @@ fn buffer_switch_multiple_buffers() {
             .state()
             .variable_store()
             .get(VarScope::Buffer, "name"),
-        Some(&VimValue::String(CompactString::from("B")))
+        Some(&VimValue::String(VimString::from("B")))
     );
     let _saved_b = engine.on_buffer_leave(0);
 
@@ -383,7 +383,7 @@ fn buffer_switch_multiple_buffers() {
             .state()
             .variable_store()
             .get(VarScope::Buffer, "name"),
-        Some(&VimValue::String(CompactString::from("A")))
+        Some(&VimValue::String(VimString::from("A")))
     );
 }
 
@@ -394,12 +394,12 @@ fn buffer_switch_delete_before_leave() {
     engine.on_buffer_enter(BufferLocalState::default());
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("temp"),
+        name: VimString::from("temp"),
         value: VimValue::Int(1),
     });
     engine.apply_effect(&Effect::DeleteVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("temp"),
+        name: VimString::from("temp"),
     });
 
     let saved = engine.on_buffer_leave(0);
@@ -419,7 +419,7 @@ fn buffer_switch_preserves_global_modifications() {
     // Set g:count = 1
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("count"),
+        name: VimString::from("count"),
         value: VimValue::Int(1),
     });
 
@@ -431,7 +431,7 @@ fn buffer_switch_preserves_global_modifications() {
     // Modify g:count in new buffer context
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("count"),
+        name: VimString::from("count"),
         value: VimValue::Int(2),
     });
 
@@ -473,7 +473,7 @@ fn system_test_plugin_state_across_invocations() {
         .unwrap_or(0);
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("call_count"),
+        name: VimString::from("call_count"),
         value: VimValue::Int(count + 1),
     });
 
@@ -489,7 +489,7 @@ fn system_test_plugin_state_across_invocations() {
         .unwrap_or(0);
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("call_count"),
+        name: VimString::from("call_count"),
         value: VimValue::Int(count + 1),
     });
 
@@ -509,20 +509,20 @@ fn system_test_per_buffer_plugin_config() {
 
     let config_a = VimValue::Map({
         let mut m = BTreeMap::new();
-        m.insert(CompactString::from("indent"), VimValue::Int(4));
+        m.insert(VimString::from("indent"), VimValue::Int(4));
         m.insert(
-            CompactString::from("lang"),
-            VimValue::String(CompactString::from("rust")),
+            VimString::from("lang"),
+            VimValue::String(VimString::from("rust")),
         );
         m
     });
 
     let config_b = VimValue::Map({
         let mut m = BTreeMap::new();
-        m.insert(CompactString::from("indent"), VimValue::Int(2));
+        m.insert(VimString::from("indent"), VimValue::Int(2));
         m.insert(
-            CompactString::from("lang"),
-            VimValue::String(CompactString::from("python")),
+            VimString::from("lang"),
+            VimValue::String(VimString::from("python")),
         );
         m
     });
@@ -531,7 +531,7 @@ fn system_test_per_buffer_plugin_config() {
     engine.on_buffer_enter(BufferLocalState::default());
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("plugin_config"),
+        name: VimString::from("plugin_config"),
         value: config_a.clone(),
     });
     let saved_a = engine.on_buffer_leave(0);
@@ -540,7 +540,7 @@ fn system_test_per_buffer_plugin_config() {
     engine.on_buffer_enter(BufferLocalState::default());
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Buffer,
-        name: CompactString::from("plugin_config"),
+        name: VimString::from("plugin_config"),
         value: config_b.clone(),
     });
     let saved_b = engine.on_buffer_leave(0);
@@ -583,7 +583,7 @@ fn system_test_variables_with_real_editing() {
         .set_variable(
             VarScope::Global,
             "cursor_word",
-            VimValue::String(CompactString::from("world")),
+            VimValue::String(VimString::from("world")),
         )
         .unwrap();
 
@@ -603,12 +603,12 @@ fn system_test_vim_api_variables_view_after_engine_modification() {
 
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("status"),
-        value: VimValue::String(CompactString::from("ready")),
+        name: VimString::from("status"),
+        value: VimValue::String(VimString::from("ready")),
     });
     engine.apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("version"),
+        name: VimString::from("version"),
         value: VimValue::Int(2),
     });
 
@@ -619,7 +619,7 @@ fn system_test_vim_api_variables_view_after_engine_modification() {
     // Verify both are retrievable
     assert_eq!(
         store.get(VarScope::Global, "status"),
-        Some(&VimValue::String(CompactString::from("ready")))
+        Some(&VimValue::String(VimString::from("ready")))
     );
     assert_eq!(
         store.get(VarScope::Global, "version"),

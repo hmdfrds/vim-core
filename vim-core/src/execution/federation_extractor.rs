@@ -13,7 +13,7 @@ use crate::primitives::{MotionType, RegisterContent, SearchDirection};
 use crate::state::federation::backend::GlobalMark;
 use crate::state::federation::events::{EventSource, StateEvent};
 use crate::state::VimState;
-use compact_str::CompactString;
+use crate::VimString;
 use smallvec::SmallVec;
 
 /// Extract federation-relevant [`StateEvent`]s from a completed effect list.
@@ -72,7 +72,7 @@ pub fn extract_events(effects: &[Effect], state: &VimState) -> SmallVec<[StateEv
             Effect::ClearNamedRegister { register } => {
                 events.push(StateEvent::RegisterChanged {
                     name: *register,
-                    content: RegisterContent::char_wise(CompactString::new("")),
+                    content: RegisterContent::char_wise(VimString::new("")),
                     source: EventSource::Local,
                 });
             }
@@ -85,7 +85,7 @@ pub fn extract_events(effects: &[Effect], state: &VimState) -> SmallVec<[StateEv
                     // file_path is left empty. Callers that have file context
                     // should post-process or enrich the event.
                     let mark = GlobalMark {
-                        file_path: CompactString::new(""),
+                        file_path: VimString::new(""),
                         offset: offset.get(),
                         line: 0,
                         column: 0,
@@ -353,7 +353,7 @@ mod tests {
         let reg = RegisterName::UNNAMED;
         let effects = vec![Effect::SetRegister {
             name: reg,
-            text: CompactString::new("hello"),
+            text: VimString::new("hello"),
             motion_type: MotionType::CharWise,
         }];
         let event = single_event(&effects);
@@ -378,7 +378,7 @@ mod tests {
     #[test]
     fn set_search_pattern_still_emits_search_pattern_changed() {
         let effects = vec![Effect::SetSearchPattern {
-            pattern: CompactString::new("foo"),
+            pattern: VimString::new("foo"),
             direction: Direction::Forward,
         }];
         let state = empty_state();

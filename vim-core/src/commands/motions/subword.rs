@@ -568,7 +568,7 @@ mod tests {
     fn custom_separator() {
         let text = "foo/bar.baz";
         let cfg = SubwordConfig {
-            separators: compact_str::CompactString::new("/"),
+            separators: crate::VimString::new("/"),
             detect_case_boundaries: true,
             detect_acronyms: true,
         };
@@ -600,7 +600,7 @@ mod tests {
         let text = "camelCaseWord";
         let mut opts = crate::primitives::VimOptions::default();
         opts.set_subword_config(SubwordConfig {
-            separators: compact_str::CompactString::new("._-"),
+            separators: crate::VimString::new("._-"),
             detect_case_boundaries: false,
             detect_acronyms: true,
         });

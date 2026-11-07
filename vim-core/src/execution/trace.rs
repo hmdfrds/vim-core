@@ -19,9 +19,9 @@ pub enum TraceEvent {
     /// A key was submitted to `VimEngine::process()`.
     ProcessKey {
         /// Debug representation of the key event.
-        key: compact_str::CompactString,
+        key: crate::VimString,
         /// Display name of the current mode.
-        mode: compact_str::CompactString,
+        mode: crate::VimString,
         /// Monotonic keystroke counter at entry.
         keystroke_seq: u64,
     },
@@ -46,7 +46,7 @@ pub enum TraceEvent {
         /// Number of keys processed during shadow.
         keys_processed: usize,
         /// Outcome status description.
-        status: compact_str::CompactString,
+        status: crate::VimString,
         /// Whether the document text changed.
         text_changed: bool,
     },
@@ -81,7 +81,7 @@ pub enum TraceEvent {
     /// A single key drained during `drain_pending_keys`.
     DrainPendingKey {
         /// Debug representation of the drained key.
-        key: compact_str::CompactString,
+        key: crate::VimString,
         /// Zero-based iteration index within this drain.
         iteration: usize,
     },
@@ -95,7 +95,7 @@ pub enum TraceEvent {
         /// Target register.
         register: char,
         /// Action description (e.g. "start", "stop").
-        action: compact_str::CompactString,
+        action: crate::VimString,
     },
     /// Macro replay initiated.
     MacroReplay {
@@ -107,21 +107,21 @@ pub enum TraceEvent {
     /// Mode changed.
     ModeTransition {
         /// Display name of the previous mode.
-        from: compact_str::CompactString,
+        from: crate::VimString,
         /// Display name of the new mode.
-        to: compact_str::CompactString,
+        to: crate::VimString,
     },
     /// An effect was emitted.
     EffectEmitted {
         /// Effect variant name.
-        kind: compact_str::CompactString,
+        kind: crate::VimString,
         /// Short description of the effect payload.
-        detail: compact_str::CompactString,
+        detail: crate::VimString,
     },
     /// Free-form diagnostic message.
     Diagnostic {
         /// The diagnostic text.
-        message: compact_str::CompactString,
+        message: crate::VimString,
     },
 }
 
@@ -134,7 +134,7 @@ pub enum TraceEvent {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InspectSnapshot {
     /// Current editing mode (e.g. "NORMAL", "INSERT").
-    pub mode: compact_str::CompactString,
+    pub mode: crate::VimString,
     /// Monotonic keystroke counter.
     pub keystroke_seq: u64,
     /// Whether the engine has pending keys (typeahead/macro).
@@ -148,7 +148,7 @@ pub struct InspectSnapshot {
     /// Current undo node ID.
     pub undo_current_node: u64,
     /// Parser pending-command display string.
-    pub pending_command: compact_str::CompactString,
+    pub pending_command: crate::VimString,
     /// Whether shadow execution is enabled.
     pub shadow_enabled: bool,
     /// Document length in bytes (filled by `VimSession`).

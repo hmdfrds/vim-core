@@ -4,7 +4,7 @@
 //! priority ordering, and one-shot support. Handlers are Rust function
 //! pointers registered directly on the engine.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::primitives::{AutocmdId, BufferId, Mode, VimEvent};
 
@@ -19,7 +19,7 @@ pub enum AutocmdFilter {
     /// Only fire for the specified buffer.
     Buffer(BufferId),
     /// Only fire when the current file matches this glob pattern.
-    FilePattern(CompactString),
+    FilePattern(VimString),
     /// Only fire when in the specified mode.
     Mode(Mode),
 }
@@ -46,7 +46,7 @@ pub enum StoredAutocmdHandler {
     /// A Rust function pointer handler (registered pre-session by the host).
     Rust {
         /// Human-readable label for debugging/listing.
-        label: CompactString,
+        label: VimString,
     },
 }
 

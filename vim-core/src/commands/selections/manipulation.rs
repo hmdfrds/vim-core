@@ -3,7 +3,7 @@
 //! These produce `Vec<Effect>` because they modify document text
 //! (rotate contents, align by inserting spaces).
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::effects::Effect;
 use crate::errors::VimError;
@@ -66,7 +66,7 @@ pub fn rotate_contents(
     for i in (0..n).rev() {
         let sel = &ranges[i];
         let range = Range::new(sel.start(), sel.end());
-        effects.push(Effect::replace(range, CompactString::new(rotated[i])));
+        effects.push(Effect::replace(range, VimString::new(rotated[i])));
     }
 
     effects
@@ -168,7 +168,7 @@ pub fn align_selections(selections: &Selections, text: &str) -> Result<Vec<Effec
         let current_col = infos[i].column;
         let padding = target_col - current_col;
         if padding > 0 {
-            let spaces = CompactString::from(" ".repeat(padding));
+            let spaces = VimString::from(" ".repeat(padding));
             effects.push(Effect::insert(Offset::new(infos[i].offset), spaces));
         }
     }
@@ -207,7 +207,7 @@ mod tests {
             effects[0],
             Effect::replace(
                 Range::new(Offset::new(8), Offset::new(11)),
-                CompactString::new("bbb")
+                VimString::new("bbb")
             )
         );
         // Slot 1 gets content of slot 0 ("aaa").
@@ -215,7 +215,7 @@ mod tests {
             effects[1],
             Effect::replace(
                 Range::new(Offset::new(4), Offset::new(7)),
-                CompactString::new("aaa")
+                VimString::new("aaa")
             )
         );
         // Slot 0 gets content of slot 2 ("ccc").
@@ -223,7 +223,7 @@ mod tests {
             effects[2],
             Effect::replace(
                 Range::new(Offset::new(0), Offset::new(3)),
-                CompactString::new("ccc")
+                VimString::new("ccc")
             )
         );
     }
@@ -249,7 +249,7 @@ mod tests {
             effects[0],
             Effect::replace(
                 Range::new(Offset::new(8), Offset::new(11)),
-                CompactString::new("aaa")
+                VimString::new("aaa")
             )
         );
         // Slot 1 gets content of slot 2 ("ccc").
@@ -257,7 +257,7 @@ mod tests {
             effects[1],
             Effect::replace(
                 Range::new(Offset::new(4), Offset::new(7)),
-                CompactString::new("ccc")
+                VimString::new("ccc")
             )
         );
         // Slot 0 gets content of slot 1 ("bbb").
@@ -265,7 +265,7 @@ mod tests {
             effects[2],
             Effect::replace(
                 Range::new(Offset::new(0), Offset::new(3)),
-                CompactString::new("bbb")
+                VimString::new("bbb")
             )
         );
     }
@@ -300,28 +300,28 @@ mod tests {
             effects[0],
             Effect::replace(
                 Range::new(Offset::new(6), Offset::new(7)),
-                CompactString::new("b")
+                VimString::new("b")
             )
         );
         assert_eq!(
             effects[1],
             Effect::replace(
                 Range::new(Offset::new(4), Offset::new(5)),
-                CompactString::new("a")
+                VimString::new("a")
             )
         );
         assert_eq!(
             effects[2],
             Effect::replace(
                 Range::new(Offset::new(2), Offset::new(3)),
-                CompactString::new("d")
+                VimString::new("d")
             )
         );
         assert_eq!(
             effects[3],
             Effect::replace(
                 Range::new(Offset::new(0), Offset::new(1)),
-                CompactString::new("c")
+                VimString::new("c")
             )
         );
     }
@@ -374,12 +374,12 @@ mod tests {
         // Line 2 gets 1 space inserted at offset 17.
         assert_eq!(
             effects[0],
-            Effect::insert(Offset::new(17), CompactString::new(" "))
+            Effect::insert(Offset::new(17), VimString::new(" "))
         );
         // Line 0 gets 2 spaces inserted at offset 2.
         assert_eq!(
             effects[1],
-            Effect::insert(Offset::new(2), CompactString::new("  "))
+            Effect::insert(Offset::new(2), VimString::new("  "))
         );
     }
 
@@ -428,7 +428,7 @@ mod tests {
             effects[0],
             Effect::replace(
                 Range::new(Offset::new(3), Offset::new(5)),
-                CompactString::new("xx")
+                VimString::new("xx")
             )
         );
         // Slot 0 gets "yy" (from slot 1).
@@ -436,7 +436,7 @@ mod tests {
             effects[1],
             Effect::replace(
                 Range::new(Offset::new(0), Offset::new(2)),
-                CompactString::new("yy")
+                VimString::new("yy")
             )
         );
     }
@@ -475,7 +475,7 @@ mod tests {
             effects[0],
             Effect::replace(
                 Range::new(Offset::new(5), Offset::new(8)),
-                CompactString::new("bb")
+                VimString::new("bb")
             )
         );
         // Slot 1 gets "a".
@@ -483,7 +483,7 @@ mod tests {
             effects[1],
             Effect::replace(
                 Range::new(Offset::new(2), Offset::new(4)),
-                CompactString::new("a")
+                VimString::new("a")
             )
         );
         // Slot 0 gets "ccc".
@@ -491,7 +491,7 @@ mod tests {
             effects[2],
             Effect::replace(
                 Range::new(Offset::new(0), Offset::new(1)),
-                CompactString::new("ccc")
+                VimString::new("ccc")
             )
         );
     }
@@ -543,7 +543,7 @@ mod tests {
         assert_eq!(effects.len(), 1);
         assert_eq!(
             effects[0],
-            Effect::insert(Offset::new(1), CompactString::new(" "))
+            Effect::insert(Offset::new(1), VimString::new(" "))
         );
     }
 
@@ -570,11 +570,11 @@ mod tests {
         assert_eq!(effects.len(), 2);
         assert_eq!(
             effects[0],
-            Effect::insert(Offset::new(4), CompactString::new("  "))
+            Effect::insert(Offset::new(4), VimString::new("  "))
         );
         assert_eq!(
             effects[1],
-            Effect::insert(Offset::new(2), CompactString::new("  "))
+            Effect::insert(Offset::new(2), VimString::new("  "))
         );
     }
 
@@ -602,7 +602,7 @@ mod tests {
         assert_eq!(effects.len(), 1);
         assert_eq!(
             effects[0],
-            Effect::insert(Offset::new(3), CompactString::new("   "))
+            Effect::insert(Offset::new(3), VimString::new("   "))
         );
     }
 

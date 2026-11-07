@@ -8,7 +8,7 @@
 use crate::commands::ex::effects as ex_effects;
 use crate::effects::Effects;
 use crate::execution::executor_ex::UndoNavigation;
-use compact_str::CompactString;
+use crate::VimString;
 use std::fmt::Write;
 
 impl super::VimEngine {
@@ -54,7 +54,7 @@ impl super::VimEngine {
                     .set_cursor(cursor)
                     .show_message(msg)
             }
-            None => ex_effects::show_message(CompactString::from("Already at oldest change")),
+            None => ex_effects::show_message(VimString::from("Already at oldest change")),
         }
     }
 
@@ -76,14 +76,14 @@ impl super::VimEngine {
                     .set_cursor(cursor)
                     .show_message(msg)
             }
-            None => ex_effects::show_message(CompactString::from("Already at newest change")),
+            None => ex_effects::show_message(VimString::from("Already at newest change")),
         }
     }
 
     fn navigate_to_sequence(&mut self, seq: u64) -> Effects {
         match self.state.undo_tree_mut().goto_sequence(seq) {
             Some((0, 0, _cursor)) => {
-                ex_effects::show_message(CompactString::from("Already at that change"))
+                ex_effects::show_message(VimString::from("Already at that change"))
             }
             Some((undo_count, redo_count, cursor)) => {
                 let mut effects = Effects::new();
@@ -95,9 +95,9 @@ impl super::VimEngine {
                 }
                 effects = effects.set_cursor(cursor);
                 let msg = format!("undo #{seq}");
-                effects.show_message(CompactString::from(msg))
+                effects.show_message(VimString::from(msg))
             }
-            None => ex_effects::show_message(CompactString::from(format!(
+            None => ex_effects::show_message(VimString::from(format!(
                 "E830: Undo number {seq} not found"
             ))),
         }
@@ -105,7 +105,7 @@ impl super::VimEngine {
 
     fn format_undolist(&self) -> Effects {
         if self.state.undo_tree().change_count() == 0 {
-            return ex_effects::show_message(CompactString::from("Nothing to undo"));
+            return ex_effects::show_message(VimString::from("Nothing to undo"));
         }
         let leaves = self.state.undo_tree().leaves();
 
@@ -119,14 +119,14 @@ impl super::VimEngine {
                 format_timestamp(leaf.timestamp()),
             );
         }
-        ex_effects::show_message(CompactString::from(out))
+        ex_effects::show_message(VimString::from(out))
     }
 }
 
-fn format_navigation_message(count: u32, is_earlier: bool) -> CompactString {
+fn format_navigation_message(count: u32, is_earlier: bool) -> VimString {
     let direction = if is_earlier { "before" } else { "after" };
     let plural = if count == 1 { "change" } else { "changes" };
-    CompactString::from(format!("{count} {plural}; {direction}"))
+    VimString::from(format!("{count} {plural}; {direction}"))
 }
 
 fn format_timestamp(secs: u64) -> String {

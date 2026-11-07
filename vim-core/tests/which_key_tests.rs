@@ -192,7 +192,7 @@ fn user_mapping_shadows_builtin() {
 
     // Register a mapping: gd → x with description "My custom goto"
     let entry = MappingEntry::new(vec![KeyEvent::char('x')], MappingKind::NonRecursive)
-        .with_description(Some(compact_str::CompactString::from("My custom goto")));
+        .with_description(Some(vim_core::VimString::from("My custom goto")));
     engine.keymap_mut().map_entry(
         MappingMode::Normal,
         &[KeyEvent::char('g'), KeyEvent::char('d')],
@@ -356,19 +356,19 @@ fn mapping_prefix_hints_for_multi_key_mappings() {
         MappingMode::Normal,
         &[comma, f_key],
         MappingEntry::new(vec![KeyEvent::char('x')], MappingKind::NonRecursive)
-            .with_description(Some(compact_str::CompactString::from("Find files"))),
+            .with_description(Some(vim_core::VimString::from("Find files"))),
     );
     engine.keymap_mut().map_entry(
         MappingMode::Normal,
         &[comma, g_key],
         MappingEntry::new(vec![KeyEvent::char('y')], MappingKind::NonRecursive)
-            .with_description(Some(compact_str::CompactString::from("Live grep"))),
+            .with_description(Some(vim_core::VimString::from("Live grep"))),
     );
     engine.keymap_mut().map_entry(
         MappingMode::Normal,
         &[comma, b_key],
         MappingEntry::new(vec![KeyEvent::char('z')], MappingKind::NonRecursive)
-            .with_description(Some(compact_str::CompactString::from("List buffers"))),
+            .with_description(Some(vim_core::VimString::from("List buffers"))),
     );
 
     // Press comma — enters mapping-pending state

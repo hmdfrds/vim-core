@@ -588,8 +588,8 @@ impl VimEngine {
         trace_event!(
             self,
             TraceEvent::ProcessKey {
-                key: compact_str::CompactString::from(format!("{key:?}")),
-                mode: compact_str::CompactString::from(self.state.mode().display_name()),
+                key: crate::VimString::from(format!("{key:?}")),
+                mode: crate::VimString::from(self.state.mode().display_name()),
                 keystroke_seq: self.keystroke_seq,
             }
         );
@@ -882,7 +882,7 @@ impl VimEngine {
                     name: name.into(),
                     count: pending_count,
                     register: pending_register,
-                    mode: compact_str::CompactString::from(invocation_mode.display_name()),
+                    mode: crate::VimString::from(invocation_mode.display_name()),
                     selection_anchor: selection.map(|s| s.anchor().get()),
                     selection_head: selection.map(|s| s.head().get()),
                 });
@@ -1373,7 +1373,7 @@ impl VimEngine {
             self,
             TraceEvent::ShadowExit {
                 keys_processed: 0, // exact count lives inside ShadowContext
-                status: compact_str::CompactString::from(format!("{:?}", result.status)),
+                status: crate::VimString::from(format!("{:?}", result.status)),
                 text_changed: shadow_text_changed,
             }
         );
@@ -1557,7 +1557,7 @@ impl VimEngine {
     /// for `:noremap <expr>`.
     fn handle_expr_mapping(
         &mut self,
-        expression: compact_str::CompactString,
+        expression: crate::VimString,
         mapping_mode: crate::keymap::MappingMode,
         kind: crate::keymap::MappingKind,
         silent: bool,

@@ -19,7 +19,7 @@ use crate::document::CustomOperatorProvider;
 use crate::grammar::types::{Motion, Operator};
 use crate::primitives::RegisterName;
 use crate::primitives::{MotionType, Offset, Range};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Context provided to operators during execution.
 ///
@@ -561,13 +561,13 @@ pub fn cursor_after_delete(
 /// Adjusts offsets to valid char boundaries for multibyte safety.
 #[inline]
 #[must_use]
-pub fn extract_range_text(text: &str, range: Range) -> CompactString {
+pub fn extract_range_text(text: &str, range: Range) -> VimString {
     let clamped = range.clamp_end(Offset::new(text.len()));
     let (start, end) = adjust_to_char_boundaries(text, clamped.start().get(), clamped.end().get());
     if start > end {
-        return CompactString::new("");
+        return VimString::new("");
     }
-    CompactString::new(&text[start..end])
+    VimString::new(&text[start..end])
 }
 
 /// Normalize extracted text for linewise register storage.

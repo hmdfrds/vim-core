@@ -4,7 +4,7 @@
 //! the range of the matched text and what it would be replaced with.
 
 use crate::primitives::Offset;
-use compact_str::CompactString;
+use crate::VimString;
 
 /// A single match in a substitute preview.
 ///
@@ -21,19 +21,19 @@ pub struct SubstitutePreviewMatch {
     /// End of the matched text (document gap offset).
     match_end: Offset,
     /// The replacement text that would be produced.
-    replacement: CompactString,
+    replacement: VimString,
     /// Original line text before substitution (for split-preview diff).
     ///
     /// Populated when `inccommand=split` so the host can render a before/after
     /// diff in a preview window. `None` when `inccommand=nosplit`.
-    original_line: Option<CompactString>,
+    original_line: Option<VimString>,
 }
 
 impl SubstitutePreviewMatch {
     /// Create a new substitute preview match.
     #[inline]
     #[must_use]
-    pub const fn new(match_start: Offset, match_end: Offset, replacement: CompactString) -> Self {
+    pub const fn new(match_start: Offset, match_end: Offset, replacement: VimString) -> Self {
         Self {
             match_start,
             match_end,
@@ -48,8 +48,8 @@ impl SubstitutePreviewMatch {
     pub const fn with_original_line(
         match_start: Offset,
         match_end: Offset,
-        replacement: CompactString,
-        original_line: CompactString,
+        replacement: VimString,
+        original_line: VimString,
     ) -> Self {
         Self {
             match_start,

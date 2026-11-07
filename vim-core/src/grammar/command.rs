@@ -4,7 +4,7 @@
 
 use std::num::NonZeroU32;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::types::Operator;
 use super::types::{Action, CharCommand, MarkType, Motion, TextObject};
@@ -677,7 +677,7 @@ pub enum Command {
     ///
     /// Examples: `fa`, `tb`, `r!`, `dfa`
     ///
-    /// The `target` field is a `CompactString` rather than a plain `char` to
+    /// The `target` field is a `VimString` rather than a plain `char` to
     /// support grapheme clusters composed of a base character followed by one
     /// or more Unicode combining marks (e.g. `e` + U+0301 = `é`).  For the
     /// common single-character case the string contains exactly one codepoint.
@@ -691,7 +691,7 @@ pub enum Command {
         /// The char command type
         command: CharCommand,
         /// The target grapheme (base char + optional combining marks).
-        target: CompactString,
+        target: VimString,
     },
 
     /// Sneak motion command (two-character cross-line find).
@@ -2709,7 +2709,7 @@ mod tests {
             register: None,
             operator: Some(Operator::Delete),
             command: CharCommand::FindForward,
-            target: CompactString::from("x"),
+            target: VimString::from("x"),
         };
         assert!(cmd.is_content_dependent());
     }
@@ -2721,7 +2721,7 @@ mod tests {
             register: None,
             operator: None,
             command: CharCommand::Replace,
-            target: CompactString::from("x"),
+            target: VimString::from("x"),
         };
         assert!(cmd.is_content_dependent());
     }
@@ -2733,7 +2733,7 @@ mod tests {
             register: None,
             operator: None,
             command: CharCommand::FindForward,
-            target: CompactString::from("x"),
+            target: VimString::from("x"),
         };
         // Standalone find is CD: target char appears at different positions
         // per cursor line — each cursor must search independently.
@@ -2883,7 +2883,7 @@ mod tests {
                 register: None,
                 operator: None,
                 command: CharCommand::FindForward,
-                target: CompactString::from("x"),
+                target: VimString::from("x"),
             },
             Command::Mark {
                 count: NonZeroU32::MIN,
@@ -3332,7 +3332,7 @@ mod tests {
                 register: None,
                 operator: None,
                 command: CharCommand::Replace,
-                target: CompactString::const_new("x"),
+                target: VimString::from_static("x"),
             };
             // Replace reads grapheme width at cursor position.
             assert!(
@@ -3349,7 +3349,7 @@ mod tests {
                 register: None,
                 operator: None,
                 command: CharCommand::FindForward,
-                target: CompactString::const_new("a"),
+                target: VimString::from_static("a"),
             };
             // Standalone find is CD: target char appears at different
             // positions per cursor line — each cursor must search independently.
@@ -3367,7 +3367,7 @@ mod tests {
                 register: None,
                 operator: Some(Operator::Delete),
                 command: CharCommand::FindForward,
-                target: CompactString::const_new("a"),
+                target: VimString::from_static("a"),
             };
             // Operator present → CD: find distance varies by content.
             assert!(
@@ -3691,7 +3691,7 @@ mod tests {
                     register: None,
                     operator: Some(Operator::Delete),
                     command: CharCommand::FindForward,
-                    target: CompactString::const_new("a"),
+                    target: VimString::from_static("a"),
                 },
                 true,
             ),
@@ -3702,7 +3702,7 @@ mod tests {
                     register: None,
                     operator: None,
                     command: CharCommand::Replace,
-                    target: CompactString::const_new("x"),
+                    target: VimString::from_static("x"),
                 },
                 true,
             ),
@@ -3856,7 +3856,7 @@ mod tests {
                     register: None,
                     operator: None,
                     command: CharCommand::FindForward,
-                    target: CompactString::const_new("a"),
+                    target: VimString::from_static("a"),
                 },
                 true,
             ),

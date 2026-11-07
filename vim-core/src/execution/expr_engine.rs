@@ -4,7 +4,7 @@
 //! engines. [`SimpleExprEval`] is the built-in evaluator that handles basic
 //! expressions (arithmetic, string ops, variable reads) without external deps.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::primitives::{VarScope, VimOptions, VimValue};
 use crate::state::VariableStore;
@@ -18,9 +18,9 @@ use crate::state::VariableStore;
 #[non_exhaustive]
 pub enum RuntimeError {
     /// Expression failed to compile/parse.
-    CompileError(CompactString),
+    CompileError(VimString),
     /// Runtime execution error.
-    RuntimeError(CompactString),
+    RuntimeError(VimString),
     /// Execution exceeded fuel limit.
     FuelExhausted,
 }
@@ -96,7 +96,7 @@ impl ExprEngine for SimpleExprEval {
         let mut parser = Parser::new(&tokens, context);
         let result = parser.parse_expression()?;
         if parser.pos < parser.tokens.len() {
-            return Err(RuntimeError::CompileError(CompactString::from(
+            return Err(RuntimeError::CompileError(VimString::from(
                 "unexpected token after expression",
             )));
         }
@@ -112,9 +112,9 @@ impl ExprEngine for SimpleExprEval {
 enum Token {
     Int(i64),
     Float(f64),
-    Str(CompactString),
+    Str(VimString),
     Bool(bool),
-    Variable(VarScope, CompactString),
+    Variable(VarScope, VimString),
     Plus,
     Minus,
     Star,
@@ -175,7 +175,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, RuntimeError> {
             continue;
         }
 
-        return Err(RuntimeError::CompileError(CompactString::from(&format!(
+        return Err(RuntimeError::CompileError(VimString::from(&format!(
             "unexpected character: {ch:?}"
         ))));
     }
@@ -226,13 +226,13 @@ fn tokenize_string(
 ) -> Result<Token, RuntimeError> {
     let (_, quote) = chars
         .next()
-        .ok_or_else(|| RuntimeError::CompileError(CompactString::from("unexpected end")))?;
+        .ok_or_else(|| RuntimeError::CompileError(VimString::from("unexpected end")))?;
 
     let mut content = String::new();
     loop {
         match chars.next() {
             None => {
-                return Err(RuntimeError::CompileError(CompactString::from(
+                return Err(RuntimeError::CompileError(VimString::from(
                     "unterminated string literal",
                 )));
             }
@@ -240,7 +240,7 @@ fn tokenize_string(
             Some((_, ch)) => content.push(ch),
         }
     }
-    Ok(Token::Str(CompactString::from(content)))
+    Ok(Token::Str(VimString::from(content)))
 }
 
 /// Tokenize a number (integer or float).
@@ -250,7 +250,7 @@ fn tokenize_number(
 ) -> Result<Token, RuntimeError> {
     let (start, _) = chars
         .next()
-        .ok_or_else(|| RuntimeError::CompileError(CompactString::from("unexpected end")))?;
+        .ok_or_else(|| RuntimeError::CompileError(VimString::from("unexpected end")))?;
 
     // Consume remaining digits.
     let mut end = start + 1;
@@ -282,7 +282,7 @@ fn tokenize_number(
                     }
                 }
                 let f: f64 = input[start..end].parse().map_err(|_| {
-                    RuntimeError::CompileError(CompactString::from("invalid float literal"))
+                    RuntimeError::CompileError(VimString::from("invalid float literal"))
                 })?;
                 return Ok(Token::Float(f));
             }
@@ -291,7 +291,7 @@ fn tokenize_number(
 
     let n: i64 = input[start..end]
         .parse()
-        .map_err(|_| RuntimeError::CompileError(CompactString::from("invalid integer literal")))?;
+        .map_err(|_| RuntimeError::CompileError(VimString::from("invalid integer literal")))?;
     Ok(Token::Int(n))
 }
 
@@ -302,7 +302,7 @@ fn tokenize_ident(
 ) -> Result<Token, RuntimeError> {
     let (start, _) = chars
         .next()
-        .ok_or_else(|| RuntimeError::CompileError(CompactString::from("unexpected end")))?;
+        .ok_or_else(|| RuntimeError::CompileError(VimString::from("unexpected end")))?;
 
     let mut end = start + 1;
     while let Some(&(idx, ch)) = chars.peek() {
@@ -326,7 +326,7 @@ fn tokenize_ident(
         chars.next(); // skip ':'
         let name_start = chars.peek().map(|&(idx, _)| idx);
         let Some(ns) = name_start else {
-            return Err(RuntimeError::CompileError(CompactString::from(
+            return Err(RuntimeError::CompileError(VimString::from(
                 "expected variable name after scope prefix",
             )));
         };
@@ -335,7 +335,7 @@ fn tokenize_ident(
             .peek()
             .is_some_and(|&(_, ch)| ch.is_ascii_alphanumeric() || ch == '_')
         {
-            return Err(RuntimeError::CompileError(CompactString::from(
+            return Err(RuntimeError::CompileError(VimString::from(
                 "expected variable name after scope prefix",
             )));
         }
@@ -350,14 +350,14 @@ fn tokenize_ident(
         }
         return Ok(Token::Variable(
             scope,
-            CompactString::from(&input[ns..name_end]),
+            VimString::from(&input[ns..name_end]),
         ));
     }
 
     match word {
         "true" => Ok(Token::Bool(true)),
         "false" => Ok(Token::Bool(false)),
-        _ => Err(RuntimeError::CompileError(CompactString::from(&format!(
+        _ => Err(RuntimeError::CompileError(VimString::from(&format!(
             "unknown identifier: {word}"
         )))),
     }
@@ -461,7 +461,7 @@ impl<'a> Parser<'a> {
             return match val {
                 VimValue::Int(n) => Ok(VimValue::Int(-n)),
                 VimValue::Float(f) => Ok(VimValue::Float(-f)),
-                _ => Err(RuntimeError::RuntimeError(CompactString::from(
+                _ => Err(RuntimeError::RuntimeError(VimString::from(
                     "unary minus requires a number",
                 ))),
             };
@@ -474,7 +474,7 @@ impl<'a> Parser<'a> {
         let tok = self
             .advance()
             .ok_or_else(|| {
-                RuntimeError::CompileError(CompactString::from("unexpected end of expression"))
+                RuntimeError::CompileError(VimString::from("unexpected end of expression"))
             })?
             .clone();
 
@@ -493,20 +493,20 @@ impl<'a> Parser<'a> {
                         VarScope::Global => "g",
                         VarScope::Buffer => "b",
                     };
-                    RuntimeError::RuntimeError(CompactString::from(format!(
+                    RuntimeError::RuntimeError(VimString::from(format!(
                         "undefined variable: {prefix}:{name}"
                     )))
                 }),
             Token::LParen => {
                 let val = self.parse_expression()?;
                 if self.advance() != Some(&Token::RParen) {
-                    return Err(RuntimeError::CompileError(CompactString::from(
+                    return Err(RuntimeError::CompileError(VimString::from(
                         "expected closing parenthesis",
                     )));
                 }
                 Ok(val)
             }
-            other => Err(RuntimeError::CompileError(CompactString::from(&format!(
+            other => Err(RuntimeError::CompileError(VimString::from(&format!(
                 "unexpected token: {other:?}"
             )))),
         }
@@ -522,7 +522,7 @@ fn to_int(v: &VimValue) -> Result<i64, RuntimeError> {
     match v {
         VimValue::Int(n) => Ok(*n),
         VimValue::Bool(b) => Ok(i64::from(*b)),
-        _ => Err(RuntimeError::RuntimeError(CompactString::from(
+        _ => Err(RuntimeError::RuntimeError(VimString::from(
             "expected integer operand",
         ))),
     }
@@ -541,7 +541,7 @@ fn to_float(v: &VimValue) -> Result<f64, RuntimeError> {
             Ok(result)
         }
         VimValue::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
-        _ => Err(RuntimeError::RuntimeError(CompactString::from(
+        _ => Err(RuntimeError::RuntimeError(VimString::from(
             "expected numeric operand",
         ))),
     }
@@ -553,7 +553,7 @@ fn eval_additive(left: &VimValue, op: &Token, right: &VimValue) -> Result<VimVal
     if *op == Token::Dot {
         let ls = vim_value_to_display(left);
         let rs = vim_value_to_display(right);
-        return Ok(VimValue::String(CompactString::from(format!("{ls}{rs}"))));
+        return Ok(VimValue::String(VimString::from(format!("{ls}{rs}"))));
     }
 
     // Float promotion: if either operand is float, compute in float.
@@ -590,7 +590,7 @@ fn eval_multiplicative(
             Token::Star => Ok(VimValue::Float(lf * rf)),
             Token::Slash => {
                 if rf == 0.0 {
-                    return Err(RuntimeError::RuntimeError(CompactString::from(
+                    return Err(RuntimeError::RuntimeError(VimString::from(
                         "division by zero",
                     )));
                 }
@@ -606,7 +606,7 @@ fn eval_multiplicative(
         Token::Star => Ok(VimValue::Int(li.wrapping_mul(ri))),
         Token::Slash => {
             if ri == 0 {
-                return Err(RuntimeError::RuntimeError(CompactString::from(
+                return Err(RuntimeError::RuntimeError(VimString::from(
                     "division by zero",
                 )));
             }
@@ -668,27 +668,27 @@ fn eval_comparison(
 }
 
 /// Convert a `VimValue` to a display string (for concatenation).
-fn vim_value_to_display(value: &VimValue) -> CompactString {
+fn vim_value_to_display(value: &VimValue) -> VimString {
     match value {
-        VimValue::Nil => CompactString::default(),
+        VimValue::Nil => VimString::default(),
         VimValue::Bool(b) => {
             if *b {
-                CompactString::from("1")
+                VimString::from("1")
             } else {
-                CompactString::from("0")
+                VimString::from("0")
             }
         }
-        VimValue::Int(n) => CompactString::from(n.to_string()),
-        VimValue::Float(f) => CompactString::from(format!("{f}")),
+        VimValue::Int(n) => VimString::from(n.to_string()),
+        VimValue::Float(f) => VimString::from(format!("{f}")),
         VimValue::String(s) => s.clone(),
-        VimValue::List(items) => CompactString::from(
+        VimValue::List(items) => VimString::from(
             items
                 .iter()
                 .map(|v| vim_value_to_display(v).to_string())
                 .collect::<Vec<_>>()
                 .join(" "),
         ),
-        VimValue::Map(_) => CompactString::from("{...}"),
+        VimValue::Map(_) => VimString::from("{...}"),
     }
 }
 
@@ -721,13 +721,13 @@ mod tests {
     #[test]
     fn tokenize_string_double() {
         let tokens = tokenize("\"hello\"").unwrap();
-        assert_eq!(tokens, vec![Token::Str(CompactString::from("hello"))]);
+        assert_eq!(tokens, vec![Token::Str(VimString::from("hello"))]);
     }
 
     #[test]
     fn tokenize_string_single() {
         let tokens = tokenize("'world'").unwrap();
-        assert_eq!(tokens, vec![Token::Str(CompactString::from("world"))]);
+        assert_eq!(tokens, vec![Token::Str(VimString::from("world"))]);
     }
 
     #[test]
@@ -735,10 +735,7 @@ mod tests {
         let tokens = tokenize("g:myvar").unwrap();
         assert_eq!(
             tokens,
-            vec![Token::Variable(
-                VarScope::Global,
-                CompactString::from("myvar")
-            )]
+            vec![Token::Variable(VarScope::Global, VimString::from("myvar"))]
         );
     }
 
@@ -780,7 +777,7 @@ mod tests {
         let ctx = empty_context();
         assert_eq!(
             runtime.eval_expression("\"hello\"", &ctx).unwrap(),
-            VimValue::String(CompactString::from("hello"))
+            VimValue::String(VimString::from("hello"))
         );
     }
 
@@ -872,7 +869,7 @@ mod tests {
             runtime
                 .eval_expression("\"hello\" . \" world\"", &ctx)
                 .unwrap(),
-            VimValue::String(CompactString::from("hello world"))
+            VimValue::String(VimString::from("hello world"))
         );
     }
 
@@ -973,7 +970,7 @@ mod tests {
         vars.set(
             VarScope::Global,
             "name",
-            VimValue::String(CompactString::from("vim")),
+            VimValue::String(VimString::from("vim")),
         );
         let options = Box::leak(Box::new(VimOptions::default()));
         let ctx = ExprContext {
@@ -983,7 +980,7 @@ mod tests {
         let runtime = SimpleExprEval;
         assert_eq!(
             runtime.eval_expression("g:name", &ctx).unwrap(),
-            VimValue::String(CompactString::from("vim"))
+            VimValue::String(VimString::from("vim"))
         );
     }
 

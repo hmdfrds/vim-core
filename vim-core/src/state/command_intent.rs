@@ -10,7 +10,7 @@
 //! `grammar::Command`; must not import `commands`, `effects`, `execution`
 //! or `dispatch`.
 
-use compact_str::CompactString;
+use crate::VimString;
 use std::num::NonZeroU32;
 
 use crate::grammar::types::{Action, Motion, TextObject};
@@ -37,7 +37,7 @@ pub enum CommandIntent {
         /// Optional count override.
         count: Option<NonZeroU32>,
         /// Text inserted during insert mode (for change-type operators).
-        inserted_text: Option<CompactString>,
+        inserted_text: Option<VimString>,
         /// Target register.
         register: Option<RegisterName>,
     },
@@ -51,7 +51,7 @@ pub enum CommandIntent {
         /// Optional count override.
         count: Option<NonZeroU32>,
         /// Text inserted during insert mode (for change-type operators).
-        inserted_text: Option<CompactString>,
+        inserted_text: Option<VimString>,
         /// Target register.
         register: Option<RegisterName>,
     },
@@ -63,7 +63,7 @@ pub enum CommandIntent {
         /// Optional count override.
         count: Option<NonZeroU32>,
         /// Text inserted during insert mode (for change-type operators).
-        inserted_text: Option<CompactString>,
+        inserted_text: Option<VimString>,
         /// Target register.
         register: Option<RegisterName>,
     },
@@ -75,7 +75,7 @@ pub enum CommandIntent {
         /// The type of visual selection.
         visual_type: VisualType,
         /// Text inserted during insert mode (for change-type operators).
-        inserted_text: Option<CompactString>,
+        inserted_text: Option<VimString>,
         /// Target register.
         register: Option<RegisterName>,
     },
@@ -93,7 +93,7 @@ pub enum CommandIntent {
         /// How insert mode was entered.
         entry_type: InsertEntryType,
         /// The text that was typed/inserted during the insert session.
-        inserted_text: CompactString,
+        inserted_text: VimString,
     },
 }
 
@@ -166,7 +166,7 @@ pub fn capture_intent(command: &Command, visual_type: Option<VisualType>) -> Opt
 
         Command::InsertEntry { entry_type, .. } => Some(CommandIntent::InsertEntry {
             entry_type: *entry_type,
-            inserted_text: CompactString::default(),
+            inserted_text: VimString::default(),
         }),
 
         // Other command variants don't have a meaningful repeatable intent.

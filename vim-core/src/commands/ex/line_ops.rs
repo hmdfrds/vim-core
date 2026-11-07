@@ -358,7 +358,7 @@ pub fn join(range: &ExRange, bang: bool, ctx: &ExContext) -> ExResult {
         resolved = resolved.extend_end(1);
     }
     if resolved.is_single_line() {
-        return Ok(Effects::new().show_message(compact_str::CompactString::from("0 lines joined")));
+        return Ok(Effects::new().show_message(crate::VimString::from("0 lines joined")));
     }
 
     let (start, end) = ctx
@@ -383,7 +383,7 @@ pub fn join(range: &ExRange, bang: bool, ctx: &ExContext) -> ExResult {
 
     Ok(super::effects::join_result(
         Range::new(start, end),
-        compact_str::CompactString::from(joined),
+        crate::VimString::from(joined),
         start,
         resolved.line_count(),
     )

@@ -9,7 +9,7 @@
 //! - **Command files** (`*.rs`): `fn execute_x(&ActionContext) → CommandResult`
 //! - **Effect builders** (`effects.rs`): `fn name(primitives) → Effects`
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::effects::undo_state::EffectState;
 use crate::effects::Effects;
@@ -126,9 +126,9 @@ pub fn star_search_normal(text: &str, cursor: usize, direction: Direction) -> Ef
     }
 
     let escaped = crate::commands::helpers::vim_regex_escape(word);
-    // Use CompactString SSO (24 bytes inline) to avoid heap allocation
+    // Use VimString SSO (24 bytes inline) to avoid heap allocation
     // for typical word lengths (<=20 chars).
-    let mut pattern = compact_str::CompactString::with_capacity(escaped.len() + 4);
+    let mut pattern = crate::VimString::with_capacity(escaped.len() + 4);
     pattern.push_str("\\<");
     pattern.push_str(&escaped);
     pattern.push_str("\\>");
@@ -159,8 +159,8 @@ pub fn partial_star_search_normal(text: &str, cursor: usize, direction: Directio
 /// `\n` (Neovim's `_visual_search()`). `?` stays: the pattern is stored, not
 /// typed after `?`, and a stored `\?` is a multi.
 #[must_use]
-pub(crate) fn visual_star_pattern(selected: &str) -> CompactString {
-    let mut pattern = CompactString::with_capacity(selected.len() + 2);
+pub(crate) fn visual_star_pattern(selected: &str) -> VimString {
+    let mut pattern = VimString::with_capacity(selected.len() + 2);
     pattern.push_str("\\V");
     for c in selected.chars() {
         match c {

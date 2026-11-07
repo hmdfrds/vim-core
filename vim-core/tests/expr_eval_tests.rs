@@ -3,12 +3,12 @@
 //! Tests the `ExpressionEval` struct, `SimpleExprEval` runtime, and
 //! `VimApi::expr_context()` integration.
 
-use compact_str::CompactString;
 use vim_core::execution::{
     ExprContext, ExprEngine, ExpressionEval, HostSession, RuntimeError, SimpleExprEval,
 };
 use vim_core::primitives::{VarScope, VimOptions, VimValue};
 use vim_core::state::VariableStore;
+use vim_core::VimString;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SimpleExprEval — arithmetic
@@ -78,11 +78,11 @@ fn simple_expr_string_literals() {
 
     assert_eq!(
         runtime.eval_expression("\"hello\"", &ctx).unwrap(),
-        VimValue::String(CompactString::from("hello"))
+        VimValue::String(VimString::from("hello"))
     );
     assert_eq!(
         runtime.eval_expression("'world'", &ctx).unwrap(),
-        VimValue::String(CompactString::from("world"))
+        VimValue::String(VimString::from("world"))
     );
 }
 
@@ -100,7 +100,7 @@ fn simple_expr_string_concatenation() {
         runtime
             .eval_expression("\"hello\" . \" world\"", &ctx)
             .unwrap(),
-        VimValue::String(CompactString::from("hello world"))
+        VimValue::String(VimString::from("hello world"))
     );
 }
 
@@ -116,7 +116,7 @@ fn simple_expr_variable_access() {
     vars.set(
         VarScope::Buffer,
         "name",
-        VimValue::String(CompactString::from("test")),
+        VimValue::String(VimString::from("test")),
     );
     let opts = VimOptions::default();
     let ctx = ExprContext {
@@ -130,7 +130,7 @@ fn simple_expr_variable_access() {
     );
     assert_eq!(
         runtime.eval_expression("b:name", &ctx).unwrap(),
-        VimValue::String(CompactString::from("test"))
+        VimValue::String(VimString::from("test"))
     );
 }
 

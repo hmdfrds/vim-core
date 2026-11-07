@@ -65,7 +65,7 @@ impl VimEngine {
                     self.parser.state(),
                     crate::grammar::InputState::AwaitingInsertCtrlX
                 ) {
-                    response.message = Some(compact_str::CompactString::from(
+                    response.message = Some(crate::VimString::from(
                         "-- ^X mode (^]^D^E^F^I^K^L^N^O^P^S^T^U^V^Y)",
                     ));
                 }
@@ -738,9 +738,7 @@ impl VimEngine {
                 .map(char::len_utf8)
                 .sum::<usize>();
             if let Some(is) = self.state.insert_state_mut() {
-                let indent = compact_str::CompactString::from(
-                    &text[line_start..line_start + leading_ws_len],
-                );
+                let indent = crate::VimString::from(&text[line_start..line_start + leading_ws_len]);
                 is.set_saved_indent(indent);
             }
         }
@@ -1508,7 +1506,7 @@ impl VimEngine {
         insert_mode: InsertMode,
         text: &str,
         cursor: usize,
-    ) -> Option<(usize, compact_str::CompactString)> {
+    ) -> Option<(usize, crate::VimString)> {
         let Command::Insert(InsertKind::Char { char: trigger_char }) = command else {
             return None;
         };
@@ -1966,10 +1964,10 @@ impl VimEngine {
                     if input.is_empty() {
                         None
                     } else {
-                        Some(compact_str::CompactString::from(input))
+                        Some(crate::VimString::from(input))
                     }
                 };
-                let history: Vec<compact_str::CompactString> = self
+                let history: Vec<crate::VimString> = self
                     .state
                     .command_line()
                     .history_for_prompt(prompt)
@@ -2182,7 +2180,7 @@ impl VimEngine {
                         let meta = self.host.sequencer.next_meta();
                         expr_reeval_request = Some(HostRequest::EvaluateExpression {
                             meta,
-                            expression: compact_str::CompactString::from(expr_text.as_str()),
+                            expression: crate::VimString::from(expr_text.as_str()),
                         });
                     }
                 }

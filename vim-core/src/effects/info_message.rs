@@ -1,6 +1,6 @@
 use std::fmt;
 
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Semantic category for informational messages.
 ///
@@ -38,13 +38,13 @@ pub enum InfoMessage {
     /// Line modification report. Structured so hosts can localize or style.
     LineReport(LineModCounts),
     /// Verbose-only: shown only when the host's verbosity is high.
-    Verbose(CompactString),
+    Verbose(VimString),
     /// Free-text informational message.
-    Text(CompactString),
+    Text(VimString),
     /// Categorized text message with a semantic kind for host routing.
     Categorized {
         /// The message text.
-        text: CompactString,
+        text: VimString,
         /// Semantic routing hint.
         kind: MessageKind,
     },
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn categorized_info_message() {
         let msg = InfoMessage::Categorized {
-            text: CompactString::from("3/17"),
+            text: VimString::from("3/17"),
             kind: MessageKind::SearchCount,
         };
         if let InfoMessage::Categorized { text, kind } = &msg {
@@ -368,20 +368,20 @@ mod tests {
 
     #[test]
     fn display_info_message_text() {
-        let msg = InfoMessage::Text(CompactString::from("hello world"));
+        let msg = InfoMessage::Text(VimString::from("hello world"));
         assert_eq!(msg.to_string(), "hello world");
     }
 
     #[test]
     fn display_info_message_verbose() {
-        let msg = InfoMessage::Verbose(CompactString::from("verbose info"));
+        let msg = InfoMessage::Verbose(VimString::from("verbose info"));
         assert_eq!(msg.to_string(), "verbose info");
     }
 
     #[test]
     fn display_info_message_categorized() {
         let msg = InfoMessage::Categorized {
-            text: CompactString::from("3/17"),
+            text: VimString::from("3/17"),
             kind: MessageKind::SearchCount,
         };
         assert_eq!(msg.to_string(), "3/17");

@@ -9,7 +9,7 @@
 //! global_cmd  = [range] ("g" | "v") "/" pattern "/" command_line
 //! ```
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::ex_range::ExRange;
 use crate::primitives::{AbbrevMode, SubFlags};
@@ -223,9 +223,9 @@ pub enum ExCommand {
         /// Line range to substitute within.
         range: ExRange,
         /// Regex pattern to search for.
-        pattern: CompactString,
+        pattern: VimString,
         /// Replacement text.
-        replacement: CompactString,
+        replacement: VimString,
         /// Substitute flags (g, c, i, I, n).
         flags: SubFlags,
     },
@@ -234,11 +234,11 @@ pub enum ExCommand {
         /// Line range to search within.
         range: ExRange,
         /// Pattern to match lines against.
-        pattern: CompactString,
+        pattern: VimString,
         /// The command line run on each matching line, every `|` command
         /// in it, as written: each line parses it again, as Vim's
         /// `global_exe_one()` does.
-        commands: CompactString,
+        commands: VimString,
         /// If true, this is `:v` (inverse match).
         invert: bool,
     },
@@ -289,7 +289,7 @@ pub enum ExCommand {
     /// Show registers: `:reg[isters]` or `:di[splay]`
     Registers {
         /// Optional filter: show only these register names.
-        filter: Option<CompactString>,
+        filter: Option<VimString>,
     },
     /// Set a mark at the first non-blank of the range's last line:
     /// `:ma[rk] {mark}` or `:k{mark}`
@@ -302,7 +302,7 @@ pub enum ExCommand {
     /// Show marks: `:marks`
     Marks {
         /// Optional filter: show only these mark names.
-        filter: Option<CompactString>,
+        filter: Option<VimString>,
     },
     /// Show jump list: `:jumps`
     Jumps,
@@ -359,9 +359,9 @@ pub enum ExCommand {
         /// Which mode(s) the mapping applies to.
         mode_prefix: MapModePrefix,
         /// Left-hand side key notation (e.g. `<Leader>w`, `jk`).
-        lhs: CompactString,
+        lhs: VimString,
         /// Right-hand side key notation. `None` = list mappings for lhs.
-        rhs: Option<CompactString>,
+        rhs: Option<VimString>,
         /// Recursive (`:map`) vs non-recursive (`:noremap`).
         kind: crate::keymap::MappingKind,
         /// `<nowait>`, `<silent>`, `<expr>` and `<unique>`. `<unique>` is
@@ -375,7 +375,7 @@ pub enum ExCommand {
         /// Which mode(s) the mapping applies to.
         mode_prefix: MapModePrefix,
         /// Left-hand side to remove.
-        lhs: CompactString,
+        lhs: VimString,
         /// `<buffer>`: a mapping of the current buffer.
         buffer: bool,
     },
@@ -397,7 +397,7 @@ pub enum ExCommand {
     /// Write file: `:w [path]`
     Write {
         /// Optional path to write to.
-        path: Option<CompactString>,
+        path: Option<VimString>,
         /// Force write (`:w!`).
         force: bool,
     },
@@ -414,14 +414,14 @@ pub enum ExCommand {
     /// Edit file: `:e {path}`
     Edit {
         /// Path to file to edit.
-        path: CompactString,
+        path: VimString,
         /// Force open even if host reports unsaved changes.
         force: bool,
     },
     /// Read file: `:r {path}`
     Read {
         /// Path to file to read.
-        path: CompactString,
+        path: VimString,
         /// Line to insert after (None = current).
         after_line: Option<u32>,
     },
@@ -430,22 +430,22 @@ pub enum ExCommand {
         /// Range to filter.
         range: ExRange,
         /// External command.
-        command: CompactString,
+        command: VimString,
     },
     /// External shell command: `:!cmd`
     External {
         /// External command.
-        command: CompactString,
+        command: VimString,
     },
     /// Split window: `:sp[lit] [path]`
     Split {
         /// Optional path to open in the new split.
-        path: Option<CompactString>,
+        path: Option<VimString>,
     },
     /// Vertical split: `:vs[plit] [path]`
     VSplit {
         /// Optional path to open in the new vertical split.
-        path: Option<CompactString>,
+        path: Option<VimString>,
     },
     /// Close current window: `:clo[se][!]`
     Close {
@@ -475,21 +475,21 @@ pub enum ExCommand {
         /// Force delete without saving.
         force: bool,
         /// Buffer target (number or name); host resolves.
-        target: Option<CompactString>,
+        target: Option<VimString>,
     },
     /// Wipeout buffer: `:bw[ipeout][!] [target]`
     BufferWipeout {
         /// Force wipeout without saving.
         force: bool,
         /// Buffer target (number or name); host resolves.
-        target: Option<CompactString>,
+        target: Option<VimString>,
     },
     /// Define abbreviation: `:abbreviate`, `:iabbrev`, `:cabbrev`, `:noreabbrev`, etc.
     Abbreviate {
         /// Trigger text (None = list abbreviations).
-        trigger: Option<CompactString>,
+        trigger: Option<VimString>,
         /// Replacement text (None = show matching abbreviation).
-        replacement: Option<CompactString>,
+        replacement: Option<VimString>,
         /// Which mode(s) the abbreviation applies to.
         mode: AbbrevMode,
         /// Whether remapping is suppressed (noremap variant, or
@@ -501,7 +501,7 @@ pub enum ExCommand {
     /// Remove abbreviation: `:unabbreviate`, `:iunabbrev`, `:cunabbrev`.
     Unabbreviate {
         /// Trigger text to remove.
-        trigger: CompactString,
+        trigger: VimString,
         /// Which mode(s) to remove from.
         mode: AbbrevMode,
     },
@@ -517,17 +517,17 @@ pub enum ExCommand {
     /// Fallback custom ex command forwarded to host.
     Custom {
         /// Raw command text.
-        command: CompactString,
+        command: VimString,
     },
     /// Execute a host action by name: `:action {name}`
     Action {
         /// Action name to execute (e.g., "ReformatCode").
-        name: CompactString,
+        name: VimString,
     },
     /// List available host actions: `:actionlist [filter]`
     ActionList {
         /// Optional name filter substring.
-        filter: Option<CompactString>,
+        filter: Option<VimString>,
     },
     /// Source a config file: `:so[urce] [file]`.
     Source {
@@ -535,7 +535,7 @@ pub enum ExCommand {
         /// target the host chooses (see [`HostRequest::ReadConfigFile`]).
         ///
         /// [`HostRequest::ReadConfigFile`]: crate::execution::HostRequest::ReadConfigFile
-        path: Option<CompactString>,
+        path: Option<VimString>,
     },
     /// Navigate earlier in undo history: `:earlier {amount}`
     ///
@@ -609,7 +609,7 @@ pub enum ExCommand {
     /// Open new tab: `:tabnew [path]`
     TabNew {
         /// Optional path to open in new tab.
-        path: Option<CompactString>,
+        path: Option<VimString>,
     },
     /// Switch to next tab: `:tabnext` or `:tabn`
     TabNext {
@@ -631,7 +631,7 @@ pub enum ExCommand {
     /// Echo a message: `:echo {msg}`
     Echo {
         /// Message text to display.
-        message: CompactString,
+        message: VimString,
     },
     /// Set the leader: `:let mapleader = {expr}`, or the local leader:
     /// `:let maplocalleader = {expr}`, with `g:` or without.
@@ -667,7 +667,7 @@ pub enum ExCommand {
         /// Range of lines to execute on.
         range: ExRange,
         /// Normal-mode keystrokes to execute on each line.
-        keys: CompactString,
+        keys: VimString,
         /// Whether mappings should be applied during replay.
         remap: bool,
     },
@@ -679,7 +679,7 @@ pub enum ExCommand {
     /// Structural extract: `:sx/pattern/command` — apply command to each match.
     StructuralExtract {
         /// Regex pattern to match regions.
-        pattern: CompactString,
+        pattern: VimString,
         /// Sub-command to apply to each matched region.
         command: Box<Self>,
         /// Structural regex flags.
@@ -688,7 +688,7 @@ pub enum ExCommand {
     /// Structural complement: `:sy/pattern/command` — apply command to gaps between matches.
     StructuralComplement {
         /// Regex pattern whose matches define the boundaries.
-        pattern: CompactString,
+        pattern: VimString,
         /// Sub-command to apply to each gap region.
         command: Box<Self>,
         /// Structural regex flags.
@@ -820,20 +820,20 @@ pub enum ExCommand {
     /// - `:sethandler n:vim i:ide` — no key → applies to ALL keys (global default)
     SetHandler {
         /// Optional key notation (e.g., `<C-A>`). If `None`, applies to all keys.
-        key: Option<CompactString>,
+        key: Option<VimString>,
         /// Mode:handler assignments (e.g., `("n", "vim")`, `("i", "ide")`).
         ///
         /// Each tuple is `(mode_chars, handler_name)` where:
         /// - `mode_chars` is a dash-separated list of mode characters
         ///   (`n` Normal, `i` Insert, `v` Visual, `x` Visual-only, `a` all)
         /// - `handler_name` is `"vim"` or `"ide"`/`"host"`
-        assignments: Vec<(CompactString, CompactString)>,
+        assignments: Vec<(VimString, VimString)>,
     },
 
     /// Delete marks: `:delm[arks] {marks}` or `:delmarks!` (clear all a-z).
     DelMarks {
         /// The marks string (e.g., "abc" → delete marks a, b, c).
-        marks: CompactString,
+        marks: VimString,
         /// If true (`:delmarks!`), clear all lowercase marks (a-z).
         clear_all: bool,
     },
@@ -847,7 +847,7 @@ pub enum ExCommand {
     /// Update (write only if modified): `:up[date][!] [path]`
     Update {
         /// Optional path to write to.
-        path: Option<CompactString>,
+        path: Option<VimString>,
         /// Force write (`:update!`).
         force: bool,
     },
@@ -885,21 +885,21 @@ pub enum ExCommand {
         /// The sub-command to execute in each window.
         command: Box<Self>,
         /// Original source text of the sub-command (for host re-parsing).
-        source: compact_str::CompactString,
+        source: crate::VimString,
     },
     /// Execute command in each buffer: `:bufdo {cmd}`
     BufDo {
         /// The sub-command to execute in each buffer.
         command: Box<Self>,
         /// Original source text of the sub-command (for host re-parsing).
-        source: compact_str::CompactString,
+        source: crate::VimString,
     },
     /// Execute command in each tab: `:tabdo {cmd}`
     TabDo {
         /// The sub-command to execute in each tab.
         command: Box<Self>,
         /// Original source text of the sub-command (for host re-parsing).
-        source: compact_str::CompactString,
+        source: crate::VimString,
     },
 
     /// Execute register contents as ex commands: `:@{register}`
@@ -990,29 +990,29 @@ pub use crate::primitives::MapModePrefix;
 #[non_exhaustive]
 pub enum SetAssignment {
     /// Set boolean on: `:set expandtab`
-    SetBool(CompactString),
+    SetBool(VimString),
     /// Set boolean off: `:set noexpandtab`
-    UnsetBool(CompactString),
+    UnsetBool(VimString),
     /// Toggle boolean: `:set expandtab!`. A `no` or `inv` prefix stays on
     /// the name.
-    ToggleBool(CompactString),
+    ToggleBool(VimString),
     /// Invert a boolean with the `inv` prefix: `:set invexpandtab`. The
     /// name is without the prefix.
     InvertBool(Box<str>),
     /// Query option value: `:set expandtab?`
-    Query(CompactString),
+    Query(VimString),
     /// Assign a number or string: `:set tabstop=8`. The value is as
     /// written; a string option takes it without the backslash before
     /// each character, so `#\ %s` is `# %s`.
-    Assign(CompactString, CompactString),
+    Assign(VimString, VimString),
     /// Add to a number, append to a string, or add a flag or list item:
     /// `:set tw+=4`, `:set fo+=c`, `:set com+=b:##`
-    Append(CompactString, CompactString),
+    Append(VimString, VimString),
     /// Subtract from a number, or remove a substring, flag or list item:
     /// `:set fo-=t`, `:set com-=b:#`
-    Remove(CompactString, CompactString),
+    Remove(VimString, VimString),
     /// Multiply a number, or prepend to a string or list: `:set com^=b:##`
-    Prepend(CompactString, CompactString),
+    Prepend(VimString, VimString),
     /// Show all options: `:set all`
     ShowAll,
     /// Reset an option to its default or global value: `:set fo&`,

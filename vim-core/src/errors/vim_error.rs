@@ -19,7 +19,7 @@
 //! 2. Add the `Display` match arm with the `E{N}: {message}` format
 //! 3. Add a unit test in the `tests` module verifying the Display output
 
-use compact_str::CompactString;
+use crate::VimString;
 use std::fmt;
 
 /// Errors that can occur in vim-core.
@@ -34,7 +34,7 @@ pub enum VimError {
     // Search errors
     // ═══════════════════════════════════════════════════════════════════
     /// E486: Pattern not found.
-    PatternNotFound(CompactString),
+    PatternNotFound(VimString),
 
     /// E35: No previous regular expression.
     NoPreviousPattern,
@@ -55,7 +55,7 @@ pub enum VimError {
     NoPreviousRegister,
 
     /// E354: Invalid register name: '{0}'.
-    InvalidRegisterName(CompactString),
+    InvalidRegisterName(VimString),
 
     // ═══════════════════════════════════════════════════════════════════
     // Mark errors
@@ -84,14 +84,14 @@ pub enum VimError {
     // Ex command errors
     // ═══════════════════════════════════════════════════════════════════
     /// E492: Not an editor command.
-    NotEditorCommand(CompactString),
+    NotEditorCommand(VimString),
 
     /// E523: Not allowed here, such as a command that needs a buffer in a
     /// config file. Carries the command.
-    NotAllowedHere(CompactString),
+    NotAllowedHere(VimString),
 
     /// E14: Invalid address.
-    InvalidAddress(CompactString),
+    InvalidAddress(VimString),
 
     /// E16: Invalid range.
     InvalidRange,
@@ -106,14 +106,14 @@ pub enum VimError {
     MoveIntoItself,
 
     /// E521: Invalid argument (number required, wrong type, etc.).
-    InvalidArgument(CompactString),
+    InvalidArgument(VimString),
 
     /// `:set` rejected an option value (E474, E487, E488, E521, E524,
     /// E525, E539).
     ///
     /// Carries Vim's whole message, code and argument included, because the
     /// code depends on the option: `E539: Illegal character <Z>: fo=Z`.
-    OptionValue(CompactString),
+    OptionValue(VimString),
 
     /// E518: `:set` names an option that does not exist. Carries the
     /// argument as written, such as `nosuch=1`.
@@ -178,7 +178,7 @@ pub enum VimError {
     ///
     /// Carries the form, such as `source!`, where Vim shows the typed
     /// command line.
-    NotAvailable(CompactString),
+    NotAvailable(VimString),
 
     /// E168: `:finish` used outside of a sourced file.
     FinishOutsideSource,
@@ -401,7 +401,7 @@ pub enum VimError {
     /// Fires when a new `Command` variant is added without a corresponding
     /// executor handler. Caught by `debug_assert!` in test builds;
     /// this variant provides graceful degradation in release.
-    InternalError(CompactString),
+    InternalError(VimString),
 
     // ═══════════════════════════════════════════════════════════════════
     // Host boundary
@@ -421,7 +421,7 @@ pub enum VimError {
     /// Used exclusively at the FFI boundary when the host signals an
     /// unstructured error string. All vim-core-internal errors use
     /// typed variants above.
-    HostFailure(CompactString),
+    HostFailure(VimString),
 
     /// A host refused a command of a config, or the file a `:source` in
     /// it names. Shown as the host wrote it.

@@ -14,7 +14,7 @@ use vim_core::execution::{ExprContext, ExprEngine, ExpressionEval, HostSession, 
 use vim_core::keymap::KeyEvent;
 use vim_core::primitives::{Mode, VarScope, VimValue};
 
-use compact_str::CompactString;
+use vim_core::VimString;
 
 // ---------------------------------------------------------------------------
 // The real Ctrl-R = flow
@@ -77,7 +77,7 @@ fn real_ctrl_r_eq_full_pipeline() {
         // Step 8: Return the result to the engine
         let host_result = vim_core::execution::HostResult::Data {
             id: meta.id,
-            data: CompactString::from(result),
+            data: VimString::from(result),
             offset: None,
         };
         let resp = session.complete_request_host(&host_result);
@@ -118,7 +118,7 @@ fn real_host_evaluates_variable_expression() {
     use vim_core::effects::Effect;
     session.engine_mut().apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("items"),
+        name: VimString::from("items"),
         value: VimValue::Int(42),
     });
 
@@ -150,12 +150,12 @@ fn real_host_evaluates_condition() {
     use vim_core::effects::Effect;
     session.engine_mut().apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("debug_mode"),
+        name: VimString::from("debug_mode"),
         value: VimValue::Bool(true),
     });
     session.engine_mut().apply_effect(&Effect::SetVariable {
         scope: VarScope::Global,
-        name: CompactString::from("log_level"),
+        name: VimString::from("log_level"),
         value: VimValue::Int(3),
     });
 
@@ -194,7 +194,7 @@ fn real_host_custom_runtime() {
         ) -> Result<VimValue, vim_core::execution::RuntimeError> {
             // Simulate a richer runtime that supports function calls
             match expr.trim() {
-                "string.upper('hello')" => Ok(VimValue::String(CompactString::from("HELLO"))),
+                "string.upper('hello')" => Ok(VimValue::String(VimString::from("HELLO"))),
                 "math.sqrt(16)" => Ok(VimValue::Float(4.0)),
                 "len(g:items)" => {
                     // Read a variable and compute its length
@@ -230,7 +230,7 @@ fn real_host_custom_runtime() {
     // Custom function calls work
     assert_eq!(
         eval.evaluate("string.upper('hello')").unwrap(),
-        VimValue::String(CompactString::from("HELLO"))
+        VimValue::String(VimString::from("HELLO"))
     );
     assert_eq!(
         eval.evaluate("math.sqrt(16)").unwrap(),

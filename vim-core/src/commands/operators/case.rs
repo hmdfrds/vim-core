@@ -13,7 +13,7 @@ use crate::commands::helpers::toggle_case_chars;
 use crate::commands::CommandResult;
 use crate::effects::Effects;
 use crate::primitives::{MarkName, Offset};
-use compact_str::CompactString;
+use crate::VimString;
 
 /// Execute lowercase operator (gu).
 ///
@@ -177,7 +177,7 @@ fn execute_case_change(ctx: &OperatorContext<'_>, transform: CaseTransform) -> C
     } else {
         Effects::new()
             .begin_undo()
-            .replace(effective_range, CompactString::new(&transformed))
+            .replace(effective_range, VimString::new(&transformed))
             .set_cursor(new_cursor)
             .end_undo()
     };

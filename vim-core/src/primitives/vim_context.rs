@@ -5,7 +5,7 @@
 //! make routing decisions (e.g., whether to pass a key to the engine or
 //! handle it natively).
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::mode::Mode;
 use super::operator::Operator;
@@ -35,7 +35,7 @@ pub struct VimContext {
     /// Whether the typeahead buffer or macro stack has pending keys.
     pub has_pending_keys: bool,
     /// The pending command display string (showcmd) for partial commands.
-    pub pending_display: CompactString,
+    pub pending_display: VimString,
     /// The register selected by `"{reg}` prefix, if any.
     pub active_register: Option<RegisterName>,
 }

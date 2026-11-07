@@ -4,7 +4,7 @@
 //! host renders alongside the buffer text. These are pure data definitions
 //! with no behavior logic — the host interprets them via the effect system.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::position::{LineNumber, Offset};
 
@@ -96,9 +96,9 @@ pub struct Diagnostic {
     /// Severity level.
     pub severity: DiagnosticSeverity,
     /// Human-readable diagnostic message.
-    pub message: CompactString,
+    pub message: VimString,
     /// Source of the diagnostic (e.g., "gdscript", "rust-analyzer").
-    pub source: Option<CompactString>,
+    pub source: Option<VimString>,
 }
 
 impl Diagnostic {
@@ -119,7 +119,7 @@ impl Diagnostic {
         line: LineNumber,
         col: Offset,
         severity: DiagnosticSeverity,
-        message: impl Into<CompactString>,
+        message: impl Into<VimString>,
     ) -> Self {
         Self {
             line,
@@ -269,8 +269,8 @@ mod tests {
             col: Offset::new(5),
             end_col: Some(Offset::new(15)),
             severity: DiagnosticSeverity::Error,
-            message: CompactString::from("undefined variable"),
-            source: Some(CompactString::from("rust-analyzer")),
+            message: VimString::from("undefined variable"),
+            source: Some(VimString::from("rust-analyzer")),
         };
         assert_eq!(diag.line, LineNumber::new(10));
         assert_eq!(diag.col, Offset::new(5));
@@ -287,7 +287,7 @@ mod tests {
             col: Offset::new(0),
             end_col: None,
             severity: DiagnosticSeverity::Hint,
-            message: CompactString::from("consider using let"),
+            message: VimString::from("consider using let"),
             source: None,
         };
         assert_eq!(diag.end_col, None);
@@ -301,7 +301,7 @@ mod tests {
             col: Offset::new(0),
             end_col: None,
             severity: DiagnosticSeverity::Warning,
-            message: CompactString::from("unused"),
+            message: VimString::from("unused"),
             source: None,
         };
         let b = a.clone();
@@ -315,7 +315,7 @@ mod tests {
             col: Offset::new(0),
             end_col: None,
             severity: DiagnosticSeverity::Warning,
-            message: CompactString::from("unused"),
+            message: VimString::from("unused"),
             source: None,
         };
         let mut b = a.clone();
@@ -330,7 +330,7 @@ mod tests {
             col: Offset::new(0),
             end_col: None,
             severity: DiagnosticSeverity::Info,
-            message: CompactString::from("info"),
+            message: VimString::from("info"),
             source: None,
         };
         let debug = format!("{diag:?}");

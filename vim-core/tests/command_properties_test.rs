@@ -93,7 +93,7 @@ fn properties_guard_all_variants_compile() {
         register: None,
         operator: None,
         command: CharCommand::FindForward,
-        target: compact_str::CompactString::from("a"),
+        target: vim_core::VimString::from("a"),
     }
     .properties();
 
@@ -481,7 +481,7 @@ fn char_command_with_replace_has_record_repeat() {
         register: None,
         operator: None,
         command: vim_core::grammar::types::CharCommand::Replace,
-        target: compact_str::CompactString::from("x"),
+        target: vim_core::VimString::from("x"),
     };
 
     let props = cmd.properties();
@@ -499,7 +499,7 @@ fn char_command_with_find_has_skip_repeat() {
         register: None,
         operator: None,
         command: CharCommand::FindForward,
-        target: compact_str::CompactString::from("x"),
+        target: vim_core::VimString::from("x"),
     };
 
     let props = cmd.properties();
@@ -517,7 +517,7 @@ fn char_command_with_operator_has_record_repeat() {
         register: None,
         operator: Some(Operator::Delete),
         command: CharCommand::FindForward,
-        target: compact_str::CompactString::from("x"),
+        target: vim_core::VimString::from("x"),
     };
 
     let props = cmd.properties();

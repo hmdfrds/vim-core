@@ -4,7 +4,7 @@
 //! query surface. Each view borrows a single domain object and provides
 //! clamped, never-panicking accessor methods.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use crate::commands::helpers;
 use crate::document::Document;
@@ -29,7 +29,7 @@ pub struct RegexMatch {
     /// Byte offset past the match end.
     pub end: usize,
     /// The matched text.
-    pub text: CompactString,
+    pub text: VimString,
 }
 
 /// Result of an HTML/XML tag pair search.
@@ -297,7 +297,7 @@ impl<'a> BufferView<'a> {
         Some(RegexMatch {
             start: m.range.start,
             end: m.range.end,
-            text: CompactString::from(&text[m.range.start..m.range.end]),
+            text: VimString::from(&text[m.range.start..m.range.end]),
         })
     }
 
@@ -322,7 +322,7 @@ impl<'a> BufferView<'a> {
         Some(RegexMatch {
             start: m.range.start,
             end: m.range.end,
-            text: CompactString::from(&text[m.range.start..m.range.end]),
+            text: VimString::from(&text[m.range.start..m.range.end]),
         })
     }
 
@@ -540,12 +540,12 @@ impl<'a> BufferView<'a> {
     /// When `expandtab` is set, produces `level * shiftwidth` spaces.
     /// Otherwise produces `level` tab characters.
     #[must_use]
-    pub fn indent_string(&self, level: usize) -> CompactString {
+    pub fn indent_string(&self, level: usize) -> VimString {
         if self.options.expandtab() {
             let spaces = level * self.options.shiftwidth();
-            CompactString::from(" ".repeat(spaces))
+            VimString::from(" ".repeat(spaces))
         } else {
-            CompactString::from("\t".repeat(level))
+            VimString::from("\t".repeat(level))
         }
     }
 }
@@ -821,15 +821,13 @@ impl<'a> OptionView<'a> {
             "smartcase" | "scs" => Some(VimValue::Bool(self.smartcase())),
             "textwidth" | "tw" => Some(VimValue::Int(byte_delta::to_i64(self.textwidth()))),
             "commentstring" | "cms" => {
-                Some(VimValue::String(CompactString::from(self.commentstring())))
+                Some(VimValue::String(VimString::from(self.commentstring())))
             }
-            "iskeyword" | "isk" => Some(VimValue::String(CompactString::from(self.iskeyword()))),
-            "formatoptions" | "fo" => Some(VimValue::String(CompactString::from(
+            "iskeyword" | "isk" => Some(VimValue::String(VimString::from(self.iskeyword()))),
+            "formatoptions" | "fo" => Some(VimValue::String(VimString::from(
                 self.options.formatoptions(),
             ))),
-            "comments" | "com" => Some(VimValue::String(CompactString::from(
-                self.options.comments(),
-            ))),
+            "comments" | "com" => Some(VimValue::String(VimString::from(self.options.comments()))),
             _ => None,
         }
     }
@@ -924,7 +922,7 @@ impl<'a> StateView<'a> {
             .command_line()
             .ex_history()
             .back()
-            .map(CompactString::as_str)
+            .map(VimString::as_str)
     }
 
     /// View over effective options.

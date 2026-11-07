@@ -37,15 +37,15 @@ use crate::state::VimState;
 /// ```ignore
 /// use vim_core::execution::HostMapping;
 /// use vim_core::keymap::MappingMode;
-/// use compact_str::CompactString;
+/// use vim_core::VimString;
 ///
 /// let mapping = HostMapping {
 ///     modes: smallvec::smallvec![MappingMode::Normal],
-///     lhs: CompactString::from("gd"),
-///     rhs: CompactString::from("<Action>(gotoDefinition)"),
+///     lhs: VimString::from("gd"),
+///     rhs: VimString::from("<Action>(gotoDefinition)"),
 ///     recursive: false,
 ///     silent: true,
-///     description: Some(CompactString::from("Go to definition")),
+///     description: Some(VimString::from("Go to definition")),
 /// };
 /// engine.register_host_mappings("my-lsp", &[mapping]);
 /// ```
@@ -56,9 +56,9 @@ pub struct HostMapping {
     /// mapping, or list multiple modes to register the same binding in all.
     pub modes: smallvec::SmallVec<[MappingMode; 4]>,
     /// The left-hand side key sequence in Vim key notation (e.g., `"gd"`, `"<C-]>"`).
-    pub lhs: compact_str::CompactString,
+    pub lhs: crate::VimString,
     /// The right-hand side key sequence in Vim key notation (e.g., `"<Action>(gotoDefinition)"`).
-    pub rhs: compact_str::CompactString,
+    pub rhs: crate::VimString,
     /// Whether the mapping is recursive (`true` → `:map`, `false` → `:noremap`).
     ///
     /// Host mappings that invoke `<Action>(...)` keys should be non-recursive
@@ -67,7 +67,7 @@ pub struct HostMapping {
     /// Whether `<silent>` is set — suppresses `ShowMessage` effects during expansion.
     pub silent: bool,
     /// Optional human-readable description for which-key display.
-    pub description: Option<compact_str::CompactString>,
+    pub description: Option<crate::VimString>,
 }
 impl VimEngine {
     /// Get current mode.
@@ -311,7 +311,7 @@ impl VimEngine {
     #[inline]
     pub fn set_search_pattern(
         &mut self,
-        pattern: impl Into<compact_str::CompactString>,
+        pattern: impl Into<crate::VimString>,
         direction: crate::primitives::SearchDirection,
     ) {
         self.state.search_mut().set_pattern(pattern, direction);
@@ -533,7 +533,7 @@ impl VimEngine {
     /// The text is then available via `"=p` and other register-reading
     /// commands.
     #[inline]
-    pub fn set_expression_result(&mut self, text: impl Into<compact_str::CompactString>) {
+    pub fn set_expression_result(&mut self, text: impl Into<crate::VimString>) {
         self.state
             .registers_mut()
             .set_expression_result(crate::primitives::RegisterContent::char_wise(text));
@@ -585,7 +585,7 @@ impl VimEngine {
     /// Pass `None` to clear the filetype.
     pub fn set_filetype(&mut self, filetype: Option<&str>) {
         self.keymap
-            .set_filetype(filetype.map(compact_str::CompactString::from));
+            .set_filetype(filetype.map(crate::VimString::from));
         self.key_interest_dirty = true;
     }
 
@@ -1638,7 +1638,7 @@ impl VimEngine {
     ///   `<Plug>(name)` references are registered in the keymap's name
     ///   registries automatically.
     pub fn register_host_mappings(&mut self, name: &str, mappings: &[HostMapping]) {
-        let owner = MappingOwner::Host(compact_str::CompactString::from(name));
+        let owner = MappingOwner::Host(crate::VimString::from(name));
         for mapping in mappings {
             let lhs = super::super::key_notation::parse_key_notation_sequence(
                 &mapping.lhs,
@@ -1680,7 +1680,7 @@ impl VimEngine {
     /// * `name` — The extension identifier passed to
     ///   [`register_host_mappings`](Self::register_host_mappings).
     pub fn unregister_host_mappings(&mut self, name: &str) {
-        let owner = MappingOwner::Host(compact_str::CompactString::from(name));
+        let owner = MappingOwner::Host(crate::VimString::from(name));
         self.keymap.remove_mappings_by_owner(&owner);
         self.key_interest_dirty = true;
     }
@@ -1897,7 +1897,7 @@ impl VimEngine {
     #[must_use]
     pub fn inspect(&self) -> crate::execution::trace::InspectSnapshot {
         crate::execution::trace::InspectSnapshot {
-            mode: compact_str::CompactString::from(self.state.mode().display_name()),
+            mode: crate::VimString::from(self.state.mode().display_name()),
             keystroke_seq: self.keystroke_seq,
             has_pending_keys: self.has_pending_keys(),
             is_recording: self.recording.buffer.is_some(),
@@ -2003,7 +2003,7 @@ impl VimEngine {
     ///
     /// Space: O(P) for the display string.
     #[must_use]
-    pub fn pending_command_display(&self) -> compact_str::CompactString {
+    pub fn pending_command_display(&self) -> crate::VimString {
         let mut display = self.parser.state().pending_display();
 
         // When a sticky session is active and the parser is idle (Ready),
@@ -2012,8 +2012,7 @@ impl VimEngine {
         // its own pending_display already shows the prefix — no extra needed.
         if let Some(ref session) = self.sticky_session {
             if self.parser.state().is_ready() {
-                let mut sticky_display =
-                    compact_str::CompactString::new(session.target().prefix_display());
+                let mut sticky_display = crate::VimString::new(session.target().prefix_display());
                 sticky_display.push('+');
                 sticky_display.push_str(&display);
                 display = sticky_display;
@@ -2072,7 +2071,7 @@ impl VimEngine {
         };
 
         // Collect into a map keyed by display string; user mappings shadow built-ins.
-        let mut hint_map: ahash::AHashMap<compact_str::CompactString, compact_str::CompactString> =
+        let mut hint_map: ahash::AHashMap<crate::VimString, crate::VimString> =
             ahash::AHashMap::new();
 
         // Insert static (built-in) hints, filtering out g-prefix operators when
@@ -2084,21 +2083,18 @@ impl VimEngine {
             {
                 continue;
             }
-            hint_map.insert(
-                compact_str::CompactString::from(key),
-                compact_str::CompactString::from(desc),
-            );
+            hint_map.insert(crate::VimString::from(key), crate::VimString::from(desc));
         }
 
         // Overlay user mapping continuations (shadow built-ins by key).
         if let Some(mm) = MappingMode::from_mode(self.mode()) {
             for (continuation_key, entry) in keymap.list_continuations(mm, &[prefix_key]) {
                 let key_display =
-                    compact_str::CompactString::from(continuation_key.to_vim_notation().as_ref());
+                    crate::VimString::from(continuation_key.to_vim_notation().as_ref());
                 let desc = if let Some(d) = entry.description() {
-                    compact_str::CompactString::from(d)
+                    crate::VimString::from(d)
                 } else {
-                    let mut rhs = compact_str::CompactString::default();
+                    let mut rhs = crate::VimString::default();
                     for k in entry.sequence() {
                         rhs.push_str(&k.to_string());
                     }
@@ -2116,7 +2112,7 @@ impl VimEngine {
         hints.sort_by(|a, b| a.key.cmp(&b.key));
 
         Some(KeyHintsInfo {
-            title: compact_str::CompactString::from(title),
+            title: crate::VimString::from(title),
             hints,
         })
     }
@@ -2137,7 +2133,7 @@ impl VimEngine {
 
         // Build a title from the pending prefix display.
         let title = {
-            let mut t = compact_str::CompactString::from("Mapping (");
+            let mut t = crate::VimString::from("Mapping (");
             t.push_str(&self.typeahead.buffer.pending_display());
             t.push(')');
             t
@@ -2146,11 +2142,11 @@ impl VimEngine {
         let mut hints: Vec<KeyHint> = continuations
             .into_iter()
             .map(|(key, entry)| {
-                let key_display = compact_str::CompactString::from(key.to_vim_notation().as_ref());
+                let key_display = crate::VimString::from(key.to_vim_notation().as_ref());
                 let desc = if let Some(d) = entry.description() {
-                    compact_str::CompactString::from(d)
+                    crate::VimString::from(d)
                 } else {
-                    let mut rhs = compact_str::CompactString::default();
+                    let mut rhs = crate::VimString::default();
                     for k in entry.sequence() {
                         rhs.push_str(&k.to_string());
                     }
@@ -2372,7 +2368,7 @@ impl VimEngine {
             let name = MarkName::new_unchecked(ch);
             if let Some(mark) = self.state.marks().get(name) {
                 let gm = crate::state::federation::GlobalMark {
-                    file_path: compact_str::CompactString::new(""),
+                    file_path: crate::VimString::new(""),
                     offset: mark.offset().get(),
                     line: 0,
                     column: 0,
@@ -2383,7 +2379,7 @@ impl VimEngine {
         }
 
         // Persist search history.
-        let history: Vec<compact_str::CompactString> =
+        let history: Vec<crate::VimString> =
             self.state.search().history().iter().cloned().collect();
         if !history.is_empty() {
             backend.store_search_history(&history);

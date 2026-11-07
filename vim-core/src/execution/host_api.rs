@@ -786,7 +786,7 @@ impl<H: VimHost> VimSession<H> {
             for request in requests {
                 let failure = HostResult::Failure {
                     id: request.id(),
-                    error: compact_str::CompactString::from("host request depth limit exceeded"),
+                    error: crate::VimString::from("host request depth limit exceeded"),
                 };
                 let _ = self.engine.complete_host_request(&failure);
             }
@@ -3655,13 +3655,13 @@ mod tests {
         use crate::document::{IndentProvider, Providers, SearchProvider};
         use crate::execution::host::{HostRequest, RequestDisposition};
         use crate::primitives::{Direction, LineNumber, Range, SearchFlags};
-        use compact_str::CompactString;
+        use crate::VimString;
 
         struct StubIndent;
         impl IndentProvider for StubIndent {
             fn indent_for_new_line(&self, _line: LineNumber) -> crate::document::IndentResult {
                 crate::document::IndentResult::Simple {
-                    indent: CompactString::from("  "),
+                    indent: VimString::from("  "),
                     append: None,
                 }
             }

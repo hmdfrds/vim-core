@@ -9,7 +9,7 @@
 //! `godot-vim`'s `handle_host_requests`, parameterised over handler and effect
 //! callbacks so any integrator can use it without copy-pasting the recursion logic.
 
-use compact_str::CompactString;
+use crate::VimString;
 
 use super::engine::MacroOutput;
 use super::host::{HostRequest, HostResult};
@@ -154,7 +154,7 @@ pub fn process_host_requests<H, F>(
         for request in requests {
             let failure = HostResult::Failure {
                 id: request.id(),
-                error: CompactString::from("host request depth limit exceeded"),
+                error: VimString::from("host request depth limit exceeded"),
             };
             let _ = engine.complete_host_request(&failure);
         }
