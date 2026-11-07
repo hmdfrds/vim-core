@@ -10,6 +10,12 @@ on:
   pull_request:
   workflow_dispatch: {}
 
+# A new push to a PR cancels its older run. Every other run gets its own group,
+# so each main commit, the one a tag is cut from, keeps its CI verdict.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
