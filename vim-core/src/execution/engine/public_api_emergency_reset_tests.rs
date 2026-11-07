@@ -796,6 +796,9 @@ fn emergency_reset_field_inventory() {
     // Set fork_active to true (directly accessible from this module).
     engine.fork_active = true;
 
+    // Inside a `:normal`.
+    engine.nesting = 1;
+
     // Push a syntax selection entry.
     engine
         .state
@@ -871,6 +874,7 @@ fn emergency_reset_field_inventory() {
         // === Cold state (preserved, boxed) ===
         ref cold,
         ref pending_macro_error,
+        ref nesting,
         ref last_external_edit_node,
         ref last_force_committed_node,
     } = engine;
@@ -1001,6 +1005,9 @@ fn emergency_reset_field_inventory() {
         cmd_buffer.is_none(),
         "cmd_buffer must be None after emergency_reset()",
     );
+
+    // nesting: 0.
+    assert_eq!(*nesting, 0, "nesting must be 0 after emergency_reset()");
 
     // fork_active: false.
     assert!(

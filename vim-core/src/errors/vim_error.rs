@@ -156,12 +156,6 @@ pub enum VimError {
         limit: usize,
     },
 
-    /// E5101: :global recursion depth limit exceeded.
-    GlobalRecursionLimitExceeded {
-        /// The maximum allowed recursion depth.
-        limit: u8,
-    },
-
     /// E147: a `:g` inside `:g` was given a range.
     GlobalRecursiveWithRange,
 
@@ -229,7 +223,9 @@ pub enum VimError {
     /// E1171: the file ends inside a `{` block of a function body.
     MissingEndBlock,
 
-    /// E169: a `:source` inside 200 files that are running.
+    /// E169: a `:source` inside 200 files that are running, or a command
+    /// nested 30 levels deep in others (`:g`, `:windo`, `:normal`, `@:`,
+    /// `:@r` and the like) that would nest one deeper.
     CommandTooRecursive,
 
     // ═══════════════════════════════════════════════════════════════════
@@ -529,9 +525,6 @@ impl fmt::Display for VimError {
                 f,
                 "E5100: :global command exceeded maximum line count ({limit})"
             ),
-            Self::GlobalRecursionLimitExceeded { limit } => {
-                write!(f, "E5101: :global recursion depth limit exceeded ({limit})")
-            }
             Self::GlobalRecursiveWithRange => {
                 write!(f, "E147: Cannot do :global recursive with a range")
             }
@@ -778,7 +771,6 @@ mod tests {
             VimError::NoPreviousCommand,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },
-            VimError::GlobalRecursionLimitExceeded { limit: 10 },
             VimError::GlobalRecursiveWithRange,
             VimError::InvalidRegexDelimiter,
             VimError::InvalidSearchPattern,
@@ -1213,15 +1205,6 @@ mod tests {
         assert_eq!(
             e.to_string(),
             "E5100: :global command exceeded maximum line count (100000)"
-        );
-    }
-
-    #[test]
-    fn display_global_recursion_limit_exceeded() {
-        let e = VimError::GlobalRecursionLimitExceeded { limit: 10 };
-        assert_eq!(
-            e.to_string(),
-            "E5101: :global recursion depth limit exceeded (10)"
         );
     }
 

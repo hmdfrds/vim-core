@@ -2876,13 +2876,19 @@ impl VimEngine {
             return Response::with_effects(ex_effects::show_error(VimError::NoPreviousCommand));
         };
 
-        let output = self.run_ex_line(
-            cmd_str.as_str(),
-            ctx,
-            super::ex_line::OnError::Stop,
-            true,
-            None,
-        );
+        let nested = self.nested(|engine| {
+            engine.run_ex_line(
+                cmd_str.as_str(),
+                ctx,
+                super::ex_line::OnError::Stop,
+                true,
+                None,
+            )
+        });
+        let output = match nested {
+            Ok(output) => output,
+            Err(err) => return Response::with_effects(ex_effects::show_error(err)),
+        };
         let mut combined = Response::with_effects(output.effects);
         combined.host_requests.extend(output.host_requests);
 

@@ -42,8 +42,32 @@ pub fn parse_ex_command_with_modifiers(
 /// Parse one command of an Ex line, keeping its modifiers when the command
 /// does not parse, so that `:silent!` can hide the error.
 pub(crate) fn parse_ex_piece(input: &str) -> (ModifierFlags, Result<ExCommand, VimError>) {
+    parse_ex_piece_at(input, 0)
+}
+
+/// Most levels Ex commands nest inside each other on the Rust stack: a
+/// command that `:g`, `:v`, `:sx`, `:sy`, `:windo`, `:bufdo` or `:tabdo`
+/// runs, a command list `:g` or `:@r` runs, `:normal`, `@:` and `:@:`.
+/// Past it, `E169: Command too recursive` (ex_docmd.c `do_cmdline()`).
+pub(crate) const MAX_NESTING: u8 = 30;
+
+/// The level one deeper than `depth`, or E169 past [`MAX_NESTING`].
+pub(crate) const fn nest(depth: u8) -> Result<u8, VimError> {
+    if depth >= MAX_NESTING {
+        Err(VimError::CommandTooRecursive)
+    } else {
+        Ok(depth + 1)
+    }
+}
+
+/// [`parse_ex_piece`] for a piece that runs `depth` levels deep, so the
+/// commands inside it may nest [`MAX_NESTING`] minus `depth` deeper.
+pub(crate) fn parse_ex_piece_at(
+    input: &str,
+    depth: u8,
+) -> (ModifierFlags, Result<ExCommand, VimError>) {
     let (modifiers, rest) = parse_modifier_prefixes(input);
-    (modifiers, parse_ex_command_inner(rest))
+    (modifiers, parse_ex_command_inner(rest, depth))
 }
 
 /// The blanks Vim skips around a command name and a range: space and tab
@@ -155,7 +179,7 @@ pub(crate) fn parse_config_modifiers(input: &str) -> (ModifierFlags, &str) {
     }
 }
 
-fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
+fn parse_ex_command_inner(input: &str, depth: u8) -> Result<ExCommand, VimError> {
     let trimmed = input.trim_start_matches(BLANKS);
     if trimmed.is_empty() {
         // Empty or whitespace-only command is a no-op in Vim (no error).
@@ -234,10 +258,10 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
     // Structural regex commands: :sx/pattern/command and :sy/pattern/command
     {
         if rest.starts_with("sx") && is_command_delimiter(rest.as_bytes().get(2).copied()) {
-            return parse_structural(rest, false);
+            return parse_structural(rest, false, depth);
         }
         if rest.starts_with("sy") && is_command_delimiter(rest.as_bytes().get(2).copied()) {
-            return parse_structural(rest, true);
+            return parse_structural(rest, true, depth);
         }
     }
 
@@ -261,7 +285,7 @@ fn parse_ex_command_inner(input: &str) -> Result<ExCommand, VimError> {
         }
     }
 
-    parse_named_command(rest, range)
+    parse_named_command(rest, range, depth)
 }
 
 /// Check if a byte is a valid delimiter for s/g/v commands.
@@ -287,7 +311,11 @@ fn matches_abbrev(name: &str, min: &str, full: &str) -> bool {
     n >= min.len() && n <= full.len() && name.eq_ignore_ascii_case(&full[..n])
 }
 
-fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, VimError> {
+fn parse_named_command(
+    rest: &str,
+    range: Option<ExRange>,
+    depth: u8,
+) -> Result<ExCommand, VimError> {
     if let Some(cmd) = parse_script_command(rest) {
         return Ok(cmd);
     }
@@ -770,21 +798,21 @@ fn parse_named_command(rest: &str, range: Option<ExRange>) -> Result<ExCommand, 
     // ── Iterator commands (:windo, :bufdo, :tabdo) ───────────────────
     } else if matches_abbrev(name, "windo", "windo") {
         let nested = tail.trim();
-        let command = parse_first_command(nested)?;
+        let command = parse_first_command(nested, depth)?;
         Ok(ExCommand::WinDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
         })
     } else if matches_abbrev(name, "bufdo", "bufdo") {
         let nested = tail.trim();
-        let command = parse_first_command(nested)?;
+        let command = parse_first_command(nested, depth)?;
         Ok(ExCommand::BufDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
         })
     } else if matches_abbrev(name, "tabdo", "tabdo") {
         let nested = tail.trim();
-        let command = parse_first_command(nested)?;
+        let command = parse_first_command(nested, depth)?;
         Ok(ExCommand::TabDo {
             command: Box::new(command),
             source: compact_str::CompactString::from(nested),
@@ -833,12 +861,12 @@ pub(crate) fn vim_command_parts(piece: &str) -> Option<(ModifierFlags, &'static 
 
 /// The first command of `text`, the argument of `:windo`, `:bufdo` or
 /// `:tabdo`, which the host runs as a whole command line.
-fn parse_first_command(text: &str) -> Result<ExCommand, VimError> {
+fn parse_first_command(text: &str, depth: u8) -> Result<ExCommand, VimError> {
     let first = split_ex_pipeline(text)
         .into_iter()
         .next()
         .ok_or(VimError::ArgumentRequired)?;
-    parse_ex_command(&first)
+    parse_ex_piece_at(&first, nest(depth)?).1
 }
 
 fn read_after_line(range: Option<&ExRange>) -> Option<u32> {
@@ -1637,7 +1665,7 @@ fn parse_sethandler(args: &str) -> Result<ExCommand, VimError> {
 /// Parse structural regex commands: `:sx/pattern/command` and `:sy/pattern/command`.
 ///
 /// The `complement` flag distinguishes `:sy` (true) from `:sx` (false).
-fn parse_structural(input: &str, complement: bool) -> Result<ExCommand, VimError> {
+fn parse_structural(input: &str, complement: bool, depth: u8) -> Result<ExCommand, VimError> {
     // Skip "sx" or "sy"
     let after_cmd = &input[2..];
     let mut chars = after_cmd.chars();
@@ -1652,7 +1680,7 @@ fn parse_structural(input: &str, complement: bool) -> Result<ExCommand, VimError
         )));
     }
 
-    let sub_command = parse_ex_command(nested)?;
+    let sub_command = parse_ex_piece_at(nested, nest(depth)?).1?;
     let flags = crate::primitives::StructuralFlags::default();
 
     if complement {

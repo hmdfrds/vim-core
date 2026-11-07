@@ -1156,7 +1156,16 @@ impl<H: VimHost> VimSession<H> {
         if keys.is_empty() {
             return;
         }
+        if let Err(err) = self.engine.enter_normal() {
+            self.deliver_effects(crate::commands::ex::effects::show_error(err).as_slice());
+            return;
+        }
+        self.run_norm_keys(start_line, end_line, keys, remap);
+        self.engine.leave_normal();
+    }
 
+    /// The keys of a `:normal` on each line of `start_line..=end_line`.
+    fn run_norm_keys(&mut self, start_line: u32, end_line: u32, keys: &str, remap: bool) {
         // Wrap in undo group for single undo step.
         self.host.apply_effects(&[Effect::BeginUndoGroup {
             cursor_strategy: crate::primitives::UndoCursorStrategy::FirstEdit,

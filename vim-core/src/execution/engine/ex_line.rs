@@ -12,12 +12,13 @@ use smallvec::SmallVec;
 
 use super::shadow_document::OwnedDocument;
 use super::VimEngine;
-use crate::commands::ex::global::{LineMarks, MAX_GLOBAL_RECURSION_DEPTH};
+use crate::commands::ex::global::LineMarks;
 use crate::document::Document;
 use crate::effects::{Effect, Effects, InfoMessage, LineModCounts};
 use crate::errors::VimError;
 use crate::execution::executor_ex::{self, ExExecutionOutput, GlobalCommand};
 use crate::execution::{ExecutionContext, HostRequest, InputContext, Validated};
+use crate::grammar::ex_parser::{nest, parse_ex_piece_at};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{ExCommand, ExRange, ModifierFlags};
 use crate::primitives::{Direction, Mode, Position, SelectionRange, TrustTag, UndoCursorStrategy};
@@ -212,10 +213,11 @@ fn substitution_report(effects: &Effects) -> Option<(usize, usize)> {
     })
 }
 
-/// Whether `piece` is `:undo`, `:redo`, `:earlier` or `:later`.
-fn moves_in_undo(piece: &str) -> bool {
+/// Whether `piece`, run `depth` levels deep, is `:undo`, `:redo`,
+/// `:earlier` or `:later`.
+fn moves_in_undo(piece: &str, depth: u8) -> bool {
     matches!(
-        crate::grammar::ex_parser::parse_ex_piece(piece).1,
+        parse_ex_piece_at(piece, depth).1,
         Ok(ExCommand::Earlier { .. }
             | ExCommand::Later { .. }
             | ExCommand::Redo
@@ -224,6 +226,28 @@ fn moves_in_undo(piece: &str) -> bool {
 }
 
 impl VimEngine {
+    /// Run `run` one nesting level deeper, or give E169 past
+    /// [`crate::grammar::ex_parser::MAX_NESTING`] without running it.
+    pub(super) fn nested<T>(&mut self, run: impl FnOnce(&mut Self) -> T) -> Result<T, VimError> {
+        let outer = self.nesting;
+        self.nesting = nest(outer)?;
+        let output = run(self);
+        self.nesting = outer;
+        Ok(output)
+    }
+
+    /// Enter a `:normal` one nesting level deeper, or give E169. Each
+    /// call that succeeds is paired with [`Self::leave_normal`].
+    pub(crate) fn enter_normal(&mut self) -> Result<(), VimError> {
+        self.nesting = nest(self.nesting)?;
+        Ok(())
+    }
+
+    /// Leave the `:normal` [`Self::enter_normal`] entered.
+    pub(crate) const fn leave_normal(&mut self) {
+        self.nesting = self.nesting.saturating_sub(1);
+    }
+
     /// Run the Ex command line `line` from `ctx`.
     ///
     /// `resolved_options` gives the commands the options with their local
@@ -279,9 +303,22 @@ impl VimEngine {
         }
     }
 
-    /// Run the commands of `line`, as `:g` runs them on a line or `:@r`
-    /// runs a register line. Whether one gave an error.
+    /// Run the commands of `line` one nesting level deeper, as `:g` runs
+    /// them on a line or `:@r` runs a register line. Whether one gave an
+    /// error.
     fn run_nested_line<D: Document>(
+        &mut self,
+        line: &str,
+        on_error: OnError,
+        run: &mut Run<'_, D>,
+    ) -> bool {
+        match self.nested(|engine| engine.run_command_list(line, on_error, run)) {
+            Ok(error) => error,
+            Err(err) => self.add_line_effects(Effects::new().show_error(err), run),
+        }
+    }
+
+    fn run_command_list<D: Document>(
         &mut self,
         line: &str,
         on_error: OnError,
@@ -302,7 +339,7 @@ impl VimEngine {
 
     /// Run one command of a line. Whether it gave an error.
     fn run_piece<D: Document>(&mut self, piece: &str, run: &mut Run<'_, D>) -> bool {
-        if run.undo == UndoGroups::Open && moves_in_undo(piece) {
+        if run.undo == UndoGroups::Open && moves_in_undo(piece, self.nesting) {
             // u_undo() and undo_time() sync undo first, so the line so far
             // is the change they undo.
             run.undo = UndoGroups::Merged;
@@ -366,7 +403,7 @@ impl VimEngine {
             &self.options
         };
         let ctx = ExecutionContext::new(input, &self.state, options);
-        executor_ex::execute_ex_piece(piece, &ctx, &mut self.host.sequencer)
+        executor_ex::execute_ex_piece(piece, self.nesting, &ctx, &mut self.host.sequencer)
     }
 
     /// Inside `:g`, a command that changes the text reports nothing and
@@ -505,16 +542,8 @@ impl VimEngine {
         global: &GlobalCommand,
         run: &mut Run<'_, D>,
     ) -> bool {
-        let refusal = if global.range != ExRange::entire_file() {
-            Some(VimError::GlobalRecursiveWithRange)
-        } else if run.global_depth > MAX_GLOBAL_RECURSION_DEPTH {
-            Some(VimError::GlobalRecursionLimitExceeded {
-                limit: MAX_GLOBAL_RECURSION_DEPTH,
-            })
-        } else {
-            None
-        };
-        if let Some(error) = refusal {
+        if global.range != ExRange::entire_file() {
+            let error = VimError::GlobalRecursiveWithRange;
             return self.add_line_effects(Effects::new().show_error(error), run);
         }
         let line = run.cursor_line();

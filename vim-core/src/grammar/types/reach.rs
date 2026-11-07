@@ -3,8 +3,7 @@
 use bitflags::bitflags;
 
 use super::ex_command::{ExCommand, SetAssignment};
-use crate::commands::ex::global::MAX_GLOBAL_RECURSION_DEPTH;
-use crate::grammar::ex_parser::parse_ex_piece;
+use crate::grammar::ex_parser::{nest, parse_ex_piece_at};
 use crate::grammar::split_ex_pipeline;
 use crate::primitives::option_table;
 
@@ -72,6 +71,11 @@ impl ExCommand {
     /// saying what it reaches.
     #[must_use]
     pub fn reach(&self) -> Reach {
+        self.reach_at(0)
+    }
+
+    /// [`Self::reach`] of a command that runs `depth` levels deep.
+    fn reach_at(&self, depth: u8) -> Reach {
         const BUFFER: Reach = Reach::BUFFER;
         const HOST_WINDOW: Reach = Reach::HOST.union(Reach::WINDOW);
         match self {
@@ -127,10 +131,15 @@ impl ExCommand {
             Self::Fold { .. } | Self::FoldOpen { .. } | Self::FoldClose { .. } => {
                 BUFFER | Reach::HOST
             }
-            Self::Global { commands, .. } => BUFFER | Reach::NESTED | line_reach(commands, 1),
+            // Deeper than the limit, `:g` gives an error before it runs.
+            Self::Global { commands, .. } => {
+                BUFFER
+                    | Reach::NESTED
+                    | nest(depth).map_or(Reach::empty(), |depth| line_reach(commands, depth))
+            }
             Self::StructuralExtract { command, .. }
             | Self::StructuralComplement { command, .. } => {
-                BUFFER | Reach::NESTED | command.reach()
+                BUFFER | Reach::NESTED | command.reach_at(depth.saturating_add(1))
             }
             Self::Norm { .. } => BUFFER | Reach::NESTED,
             // The register's lines run as commands, which can ask the host.
@@ -223,7 +232,9 @@ impl ExCommand {
             Self::SetHandler { .. } => Reach::HANDLER,
             Self::WinDo { command, .. }
             | Self::BufDo { command, .. }
-            | Self::TabDo { command, .. } => HOST_WINDOW | Reach::NESTED | command.reach(),
+            | Self::TabDo { command, .. } => {
+                HOST_WINDOW | Reach::NESTED | command.reach_at(depth.saturating_add(1))
+            }
             // The jump list belongs to the engine, and a script block or
             // :finish changes nothing a host sees.
             Self::ClearJumps | Self::Block { .. } | Self::Finish => Reach::empty(),
@@ -231,22 +242,14 @@ impl ExCommand {
     }
 }
 
-/// What every `|` command of `line` reaches, as `:g` at `depth` parses and
-/// runs them on each line.
+/// What every `|` command of `line` reaches, as `:g` parses and runs them
+/// `depth` levels deep on each line.
 fn line_reach(line: &str, depth: u8) -> Reach {
     split_ex_pipeline(line)
         .iter()
-        .filter_map(|piece| parse_ex_piece(piece).1.ok())
+        .filter_map(|piece| parse_ex_piece_at(piece, depth).1.ok())
         .fold(Reach::empty(), |reach, command| {
-            reach
-                | match &command {
-                    // Deeper than this, `:g` gives an error before it runs.
-                    ExCommand::Global { commands, .. } if depth <= MAX_GLOBAL_RECURSION_DEPTH => {
-                        Reach::BUFFER | Reach::NESTED | line_reach(commands, depth + 1)
-                    }
-                    ExCommand::Global { .. } => Reach::BUFFER | Reach::NESTED,
-                    _ => command.reach(),
-                }
+            reach | command.reach_at(depth)
         })
 }
 
@@ -334,6 +337,25 @@ mod tests {
         assert!(reach("g/a/!ls").contains(Reach::SHELL | Reach::NESTED | Reach::BUFFER));
         assert!(reach("windo set lmap=x").contains(Reach::SECURE_OPTION | Reach::NESTED));
         assert!(reach("sx/a/w f").contains(Reach::FILE_WRITE | Reach::NAMED_PATH));
+    }
+
+    #[test]
+    fn a_command_nested_too_deep_to_run_reaches_nothing() {
+        let reach = |prefix: &str, n: usize| {
+            parse_ex_command(&format!("{}w f", prefix.repeat(n)))
+                .map(|c| c.reach())
+                .unwrap_or_default()
+        };
+        for (prefix, deepest) in [("g/a/", 30), ("windo g/a/", 15)] {
+            assert!(
+                reach(prefix, deepest).contains(Reach::FILE_WRITE),
+                "{prefix}"
+            );
+            assert!(
+                !reach(prefix, deepest + 1).contains(Reach::FILE_WRITE),
+                "{prefix}"
+            );
+        }
     }
 
     #[test]

@@ -1937,6 +1937,7 @@ impl VimEngine {
     /// - `recording` — discard corrupted macro recording
     /// - `command_line_session` — stale session metadata
     /// - `cmd_buffer` — partial `<Cmd>...<CR>` accumulator
+    /// - the Ex nesting level, which a panic in a nested command leaves raised
     /// - changelist — entries may reference phantom edit positions
     /// - macro replay depth — stale `is_replaying()` flag
     /// - macro recording register — phantom recording indicator
@@ -1958,6 +1959,7 @@ impl VimEngine {
         self.command_line_session = None;
         self.sticky_session = None;
         self.cmd_buffer = None;
+        self.nesting = 0;
         self.state.changelist_mut().clear();
         self.state.macros_mut().reset_replay_depth();
         self.state.macros_mut().stop_recording();
@@ -2516,6 +2518,7 @@ impl From<VimState> for VimEngine {
             native_insert: false,
             cmd_buffer: None,
             pending_macro_error: None,
+            nesting: 0,
             key_interest_dirty: true,
             viewport_first_line: 0,
             viewport_height: 24,
