@@ -19,27 +19,49 @@ impl ModeHandler for CommandLineModeHandler {
         let (parser, _keymap) = ctx.parser_and_keymap();
 
         // Ctrl-\ Ctrl-N universal escape: use parser state to track intermediate.
-        if matches!(
+        let after_ctrl_backslash = matches!(
             parser.state(),
             crate::grammar::InputState::AwaitingCtrlBackslashN
-        ) {
+        );
+        if after_ctrl_backslash {
             parser.reset();
-            if key == KeyEvent::ctrl('n') {
-                return ModeAction::Pipeline(crate::grammar::GrammarResult::ModeChange(
-                    crate::primitives::Mode::Normal,
-                    None,
-                ));
+        }
+        match step(key, after_ctrl_backslash) {
+            Step::ToNormal => ModeAction::Pipeline(crate::grammar::GrammarResult::ModeChange(
+                crate::primitives::Mode::Normal,
+                None,
+            )),
+            Step::CtrlBackslash => {
+                parser.set_state(crate::grammar::InputState::AwaitingCtrlBackslashN);
+                ModeAction::Pending
             }
-            // Not Ctrl-N: cancel and fall through to normal command-line handling
+            Step::Key(action) => action.into(),
         }
-        if key == KeyEvent::ctrl('\\') {
-            parser.set_state(crate::grammar::InputState::AwaitingCtrlBackslashN);
-            return ModeAction::Pending;
-        }
-
-        let action = handle_key(key);
-        action.into()
     }
+}
+
+/// What a key does in a command line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Step {
+    /// A `<C-\>`, which waits for the key after it.
+    CtrlBackslash,
+    /// `<C-\><C-n>`: back to Normal mode, nothing run.
+    ToNormal,
+    /// What [`handle_key`] makes of the key.
+    Key(CommandLineAction),
+}
+
+/// What `key` does in a command line, `after_ctrl_backslash` when the key
+/// before it was a `<C-\>`. Any key but `<C-n>` after one is read as
+/// without it.
+pub(crate) fn step(key: KeyEvent, after_ctrl_backslash: bool) -> Step {
+    if after_ctrl_backslash && key == KeyEvent::ctrl('n') {
+        return Step::ToNormal;
+    }
+    if key == KeyEvent::ctrl('\\') {
+        return Step::CtrlBackslash;
+    }
+    Step::Key(handle_key(key))
 }
 
 /// Command-line key handling outcome `(:`, `/`, `?`).

@@ -1012,7 +1012,7 @@ fn emergency_reset_field_inventory() {
     assert_eq!(*nesting, 0, "nesting must be 0 after emergency_reset()");
     assert_eq!(
         *pending_line,
-        super::ex_line::PendingLine::default(),
+        super::super::ex_line::PendingLine::default(),
         "no command line may wait after emergency_reset()",
     );
 

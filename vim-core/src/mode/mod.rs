@@ -63,6 +63,9 @@ mod sealed {
 
 // Re-export handler types from submodules.
 pub use command_line::CommandLineModeHandler;
+pub(crate) use command_line::{
+    step as command_line_step, CommandLineAction, Step as CommandLineStep,
+};
 pub use insert::InsertModeHandler;
 pub use normal::NormalModeHandler;
 pub use operator_pending::OperatorPendingModeHandler;

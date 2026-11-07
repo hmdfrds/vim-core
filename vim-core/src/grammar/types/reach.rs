@@ -75,7 +75,7 @@ impl ExCommand {
     }
 
     /// [`Self::reach`] of a command that runs `depth` levels deep.
-    fn reach_at(&self, depth: u8) -> Reach {
+    pub(crate) fn reach_at(&self, depth: u8) -> Reach {
         const BUFFER: Reach = Reach::BUFFER;
         const HOST_WINDOW: Reach = Reach::HOST.union(Reach::WINDOW);
         match self {
