@@ -1224,6 +1224,29 @@ fn a_file_that_sources_itself_stops_at_vim_s_depth() {
 }
 
 #[test]
+fn a_sourced_file_adds_no_level_to_the_commands_it_runs() {
+    // Each of the 200 files parses 30 nested `:windo`; 31 are too deep.
+    let run = || {
+        for (levels, expected) in [(30, 0), (31, 200)] {
+            let text = format!("source a.vim\n{}set ic\n", "windo ".repeat(levels));
+            let mut files = Files::new(&[("a.vim", Box::leak(text.into_boxed_str()))]);
+            let response = source_file(&mut VimEngine::new(), &mut files, "a.vim");
+            let too_deep = errors(&response)
+                .iter()
+                .filter(|error| *error == "E169: Command too recursive")
+                .count();
+            assert_eq!(too_deep, expected + 1, "{levels}");
+        }
+    };
+    std::thread::Builder::new()
+        .stack_size(1 << 20)
+        .spawn(run)
+        .expect("a thread")
+        .join()
+        .expect("no panic");
+}
+
+#[test]
 fn errors_in_a_sourced_file_name_the_files_that_run() {
     // estack_sfile(): each file with the line of its :source, a file
     // without a name left out.

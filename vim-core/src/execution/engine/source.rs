@@ -16,7 +16,7 @@ use crate::execution::config::{
 use crate::execution::executor_ex::{self, SetKind, SetScope};
 use crate::execution::script_expr::{self, Echoed, OptionLayer, Target, Value};
 use crate::execution::{ExecutionContext, HostRequest, InputContext};
-use crate::grammar::ex_parser::{parse_config_modifiers, parse_ex_piece, vim_command_parts};
+use crate::grammar::ex_parser::{parse_config_modifiers, parse_ex_piece_at, vim_command_parts};
 use crate::grammar::script::{script_command, Control, Line, Script, ScriptCommand};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{BlockKind, ExCommand, ModifierFlags, Reach, SetAssignment};
@@ -638,7 +638,7 @@ impl super::VimEngine {
             }
             _ => {}
         }
-        let (modifiers, parsed) = parse_ex_piece(text);
+        let (modifiers, parsed) = parse_ex_piece_at(text, self.nesting);
         let modifiers = modifiers | inherited;
         let command = match parsed {
             Ok(command) => command,

@@ -147,6 +147,9 @@ pub enum VimError {
     /// E34: No previous command.
     NoPreviousCommand,
 
+    /// E30: `@:` or `:@:` with no command line run yet.
+    NoPreviousCommandLine,
+
     /// E476: No command after g/v (global/vglobal).
     NoCommandAfterGlobal,
 
@@ -154,12 +157,6 @@ pub enum VimError {
     GlobalLineLimitExceeded {
         /// The configured limit that was exceeded.
         limit: usize,
-    },
-
-    /// E5101: :global recursion depth limit exceeded.
-    GlobalRecursionLimitExceeded {
-        /// The maximum allowed recursion depth.
-        limit: u8,
     },
 
     /// E147: a `:g` inside `:g` was given a range.
@@ -229,7 +226,9 @@ pub enum VimError {
     /// E1171: the file ends inside a `{` block of a function body.
     MissingEndBlock,
 
-    /// E169: a `:source` inside 200 files that are running.
+    /// E169: a `:source` inside 200 files that are running, or a command
+    /// nested 30 levels deep in others (`:g`, `:windo`, `:normal`, `@:`,
+    /// `:@r` and the like) that would nest one deeper.
     CommandTooRecursive,
 
     // ═══════════════════════════════════════════════════════════════════
@@ -524,14 +523,12 @@ impl fmt::Display for VimError {
             Self::NoSuchMapping => write!(f, "E31: No such mapping"),
             Self::NoSuchAbbreviation => write!(f, "E24: No such abbreviation"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
+            Self::NoPreviousCommandLine => write!(f, "E30: No previous command line"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
                 f,
                 "E5100: :global command exceeded maximum line count ({limit})"
             ),
-            Self::GlobalRecursionLimitExceeded { limit } => {
-                write!(f, "E5101: :global recursion depth limit exceeded ({limit})")
-            }
             Self::GlobalRecursiveWithRange => {
                 write!(f, "E147: Cannot do :global recursive with a range")
             }
@@ -776,9 +773,9 @@ mod tests {
             VimError::NoSuchMapping,
             VimError::NoSuchAbbreviation,
             VimError::NoPreviousCommand,
+            VimError::NoPreviousCommandLine,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },
-            VimError::GlobalRecursionLimitExceeded { limit: 10 },
             VimError::GlobalRecursiveWithRange,
             VimError::InvalidRegexDelimiter,
             VimError::InvalidSearchPattern,
@@ -1004,6 +1001,10 @@ mod tests {
                 "E1171: Missing } after inline function",
             ),
             (VimError::CommandTooRecursive, "E169: Command too recursive"),
+            (
+                VimError::NoPreviousCommandLine,
+                "E30: No previous command line",
+            ),
         ] {
             assert_eq!(error.to_string(), text);
         }
@@ -1213,15 +1214,6 @@ mod tests {
         assert_eq!(
             e.to_string(),
             "E5100: :global command exceeded maximum line count (100000)"
-        );
-    }
-
-    #[test]
-    fn display_global_recursion_limit_exceeded() {
-        let e = VimError::GlobalRecursionLimitExceeded { limit: 10 };
-        assert_eq!(
-            e.to_string(),
-            "E5101: :global recursion depth limit exceeded (10)"
         );
     }
 

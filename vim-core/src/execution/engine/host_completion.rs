@@ -284,6 +284,10 @@ impl super::VimEngine {
         }
 
         let mut response = completion_response(&pending, result);
+        if matches!(pending, HostRequest::ExecuteNorm { .. }) {
+            let stored = self.normal_completed();
+            response.extend_effects(stored);
+        }
 
         let meta = pending.meta();
         if let Some(msg) = executor_ex::completion_message(result, &meta) {

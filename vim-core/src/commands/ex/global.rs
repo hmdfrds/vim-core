@@ -13,9 +13,6 @@ use crate::regex::{Cache, MatchContext, VimRegex};
 /// Maximum number of matching lines `:g` will process.
 pub(crate) const MAX_GLOBAL_CMD_LINES: usize = 100_000;
 
-/// Maximum nesting of `:g` inside `:g`.
-pub(crate) const MAX_GLOBAL_RECURSION_DEPTH: u8 = 10;
-
 /// The lines of `range` that match `pattern`, or with `invert` that do not,
 /// 0-indexed: pass 1 of `ex_global()`.
 ///

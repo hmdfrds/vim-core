@@ -253,6 +253,13 @@ pub struct VimEngine {
     /// Pending error from macro effect limit exceeded.
     pending_macro_error: Option<crate::errors::VimError>,
 
+    // ── Ex nesting ───────────────────────────────────────────────────
+    /// How many levels deep the Ex command that runs now is nested in
+    /// others on the Rust stack; a sourced file adds none.
+    nesting: u8,
+    /// The top-level command line that becomes the last one once it ran.
+    pending_line: ex_line::PendingLine,
+
     // ── Key Interest Tracking ─────────────────────────────────────────
     /// True when the key interest set needs recomputation (mappings changed).
     ///

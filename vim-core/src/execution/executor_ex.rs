@@ -11,7 +11,7 @@ use crate::effects::Effects;
 use crate::errors::VimError;
 use crate::execution::host::{HostRequestSequencer, HostResult, SplitDirection};
 use crate::execution::{HostRequest, HostRequestMeta};
-use crate::grammar::ex_parser::parse_ex_piece;
+use crate::grammar::ex_parser::parse_ex_piece_at;
 use crate::grammar::types::{ExCommand, ExRange, LineSpec, ModifierFlags, TimeAmount};
 use crate::keymap::{Handler, KeyEvent, MappingMode};
 use crate::primitives::byte_delta;
@@ -189,6 +189,8 @@ pub(crate) struct ExExecutionOutput {
     /// The lines of a `:@r` register, which the engine runs as command
     /// lines, one after another.
     pub ex_lines: Vec<CompactString>,
+    /// The register of `ex_lines`.
+    pub ex_register: Option<RegisterName>,
     /// The modifiers of the command, applied to its effects already, and
     /// to be applied to what the engine runs for it.
     pub modifiers: ModifierFlags,
@@ -212,13 +214,14 @@ pub(crate) struct GlobalCommand {
 ///
 /// Its modifiers (`:silent`, `:keepjumps`, ...) filter its effects, an
 /// error included, so `:silent!` hides it. A `:g` and the lines of `:@r`
-/// come back for the engine to run.
+/// come back for the engine to run. The piece runs `depth` levels deep.
 pub(crate) fn execute_ex_piece<D: Document>(
     piece: &str,
+    depth: u8,
     ctx: &ExecutionContext<'_, D>,
     sequencer: &mut HostRequestSequencer,
 ) -> ExExecutionOutput {
-    let (modifiers, parsed) = parse_ex_piece(piece);
+    let (modifiers, parsed) = parse_ex_piece_at(piece, depth);
     let result = parsed.and_then(|command| {
         let mut output = execute_ex_command(&command, ctx, sequencer)?;
         if command.mutates_text() && output.last_ex_for_dot.is_none() {
@@ -841,6 +844,9 @@ pub(crate) fn execute_ex_command<D: Document>(
                 .get(*register)
                 .map(|c| c.text().to_owned())
                 .unwrap_or_default();
+            if text.is_empty() && *register == RegisterName::LAST_COMMAND {
+                return Err(VimError::NoPreviousCommandLine);
+            }
             if text.is_empty() {
                 return effects_only(Ok(Effects::new().show_message(CompactString::from(
                     format!("Register @{} is empty", register.char()),
@@ -865,6 +871,7 @@ pub(crate) fn execute_ex_command<D: Document>(
             }
             Ok(ExExecutionOutput {
                 ex_lines,
+                ex_register: Some(*register),
                 ..ExExecutionOutput::default()
             })
         }
@@ -2868,7 +2875,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_piece("undojoin", &ctx, &mut seq);
+        let output = execute_ex_piece("undojoin", 0, &ctx, &mut seq);
         assert!(
             output.undo_join_pending,
             ":undojoin should set undo_join_pending"
@@ -2885,7 +2892,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_piece("undoj", &ctx, &mut seq);
+        let output = execute_ex_piece("undoj", 0, &ctx, &mut seq);
         assert!(
             output.undo_join_pending,
             ":undoj (abbreviated) should set undo_join_pending"
@@ -2906,7 +2913,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_piece("s/foo/baz/", &ctx, &mut seq);
+        let output = execute_ex_piece("s/foo/baz/", 0, &ctx, &mut seq);
         assert_eq!(
             output.last_ex_for_dot.as_deref(),
             Some("s/foo/baz/"),
@@ -2924,7 +2931,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_piece("delete", &ctx, &mut seq);
+        let output = execute_ex_piece("delete", 0, &ctx, &mut seq);
         assert_eq!(
             output.last_ex_for_dot.as_deref(),
             Some("delete"),
@@ -2942,7 +2949,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_piece("set tabstop=4", &ctx, &mut seq);
+        let output = execute_ex_piece("set tabstop=4", 0, &ctx, &mut seq);
         assert!(
             output.last_ex_for_dot.is_none(),
             ":set should NOT populate last_ex_for_dot"
@@ -2959,7 +2966,7 @@ mod tests {
         let opts = crate::primitives::VimOptions::default();
         let ctx = super::ExecutionContext::new(input, &state, &opts);
         let mut seq = crate::execution::host::HostRequestSequencer::default();
-        let output = execute_ex_piece("undojoin", &ctx, &mut seq);
+        let output = execute_ex_piece("undojoin", 0, &ctx, &mut seq);
         assert!(
             output.last_ex_for_dot.is_none(),
             ":undojoin should NOT populate last_ex_for_dot (not text-mutating)"
