@@ -1,14 +1,20 @@
 name: CI
 
-# Two jobs, deliberately. This repository is consumed as a tag, not developed
-# in, so the check that earns its keep is: after refreshing vim-text or
-# vim-regex from upstream, does it still build and is the failure set still
-# exactly the 82 recorded ones?
+# Two checking jobs, deliberately. This repository is consumed as a tag, not
+# developed in, so the check that earns its keep is: after refreshing vim-text
+# or vim-regex from upstream, does it still build and stay formatted, and is
+# the failure set still exactly the one tests-known-failing.txt records?
 on:
   push:
-    branches: [main, evolve-crates]
+    branches: [main]
   pull_request:
   workflow_dispatch: {}
+
+# A new push to a PR cancels its older run. Every other run gets its own group,
+# so each main commit, the one a tag is cut from, keeps its CI verdict.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,10 +27,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2.9.2
+      # Installs the version and components rust-toolchain.toml names.
+      - run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
         with:
           shared-key: ${{ github.job }}
+      # A step, not a job: it takes seconds and rustfmt comes with the toolchain.
+      - run: cargo fmt --all --check
       - run: cargo build --workspace --locked
 
   # The suite does not pass, and is not meant to -- see README.md. Asserting
@@ -36,8 +45,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2.9.2
+      - run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0  # v2.9.3
         with:
           shared-key: ${{ github.job }}
       - run: ./scripts/known-failures.sh
+
+  # The one check branch protection requires; admins can still bypass it.
+  ok:
+    name: CI ok
+    # A skipped required check counts as passing, so this job always runs and
+    # passes only if every need is exactly success.
+    if: always()
+    needs: [build, known-failures]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          jq -e 'all(.[]; .result == "success")' <<< "$NEEDS" > /dev/null
