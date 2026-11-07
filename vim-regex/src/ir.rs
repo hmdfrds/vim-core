@@ -574,7 +574,7 @@ pub enum VimRegexErrorKind {
         /// Span of the quantifier.
         span: Span,
         /// Description of what went wrong.
-        detail: CompactString,
+        detail: Box<str>,
     },
     /// Invalid escape sequence (e.g., `\z` with no valid continuation).
     InvalidEscape {
@@ -600,28 +600,28 @@ pub enum VimRegexErrorKind {
         /// Span of the offending range expression.
         span: Span,
         /// Description of the range error.
-        detail: CompactString,
+        detail: Box<str>,
     },
     /// Unknown POSIX class name inside `[:name:]`.
     UnknownPosixClass {
         /// Span of the `[:name:]` expression.
         span: Span,
         /// The unrecognized class name.
-        name: CompactString,
+        name: Box<str>,
     },
     /// Invalid character code inside a `[...]` collection.
     InvalidCollectionCharCode {
         /// Span of the invalid char code escape.
         span: Span,
         /// Description of what went wrong (e.g., which base and why the code is invalid).
-        detail: CompactString,
+        detail: Box<str>,
     },
     /// Invalid character code in `\%d`, `\%x`, `\%u`, or `\%U`.
     InvalidCharCode {
         /// Span of the `\%` prefix through the invalid code.
         span: Span,
         /// Description of what went wrong.
-        detail: CompactString,
+        detail: Box<str>,
     },
     /// Character code value exceeds maximum Unicode code point (U+10FFFF).
     ///
@@ -655,7 +655,7 @@ pub enum VimRegexErrorKind {
         /// Span of the construct that exceeded limits (if identifiable).
         span: Option<Span>,
         /// Description of the complexity issue.
-        detail: CompactString,
+        detail: Box<str>,
     },
     /// `\=` sub-replace expression — not supported in pattern matching.
     ExpressionReplacementNotSupported,
@@ -670,7 +670,7 @@ pub enum VimRegexErrorKind {
     /// turning panics into recoverable errors.
     InternalError {
         /// Description of what went wrong.
-        detail: CompactString,
+        detail: Box<str>,
     },
     /// Runtime/search error: the haystack is too large for the backtracker's
     /// bounded memoization (backreference / atomic / last-substitute patterns).

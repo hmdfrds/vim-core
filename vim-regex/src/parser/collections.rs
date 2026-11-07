@@ -3,8 +3,6 @@
 //! Handles `[abc]`, `[^abc]`, `[a-z]`, `[\d]`, `[]]`, `[-abc]`, `[abc-]`,
 //! and `\_[abc]` (collection with newline).
 
-use compact_str::CompactString;
-
 use crate::common::MAX_COLLECTION_DEPTH;
 use crate::ir::{CollectionItem, PosixClassName};
 
@@ -183,7 +181,7 @@ impl Parser {
             if end_ch < ch {
                 return Err(VimRegexErrorKind::InvalidCollectionRange {
                     span: self.span_from(open_pos),
-                    detail: CompactString::from(format!(
+                    detail: Box::from(format!(
                         "range end '{}' is less than start '{}'",
                         end_ch, ch
                     )),
@@ -208,9 +206,7 @@ impl Parser {
                 CollectionItem::Single(c) => Ok(c),
                 _ => Err(VimRegexErrorKind::InvalidCollectionRange {
                     span: self.span_from(open_pos),
-                    detail: CompactString::from(
-                        "range endpoint cannot be a character class or newline",
-                    ),
+                    detail: Box::from("range endpoint cannot be a character class or newline"),
                 }
                 .into()),
             }
@@ -281,7 +277,7 @@ impl Parser {
             _ => {
                 return Err(VimRegexErrorKind::UnknownPosixClass {
                     span: self.span_from(open_pos),
-                    name: CompactString::from(name_chars.as_str()),
+                    name: Box::from(name_chars.as_str()),
                 }
                 .into())
             }
@@ -385,7 +381,7 @@ impl Parser {
                 let c = char::from_u32(code).ok_or_else(|| {
                     VimRegexError::from(VimRegexErrorKind::InvalidCollectionCharCode {
                         span: self.span_from(open_pos),
-                        detail: CompactString::from(format!(
+                        detail: Box::from(format!(
                             "\\d{code} (decimal {code}) is not a valid Unicode code point"
                         )),
                     })
@@ -398,7 +394,7 @@ impl Parser {
                 let c = char::from_u32(code).ok_or_else(|| {
                     VimRegexError::from(VimRegexErrorKind::InvalidCollectionCharCode {
                         span: self.span_from(open_pos),
-                        detail: CompactString::from(format!(
+                        detail: Box::from(format!(
                             "\\o{code:o} (octal, value {code}) is not a valid Unicode code point"
                         )),
                     })
@@ -411,7 +407,7 @@ impl Parser {
                 let c = char::from_u32(code).ok_or_else(|| {
                     VimRegexError::from(VimRegexErrorKind::InvalidCollectionCharCode {
                         span: self.span_from(open_pos),
-                        detail: CompactString::from(format!(
+                        detail: Box::from(format!(
                             "\\x{code:02x} (hex, value {code}) is not a valid Unicode code point"
                         )),
                     })
@@ -424,7 +420,7 @@ impl Parser {
                 let c = char::from_u32(code).ok_or_else(|| {
                     VimRegexError::from(VimRegexErrorKind::InvalidCollectionCharCode {
                         span: self.span_from(open_pos),
-                        detail: CompactString::from(format!(
+                        detail: Box::from(format!(
                             "\\u{code:04x} (4-digit hex, value {code}) is not a valid Unicode code point"
                         )),
                     })
@@ -437,7 +433,7 @@ impl Parser {
                 let c = char::from_u32(code).ok_or_else(|| {
                     VimRegexError::from(VimRegexErrorKind::InvalidCollectionCharCode {
                         span: self.span_from(open_pos),
-                        detail: CompactString::from(format!(
+                        detail: Box::from(format!(
                             "\\U{code:08x} (8-digit hex, value {code}) is not a valid Unicode code point"
                         )),
                     })
