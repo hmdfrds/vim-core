@@ -214,6 +214,35 @@ mod tests {
         assert!(has_replace, "Lowercase should replace with lowercased text");
     }
 
+    /// `gu` ends a word in the same sigma whatever length comes before it.
+    /// This does not pin which one: Vim lowercases one character at a time
+    /// (ops.c `swapchar`, `MB_TOLOWER`) and gives `σ`, std gives `ς`. A
+    /// lowercase that decides final sigma per chunk gives `ς`, then `σ`.
+    #[test]
+    fn test_lowercase_final_sigma_does_not_depend_on_length() {
+        let last_lowered = |text: &str| {
+            let ctx = OperatorContext::new(
+                text,
+                Range::from_raw(0, text.len()),
+                MotionType::CharWise,
+                None,
+                1,
+                Offset::new(0),
+            );
+            execute_lowercase(&ctx)
+                .effects
+                .iter()
+                .find_map(|e| match e {
+                    Effect::Replace { text, .. } => text.chars().last(),
+                    _ => None,
+                })
+                .expect("gu replaces the text")
+        };
+        let short = last_lowered("A\u{3a3}");
+        let long = last_lowered(&format!("{}\u{3a3}", "A".repeat(16)));
+        assert_eq!(short, long);
+    }
+
     #[test]
     fn test_uppercase() {
         let ctx = OperatorContext::new(
