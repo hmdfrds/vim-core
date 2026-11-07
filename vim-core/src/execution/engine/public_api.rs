@@ -1460,6 +1460,7 @@ impl VimEngine {
         // Priority 1: Typeahead buffer (mapping expansion RHS, feedkeys)
         if let Some(entry) = self.typeahead.buffer.pop_front() {
             self.typeahead.last_drained_flags = entry.flags;
+            self.typeahead.last_drained_tags = entry.tags;
             return Some(MacroOutput::Key(entry.key));
         }
         // Priority 2: Macro frame stack
@@ -1523,6 +1524,7 @@ impl VimEngine {
         self.typeahead.macro_effect_counter = 0;
         self.state.macros_mut().reset_replay_depth();
         self.cmd_buffer = None;
+        self.run_tags.cmd = crate::primitives::Tags::new();
         // Commit merged undo group if macro replay was active.
         let cursor = self.state.undo_cursor_hint();
         let timestamp = self.state.undo_timestamp_hint();
@@ -1552,6 +1554,8 @@ impl VimEngine {
         id: crate::execution::host::HostRequestId,
     ) -> Option<crate::execution::HostRequest> {
         self.host.source_depths.remove(&id);
+        self.run_tags.request_done(id);
+        self.run_tags.expr.remove(&id);
         self.host.pending.remove(&id)
     }
 
@@ -1568,6 +1572,8 @@ impl VimEngine {
     ///
     /// This is the vim-core equivalent of Neovim's `feedkeys()` API.
     /// Injected keys will be processed on subsequent `drain_next_key()` calls.
+    /// While a `:normal` request from a tagged command line is pending, the
+    /// keys keep that line's tags.
     ///
     /// # Complexity
     ///
@@ -1593,11 +1599,13 @@ impl VimEngine {
 
         let parsed = parse_keys_from_string(keys);
         let flags = TypeaheadFlags::feedkeys(remap);
+        // The keys of a tagged line's `:normal` keep its tags.
+        let tags = self.run_tags.fed();
 
         self.typeahead.buffer.inject_back(
             parsed
                 .into_iter()
-                .map(|key| TypeaheadEntry::new(key, flags)),
+                .map(|key| TypeaheadEntry::tagged(key, flags, tags.clone())),
         );
     }
 
@@ -1962,6 +1970,7 @@ impl VimEngine {
         self.cmd_buffer = None;
         self.nesting = 0;
         self.pending_line = super::ex_line::PendingLine::default();
+        self.run_tags.reset_keys();
         self.state.changelist_mut().clear();
         self.state.macros_mut().reset_replay_depth();
         self.state.macros_mut().stop_recording();
@@ -2522,6 +2531,7 @@ impl From<VimState> for VimEngine {
             pending_macro_error: None,
             nesting: 0,
             pending_line: super::ex_line::PendingLine::default(),
+            run_tags: super::cmdline_judge::RunTags::default(),
             key_interest_dirty: true,
             viewport_first_line: 0,
             viewport_height: 24,
@@ -2536,6 +2546,7 @@ impl From<VimState> for VimEngine {
                 hooks: super::hooks::HookBus::new(),
                 event_registry: crate::execution::event_registry::EventRegistry::new(),
                 backend: None,
+                judge: None,
                 #[cfg(feature = "engine-tracing")]
                 trace: crate::execution::trace::TraceCollector::new(),
             }),

@@ -22,13 +22,17 @@ use crate::state::CommandLinePrompt;
 impl VimEngine {
     /// Execute an Ex command directly without going through the interactive
     /// command-line widget lifecycle.
+    ///
+    /// While a `:windo`, `:bufdo` or `:tabdo` request of a tagged command
+    /// line has not completed, the command keeps that line's tags.
     pub fn execute_ex<D: Document>(
         &mut self,
         input: &str,
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
         let session = command_line_session(None, self.state.mode(), 1);
-        self.execute_ex_command_line(input, session, ctx)
+        let tags = self.run_tags.each();
+        self.execute_ex_command_line(input, session, ctx, &tags)
     }
 
     /// Handle a key while awaiting a register name in command-line mode.
@@ -82,6 +86,12 @@ impl VimEngine {
         let Some(reg) = RegisterName::new(ch) else {
             return self.register_noop_response();
         };
+
+        // The last command line keeps its tags.
+        if reg == RegisterName::LAST_COMMAND {
+            let tags = self.last_line_tags();
+            self.state.command_line_mut().add_tags(&tags);
+        }
 
         // Resolve register text and insert
         if let Some(content) = self.state.registers().get_aliased(reg, &self.options) {
@@ -371,13 +381,21 @@ impl VimEngine {
     ///
     /// This is the host-side fallback path for paste/IME input. Normal
     /// command-line editing still flows through `process()` key by key.
+    ///
+    /// With no command line open, `input` runs as a line of the command
+    /// window: when keys from a tagged mapping opened the window, or the
+    /// history entry it is came from a tagged line, it is judged before it
+    /// runs (see [`VimEngine::set_command_line_judge`]).
     pub fn submit_command_line_text<D: Document>(
         &mut self,
         input: &str,
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
         if self.command_line_session.is_none() {
-            return self.execute_ex(input, ctx);
+            // A line of the command window, or the host's own.
+            let tags = self.command_window_line_tags(input);
+            let session = command_line_session(None, self.state.mode(), 1);
+            return self.execute_ex_command_line(input, session, ctx, &tags);
         }
 
         self.state.command_line_mut().clear();
@@ -444,6 +462,8 @@ impl VimEngine {
         let session = command_line_session(intent, self.state.mode(), count.unwrap_or(1));
         self.command_line_session = Some(session);
         self.state.command_line_mut().begin(session.prompt);
+        let tags = self.run_tags.command.clone();
+        self.state.command_line_mut().add_tags(&tags);
         // Pre-fill visual range when entering from visual ':'
         if session.prompt == CommandLinePrompt::ExVisual {
             for c in "'<,'>".chars() {
@@ -503,6 +523,7 @@ impl VimEngine {
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
         let input = self.state.command_line().input().to_owned();
+        let tags = self.state.command_line().tags().clone();
         let session = self.command_line_session.take().unwrap_or_else(|| {
             debug_assert!(false, "commit_command_line called without active session");
             command_line_session(
@@ -519,7 +540,7 @@ impl VimEngine {
 
         match session.prompt {
             CommandLinePrompt::Ex | CommandLinePrompt::ExVisual => {
-                self.execute_ex_command_line(&input, session, ctx)
+                self.execute_ex_command_line(&input, session, ctx, &tags)
             }
             CommandLinePrompt::SearchForward => {
                 self.execute_search_command_line(&input, session, ctx, Direction::Forward)

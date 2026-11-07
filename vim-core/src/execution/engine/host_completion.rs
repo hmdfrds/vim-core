@@ -186,13 +186,20 @@ impl super::VimEngine {
                     end_line,
                     keys,
                     remap,
-                } => Some(HostRequest::ExecuteNorm {
-                    meta: self.host.sequencer.next_meta(),
-                    start_line: byte_delta::to_u32(start_line.get()),
-                    end_line: byte_delta::to_u32(end_line.get()),
-                    keys: keys.clone(),
-                    remap: *remap,
-                }),
+                } => {
+                    let meta = self.host.sequencer.next_meta();
+                    if !self.run_tags.norm_line.is_empty() {
+                        let tags = self.run_tags.norm_line.clone();
+                        self.run_tags.norms.push((meta.id, tags));
+                    }
+                    Some(HostRequest::ExecuteNorm {
+                        meta,
+                        start_line: byte_delta::to_u32(start_line.get()),
+                        end_line: byte_delta::to_u32(end_line.get()),
+                        keys: keys.clone(),
+                        remap: *remap,
+                    })
+                }
                 _ => None,
             };
             if let Some(req) = host_request {
@@ -249,6 +256,7 @@ impl super::VimEngine {
     /// Space: O(E) for the response effects vector.
     pub fn complete_host_request(&mut self, result: &HostResult) -> Response {
         let id = result.id();
+        self.run_tags.request_done(id);
         let Some(pending) = self.host.pending.remove(&id) else {
             return Response::ignored()
                 .with_message(format!("unexpected host result id {}", id.get()));
@@ -324,6 +332,7 @@ impl super::VimEngine {
             }
         );
         let silent = matches!(pending, HostRequest::EvaluateMapping { silent: true, .. });
+        let tags = self.run_tags.expr.remove(&result.id()).unwrap_or_default();
         let mut rhs_flags = if recursive {
             TypeaheadFlags::recursive_rhs()
         } else {
@@ -358,7 +367,7 @@ impl super::VimEngine {
                 // Inject into typeahead buffer front so they're processed next.
                 let entries: Vec<TypeaheadEntry> = keys
                     .into_iter()
-                    .map(|k| TypeaheadEntry::new(k, rhs_flags))
+                    .map(|k| TypeaheadEntry::tagged(k, rhs_flags, tags.clone()))
                     .collect();
                 self.typeahead.buffer.inject_front(entries);
                 // Return consumed — the injected keys will be processed on the

@@ -155,6 +155,7 @@ fn abort_replay_clears_stack() {
         ],
         cursor: 0,
         remaining_repeats: NonZeroU32::new(3).unwrap(),
+        tags: crate::primitives::Tags::new(),
     });
     assert!(engine.has_pending_keys());
 
@@ -212,6 +213,7 @@ fn drain_next_key_repeats_macro_correctly() {
         ],
         cursor: 0,
         remaining_repeats: NonZeroU32::new(2).unwrap(),
+        tags: crate::primitives::Tags::new(),
     });
 
     // First pass: j, k
@@ -1290,6 +1292,7 @@ fn shadow_off_macro_replay_leaves_pending_keys() {
         ],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     // Verify pending keys exist and are NOT auto-drained
@@ -1334,6 +1337,7 @@ fn shadow_on_drains_pending_macro_keys() {
         entries: vec![MacroEntry::Key(KeyEvent::char('j'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     assert!(engine.has_pending_keys());
@@ -1375,6 +1379,7 @@ fn shadow_on_counted_replay_drains_all() {
         entries: vec![MacroEntry::Key(KeyEvent::char('j'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::new(3).unwrap(),
+        tags: crate::primitives::Tags::new(),
     });
 
     assert!(engine.has_pending_keys());
@@ -2057,6 +2062,7 @@ fn drain_next_key_returns_buffer_keys_before_macro_keys() {
         ],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     // Buffer keys come first
@@ -2116,6 +2122,7 @@ fn drain_next_key_macro_only() {
         entries: vec![MacroEntry::Key(KeyEvent::char('k'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     assert_eq!(
@@ -2155,6 +2162,7 @@ fn has_pending_keys_true_when_macro_stack_non_empty() {
         entries: vec![MacroEntry::Key(KeyEvent::char('j'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
     assert!(engine.has_pending_keys());
 }
@@ -2194,11 +2202,13 @@ fn abort_replay_clears_buffer_and_macro_stack() {
         entries: vec![MacroEntry::Key(KeyEvent::char('x'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
     engine.typeahead.macro_stack.push(MacroFrame {
         entries: vec![MacroEntry::Key(KeyEvent::char('y'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     assert!(engine.has_pending_keys());
@@ -2236,6 +2246,7 @@ fn abort_replay_preserves_recording_and_last_played() {
         entries: vec![MacroEntry::Key(KeyEvent::char('x'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     engine.abort_replay();
@@ -2266,6 +2277,7 @@ fn macro_aborts_on_effect_limit() {
         entries,
         cursor: 0,
         remaining_repeats: NonZeroU32::new(100).unwrap(),
+        tags: crate::primitives::Tags::new(),
     });
 
     assert!(engine.has_pending_keys());
@@ -2371,6 +2383,7 @@ fn feed_keys_interleaves_with_macro_replay() {
         entries: vec![MacroEntry::Key(KeyEvent::char('m'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     // Inject feedkeys (goes into typeahead buffer, drained first)
@@ -2426,6 +2439,7 @@ fn shadow_execution_uses_unified_drain() {
         entries: vec![MacroEntry::Key(KeyEvent::char('j'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     assert!(engine.has_pending_keys());
@@ -2487,6 +2501,7 @@ fn take_last_drained_flags_macro_key_after_macro_drain() {
         entries: vec![MacroEntry::Key(KeyEvent::char('j'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     let _key = engine.drain_next_key();
@@ -2603,6 +2618,7 @@ fn is_live_insert_input_false_when_macro_stack_non_empty() {
         entries: vec![MacroEntry::Key(KeyEvent::char('j'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     assert!(
@@ -2759,6 +2775,7 @@ fn drain_next_key_sets_macro_key_flags_for_macro_entry() {
         entries: vec![MacroEntry::Key(KeyEvent::char('k'))],
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
 
     let output = engine.drain_next_key();

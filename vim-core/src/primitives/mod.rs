@@ -142,6 +142,7 @@ pub use substitute_preview::SubstitutePreviewMatch;
 pub use subword_config::SubwordConfig;
 pub use text_diff::diff_texts;
 pub use text_range::{RangeEnd, TextRange};
+pub(crate) use trust_tag::Tags;
 pub use trust_tag::TrustTag;
 pub use undo_cursor_strategy::UndoCursorStrategy;
 pub use undo_nav_step::UndoNavStep;

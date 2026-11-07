@@ -931,7 +931,9 @@ pub enum HostRequest {
     /// Execute an ex command in each window: `:windo {cmd}`
     ///
     /// The host should iterate over all windows and re-execute the given
-    /// command text in each one by calling `VimEngine::execute_ex_command`.
+    /// command text in each one by calling `VimEngine::execute_ex`, before it
+    /// completes the request: until then those commands keep the trust tags
+    /// of the line that ran it.
     ForEachWindow {
         /// Correlation metadata.
         meta: HostRequestMeta,
@@ -941,7 +943,9 @@ pub enum HostRequest {
     /// Execute an ex command in each buffer: `:bufdo {cmd}`
     ///
     /// The host should iterate over all listed buffers and re-execute the
-    /// given command text in each one by calling `VimEngine::execute_ex_command`.
+    /// given command text in each one by calling `VimEngine::execute_ex`, before it
+    /// completes the request: until then those commands keep the trust tags
+    /// of the line that ran it.
     ForEachBuffer {
         /// Correlation metadata.
         meta: HostRequestMeta,
@@ -951,7 +955,9 @@ pub enum HostRequest {
     /// Execute an ex command in each tab: `:tabdo {cmd}`
     ///
     /// The host should iterate over all tabs and re-execute the given
-    /// command text in each one by calling `VimEngine::execute_ex_command`.
+    /// command text in each one by calling `VimEngine::execute_ex`, before it
+    /// completes the request: until then those commands keep the trust tags
+    /// of the line that ran it.
     ForEachTab {
         /// Correlation metadata.
         meta: HostRequestMeta,

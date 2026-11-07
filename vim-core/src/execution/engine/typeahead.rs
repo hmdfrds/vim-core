@@ -26,7 +26,7 @@ use std::collections::VecDeque;
 #[cfg(test)]
 use crate::keymap::MappingFlags;
 use crate::keymap::{Key, KeyEvent, Keymap, MappingKind, MappingMode, TrieLookup};
-use crate::primitives::Mode;
+use crate::primitives::{Mode, Tags};
 use compact_str::CompactString;
 
 /// Maximum LHS key sequence length we buffer for mapping prefix matching.
@@ -180,20 +180,37 @@ impl TypeaheadFlags {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// A single entry in the typeahead buffer: a key event with metadata flags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::execution::engine) struct TypeaheadEntry {
     /// The key event.
     pub key: KeyEvent,
     /// Per-key metadata flags (remappable, typed, noremap).
     pub flags: TypeaheadFlags,
+    /// The tags of the mappings the key came from.
+    pub tags: Tags,
 }
 
 impl TypeaheadEntry {
     /// Create a new typeahead entry.
     #[inline]
     #[must_use]
-    pub(in crate::execution::engine) const fn new(key: KeyEvent, flags: TypeaheadFlags) -> Self {
-        Self { key, flags }
+    #[cfg(test)]
+    pub(in crate::execution::engine) fn new(key: KeyEvent, flags: TypeaheadFlags) -> Self {
+        Self {
+            key,
+            flags,
+            tags: Tags::new(),
+        }
+    }
+
+    /// A new entry with `tags`.
+    #[must_use]
+    pub(in crate::execution::engine) const fn tagged(
+        key: KeyEvent,
+        flags: TypeaheadFlags,
+        tags: Tags,
+    ) -> Self {
+        Self { key, flags, tags }
     }
 }
 
@@ -232,6 +249,11 @@ pub(in crate::execution::engine) struct TypeaheadBuffer {
     pending: ArrayVec<KeyEvent, MAX_PENDING>,
     /// Recursion depth for mapping expansion (max `MAX_RECURSION_DEPTH`).
     mapping_recursion_depth: u8,
+    /// The tags of the keys in `pending`.
+    pending_tags: Tags,
+    /// The tags of the key the last resolution gave, or of the keys an
+    /// `<expr>` mapping it found will give.
+    resolved_tags: Tags,
     /// Flags of the last key returned by `pop_front()`.
     ///
     /// Used by the engine to determine recording/remap behavior for the
@@ -250,6 +272,8 @@ impl TypeaheadBuffer {
             buf: VecDeque::new(),
             pending: ArrayVec::new(),
             mapping_recursion_depth: 0,
+            pending_tags: Tags::new(),
+            resolved_tags: Tags::new(),
             last_popped_flags: TypeaheadFlags::empty(),
         }
     }
@@ -273,10 +297,11 @@ impl TypeaheadBuffer {
     ///
     /// Used for re-processing keys that were consumed but should be
     /// dispatched normally (like Neovim's `vungetc()`).
-    pub(in crate::execution::engine) fn inject_front_noremap(&mut self, key: KeyEvent) {
-        self.inject_front(std::iter::once(TypeaheadEntry::new(
+    pub(in crate::execution::engine) fn inject_front_noremap(&mut self, key: KeyEvent, tags: Tags) {
+        self.inject_front(std::iter::once(TypeaheadEntry::tagged(
             key,
             TypeaheadFlags::NOREMAP,
+            tags,
         )));
     }
 
@@ -371,7 +396,14 @@ impl TypeaheadBuffer {
         self.buf.clear();
         self.pending.clear();
         self.mapping_recursion_depth = 0;
+        self.pending_tags = Tags::new();
+        self.resolved_tags = Tags::new();
         self.last_popped_flags = TypeaheadFlags::empty();
+    }
+
+    /// The tags of the key the last resolution gave.
+    pub(in crate::execution::engine) const fn resolved_tags(&self) -> &Tags {
+        &self.resolved_tags
     }
 
     /// Flags from the last `pop_front()` call.
@@ -531,6 +563,7 @@ impl TypeaheadBuffer {
     ///    - `NoMatch`: flush pending keys as literals (first dispatched, rest queued).
     ///    - `ExactOnly`: unambiguous match — expand the mapping RHS.
     ///    - `Prefix`: could become a longer mapping — wait for more input or timeout.
+    #[cfg(test)]
     pub(in crate::execution::engine) fn resolve_key(
         &mut self,
         key: KeyEvent,
@@ -538,18 +571,35 @@ impl TypeaheadBuffer {
         keymap: &Keymap,
         mode: Mode,
     ) -> ResolveResult {
+        self.resolve_tagged_key(key, flags, Tags::new(), keymap, mode)
+    }
+
+    /// [`Self::resolve_key`] for a key with `tags`. The keys a mapping
+    /// gives carry the tags of the keys that ran it and the mapping's own;
+    /// [`Self::resolved_tags`] has those of the key it returns.
+    pub(in crate::execution::engine) fn resolve_tagged_key(
+        &mut self,
+        key: KeyEvent,
+        flags: TypeaheadFlags,
+        tags: Tags,
+        keymap: &Keymap,
+        mode: Mode,
+    ) -> ResolveResult {
         // Step 1: Modes without user mappings bypass expansion entirely.
         let Some(mm) = MappingMode::from_mode(mode) else {
+            self.resolved_tags = tags;
             return ResolveResult::Dispatch(key, flags);
         };
 
         // Step 2: NOREMAP keys skip mapping lookup.
         // Exception: <Plug> keys always go through mapping expansion even in noremap context.
         if flags.contains(TypeaheadFlags::NOREMAP) && !matches!(key.key, Key::Plug(_)) {
+            self.resolved_tags = tags;
             return ResolveResult::Dispatch(key, flags);
         }
 
         // Step 3: Accumulate into pending buffer.
+        self.pending_tags.extend(&tags);
         if self.pending.is_full() {
             // Buffer full — flush everything as literals, including the new key.
             return self.flush_pending_with_new_key(key);
@@ -564,6 +614,7 @@ impl TypeaheadBuffer {
                 if self.pending.len() == 1 {
                     // Single key, no match — fast path: dispatch directly.
                     self.pending.clear();
+                    self.resolved_tags = std::mem::take(&mut self.pending_tags);
                     ResolveResult::Dispatch(key, flags)
                 } else {
                     // Multi-key accumulated but no match — flush as literals.
@@ -579,6 +630,7 @@ impl TypeaheadBuffer {
                     // incoming key flags (recursive expansion chain).
                     let silent = entry.silent() || flags.contains(TypeaheadFlags::SILENT);
                     self.pending.clear();
+                    self.take_mapping_tags(entry.trust());
                     return ResolveResult::ExprMapping {
                         expression,
                         kind,
@@ -595,6 +647,7 @@ impl TypeaheadBuffer {
                 // Snapshot pending keys as the LHS before clearing, for REMAP_SKIP.
                 let lhs: ArrayVec<KeyEvent, MAX_PENDING> = self.pending.clone();
                 self.pending.clear();
+                self.take_mapping_tags(entry.trust());
                 self.inject_mapping_rhs(&sequence, &lhs, kind, silent)
             }
             TrieLookup::Prefix { .. } => {
@@ -635,6 +688,7 @@ impl TypeaheadBuffer {
                     let kind = entry.kind();
                     let silent = entry.silent();
                     self.pending.clear();
+                    self.take_mapping_tags(entry.trust());
                     return Some(ResolveResult::ExprMapping {
                         expression,
                         kind,
@@ -649,6 +703,7 @@ impl TypeaheadBuffer {
                 // Snapshot pending keys as the LHS before clearing, for REMAP_SKIP.
                 let lhs: ArrayVec<KeyEvent, MAX_PENDING> = self.pending.clone();
                 self.pending.clear();
+                self.take_mapping_tags(entry.trust());
                 Some(self.inject_mapping_rhs(&sequence, &lhs, kind, silent))
             }
             TrieLookup::Prefix { exact: None } | TrieLookup::NoMatch => {
@@ -673,6 +728,21 @@ impl TypeaheadBuffer {
     }
 
     // ─── Private mapping helpers ────────────────────────────────────────
+
+    /// The keys of a mapping tagged `trust`, run by the pending keys, carry
+    /// both their tags.
+    fn take_mapping_tags(&mut self, trust: crate::primitives::TrustTag) {
+        let mut tags = std::mem::take(&mut self.pending_tags);
+        tags.insert(trust);
+        self.resolved_tags = tags;
+    }
+
+    /// The pending keys flushed as literals all carry the tags of any.
+    fn take_literal_tags(&mut self) -> Tags {
+        let tags = std::mem::take(&mut self.pending_tags);
+        self.resolved_tags = tags.clone();
+        tags
+    }
 
     /// Inject a mapping entry's RHS into the typeahead buffer.
     ///
@@ -748,7 +818,7 @@ impl TypeaheadBuffer {
                     } else {
                         rhs_flags
                     };
-                    TypeaheadEntry::new(*k, flags)
+                    TypeaheadEntry::tagged(*k, flags, self.resolved_tags.clone())
                 })
                 .collect();
             self.inject_front(remaining);
@@ -803,12 +873,13 @@ impl TypeaheadBuffer {
         // Prevents re-entering the mapping trie (e.g., second 'g' of 'gg'
         // re-triggering pending state from 'gh'/'gd' mappings). Consistent
         // with flush_pending_to_front (timeout path). Matches Vim behavior.
+        let tags = self.take_literal_tags();
         if self.pending.len() > 1 {
             let remaining: Vec<TypeaheadEntry> = self
                 .pending
                 .iter()
                 .skip(1)
-                .map(|k| TypeaheadEntry::new(*k, TypeaheadFlags::NOREMAP))
+                .map(|k| TypeaheadEntry::tagged(*k, TypeaheadFlags::NOREMAP, tags.clone()))
                 .collect();
             self.inject_front(remaining);
         }
@@ -828,6 +899,7 @@ impl TypeaheadBuffer {
     /// Remaining pending keys + new key go to buffer front as REMAPPABLE
     /// (fresh keys eligible for their own mappings).
     fn flush_pending_with_new_key(&mut self, new_key: KeyEvent) -> ResolveResult {
+        let tags = self.take_literal_tags();
         let first = if self.pending.is_empty() {
             new_key
         } else {
@@ -840,9 +912,13 @@ impl TypeaheadBuffer {
                 .pending
                 .iter()
                 .skip(1)
-                .map(|k| TypeaheadEntry::new(*k, TypeaheadFlags::NOREMAP))
+                .map(|k| TypeaheadEntry::tagged(*k, TypeaheadFlags::NOREMAP, tags.clone()))
                 .collect();
-            remaining.push(TypeaheadEntry::new(new_key, TypeaheadFlags::NOREMAP));
+            remaining.push(TypeaheadEntry::tagged(
+                new_key,
+                TypeaheadFlags::NOREMAP,
+                tags,
+            ));
             self.inject_front(remaining);
             self.pending.clear();
             first
@@ -869,12 +945,13 @@ impl TypeaheadBuffer {
         };
 
         // Remaining keys go to buffer front as NOREMAP.
+        let tags = self.take_literal_tags();
         if self.pending.len() > 1 {
             let remaining: Vec<TypeaheadEntry> = self
                 .pending
                 .iter()
                 .skip(1)
-                .map(|k| TypeaheadEntry::new(*k, TypeaheadFlags::NOREMAP))
+                .map(|k| TypeaheadEntry::tagged(*k, TypeaheadFlags::NOREMAP, tags.clone()))
                 .collect();
             self.inject_front(remaining);
         }

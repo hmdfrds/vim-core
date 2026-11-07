@@ -77,6 +77,53 @@ pub trait ConfigHost {
     }
 }
 
+/// What a host answers about a command line that keys from a mapping with
+/// a non-default [`TrustTag`] opened, edited or ran, before it runs.
+///
+/// Set with
+/// [`VimEngine::set_command_line_judge`](crate::execution::VimEngine::set_command_line_judge).
+/// A line only typed, or made by mappings with the default tag, is never
+/// judged. A tag stays on a line: keys the user types into a line a
+/// mapping left open, the history entry and the last command line keep
+/// it, and so do the keys `:normal` and a register run from the line. A
+/// mapping or abbreviation a tagged line defines keeps the highest tag of
+/// the line (see [`TrustTag`]), so the lines its keys make are judged too.
+/// A register a tagged mapping filled is not tagged when the user runs it
+/// with `@a` or `:@a`: the user ran it.
+pub trait CommandLineJudge: Send {
+    /// Decide about one command of a tagged line. Every `|` command of the
+    /// line is judged before any of them runs, each command of a `:g` or
+    /// `:v` list and the command of `:windo`, `:bufdo`, `:tabdo`, `:sx`
+    /// and `:sy` after the command that runs it, and the lines of a `:@r`
+    /// before they run. A command that does not parse is not judged: the
+    /// engine gives its error itself.
+    ///
+    /// [`Verdict::Refuse`] is an error, and nothing of the line from that
+    /// command on runs. After [`Verdict::Claim`] the command does not run
+    /// and nothing is shown, as for a host that runs it itself; for a
+    /// command that another runs, such as one of a `:g` list, that one
+    /// does not run either.
+    fn judge(&mut self, command: &RuntimeCommand<'_>) -> Verdict;
+}
+
+/// A command of a tagged command line, for [`CommandLineJudge::judge`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
+pub struct RuntimeCommand<'a> {
+    /// The command as split from its line, its range and modifiers
+    /// included, without the blanks around it.
+    pub text: &'a str,
+    /// The non-default tags of the keys that made the line, each once, in
+    /// order of their numbers; never empty.
+    pub tags: &'a [TrustTag],
+    /// Its modifiers.
+    pub modifiers: ModifierFlags,
+    /// The command as the engine parses it to run it.
+    pub command: &'a ExCommand,
+    /// What running it reaches: the [`ExCommand::reach`] of `command`.
+    pub reach: Reach,
+}
+
 /// A `:source` in a config, for [`ConfigHost::source`].
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

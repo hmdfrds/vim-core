@@ -114,9 +114,10 @@ impl VimEngine {
                 // noremap_rhs for expanded mappings) are preserved, and
                 // process() honors them via drained_flags to prevent
                 // re-entering the pending state.
+                let tags = self.typeahead.buffer.resolved_tags().clone();
                 self.typeahead
                     .buffer
-                    .inject_front([TypeaheadEntry::new(key, flags)]);
+                    .inject_front([TypeaheadEntry::tagged(key, flags, tags)]);
             }
             Some(ResolveResult::ExprMapping {
                 expression,
@@ -127,7 +128,9 @@ impl VimEngine {
                 // Timeout resolved to an <expr> mapping — inject the
                 // evaluation request as a pending host request. The host
                 // will evaluate the expression and inject the result keys.
-                let response = self.handle_expr_mapping(expression, mapping_mode, kind, silent);
+                let tags = self.typeahead.buffer.resolved_tags().clone();
+                let response =
+                    self.handle_expr_mapping(expression, mapping_mode, kind, silent, tags);
                 // Store effects/requests for the next drain cycle.
                 // (handle_expr_mapping produces a HostRequest that the
                 // shell will pick up via drain_next_key → process.)

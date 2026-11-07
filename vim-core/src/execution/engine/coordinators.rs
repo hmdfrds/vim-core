@@ -55,6 +55,9 @@ pub(super) struct TypeaheadCoordinator {
     /// Initialized to `empty()` (no drain has occurred). Reset to `empty()`
     /// after `take_last_drained_flags()` consumes them.
     pub(in crate::execution::engine) last_drained_flags: TypeaheadFlags,
+    /// The tags of the key the last `drain_next_key()` gave, taken with
+    /// its flags.
+    pub(in crate::execution::engine) last_drained_tags: crate::primitives::Tags,
     /// Running count of macro entries pumped during the current replay.
     pub(in crate::execution::engine) macro_effect_counter: usize,
 }
@@ -65,6 +68,7 @@ impl TypeaheadCoordinator {
             buffer: TypeaheadBuffer::new(),
             macro_stack: Vec::new(),
             last_drained_flags: TypeaheadFlags::empty(),
+            last_drained_tags: crate::primitives::Tags::new(),
             macro_effect_counter: 0,
         }
     }

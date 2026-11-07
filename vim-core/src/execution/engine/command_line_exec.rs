@@ -16,8 +16,8 @@ use crate::execution::{InputContext, Validated};
 use crate::grammar::Command;
 use crate::keymap::MappingEntry;
 use crate::primitives::Direction;
-use crate::primitives::TrustTag;
 use crate::primitives::{Mode, SearchDirection};
+use crate::primitives::{Tags, TrustTag};
 use crate::state::VimState;
 
 impl VimEngine {
@@ -128,6 +128,7 @@ impl VimEngine {
         input: &str,
         session: CommandLineSession,
         ctx: InputContext<'_, D, Validated>,
+        tags: &Tags,
     ) -> Response {
         let register_command = ex_register_command(input, session);
         #[cfg(test)]
@@ -152,13 +153,14 @@ impl VimEngine {
             Some(ctx.doc().text()),
         );
         let mut effects = prefix_effects;
-        effects.extend(self.begin_last_line(&register_command));
+        effects.extend(self.begin_last_line(&register_command, tags));
         let output = self.run_ex_line(
             execute_command.as_str(),
             ctx,
             OnError::Stop,
             false,
             Some(Mode::Normal),
+            tags,
         );
         // The line becomes the last command line after it ran.
         effects.extend(self.end_last_line(&output.effects));
@@ -179,10 +181,11 @@ impl VimEngine {
         &mut self,
         cmd: &str,
         ctx: InputContext<'_, D, Validated>,
+        tags: &Tags,
     ) -> Response {
         #[cfg(test)]
         super::mapping_reach::seen::ran(cmd);
-        let output = self.run_ex_line(cmd, ctx, OnError::Continue, false, None);
+        let output = self.run_ex_line(cmd, ctx, OnError::Continue, false, None, tags);
         let mut response = Response::with_effects(output.effects);
         response.host_requests = output.host_requests.into_vec();
         response
