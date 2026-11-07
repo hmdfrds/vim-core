@@ -399,6 +399,15 @@ impl<H: VimHost> VimSession<H> {
         (self.engine, self.host)
     }
 
+    /// Install the judge of command lines that keys from a tagged mapping
+    /// made, as [`VimEngine::set_command_line_judge`] does.
+    pub fn set_command_line_judge(
+        &mut self,
+        judge: Option<Box<dyn crate::execution::CommandLineJudge>>,
+    ) {
+        self.engine.set_command_line_judge(judge);
+    }
+
     /// Process a single key event through the full engine pipeline.
     ///
     /// 1. Builds a validated `InputContext` from the host's document/cursor

@@ -308,6 +308,7 @@ fn push_macro_keys(engine: &mut VimEngine, keys: &str) {
         entries: parsed,
         cursor: 0,
         remaining_repeats: NonZeroU32::MIN,
+        tags: crate::primitives::Tags::new(),
     });
     let _ = engine
         .state

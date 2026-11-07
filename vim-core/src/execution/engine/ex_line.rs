@@ -10,6 +10,7 @@
 use compact_str::CompactString;
 use smallvec::SmallVec;
 
+use super::cmdline_judge::PieceVerdict;
 use super::shadow_document::OwnedDocument;
 use super::VimEngine;
 use crate::commands::ex::global::LineMarks;
@@ -22,7 +23,7 @@ use crate::grammar::ex_parser::{nest, parse_ex_piece_at};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{ExCommand, ExRange, ModifierFlags};
 use crate::primitives::{
-    Direction, Mode, Position, RegisterName, SelectionRange, TrustTag, UndoCursorStrategy,
+    Direction, Mode, Position, RegisterName, SelectionRange, Tags, UndoCursorStrategy,
 };
 
 /// Vim's default 'report': a `:g` reports more changed lines than this.
@@ -86,6 +87,8 @@ struct Run<'d, D: Document> {
     marks: Option<LineMarks>,
     /// Substitutions and the lines they changed inside `:g`.
     substitutions: (usize, usize),
+    /// The tags of the keys that made the line.
+    tags: Tags,
 }
 
 impl<'d, D: Document> Run<'d, D> {
@@ -236,6 +239,8 @@ fn moves_in_undo(piece: &str, depth: u8) -> bool {
 pub(super) struct PendingLine {
     /// `None` once it ran the last command line.
     line: Option<CompactString>,
+    /// The tags of the line.
+    tags: Tags,
     /// Its `:normal` commands the host has yet to complete.
     norms: usize,
 }
@@ -266,13 +271,14 @@ impl VimEngine {
     /// Start the command line `line`. Only a line run at the top level is
     /// kept: one that `:normal` or `@:` runs is not typed (Vim keeps only a
     /// typed line). A line still waiting for the host is stored first.
-    pub(super) fn begin_last_line(&mut self, line: &str) -> Effects {
+    pub(super) fn begin_last_line(&mut self, line: &str, tags: &Tags) -> Effects {
         if self.nesting > 0 {
             return Effects::new();
         }
         let effects = self.store_last_line();
         self.pending_line = PendingLine {
             line: Some(CompactString::from(line)),
+            tags: tags.clone(),
             norms: 0,
         };
         effects
@@ -319,6 +325,7 @@ impl VimEngine {
         let Some(line) = pending.line else {
             return Effects::new();
         };
+        self.run_tags.last_line = Some((line.clone(), pending.tags));
         let mut effects = crate::commands::ex::effects::register_ex_command(line);
         crate::execution::effect_processor::sync_effects(
             &mut self.state,
@@ -331,7 +338,8 @@ impl VimEngine {
     /// Run the Ex command line `line` from `ctx`.
     ///
     /// `resolved_options` gives the commands the options with their local
-    /// values; `mode_after` is set once a command's effects are synced.
+    /// values; `mode_after` is set once a command's effects are synced. A
+    /// line with `tags` goes to the judge first.
     pub(super) fn run_ex_line<D: Document>(
         &mut self,
         line: &str,
@@ -339,7 +347,9 @@ impl VimEngine {
         on_error: OnError,
         resolved_options: bool,
         mode_after: Option<Mode>,
+        tags: &Tags,
     ) -> ExLineOutput {
+        let verdicts = self.judge_line(line, self.nesting, tags);
         let pieces = split_ex_pipeline(line);
         let mut run = Run {
             shadow: None,
@@ -360,13 +370,10 @@ impl VimEngine {
             global_depth: 0,
             marks: None,
             substitutions: (0, 0),
+            tags: tags.clone(),
             input: ctx,
         };
-        for piece in &pieces {
-            if (self.run_piece(piece, &mut run) && on_error == OnError::Stop) || run.lost {
-                break;
-            }
-        }
+        self.run_judged_pieces(&pieces, verdicts.as_deref(), on_error, &mut run);
         if run.undo == UndoGroups::Open {
             let mut end = Effects::new();
             end.push(Effect::EndUndoGroup { node_id: None });
@@ -376,6 +383,14 @@ impl VimEngine {
         if run.dot {
             self.state
                 .set_last_ex_for_dot(Some(CompactString::from(line)));
+        }
+        if !run.tags.is_empty()
+            && run
+                .effects
+                .iter()
+                .any(|effect| matches!(effect, Effect::NormCommand { .. }))
+        {
+            self.run_tags.norm_line.extend(&run.tags);
         }
         ExLineOutput {
             effects: run.effects,
@@ -391,8 +406,9 @@ impl VimEngine {
         line: &str,
         on_error: OnError,
         run: &mut Run<'_, D>,
+        verdicts: Option<&[PieceVerdict]>,
     ) -> bool {
-        match self.nested(|engine| engine.run_command_list(line, on_error, run)) {
+        match self.nested(|engine| engine.run_command_list(line, on_error, run, verdicts)) {
             Ok(error) => error,
             Err(err) => self.add_line_effects(Effects::new().show_error(err), run),
         }
@@ -403,12 +419,37 @@ impl VimEngine {
         line: &str,
         on_error: OnError,
         run: &mut Run<'_, D>,
+        verdicts: Option<&[PieceVerdict]>,
     ) -> bool {
         if run.undo == UndoGroups::Own {
             run.undo = UndoGroups::Merged;
         }
+        self.run_judged_pieces(&split_ex_pipeline(line), verdicts, on_error, run)
+    }
+
+    /// Run the `pieces` of a line as the judge decided. A refused piece is
+    /// an error that ends the line, whatever `on_error` says. Whether one
+    /// gave an error.
+    fn run_judged_pieces<D: Document>(
+        &mut self,
+        pieces: &[std::borrow::Cow<'_, str>],
+        verdicts: Option<&[PieceVerdict]>,
+        on_error: OnError,
+        run: &mut Run<'_, D>,
+    ) -> bool {
         let mut error = false;
-        for piece in &split_ex_pipeline(line) {
+        for (index, piece) in pieces.iter().enumerate() {
+            match verdicts.map(|verdicts| verdicts.get(index)) {
+                None | Some(Some(PieceVerdict::Run)) => {}
+                Some(Some(PieceVerdict::Skip)) => continue,
+                Some(Some(PieceVerdict::Refuse(text))) => {
+                    let refused = Effects::new().show_error(VimError::Refused(text.clone()));
+                    self.add_line_effects(refused, run);
+                    return true;
+                }
+                // Past a refusal the judge stops: nothing there runs.
+                Some(None) => return error,
+            }
             error |= self.run_piece(piece, run);
             if (error && on_error == OnError::Stop) || run.lost {
                 break;
@@ -428,6 +469,8 @@ impl VimEngine {
             self.sync_line_effects(&mut end, run);
             run.effects.extend(end);
         }
+        #[cfg(test)]
+        super::cmdline_judge::seen::ran(piece, !run.tags.is_empty());
         let mut output = match &run.shadow {
             Some(doc) => self.execute_piece_on(piece, doc, run),
             None => self.execute_piece_on(piece, run.host(), run),
@@ -439,9 +482,11 @@ impl VimEngine {
         if output.last_ex_for_dot.take().is_some() {
             run.dot = true;
         }
-        // `:@:` runs the last command line.
+        // `:@:` runs the last command line, with its tags.
+        let mut line_tags = run.tags.clone();
         if output.ex_register == Some(RegisterName::LAST_COMMAND) {
             self.forget_last_line();
+            line_tags.extend(&self.last_line_tags());
         }
         let global = output.global.take();
         let ex_lines = std::mem::take(&mut output.ex_lines);
@@ -452,13 +497,16 @@ impl VimEngine {
             error |= self.run_global(&global, run);
             run.modifiers = outer;
         }
+        let outer = std::mem::replace(&mut run.tags, line_tags);
         for line in &ex_lines {
             // flush_buffers() after an error drops the register's other lines.
             if error || run.lost {
                 break;
             }
-            error |= self.run_nested_line(line, OnError::Stop, run);
+            let verdicts = self.judge_line(line, self.nesting.saturating_add(1), &run.tags);
+            error |= self.run_nested_line(line, OnError::Stop, run, verdicts.as_deref());
         }
+        run.tags = outer;
         error
     }
 
@@ -532,7 +580,9 @@ impl VimEngine {
         if let Some(mode) = run.mode_after {
             self.state.set_mode(mode);
         }
-        let applied = self.apply_ex_output(&mut output, run.text(), TrustTag::default());
+        // What a tagged line defines keeps its tag, so its keys are judged.
+        let trust = run.tags.strictest();
+        let applied = self.apply_ex_output(&mut output, run.text(), trust);
         let error = output
             .effects
             .iter()
@@ -542,6 +592,7 @@ impl VimEngine {
         run.follow(applied.as_slice());
         run.effects.extend(output.effects);
         run.effects.extend(applied);
+        self.run_tags.note_each(&output.host_requests, &run.tags);
         run.host_requests.extend(output.host_requests);
         error
     }
@@ -602,7 +653,7 @@ impl VimEngine {
             // global_exe_one(): the cursor goes to the line's start.
             run.cursor = run.line_start(line).unwrap_or(run.cursor);
             // An error ends the loop once the line's commands ran.
-            if self.run_nested_line(&global.commands, OnError::Continue, run) {
+            if self.run_nested_line(&global.commands, OnError::Continue, run, None) {
                 error = true;
                 break;
             }
@@ -638,7 +689,7 @@ impl VimEngine {
         match matches {
             Ok(matches) if matches != global.invert => {
                 run.global_depth += 1;
-                let error = self.run_nested_line(&global.commands, OnError::Continue, run);
+                let error = self.run_nested_line(&global.commands, OnError::Continue, run, None);
                 run.global_depth -= 1;
                 error
             }

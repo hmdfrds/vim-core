@@ -67,8 +67,9 @@ pub struct AbbrevEntry {
     pub kind: AbbrevKind,
     /// Whether remapping is suppressed (noremap variant).
     pub noremap: bool,
-    /// The tag of the config that defined it; the default for one typed
-    /// or added by the host.
+    /// The tag of the config that defined it, or the highest tag of the
+    /// command line that did; the default for one typed or added by the
+    /// host.
     #[cfg_attr(feature = "serde", serde(default))]
     pub trust: TrustTag,
 }

@@ -98,6 +98,7 @@ pub(crate) struct EngineSnapshot {
     sticky_session: Option<StickySession>,
     sticky_prefixes: u8,
     cmd_buffer: Option<String>,
+    run_tags: super::cmdline_judge::RunTags,
     keystroke_seq: u64,
     sequencer: HostRequestSequencer,
 }
@@ -198,6 +199,7 @@ impl Drop for ScopedFork<'_> {
                 self.engine.sticky_session = snapshot.sticky_session;
                 self.engine.sticky_prefixes = snapshot.sticky_prefixes;
                 self.engine.cmd_buffer = snapshot.cmd_buffer;
+                self.engine.run_tags = snapshot.run_tags;
                 self.engine.keystroke_seq = snapshot.keystroke_seq;
                 self.engine.host.sequencer = snapshot.sequencer;
             }
@@ -242,6 +244,7 @@ impl VimEngine {
             sticky_session: self.sticky_session,
             sticky_prefixes: self.sticky_prefixes,
             cmd_buffer: self.cmd_buffer.clone(),
+            run_tags: self.run_tags.clone(),
             keystroke_seq: self.keystroke_seq,
             sequencer: self.host.sequencer,
         };

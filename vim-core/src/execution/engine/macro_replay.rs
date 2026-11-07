@@ -85,6 +85,8 @@ pub(super) struct MacroFrame {
     pub cursor: usize,
     /// How many more times to replay (starts at count, decrements).
     pub remaining_repeats: NonZeroU32,
+    /// The tags of the keys that ran it.
+    pub tags: crate::primitives::Tags,
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -102,6 +104,7 @@ pub(super) fn process_macro_plays(
     macro_plays: smallvec::SmallVec<[(RegisterName, NonZeroU32); 2]>,
     response: &mut Response,
     options: &crate::primitives::VimOptions,
+    tags: &crate::primitives::Tags,
 ) {
     for (register, count) in macro_plays {
         match resolve_and_parse_macro(state, register, options) {
@@ -110,6 +113,7 @@ pub(super) fn process_macro_plays(
                     entries,
                     cursor: 0,
                     remaining_repeats: count,
+                    tags: tags.clone(),
                 });
             }
             Ok(None) => {
@@ -355,7 +359,10 @@ impl super::VimEngine {
             if let Some(entry) = frame.entries.get(frame.cursor) {
                 frame.cursor += 1;
                 match entry {
-                    MacroEntry::Key(key) => return Some(MacroOutput::Key(*key)),
+                    MacroEntry::Key(key) => {
+                        self.typeahead.last_drained_tags = frame.tags.clone();
+                        return Some(MacroOutput::Key(*key));
+                    }
                     MacroEntry::TextBlock {
                         text,
                         cursor_offset,
@@ -479,6 +486,7 @@ mod tests {
             ],
             cursor: 0,
             remaining_repeats: NonZeroU32::new(3).unwrap(),
+            tags: crate::primitives::Tags::new(),
         };
 
         let mut collected = Vec::new();
@@ -810,6 +818,7 @@ mod tests {
             }],
             cursor: 0,
             remaining_repeats: NonZeroU32::MIN,
+            tags: crate::primitives::Tags::new(),
         });
 
         let output = engine.pump_macro_key();
@@ -846,6 +855,7 @@ mod tests {
             ],
             cursor: 0,
             remaining_repeats: NonZeroU32::MIN,
+            tags: crate::primitives::Tags::new(),
         });
 
         assert_eq!(
@@ -883,6 +893,7 @@ mod tests {
             }],
             cursor: 0,
             remaining_repeats: NonZeroU32::new(3).unwrap(),
+            tags: crate::primitives::Tags::new(),
         });
 
         // Should return the text block 3 times

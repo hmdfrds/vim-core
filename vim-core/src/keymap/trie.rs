@@ -172,8 +172,9 @@ impl MappingEntry {
         self
     }
 
-    /// The tag of the config that defined this mapping: the default for a
-    /// mapping typed or added by the host.
+    /// The tag of the config that defined this mapping, or the highest tag
+    /// of the command line that did: the default for a mapping typed or
+    /// added by the host.
     #[inline]
     #[must_use]
     pub const fn trust(&self) -> TrustTag {

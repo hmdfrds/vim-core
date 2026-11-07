@@ -792,12 +792,20 @@ fn emergency_reset_field_inventory() {
 
     // Set cmd_buffer to simulate a <Cmd>...<CR> in progress.
     engine.cmd_buffer = Some("set nu".to_string());
+    let mut tags = crate::primitives::Tags::new();
+    tags.insert(crate::primitives::TrustTag::new(2));
+    engine.run_tags.cmd = tags.clone();
+    engine.run_tags.window = Some(tags.clone());
+    engine
+        .run_tags
+        .each
+        .push((crate::execution::host::HostRequestId::new(1), tags.clone()));
 
     // Set fork_active to true (directly accessible from this module).
     engine.fork_active = true;
 
     // A command line waiting for its `:normal`, inside one.
-    let _ = engine.begin_last_line("normal x");
+    let _ = engine.begin_last_line("normal x", &tags);
     engine.nesting = 1;
 
     // Push a syntax selection entry.
@@ -843,6 +851,7 @@ fn emergency_reset_field_inventory() {
         ref command_line_session,
         ref sticky_session,
         ref cmd_buffer,
+        ref run_tags,
         ref fork_active,
 
         // === PRESERVED fields (intentionally not cleared) ===
@@ -1006,6 +1015,15 @@ fn emergency_reset_field_inventory() {
     assert!(
         cmd_buffer.is_none(),
         "cmd_buffer must be None after emergency_reset()",
+    );
+
+    // run_tags: no key in flight keeps a tag.
+    assert!(
+        run_tags.cmd.is_empty()
+            && run_tags.window.is_none()
+            && run_tags.norms.is_empty()
+            && run_tags.each.is_empty(),
+        "no key may keep a tag after emergency_reset()",
     );
 
     // nesting: 0, no command line waiting.

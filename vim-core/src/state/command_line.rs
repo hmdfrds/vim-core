@@ -24,7 +24,7 @@
 //! `commands/` would force all fields to become `pub`, breaking encapsulation
 //! for no modularity gain. They remain here intentionally.
 
-use crate::primitives::{CommandLineEdit, Direction};
+use crate::primitives::{CommandLineEdit, Direction, Tags};
 use compact_str::CompactString;
 use std::collections::VecDeque;
 
@@ -84,6 +84,13 @@ pub struct CommandLineState {
     cursor: usize,
     /// Ex command (`:`) history (newest last — uses `CompactString` for SSO).
     ex_history: VecDeque<CompactString>,
+    /// The tags of each `ex_history` entry, at the same index.
+    #[cfg_attr(feature = "serde", serde(default))]
+    ex_history_tags: VecDeque<Tags>,
+    /// The tags of the keys that opened, edited or ran this line, and of
+    /// the history entries put in it. Kept while it is open.
+    #[cfg_attr(feature = "serde", serde(default))]
+    tags: Tags,
     /// Search (`/`, `?`) history (newest last — uses `CompactString` for SSO).
     search_history: VecDeque<CompactString>,
     /// Current history navigation index (None = not navigating).
@@ -121,8 +128,50 @@ impl CommandLineState {
     /// Begin a new command-line session for a prompt kind.
     pub fn begin(&mut self, prompt: CommandLinePrompt) {
         self.clear();
+        self.tags = Tags::new();
         self.prompt = prompt;
         self.awaiting_register = false;
+    }
+
+    /// The tags of the line.
+    pub(crate) const fn tags(&self) -> &Tags {
+        &self.tags
+    }
+
+    /// Add `tags` to the line.
+    pub(crate) fn add_tags(&mut self, tags: &Tags) {
+        self.tags.extend(tags);
+    }
+
+    /// The tags of the Ex history entry `index`.
+    pub(crate) fn ex_history_tags(&self, index: usize) -> Tags {
+        let offset = self
+            .ex_history
+            .len()
+            .saturating_sub(self.ex_history_tags.len());
+        index
+            .checked_sub(offset)
+            .and_then(|index| self.ex_history_tags.get(index))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// The history entry `index` goes in the line, with its tags.
+    fn recall(&mut self, index: usize) {
+        let entry = match self.prompt {
+            CommandLinePrompt::Ex | CommandLinePrompt::ExVisual => {
+                let tags = self.ex_history_tags(index);
+                self.tags.extend(&tags);
+                self.ex_history.get(index)
+            }
+            CommandLinePrompt::SearchForward | CommandLinePrompt::SearchBackward => {
+                self.search_history.get(index)
+            }
+        };
+        if let Some(entry) = entry {
+            self.input = entry.to_string();
+            self.cursor = self.input.len();
+        }
     }
 
     /// Get the current input text.
@@ -501,10 +550,7 @@ impl CommandLineState {
                     .find(|&i| Self::entry_matches_prefix(self.active_history().get(i), prefix));
                 if let Some(idx) = found {
                     self.history_index = Some(idx);
-                    if let Some(entry) = self.active_history().get(idx) {
-                        self.input = entry.to_string();
-                        self.cursor = self.input.len();
-                    }
+                    self.recall(idx);
                 }
                 // If no matching entry, stay on current input (no navigation)
             }
@@ -516,10 +562,7 @@ impl CommandLineState {
                     .find(|&i| Self::entry_matches_prefix(self.active_history().get(i), prefix));
                 if let Some(idx) = found {
                     self.history_index = Some(idx);
-                    if let Some(entry) = self.active_history().get(idx) {
-                        self.input = entry.to_string();
-                        self.cursor = self.input.len();
-                    }
+                    self.recall(idx);
                 }
                 // If no older match, stay at current position
             }
@@ -544,10 +587,7 @@ impl CommandLineState {
                     .find(|&i| Self::entry_matches_prefix(self.active_history().get(i), prefix));
                 if let Some(idx) = found {
                     self.history_index = Some(idx);
-                    if let Some(entry) = self.active_history().get(idx) {
-                        self.input = entry.to_string();
-                        self.cursor = self.input.len();
-                    }
+                    self.recall(idx);
                 } else {
                     // Past newest match — return to saved input
                     self.input = std::mem::take(&mut self.saved_input);
@@ -696,22 +736,52 @@ impl CommandLineState {
     /// Add the current input to history and clear.
     pub fn commit(&mut self) {
         if !self.input.is_empty() {
+            let ex = matches!(
+                self.prompt,
+                CommandLinePrompt::Ex | CommandLinePrompt::ExVisual
+            );
+            if ex {
+                self.align_ex_history_tags();
+            }
             // Inline history selection to avoid borrowing all of `self`
-            let history = match self.prompt {
-                CommandLinePrompt::Ex | CommandLinePrompt::ExVisual => &mut self.ex_history,
-                CommandLinePrompt::SearchForward | CommandLinePrompt::SearchBackward => {
-                    &mut self.search_history
-                }
+            let history = if ex {
+                &mut self.ex_history
+            } else {
+                &mut self.search_history
             };
             // Avoid duplicates
             if history.back().map(CompactString::as_str) != Some(self.input.as_str()) {
                 history.push_back(CompactString::from(self.input.as_str()));
-                if history.len() > MAX_HISTORY {
+                let evicted = history.len() > MAX_HISTORY;
+                if evicted {
                     history.pop_front();
+                }
+                if ex {
+                    self.ex_history_tags.push_back(self.tags.clone());
+                    if evicted {
+                        self.ex_history_tags.pop_front();
+                    }
+                }
+            } else if ex {
+                // The same line again keeps the tags of both.
+                if let Some(tags) = self.ex_history_tags.back_mut() {
+                    tags.extend(&self.tags);
                 }
             }
         }
         self.clear();
+        self.tags = Tags::new();
+    }
+
+    /// Give each Ex history entry a tag slot, as for a state saved before
+    /// entries had tags.
+    fn align_ex_history_tags(&mut self) {
+        while self.ex_history_tags.len() < self.ex_history.len() {
+            self.ex_history_tags.push_front(Tags::new());
+        }
+        while self.ex_history_tags.len() > self.ex_history.len() {
+            self.ex_history_tags.pop_front();
+        }
     }
 
     /// Get the command text (without leading `:` or `/` or `?`).

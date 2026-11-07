@@ -19,6 +19,7 @@
 //! Response { effects, host_requests, kind, message }
 //! ```
 
+mod cmdline_judge;
 mod command_line;
 mod command_line_exec;
 mod conditionals;
@@ -260,6 +261,8 @@ pub struct VimEngine {
     nesting: u8,
     /// The top-level command line that becomes the last one once it ran.
     pending_line: ex_line::PendingLine,
+    /// The tags keys from mappings carry while they run.
+    run_tags: cmdline_judge::RunTags,
 
     // ── Key Interest Tracking ─────────────────────────────────────────
     /// True when the key interest set needs recomputation (mappings changed).
@@ -356,6 +359,9 @@ pub(in crate::execution::engine) struct EngineColdState {
     /// State events are extracted after each keystroke via `extract_events()`.
     pub(in crate::execution::engine) backend:
         Option<Box<dyn crate::state::federation::StateBackend>>,
+
+    /// The host's judge of tagged command lines.
+    pub(in crate::execution::engine) judge: Option<Box<dyn crate::execution::CommandLineJudge>>,
 
     // ── Engine Tracing ────────────────────────────────────────────────
     /// Structured trace event collector for observability.
@@ -608,6 +614,9 @@ impl VimEngine {
         // tells us whether to record this key and whether it counts
         // as live user input.
         let drained_flags = self.take_last_drained_flags();
+        let drained_tags = std::mem::take(&mut self.typeahead.last_drained_tags);
+        // A `:normal` of a tagged line was routed by the call that ran it.
+        self.run_tags.norm_line = crate::primitives::Tags::new();
         let is_typed_key = drained_flags.is_none_or(|f| f.contains(TypeaheadFlags::TYPED));
 
         // ── Shadow text snapshot ─────────────────────────────────
@@ -737,6 +746,7 @@ impl VimEngine {
         // timeout carry NOREMAP to prevent re-capture by the same mapping prefix.
         // User-typed keys (no drain) default to user_typed() for normal expansion.
         let mut current_key = key;
+        let mut current_tags = drained_tags;
         let mut current_flags = drained_flags.unwrap_or_else(TypeaheadFlags::user_typed);
         if self.parser.state().expects_literal_char() {
             current_flags |= TypeaheadFlags::NOREMAP;
@@ -758,11 +768,13 @@ impl VimEngine {
         let resolved_key;
         let resolved_flags;
         loop {
-            match self
-                .typeahead
-                .buffer
-                .resolve_key(current_key, current_flags, &self.keymap, mode)
-            {
+            match self.typeahead.buffer.resolve_tagged_key(
+                current_key,
+                current_flags,
+                std::mem::take(&mut current_tags),
+                &self.keymap,
+                mode,
+            ) {
                 ResolveResult::Dispatch(k, flags) => {
                     resolved_key = k;
                     resolved_flags = flags;
@@ -785,6 +797,7 @@ impl VimEngine {
                     {
                         current_key = k;
                         current_flags = flags;
+                        current_tags = self.typeahead.buffer.resolved_tags().clone();
                         continue;
                     }
                     resolved_key = k;
@@ -799,7 +812,8 @@ impl VimEngine {
                     mode: mapping_mode,
                     silent,
                 } => {
-                    return self.handle_expr_mapping(expression, mapping_mode, kind, silent);
+                    let tags = self.typeahead.buffer.resolved_tags().clone();
+                    return self.handle_expr_mapping(expression, mapping_mode, kind, silent, tags);
                 }
                 ResolveResult::RecursionOverflow => {
                     self.typeahead.buffer.clear();
@@ -820,6 +834,8 @@ impl VimEngine {
             }
         }
 
+        self.note_key_tags();
+
         // ── Alt-key decomposition for terminal hosts ──────────
         // When an Alt-modified key passed through mapping expansion without
         // matching, decompose to Esc + base key. This matches terminal
@@ -834,7 +850,8 @@ impl VimEngine {
                 resolved_key.key(),
                 resolved_key.modifiers & !crate::keymap::Modifiers::ALT,
             );
-            self.typeahead.buffer.inject_front_noremap(base);
+            let tags = self.run_tags.key.clone();
+            self.typeahead.buffer.inject_front_noremap(base, tags);
             return self.process(KeyEvent::escape(), ctx);
         }
 
@@ -917,29 +934,40 @@ impl VimEngine {
             return self.register_pending_host_requests(response);
         }
 
+        // A key that runs while a command line is open leaves its tags
+        // there, a `<Cmd>` key too.
+        if mode == Mode::CommandLine {
+            let tags = self.run_tags.key.clone();
+            self.state.command_line_mut().add_tags(&tags);
+        }
+
         // ── <Cmd>…<CR> interception ──────────────────────────────
         // When inside a <Cmd>…<CR> mapping sequence, collect chars until <CR>
         // and then execute the accumulated string as an ex command without
         // changing mode. <Esc> cancels the sequence.
         if resolved_key.key() == crate::keymap::Key::Cmd {
             self.cmd_buffer = Some(String::new());
+            self.run_tags.cmd = self.run_tags.key.clone();
             return Response::consumed_empty();
         }
         if let Some(ref mut buf) = self.cmd_buffer {
+            self.run_tags.cmd.extend(&self.run_tags.key);
             match resolved_key.key() {
                 crate::keymap::Key::Enter => {
                     let cmd = std::mem::take(buf);
                     self.cmd_buffer = None;
-                    let mut response = self.execute_cmd_mapping(&cmd, ctx);
+                    let tags = std::mem::take(&mut self.run_tags.cmd);
+                    let mut response = self.execute_cmd_mapping(&cmd, ctx, &tags);
                     if !self.fork_active {
                         if let Some(ref pipeline) = self.cold.pipeline {
                             pipeline.run(&mut response.effects);
                         }
                     }
-                    return response;
+                    return self.register_pending_host_requests(response);
                 }
                 crate::keymap::Key::Escape => {
                     self.cmd_buffer = None;
+                    self.run_tags.cmd = crate::primitives::Tags::new();
                     return Response::consumed_empty();
                 }
                 crate::keymap::Key::Char(c) => {
@@ -1020,10 +1048,19 @@ impl VimEngine {
         // non-combining key, the parser saved it for re-processing. Inject
         // it back into the typeahead so it's dispatched as a normal key.
         if let Some(reprocess) = self.parser.take_reprocess_key() {
-            self.typeahead.buffer.inject_front_noremap(reprocess);
+            let tags = self.run_tags.key.clone();
+            self.typeahead.buffer.inject_front_noremap(reprocess, tags);
         }
 
         let mut response = self.execute_mode_action(action, mode, resolved_key, ctx);
+        if response
+            .effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::OpenCommandWindow { .. }))
+        {
+            let tags = self.run_tags.command.clone();
+            self.run_tags.window.get_or_insert_default().extend(&tags);
+        }
 
         // Emit CursorShapeHint(None) when leaving operator-pending state.
         // The entering hint is emitted by the Pending handler in mode_dispatch.
@@ -1524,12 +1561,17 @@ impl VimEngine {
         mapping_mode: crate::keymap::MappingMode,
         kind: crate::keymap::MappingKind,
         silent: bool,
+        tags: crate::primitives::Tags,
     ) -> Response {
         let mut response = Response::pending_response();
+        let meta = self.host.sequencer.next_meta();
+        if !tags.is_empty() {
+            self.run_tags.expr.insert(meta.id, tags);
+        }
         response
             .host_requests
             .push(super::HostRequest::EvaluateMapping {
-                meta: self.host.sequencer.next_meta(),
+                meta,
                 expression,
                 mode: mapping_mode,
                 kind,

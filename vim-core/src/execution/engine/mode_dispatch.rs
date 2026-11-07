@@ -1977,6 +1977,9 @@ impl VimEngine {
                     .cloned()
                     .collect();
 
+                let tags = self.state.command_line().tags().clone();
+                self.run_tags.window.get_or_insert_default().extend(&tags);
+
                 // Cancel the active command-line session (returns to normal mode)
                 let mut response = self.cancel_command_line();
 
@@ -2840,6 +2843,7 @@ impl VimEngine {
             converted,
             response,
             &self.options,
+            &self.run_tags.command,
         );
         // When macro replay starts, enable undo group merging so the entire
         // N@a produces a single undo entry (Vim behavior).
@@ -2881,6 +2885,8 @@ impl VimEngine {
             return Response::with_effects(ex_effects::show_error(VimError::NoPreviousCommandLine));
         };
         self.forget_last_line();
+        let mut tags = self.run_tags.command.clone();
+        tags.extend(&self.run_tags.last_line(&cmd_str));
 
         let nested = self.nested(|engine| {
             engine.run_ex_line(
@@ -2889,6 +2895,7 @@ impl VimEngine {
                 super::ex_line::OnError::Stop,
                 true,
                 None,
+                &tags,
             )
         });
         let output = match nested {
@@ -2907,19 +2914,25 @@ impl VimEngine {
             let mut entries = Vec::new();
             for _ in 1..count {
                 // Inject `:` to enter command line
-                entries.push(TypeaheadEntry::new(
+                entries.push(TypeaheadEntry::tagged(
                     crate::keymap::KeyEvent::char(':'),
                     flags,
+                    tags.clone(),
                 ));
                 // Inject each char of the command
                 for ch in cmd_str.chars() {
-                    entries.push(TypeaheadEntry::new(
+                    entries.push(TypeaheadEntry::tagged(
                         crate::keymap::KeyEvent::char(ch),
                         flags,
+                        tags.clone(),
                     ));
                 }
                 // Inject <CR> to execute
-                entries.push(TypeaheadEntry::new(crate::keymap::KeyEvent::enter(), flags));
+                entries.push(TypeaheadEntry::tagged(
+                    crate::keymap::KeyEvent::enter(),
+                    flags,
+                    tags.clone(),
+                ));
             }
             self.typeahead.buffer.inject_front(entries);
         }
