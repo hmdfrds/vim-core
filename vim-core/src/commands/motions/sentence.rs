@@ -109,6 +109,19 @@ pub fn open_paren(ctx: &MotionContext<'_>) -> MotionResult {
 
 /// `)` - Next sentence.
 pub fn close_paren(ctx: &MotionContext<'_>) -> MotionResult {
+    MotionResult::Position(Offset::new(close_paren_target(ctx).0))
+}
+
+/// Whether `)` runs past the last character of a buffer that does not end
+/// in a newline. Vim's `findsent()` then leaves the cursor on the NUL and
+/// `nv_brace()`'s `adjust_cursor()` (normal.c) moves it back onto the last
+/// character and makes the motion inclusive.
+pub(crate) fn close_paren_runs_off_end(ctx: &MotionContext<'_>) -> bool {
+    close_paren_target(ctx).1
+}
+
+/// The target of `)` and whether it was clamped to the last character.
+fn close_paren_target(ctx: &MotionContext<'_>) -> (usize, bool) {
     let text = ctx.text;
     let pos = ctx.cursor.get();
     let mut sentences_found = 0;
@@ -130,7 +143,7 @@ pub fn close_paren(ctx: &MotionContext<'_>) -> MotionResult {
                     while text.as_bytes().get(next_pos) == Some(&b'\n') {
                         next_pos += 1;
                     }
-                    return MotionResult::Position(Offset::new(next_pos));
+                    return (next_pos, false);
                 }
                 continue;
             }
@@ -161,7 +174,7 @@ pub fn close_paren(ctx: &MotionContext<'_>) -> MotionResult {
                     if next_pos - ws_start >= required_spaces {
                         sentences_found += 1;
                         if sentences_found >= ctx.count {
-                            return MotionResult::Position(Offset::new(next_pos));
+                            return (next_pos, false);
                         }
                     }
                 }
@@ -169,21 +182,20 @@ pub fn close_paren(ctx: &MotionContext<'_>) -> MotionResult {
                 sentences_found += 1;
                 if sentences_found >= ctx.count {
                     let next_pos = pos + byte_offset + c.len_utf8();
-                    return MotionResult::Position(Offset::new(
-                        next_pos.min(text.len().saturating_sub(1)),
-                    ));
+                    let last = text.len().saturating_sub(1);
+                    return (next_pos.min(last), next_pos > last);
                 }
             }
         }
     }
 
-    // End of document — clamp to last valid cursor position
-    let end = if text.ends_with('\n') {
-        text.len().saturating_sub(1)
+    // End of document: clamp to the last valid cursor position.
+    if text.ends_with('\n') {
+        (text.len().saturating_sub(1), false)
     } else {
-        text.char_indices().next_back().map_or(0, |(i, _)| i)
-    };
-    MotionResult::Position(Offset::new(end))
+        let last = text.char_indices().next_back().map_or(0, |(i, _)| i);
+        (last, !text.is_empty())
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

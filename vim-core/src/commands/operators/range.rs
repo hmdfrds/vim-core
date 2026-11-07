@@ -212,6 +212,12 @@ pub fn compute_motion_range_with_sticky<'text>(
                 (target, cursor)
             };
 
+            // `)` that runs off the end of the buffer lands on the last
+            // character and is inclusive there (Vim's nv_brace()).
+            let sentence_to_end = motion == Motion::SentenceForward
+                && target >= cursor
+                && crate::commands::motions::sentence::close_paren_runs_off_end(&motion_ctx);
+
             // Determine motion type before inclusivity adjustment
             let motion_type = determine_motion_type(&motion);
 
@@ -232,7 +238,9 @@ pub fn compute_motion_range_with_sticky<'text>(
             } else {
                 // Handle inclusivity for charwise motions (and paragraph motions)
                 // Pass last_find direction for RepeatFind/RepeatFindReverse
-                let mut end = if cursor == target
+                let mut end = if sentence_to_end {
+                    text.len()
+                } else if cursor == target
                     && cursor < text.len()
                     && is_forward_exclusive_motion(&motion)
                 {

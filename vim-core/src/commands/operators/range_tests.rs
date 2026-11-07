@@ -311,3 +311,30 @@ fn test_exclusive_linewise_tab_indented_start() {
     );
     assert!(mt.is_line_wise());
 }
+
+/// `)` that runs off the end of the buffer is inclusive on the last
+/// character, as `nv_brace()`'s `adjust_cursor()` (Vim's normal.c) makes it.
+/// A `)` that stops at the start of a sentence stays exclusive.
+#[test]
+fn sentence_forward_off_the_end_is_inclusive() {
+    use crate::dispatch::dispatch_motion;
+    let opts = crate::primitives::VimOptions::default();
+    let range = |text: &'static str, cursor: usize| {
+        compute_motion_range(
+            text,
+            cursor,
+            Motion::SentenceForward,
+            1,
+            None,
+            None,
+            &opts,
+            dispatch_motion,
+            None,
+        )
+        .unwrap()
+        .range
+    };
+    assert_eq!(range("aa bb\ncc", 0), Range::from_raw(0, 8));
+    assert_eq!(range("aa bb.", 0), Range::from_raw(0, 6));
+    assert_eq!(range("aa. b", 0), Range::from_raw(0, 4));
+}
