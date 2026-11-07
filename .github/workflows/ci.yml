@@ -6,7 +6,7 @@ name: CI
 # exactly the one tests-known-failing.txt records?
 on:
   push:
-    branches: [main, evolve-crates]
+    branches: [main]
   pull_request:
   workflow_dispatch: {}
 
