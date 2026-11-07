@@ -18,7 +18,7 @@
 #
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
 BASELINE=tests-known-failing.txt
 
 # Run each test binary separately rather than parsing one merged stream.
@@ -34,8 +34,16 @@ BASELINE=tests-known-failing.txt
 # Asking cargo for the binaries and running them one at a time makes the
 # attribution structural instead of positional. --no-fail-fast is still
 # load-bearing: without it cargo stops at the first failing target.
-binaries=$(cargo test --workspace --no-run --message-format=json 2>/dev/null \
-  | python3 -c '
+# A test binary that fails to build must fail this check: skipping it would
+# hide every test in it.
+build_log=$(mktemp)
+trap 'rm -f "$build_log"' EXIT
+if ! build_json=$(cargo test --workspace --no-run --message-format=json 2>"$build_log"); then
+  cat "$build_log" >&2
+  echo "the test build failed" >&2
+  exit 2
+fi
+binaries=$(printf '%s\n' "$build_json" | python3 -c '
 import json, sys
 for line in sys.stdin:
     try:
@@ -47,19 +55,33 @@ for line in sys.stdin:
 ' | sort -u)
 
 if [ -z "$binaries" ]; then
-  echo "could not enumerate test binaries; did the build fail?" >&2
+  echo "could not enumerate test binaries" >&2
   exit 2
 fi
 
-actual=$(
-  for bin in $binaries; do
-    # Strip the trailing -<hash> cargo appends to the binary name.
-    target=$(basename "$bin" | sed -E 's/-[0-9a-f]{8,}$//')
-    "$bin" --list --format terse 2>/dev/null >/dev/null || true
-    "$bin" 2>/dev/null | sed -n 's/^---- \(.*\) stdout ----$/\1/p' \
-      | while read -r name; do echo "$target::$name"; done
-  done | sort -u
-)
+# A binary that exits non-zero without reporting a failed test crashed (a
+# stack overflow or an abort), and its failures were never printed.
+crashed=()
+results=$(mktemp)
+trap 'rm -f "$build_log" "$results"' EXIT
+for bin in $binaries; do
+  # Strip the trailing -<hash> cargo appends to the binary name.
+  target=$(basename "$bin" | sed -E 's/-[0-9a-f]{8,}$//')
+  output=$("$bin" 2>/dev/null)
+  status=$?
+  names=$(printf '%s\n' "$output" | sed -n 's/^---- \(.*\) stdout ----$/\1/p')
+  if [ "$status" -ne 0 ] && [ -z "$names" ]; then
+    crashed+=("$target")
+  fi
+  [ -n "$names" ] && printf '%s\n' "$names" | while read -r name; do echo "$target::$name"; done >> "$results"
+done
+actual=$(sort -u "$results")
+
+if [ "${#crashed[@]}" -gt 0 ]; then
+  printf 'CRASHED   %s\n' "${crashed[@]}" >&2
+  echo "A test binary stopped without reporting its results." >&2
+  exit 1
+fi
 
 if [ "${1:-}" = "--bless" ]; then
   {
