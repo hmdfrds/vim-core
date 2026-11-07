@@ -1799,18 +1799,18 @@ impl Default for VimOptions {
             number: false,
             relativenumber: false,
             textwidth: 0,
-            formatoptions: CompactString::new_inline("tcqj"),
+            formatoptions: CompactString::const_new("tcqj"),
             format_flags: FormatFlags::WRAP_TEXT
                 .union(FormatFlags::WRAP_COMMENTS)
                 .union(FormatFlags::FORMAT_COMMENTS)
                 .union(FormatFlags::REMOVE_COMMENT_LEADER),
             timeoutlen_ms: 500,
-            whichwrap: CompactString::new_inline("b,s"),
+            whichwrap: CompactString::const_new("b,s"),
             backspace: CompactString::new("indent,eol,start"),
-            virtualedit: CompactString::new_inline(""),
+            virtualedit: CompactString::const_new(""),
             selection: SelectionMode::Inclusive,
-            clipboard: CompactString::new_inline(""),
-            commentstring: CompactString::new_inline("// %s"),
+            clipboard: CompactString::const_new(""),
+            commentstring: CompactString::const_new("// %s"),
             comments: CompactString::new(DEFAULT_COMMENTS),
             comment_spec: Arc::new(CommentSpec::parse_lossy(DEFAULT_COMMENTS)),
             inccommand: IncCommandMode::NoSplit,
@@ -1818,7 +1818,7 @@ impl Default for VimOptions {
             word_char_set: WordCharSet::default_vim(),
             gdefault: false,
             undolevels: None,
-            quoteescape: CompactString::new_inline("\\"),
+            quoteescape: CompactString::const_new("\\"),
             auto_pairs: None,
             langmap: CompactString::default(),
             langremap: true,
@@ -1944,13 +1944,13 @@ impl<'de> serde::Deserialize<'de> for VimOptions {
             2
         }
         fn default_formatoptions() -> CompactString {
-            CompactString::new_inline("tcqj")
+            CompactString::const_new("tcqj")
         }
         fn default_comments() -> CompactString {
             CompactString::new(DEFAULT_COMMENTS)
         }
         fn default_quoteescape() -> CompactString {
-            CompactString::new_inline("\\")
+            CompactString::const_new("\\")
         }
         fn default_langremap() -> bool {
             true

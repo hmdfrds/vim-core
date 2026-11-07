@@ -401,7 +401,7 @@ impl EffectEmitter<'_> {
         if name.is_empty() {
             return Err(ApiError::VariableNotFound {
                 scope,
-                name: CompactString::new_inline(""),
+                name: CompactString::const_new(""),
             });
         }
         self.push(Effect::SetVariable {
@@ -429,7 +429,7 @@ impl EffectEmitter<'_> {
         if name.is_empty() {
             return Err(ApiError::VariableNotFound {
                 scope,
-                name: CompactString::new_inline(""),
+                name: CompactString::const_new(""),
             });
         }
         self.push(Effect::DeleteVariable {

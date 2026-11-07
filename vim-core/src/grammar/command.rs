@@ -3332,7 +3332,7 @@ mod tests {
                 register: None,
                 operator: None,
                 command: CharCommand::Replace,
-                target: CompactString::new_inline("x"),
+                target: CompactString::const_new("x"),
             };
             // Replace reads grapheme width at cursor position.
             assert!(
@@ -3349,7 +3349,7 @@ mod tests {
                 register: None,
                 operator: None,
                 command: CharCommand::FindForward,
-                target: CompactString::new_inline("a"),
+                target: CompactString::const_new("a"),
             };
             // Standalone find is CD: target char appears at different
             // positions per cursor line — each cursor must search independently.
@@ -3367,7 +3367,7 @@ mod tests {
                 register: None,
                 operator: Some(Operator::Delete),
                 command: CharCommand::FindForward,
-                target: CompactString::new_inline("a"),
+                target: CompactString::const_new("a"),
             };
             // Operator present → CD: find distance varies by content.
             assert!(
@@ -3691,7 +3691,7 @@ mod tests {
                     register: None,
                     operator: Some(Operator::Delete),
                     command: CharCommand::FindForward,
-                    target: CompactString::new_inline("a"),
+                    target: CompactString::const_new("a"),
                 },
                 true,
             ),
@@ -3702,7 +3702,7 @@ mod tests {
                     register: None,
                     operator: None,
                     command: CharCommand::Replace,
-                    target: CompactString::new_inline("x"),
+                    target: CompactString::const_new("x"),
                 },
                 true,
             ),
@@ -3856,7 +3856,7 @@ mod tests {
                     register: None,
                     operator: None,
                     command: CharCommand::FindForward,
-                    target: CompactString::new_inline("a"),
+                    target: CompactString::const_new("a"),
                 },
                 true,
             ),

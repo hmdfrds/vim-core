@@ -29,57 +29,57 @@ impl ModeAppearance {
     pub const fn for_mode(mode: Mode) -> Self {
         match mode {
             Mode::Normal => Self {
-                name: CompactString::new_inline("NORMAL"),
+                name: CompactString::const_new("NORMAL"),
                 fg: None,
                 bg: None,
             },
             Mode::Insert => Self {
-                name: CompactString::new_inline("INSERT"),
+                name: CompactString::const_new("INSERT"),
                 fg: None,
                 bg: Some([80, 161, 79]), // green-ish
             },
             Mode::Visual(VisualType::Char) => Self {
-                name: CompactString::new_inline("VISUAL"),
+                name: CompactString::const_new("VISUAL"),
                 fg: None,
                 bg: Some([64, 120, 199]), // blue-ish
             },
             Mode::Visual(VisualType::Line) => Self {
-                name: CompactString::new_inline("V-LINE"),
+                name: CompactString::const_new("V-LINE"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Visual(VisualType::Block) => Self {
-                name: CompactString::new_inline("V-BLOCK"),
+                name: CompactString::const_new("V-BLOCK"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Select(VisualType::Char) => Self {
-                name: CompactString::new_inline("SELECT"),
+                name: CompactString::const_new("SELECT"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Select(VisualType::Line) => Self {
-                name: CompactString::new_inline("S-LINE"),
+                name: CompactString::const_new("S-LINE"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Select(VisualType::Block) => Self {
-                name: CompactString::new_inline("S-BLOCK"),
+                name: CompactString::const_new("S-BLOCK"),
                 fg: None,
                 bg: Some([64, 120, 199]),
             },
             Mode::Replace | Mode::VirtualReplace => Self {
-                name: CompactString::new_inline("REPLACE"),
+                name: CompactString::const_new("REPLACE"),
                 fg: None,
                 bg: Some([204, 51, 51]), // red-ish
             },
             Mode::CommandLine => Self {
-                name: CompactString::new_inline("COMMAND"),
+                name: CompactString::const_new("COMMAND"),
                 fg: None,
                 bg: None,
             },
             Mode::OperatorPending(_) => Self {
-                name: CompactString::new_inline("OP-PENDING"),
+                name: CompactString::const_new("OP-PENDING"),
                 fg: None,
                 bg: None,
             },

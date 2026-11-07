@@ -107,7 +107,7 @@ pub fn execute_block_operator(
                 effects.push(Effect::SetHighlightRange {
                     owner: compact_str::CompactString::from(crate::effects::HIGHLIGHT_OWNER_YANK),
                     range: Range::from_raw(first_start, last_end),
-                    group: compact_str::CompactString::new_inline("yank"),
+                    group: compact_str::CompactString::const_new("yank"),
                     shape: crate::primitives::SelectionShape::Block,
                 });
             }

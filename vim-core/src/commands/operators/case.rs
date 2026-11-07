@@ -128,8 +128,8 @@ fn execute_case_change(ctx: &OperatorContext<'_>, transform: CaseTransform) -> C
 
     // Transform the text
     let transformed: String = match transform {
-        CaseTransform::Lower => original.to_lowercase(),
-        CaseTransform::Upper => original.to_uppercase(),
+        CaseTransform::Lower => original.as_str().to_lowercase(),
+        CaseTransform::Upper => original.as_str().to_uppercase(),
         CaseTransform::Toggle => toggle_case_chars(&original),
         CaseTransform::Rot13 => rot13_chars(&original),
         CaseTransform::Rot47 => rot47_chars(&original),

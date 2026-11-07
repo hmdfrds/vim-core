@@ -112,7 +112,7 @@ pub fn execute(ctx: &OperatorContext<'_>) -> CommandResult {
     effects.push(crate::effects::Effect::SetHighlightRange {
         owner: compact_str::CompactString::from(crate::effects::HIGHLIGHT_OWNER_YANK),
         range: ctx.range,
-        group: compact_str::CompactString::new_inline("yank"),
+        group: compact_str::CompactString::const_new("yank"),
         shape: match ctx.motion_type {
             MotionType::LineWise => crate::primitives::SelectionShape::Line,
             _ => crate::primitives::SelectionShape::Char,
