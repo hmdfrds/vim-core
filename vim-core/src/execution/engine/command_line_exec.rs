@@ -130,6 +130,8 @@ impl VimEngine {
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
         let register_command = ex_register_command(input, session);
+        #[cfg(test)]
+        super::mapping_reach::seen::ran(&register_command);
         let execute_command = ex_command_for_execution(
             &register_command,
             session,
@@ -178,6 +180,8 @@ impl VimEngine {
         cmd: &str,
         ctx: InputContext<'_, D, Validated>,
     ) -> Response {
+        #[cfg(test)]
+        super::mapping_reach::seen::ran(cmd);
         let output = self.run_ex_line(cmd, ctx, OnError::Continue, false, None);
         let mut response = Response::with_effects(output.effects);
         response.host_requests = output.host_requests.into_vec();

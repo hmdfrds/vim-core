@@ -669,3 +669,36 @@ impl<'e> Analysis<'e> {
 const fn normal() -> Branch {
     Branch::new(Phase::Normal { after_q: false })
 }
+
+/// The command lines and `<Cmd>` commands the engine runs on this thread,
+/// for tests that compare them with the analysis.
+#[cfg(test)]
+pub(crate) mod seen {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static LINES: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+    }
+
+    /// Start recording.
+    pub(crate) fn start() {
+        LINES.with(|lines| *lines.borrow_mut() = Some(Vec::new()));
+    }
+
+    pub(crate) fn ran(line: &str) {
+        LINES.with(|lines| {
+            if let Some(lines) = lines.borrow_mut().as_mut() {
+                lines.push(line.to_owned());
+            }
+        });
+    }
+
+    /// What ran since the last call, recording on.
+    pub(crate) fn take() -> Vec<String> {
+        LINES.with(|lines| lines.borrow_mut().replace(Vec::new()).unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+#[path = "mapping_reach_tests.rs"]
+mod tests;
