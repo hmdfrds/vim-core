@@ -1,9 +1,9 @@
 name: CI
 
-# Two jobs, deliberately. This repository is consumed as a tag, not developed
-# in, so the check that earns its keep is: after refreshing vim-text or
-# vim-regex from upstream, does it still build and stay formatted, and is the
-# failure set still exactly the one tests-known-failing.txt records?
+# Two checking jobs, deliberately. This repository is consumed as a tag, not
+# developed in, so the check that earns its keep is: after refreshing vim-text
+# or vim-regex from upstream, does it still build and stay formatted, and is
+# the failure set still exactly the one tests-known-failing.txt records?
 on:
   push:
     branches: [main]
@@ -50,3 +50,18 @@ jobs:
         with:
           shared-key: ${{ github.job }}
       - run: ./scripts/known-failures.sh
+
+  # The one check branch protection requires; admins can still bypass it.
+  ok:
+    name: CI ok
+    # A skipped required check counts as passing, so this job always runs and
+    # passes only if every need is exactly success.
+    if: always()
+    needs: [build, known-failures]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          jq -e 'all(.[]; .result == "success")' <<< "$NEEDS" > /dev/null
