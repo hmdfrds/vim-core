@@ -22,6 +22,7 @@ use crate::keymap::KeyEvent;
 use crate::primitives::Mark;
 use crate::primitives::Mode;
 use crate::primitives::{Column, LineNumber, Offset, Position, Range};
+use crate::VimString;
 
 // ============================================================================
 // PRIMITIVES - Must be small, Copy, cache-line friendly
@@ -51,6 +52,12 @@ assert_eq_size!(Mark, [u8; 16]);
 #[cfg(target_pointer_width = "64")]
 assert_eq_size!(Option<Offset>, [u8; 8]);
 
+// VimString is the size of a String, and its niche keeps the Option free.
+#[cfg(target_pointer_width = "64")]
+assert_eq_size!(VimString, [u8; 24]);
+#[cfg(target_pointer_width = "64")]
+assert_eq_size!(Option<VimString>, [u8; 24]);
+
 // ============================================================================
 // 32-BIT TARGET SIZE ASSERTIONS (wasm32 parity)
 // ============================================================================
@@ -74,6 +81,9 @@ mod wasm32_size_checks {
 
     // Niche optimization: Option<Offset> fits in a single 4-byte word
     assert_eq_size!(Option<Offset>, [u8; 4]);
+
+    assert_eq_size!(VimString, [u8; 12]);
+    assert_eq_size!(Option<VimString>, [u8; 12]);
 }
 
 // ============================================================================

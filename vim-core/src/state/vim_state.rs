@@ -1267,6 +1267,15 @@ mod tests {
         assert_roundtripped_state(&restored);
     }
 
+    /// A state saved by v0.9.0, before `VimString`, still loads.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_serde_loads_v090_state() {
+        let json = include_str!("../../tests/fixtures/vimstate-v090.json");
+        let restored: VimState = serde_json::from_str(json).expect("deserialize VimState");
+        assert_roundtripped_state(&restored);
+    }
+
     #[cfg(feature = "serde")]
     fn populated_state_for_serde() -> VimState {
         let mut state = VimState::new();

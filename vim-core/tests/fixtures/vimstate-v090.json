@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "mode": "Insert",
+  "last_find": {
+    "data": [
+      "FindForward",
+      "z"
+    ],
+    "sneak_c2": null,
+    "resolved_ignorecase": false,
+    "resolved_smartcase": false
+  },
+  "registers": {
+    "unnamed": null,
+    "yank": null,
+    "numbered": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "small_delete": null,
+    "named_az": [
+      {
+        "entries": [
+          "yanked text"
+        ],
+        "motion_type": "CharWise",
+        "metadata": null,
+        "timestamp": 1,
+        "block_width": null
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "special_registers": {},
+    "expression": null,
+    "last_command": null,
+    "version": 1,
+    "clipboard_generation": 0
+  },
+  "marks": {
+    "local_az": [
+      null,
+      {
+        "offset": 99,
+        "topline_offset": null
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "named_globals": {},
+    "special": {
+      ".": {
+        "offset": 0,
+        "topline_offset": null
+      }
+    },
+    "globals": {},
+    "version": 1
+  },
+  "jump_list": {
+    "entries": [
+      {
+        "offset": 42,
+        "buffer_id": null,
+        "topline_offset": null
+      }
+    ],
+    "current": 1,
+    "stack_mode": false
+  },
+  "changelist": {
+    "entries": [],
+    "current": 0
+  },
+  "insert_state": null,
+  "last_inserted_text": "previously typed",
+  "last_insert_entry_type": "BeforeCursor",
+  "last_insert_indent_lens": [],
+  "pending_host_insert": "",
+  "last_expression_text": null,
+  "last_visual": {
+    "visual_type": "Char",
+    "lines": 3,
+    "columns": 0,
+    "cursor_at_start": false
+  },
+  "repeat": {
+    "last_intent": null
+  },
+  "macros": {
+    "recording_register": null,
+    "last_played": null,
+    "replay_depth": 0
+  },
+  "search": {
+    "pattern": "hello",
+    "direction": "Forward",
+    "offset": {
+      "Start": 0
+    },
+    "history": [
+      "hello"
+    ],
+    "history_pos": null,
+    "last_substitute_string": null,
+    "last_substitute_flags": null,
+    "substitute_pattern": null,
+    "last_used": "Search"
+  },
+  "command_line": {
+    "input": "",
+    "cursor": 0,
+    "ex_history": [],
+    "search_history": [],
+    "history_index": null,
+    "saved_input": "",
+    "prompt": "Ex",
+    "awaiting_register": false,
+    "completion": null,
+    "pending_completion_direction": null,
+    "pending_completion_replace_range": null
+  },
+  "scroll_half_count": null,
+  "sticky_column": null,
+  "variable_store": {
+    "global": {},
+    "buffer": {}
+  },
+  "multi_cursor": {
+    "selections": {
+      "ranges": [
+        {
+          "anchor": 0,
+          "head": 0,
+          "goal": null
+        }
+      ],
+      "primary_index": 0,
+      "cursor_mode": "Single"
+    },
+    "match_search": null
+  }
+}
