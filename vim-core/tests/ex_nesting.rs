@@ -163,6 +163,64 @@ fn a_mapping_that_runs_normal_on_its_own_key_gives_e169() {
     });
 }
 
+/// register.c `do_execreg()`: `@:` with no command line run yet.
+#[test]
+fn normal_at_colon_with_no_last_line_gives_e30() {
+    on_small_stack(|| {
+        for line in [":normal @:<CR>", ":g/x/normal @:<CR>"] {
+            let (error, text) = typed("x\nx", line);
+            assert_eq!(error.as_deref(), Some("E30: No previous command line"));
+            assert_eq!(text, "x\nx");
+        }
+    });
+}
+
+/// ex_docmd.c `do_cmdline()` stores a line after it ran ("to make :@:
+/// work"), and register.c `do_execreg()` does not keep the line that ran
+/// `@:`.
+#[test]
+fn a_line_that_runs_the_last_line_is_not_stored() {
+    on_small_stack(|| {
+        let mut session = HostSession::new("x\nx\nx");
+        keys(
+            &mut session,
+            ":s/x/y/<CR>j:normal @:<CR>j:g/x/normal @:<CR>",
+        );
+        assert_eq!(session.text(), "y\ny\ny");
+        assert_eq!(
+            session.get_register(':').map(|r| r.0).as_deref(),
+            Some("s/x/y/")
+        );
+    });
+}
+
+#[test]
+fn at_colon_twice_runs_the_line_before_it() {
+    on_small_stack(|| {
+        let mut session = HostSession::new("xxx");
+        keys(&mut session, ":s/x/y/<CR>:@:<CR>:@:<CR>");
+        assert_eq!((session.errmsg(), session.text()), (None, "yyy"));
+        assert_eq!(
+            session.get_register(':').map(|r| r.0).as_deref(),
+            Some("s/x/y/")
+        );
+    });
+}
+
+#[test]
+fn a_mapping_that_runs_at_colon_runs_the_line_before_it() {
+    on_small_stack(|| {
+        let mut session = HostSession::new("xxx");
+        keys(&mut session, ":nnoremap x :norm dq@:<CR>:s/x/y/<CR>");
+        keys(&mut session, "x<CR>x<CR>");
+        assert_eq!(session.text(), "yyy");
+        assert_eq!(
+            session.get_register(':').map(|r| r.0).as_deref(),
+            Some("s/x/y/")
+        );
+    });
+}
+
 /// The other depth limits fit the same stack: the expression evaluator's
 /// 300 (eval.c E1169) and the regex group nesting.
 #[test]

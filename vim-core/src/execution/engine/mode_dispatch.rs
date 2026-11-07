@@ -2869,12 +2869,18 @@ impl VimEngine {
         use crate::commands::ex::effects as ex_effects;
         use crate::errors::VimError;
 
-        // Look up the last ex command (newest-last in history deque).
-        let last_cmd = self.state.command_line().ex_history().back().cloned();
-
+        // The last command line, stored once it ran (register.c
+        // do_execreg()), and not the line that runs this.
+        let last_cmd = self
+            .state
+            .registers()
+            .get(crate::primitives::RegisterName::LAST_COMMAND)
+            .map(|content| content.text().to_owned())
+            .filter(|text| !text.is_empty());
         let Some(cmd_str) = last_cmd else {
-            return Response::with_effects(ex_effects::show_error(VimError::NoPreviousCommand));
+            return Response::with_effects(ex_effects::show_error(VimError::NoPreviousCommandLine));
         };
+        self.forget_last_line();
 
         let nested = self.nested(|engine| {
             engine.run_ex_line(

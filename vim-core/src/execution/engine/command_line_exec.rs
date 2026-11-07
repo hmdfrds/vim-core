@@ -149,6 +149,8 @@ impl VimEngine {
             prefix_effects.as_mut_slice(),
             Some(ctx.doc().text()),
         );
+        let mut effects = prefix_effects;
+        effects.extend(self.begin_last_line(&register_command));
         let output = self.run_ex_line(
             execute_command.as_str(),
             ctx,
@@ -157,15 +159,8 @@ impl VimEngine {
             Some(Mode::Normal),
         );
         // The line becomes the last command line after it ran.
-        let mut register = ex_effects::register_ex_command(register_command.into());
-        crate::execution::effect_processor::sync_effects(
-            &mut self.state,
-            &mut self.parser,
-            register.as_mut_slice(),
-        );
+        effects.extend(self.end_last_line(&output.effects));
         self.state.set_mode(Mode::Normal);
-        let mut effects = prefix_effects;
-        effects.extend(register);
         effects.extend(output.effects);
         effects.extend(action_effects::switch_mode(Mode::Normal));
         let mut response = Response::with_effects(effects);

@@ -147,6 +147,9 @@ pub enum VimError {
     /// E34: No previous command.
     NoPreviousCommand,
 
+    /// E30: `@:` or `:@:` with no command line run yet.
+    NoPreviousCommandLine,
+
     /// E476: No command after g/v (global/vglobal).
     NoCommandAfterGlobal,
 
@@ -520,6 +523,7 @@ impl fmt::Display for VimError {
             Self::NoSuchMapping => write!(f, "E31: No such mapping"),
             Self::NoSuchAbbreviation => write!(f, "E24: No such abbreviation"),
             Self::NoPreviousCommand => write!(f, "E34: No previous command"),
+            Self::NoPreviousCommandLine => write!(f, "E30: No previous command line"),
             Self::NoCommandAfterGlobal => write!(f, "E476: No command after g/v"),
             Self::GlobalLineLimitExceeded { limit } => write!(
                 f,
@@ -769,6 +773,7 @@ mod tests {
             VimError::NoSuchMapping,
             VimError::NoSuchAbbreviation,
             VimError::NoPreviousCommand,
+            VimError::NoPreviousCommandLine,
             VimError::NoCommandAfterGlobal,
             VimError::GlobalLineLimitExceeded { limit: 100 },
             VimError::GlobalRecursiveWithRange,
@@ -996,6 +1001,10 @@ mod tests {
                 "E1171: Missing } after inline function",
             ),
             (VimError::CommandTooRecursive, "E169: Command too recursive"),
+            (
+                VimError::NoPreviousCommandLine,
+                "E30: No previous command line",
+            ),
         ] {
             assert_eq!(error.to_string(), text);
         }

@@ -21,7 +21,9 @@ use crate::execution::{ExecutionContext, HostRequest, InputContext, Validated};
 use crate::grammar::ex_parser::{nest, parse_ex_piece_at};
 use crate::grammar::split_ex_pipeline;
 use crate::grammar::types::{ExCommand, ExRange, ModifierFlags};
-use crate::primitives::{Direction, Mode, Position, SelectionRange, TrustTag, UndoCursorStrategy};
+use crate::primitives::{
+    Direction, Mode, Position, RegisterName, SelectionRange, TrustTag, UndoCursorStrategy,
+};
 
 /// Vim's default 'report': a `:g` reports more changed lines than this.
 const REPORT: usize = 2;
@@ -225,6 +227,19 @@ fn moves_in_undo(piece: &str, depth: u8) -> bool {
     )
 }
 
+/// A command line run at the top level, kept until it and the `:normal`
+/// commands it left for the host have run: then it becomes the last
+/// command line, unless it ran the last one with `@:` or `:@:`
+/// (ex_docmd.c `do_cmdline()` "to make :@: work"; register.c
+/// `do_execreg()`).
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(super) struct PendingLine {
+    /// `None` once it ran the last command line.
+    line: Option<CompactString>,
+    /// Its `:normal` commands the host has yet to complete.
+    norms: usize,
+}
+
 impl VimEngine {
     /// Run `run` one nesting level deeper, or give E169 past
     /// [`crate::grammar::ex_parser::MAX_NESTING`] without running it.
@@ -246,6 +261,71 @@ impl VimEngine {
     /// Leave the `:normal` [`Self::enter_normal`] entered.
     pub(crate) const fn leave_normal(&mut self) {
         self.nesting = self.nesting.saturating_sub(1);
+    }
+
+    /// Start the command line `line`. Only a line run at the top level is
+    /// kept: one that `:normal` or `@:` runs is not typed (Vim keeps only a
+    /// typed line). A line still waiting for the host is stored first.
+    pub(super) fn begin_last_line(&mut self, line: &str) -> Effects {
+        if self.nesting > 0 {
+            return Effects::new();
+        }
+        let effects = self.store_last_line();
+        self.pending_line = PendingLine {
+            line: Some(CompactString::from(line)),
+            norms: 0,
+        };
+        effects
+    }
+
+    /// The line started by [`Self::begin_last_line`] ran and left `effects`;
+    /// it is stored now, or once the host completed its `:normal` commands.
+    pub(super) fn end_last_line(&mut self, effects: &Effects) -> Effects {
+        if self.nesting > 0 {
+            return Effects::new();
+        }
+        self.pending_line.norms = effects
+            .iter()
+            .filter(|effect| matches!(effect, Effect::NormCommand { .. }))
+            .count();
+        if self.pending_line.norms > 0 {
+            return Effects::new();
+        }
+        self.store_last_line()
+    }
+
+    /// The host completed a `:normal` of the line waiting to be stored.
+    pub(super) fn normal_completed(&mut self) -> Effects {
+        if self.pending_line.norms == 0 {
+            return Effects::new();
+        }
+        self.pending_line.norms -= 1;
+        if self.pending_line.norms > 0 {
+            return Effects::new();
+        }
+        self.store_last_line()
+    }
+
+    /// The line that runs now ran the last command line, so it is not
+    /// kept ("don't keep the cmdline containing @:", `do_execreg()`).
+    pub(super) fn forget_last_line(&mut self) {
+        self.pending_line.line = None;
+    }
+
+    /// Store the waiting line as the last command line, in the `:`
+    /// register.
+    fn store_last_line(&mut self) -> Effects {
+        let pending = std::mem::take(&mut self.pending_line);
+        let Some(line) = pending.line else {
+            return Effects::new();
+        };
+        let mut effects = crate::commands::ex::effects::register_ex_command(line);
+        crate::execution::effect_processor::sync_effects(
+            &mut self.state,
+            &mut self.parser,
+            effects.as_mut_slice(),
+        );
+        effects
     }
 
     /// Run the Ex command line `line` from `ctx`.
@@ -358,6 +438,10 @@ impl VimEngine {
         }
         if output.last_ex_for_dot.take().is_some() {
             run.dot = true;
+        }
+        // `:@:` runs the last command line.
+        if output.ex_register == Some(RegisterName::LAST_COMMAND) {
+            self.forget_last_line();
         }
         let global = output.global.take();
         let ex_lines = std::mem::take(&mut output.ex_lines);

@@ -1938,6 +1938,7 @@ impl VimEngine {
     /// - `command_line_session` — stale session metadata
     /// - `cmd_buffer` — partial `<Cmd>...<CR>` accumulator
     /// - the Ex nesting level, which a panic in a nested command leaves raised
+    /// - the command line waiting to become the last one
     /// - changelist — entries may reference phantom edit positions
     /// - macro replay depth — stale `is_replaying()` flag
     /// - macro recording register — phantom recording indicator
@@ -1960,6 +1961,7 @@ impl VimEngine {
         self.sticky_session = None;
         self.cmd_buffer = None;
         self.nesting = 0;
+        self.pending_line = super::ex_line::PendingLine::default();
         self.state.changelist_mut().clear();
         self.state.macros_mut().reset_replay_depth();
         self.state.macros_mut().stop_recording();
@@ -2519,6 +2521,7 @@ impl From<VimState> for VimEngine {
             cmd_buffer: None,
             pending_macro_error: None,
             nesting: 0,
+            pending_line: super::ex_line::PendingLine::default(),
             key_interest_dirty: true,
             viewport_first_line: 0,
             viewport_height: 24,

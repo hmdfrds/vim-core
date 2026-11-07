@@ -969,7 +969,7 @@ fn execute_raw<D: Document>(command: Command, ctx: &ExecutionContext<'_, D>) -> 
         // RepeatLastEx is intercepted in execute_effect_plan before the executor.
         // Reaching here means there is no last ex command — show an error.
         Command::Macro(MacroKind::RepeatLastEx { .. }) => {
-            crate::commands::ex::effects::show_error(crate::errors::VimError::NoPreviousCommand)
+            crate::commands::ex::effects::show_error(crate::errors::VimError::NoPreviousCommandLine)
         }
 
         // ═══════════════════════════════════════════════════════════════════

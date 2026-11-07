@@ -189,6 +189,8 @@ pub(crate) struct ExExecutionOutput {
     /// The lines of a `:@r` register, which the engine runs as command
     /// lines, one after another.
     pub ex_lines: Vec<CompactString>,
+    /// The register of `ex_lines`.
+    pub ex_register: Option<RegisterName>,
     /// The modifiers of the command, applied to its effects already, and
     /// to be applied to what the engine runs for it.
     pub modifiers: ModifierFlags,
@@ -842,6 +844,9 @@ pub(crate) fn execute_ex_command<D: Document>(
                 .get(*register)
                 .map(|c| c.text().to_owned())
                 .unwrap_or_default();
+            if text.is_empty() && *register == RegisterName::LAST_COMMAND {
+                return Err(VimError::NoPreviousCommandLine);
+            }
             if text.is_empty() {
                 return effects_only(Ok(Effects::new().show_message(CompactString::from(
                     format!("Register @{} is empty", register.char()),
@@ -866,6 +871,7 @@ pub(crate) fn execute_ex_command<D: Document>(
             }
             Ok(ExExecutionOutput {
                 ex_lines,
+                ex_register: Some(*register),
                 ..ExExecutionOutput::default()
             })
         }

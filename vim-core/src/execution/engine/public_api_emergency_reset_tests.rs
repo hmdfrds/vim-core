@@ -796,7 +796,8 @@ fn emergency_reset_field_inventory() {
     // Set fork_active to true (directly accessible from this module).
     engine.fork_active = true;
 
-    // Inside a `:normal`.
+    // A command line waiting for its `:normal`, inside one.
+    let _ = engine.begin_last_line("normal x");
     engine.nesting = 1;
 
     // Push a syntax selection entry.
@@ -875,6 +876,7 @@ fn emergency_reset_field_inventory() {
         ref cold,
         ref pending_macro_error,
         ref nesting,
+        ref pending_line,
         ref last_external_edit_node,
         ref last_force_committed_node,
     } = engine;
@@ -1006,8 +1008,13 @@ fn emergency_reset_field_inventory() {
         "cmd_buffer must be None after emergency_reset()",
     );
 
-    // nesting: 0.
+    // nesting: 0, no command line waiting.
     assert_eq!(*nesting, 0, "nesting must be 0 after emergency_reset()");
+    assert_eq!(
+        *pending_line,
+        super::ex_line::PendingLine::default(),
+        "no command line may wait after emergency_reset()",
+    );
 
     // fork_active: false.
     assert!(
