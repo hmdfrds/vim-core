@@ -3,7 +3,7 @@ name: CI
 # Two jobs, deliberately. This repository is consumed as a tag, not developed
 # in, so the check that earns its keep is: after refreshing vim-text or
 # vim-regex from upstream, does it still build and is the failure set still
-# exactly the 82 recorded ones?
+# exactly the one tests-known-failing.txt records?
 on:
   push:
     branches: [main, evolve-crates]
