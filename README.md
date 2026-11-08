@@ -32,12 +32,12 @@ against.
 ```bash
 cargo build                              # the engine
 cargo test --workspace                   # the full suite (see the note below)
-cargo clippy --workspace                 # ~600 findings, see below
+cargo clippy --workspace                 # about 270 findings, see below
 ```
 
 `vim-core/src/lib.rs` sets `#![deny(clippy::pedantic)]` and `#![deny(warnings)]`,
-and v0.7.1 does not satisfy its own policy -- roughly 600 findings, essentially
-all inherited from the tag. **Clippy is not run in CI**, because a gate that is
+and the engine does not satisfy its own policy yet -- about 270 findings, nearly
+all inherited from the v0.7.1 tag it started from. **Clippy is not run in CI**, because a gate that is
 red on its first run and every run after teaches people to ignore CI. The debt
 is real and recorded here rather than hidden behind a suppression. The library
 itself compiles clean, which is what matters for building godot-vim.
@@ -50,14 +50,62 @@ pinned git tag, add to godot-vim's `Cargo.toml`:
 vim-core = { path = "../vim-core/vim-core" }
 ```
 
+## Strings
+
+Owned text in vim-core's API is `VimString`, vim-core's own string type. It
+derefs to `str`, converts from and into the std string types with `.into()`,
+and `format_vim!` builds one as `format!` builds a `String`. It keeps short
+text inline using [compact_str](https://crates.io/crates/compact_str), which
+is a private dependency: no public item names it, so its releases are not
+part of vim-core's API. CI keeps it that way: the build fails when any file
+under `vim-core/src` or `vim-core/tests` other than
+`vim-core/src/primitives/vim_string.rs` names compact_str. A host that keeps
+its own `CompactString` converts through `&str`:
+`VimString::from(cs.as_str())`.
+
+## Loading a config
+
+A host hands a vimrc it has read to `VimEngine::source_script` (or
+`HostSession::source_script`), with a `ConfigHost`:
+
+```rust
+use vim_core::execution::{ConfigText, TrustAll};
+
+let sourced = engine.source_script(ConfigText::new("init.vim", &text), &mut TrustAll::new());
+println!("{} errors", sourced.outcome.errors);
+```
+
+The config runs the way Vim sources a file: every command of a `|` line,
+continuation lines, `:if` blocks, `:let`, nested `:source` and Vim's error
+flow, with each error placed by file and line. `source_config_text` still
+works but is deprecated, and goes in v0.11.0.
+
+`TrustAll` runs every command. A host that loads configs it does not fully
+trust implements `ConfigHost::judge` instead. It sees each command once,
+after the engine's own checks and before anything changes, with what the
+command does and what it can reach (`Reach`: options, mappings, the shell,
+files, the host and more), and answers `Verdict::Allow`, `Refuse` or
+`Claim`. For a mapping, `MapDefinition::reach` says what its keys can run
+when they are pressed.
+
+A config tagged with `ConfigText::new(name, &text).with_trust(TrustTag::new(n))`
+passes its tag to the mappings it defines, and a `CommandLineJudge` installed with
+`VimEngine::set_command_line_judge` is asked about each command line such
+keys make before it runs. A mapping defined by a line of several tags keeps
+the highest, so number tags from the most trusted up.
+`reset_config_state` clears what a config defined before it is sourced
+again. Where config loading still differs from Vim is listed in
+[`CHANGELOG.md`](CHANGELOG.md) under v0.10.0, "Known Limits".
+
 ## A note on failing tests
 
-**82 tests across 12 targets fail, and that is the expected state.** They fail
-identically on the bare upstream `v0.7.1` tag, before any change made here.
+**78 tests across 10 targets fail, and that is the expected state.** Each of
+them also fails on the bare upstream `v0.7.1` tag, before any change made
+here. Four more that failed there now pass.
 
 They are red on purpose:
 
-- **`mc_ideal_*` (54 failures)** — written-first specifications for
+- **`mc_ideal_*` (50 failures)**: written-first specifications for
   multi-cursor behaviour that is not implemented yet. The tests describe the
   intended semantics; the engine has not caught up.
 - **`fidelity_tests` (21)**: 6,292 pass. The 21 are known points where the
@@ -86,11 +134,12 @@ A **new** failure fails the check — that is a regression. A test that starts
 should be crossed off the list rather than quietly absorbed.
 
 Note that `cargo test` alone stops at the first failing target and will show
-you only a fraction of the 82; the script passes `--no-fail-fast`.
+you only a fraction of them; the script passes `--no-fail-fast`.
 
 ## Relationship to upstream
 
-`vim-core` here is the `v0.7.1` engine. `vim-text` and `vim-regex` are **not**
+`vim-core` here started as the `v0.7.1` engine and has moved on since (see
+`CHANGELOG.md`). `vim-text` and `vim-regex` are **not**
 — they are upstream's current versions, well ahead of what v0.7.1 shipped
 with (vim-regex went from 60 files to 135, vim-text from 13 to 32). Upstream's
 own `vim-test` could not come with them: it imports APIs that exist only
@@ -114,12 +163,13 @@ The v0.7.1 test suite also did not compile as tagged —
 `command_properties_test.rs` was missing a struct field — which had to be
 fixed before any of this could be measured.
 
-**What this means if you are compiling godot-vim:** the engine logic is
-v0.7.1's, and the full test suite agrees — 82 failures, the same 82 as the
-bare tag, with all 6,241 passing fidelity tests still matching real Vim. But
-the text and regex implementations underneath are newer than the ones a
-released godot-vim binary was built against. It is verified equivalent, not
-bit-identical.
+**What this meant for compiling godot-vim:** on the move, the engine logic
+was v0.7.1's, and the full test suite agreed: 82 failures, the same 82 as
+the bare tag, with all 6,241 passing fidelity tests still matching real Vim.
+But the text and regex implementations underneath were newer than the ones
+a released godot-vim binary was built against. It was verified equivalent,
+not bit-identical. Four of those 82 have passed since, as the engine was
+fixed; the other 78 stay pinned.
 
 Upstream development continues privately. This repository tracks what
 godot-vim is built from; it is not where new work lands.
@@ -132,7 +182,7 @@ ecosystem's convention. See [LICENSE-MIT](LICENSE-MIT) and
 
 ### Third-party attribution
 
-Two pieces of this engine derive from Vim, and both are therefore under the
+These pieces of this engine derive from Vim, and are therefore under the
 **Vim licence** (charityware), not the dual licence above. A copy ships as
 [`LICENSE-VIM`](LICENSE-VIM) and must accompany the source and any binary
 built from it — keep it when trimming files. Everything else in this
@@ -152,8 +202,14 @@ their own advice.
   Apache-2.0. The data itself originates in RFC 1345.
   <https://github.com/neovim/neovim>
 
-- `vim-core/src/grammar/command_meta.rs` — the `EX_*` capability flags and
-  address types for 81 Ex commands, mapped from Vim's `ex_cmds.h`. The flag
-  encoding here is independently assigned and narrower than Vim's, but the
-  per-command capability mapping is Vim's. See `:help license` in Vim.
+- `vim-core/src/grammar/vim_commands.rs` and
+  `vim-core/src/primitives/vim_option_names.rs`: Vim's Ex command table (594
+  commands with their `EX_*` flags and address types), its command
+  modifiers and autocommand event names, and its option table (436 options
+  with their short names, types and `P_SECURE` flag, and 89 terminal codes),
+  at tag v9.1.0. `scripts/gen-vim-tables.py` generates both from Vim's
+  `ex_cmds.h`, `ex_docmd.c`, `autocmd.c` and `optiondefs.h`.
+  `vim-core/src/grammar/command_meta.rs` maps the command table onto the
+  engine's own `CmdFlags`, whose encoding is narrower than Vim's. See
+  `:help license` in Vim.
   <https://github.com/vim/vim>
