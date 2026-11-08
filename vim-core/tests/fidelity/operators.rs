@@ -526,6 +526,13 @@ neovim_test!(operators, nf_d_dollar, "aaa\nbbb\nccc", "d$");
 
 // d} linewise paragraph delete
 neovim_test!(operators, nf_d_paragraph, "aaa\nbbb\nccc\n", "d}");
+// } is inclusive when it runs into a non-empty last line, and passes
+// lines of blanks.
+neovim_test!(operators, d_brace_to_last_line, "aa bb\ncc", "d}");
+neovim_test!(operators, d_brace_on_last_line, "aa\n\nbb cc", cursor(2, 1), "d}");
+neovim_test!(operators, d_brace_past_blank_line, "aa\n  \ndd\n\nee", "d}");
+neovim_test!(operators, d_brace_blank_line_to_end, "aa\n  \ndd", "d}");
+neovim_test!(operators, y_brace_to_last_line, "aa bb\ncc", "y}");
 
 // dv} charwise-forced paragraph delete (differs from d})
 neovim_test!(operators, nf_dv_paragraph, "aaa\nbbb\nccc\n", "dv}");

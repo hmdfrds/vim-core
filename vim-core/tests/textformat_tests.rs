@@ -14,10 +14,10 @@
 //! `format_operator_matches_vim_oracle` does the same for `gq` and `gw`:
 //! prose, joins, indent and `tabstop`, `#`, `##`, `//` and three-piece
 //! comment blocks, leader changes, leader-only lines, comments after code,
-//! the `2`, `w`, `1`, `p`, `M` and `B` flags, motions, Visual mode, where
-//! `gw` leaves the cursor, and GDScript-like options. Its fixture was
-//! recorded the same way, with `nojoinspaces` and the cursor read after
-//! the keys.
+//! the `2`, `w`, `1`, `p`, `M` and `B` flags, motions, `}` at the end of
+//! the buffer, Visual mode, where `gw` leaves the cursor, and GDScript-like
+//! options. Its fixture was recorded the same way, with `nojoinspaces` and
+//! the cursor read after the keys.
 //!
 //! `format_gates_match_vim_oracle` replays cases recorded from interactive
 //! Vim 9.1 through `feedkeys()`, as undo puts the cursor back differently

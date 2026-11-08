@@ -29,7 +29,9 @@
 //! or `lisp`.
 
 use super::types::{OperatorContext, OperatorOrigin};
-use crate::commands::helpers::{line_end_for_offset, line_start_for_offset, prev_char_boundary};
+use crate::commands::helpers::{
+    line_end_for_offset, line_start_for_offset, prev_char_boundary, starts_paragraph_or_section,
+};
 use crate::commands::insert::smartindent::build_indent_string;
 use crate::commands::insert::wrap::{
     format_line_for_operator, map_offset, FormatPolicy, OperatorCall,
@@ -50,12 +52,6 @@ const DEFAULT_FORMAT_WIDTH: usize = 79;
 /// The `textwidth` the Visual format operators used before they read the
 /// option.
 const VISUAL_WIDTH_BEFORE: usize = 80;
-
-/// Vim's default `paragraphs`: nroff macros that start a paragraph.
-const PARAGRAPH_MACROS: &str = "IPLPPPQPP TPHPLIPpLpItpplpipbp";
-
-/// Vim's default `sections`: nroff macros that start a section.
-const SECTION_MACROS: &str = "SHNHH HUnhsh";
 
 /// Execute format operator (gq).
 ///
@@ -963,39 +959,6 @@ fn skip_string(line: &[u8], mut p: usize) -> usize {
         p -= 1;
     }
     p
-}
-
-/// Vim's `startPS(lnum, NUL, false)`: an empty line, a form feed, or an
-/// nroff paragraph or section macro.
-pub(super) fn starts_paragraph_or_section(line: &str) -> bool {
-    match line.as_bytes() {
-        [] | [b'\x0c', ..] => true,
-        [b'.', rest @ ..] => in_macro(SECTION_MACROS, rest) || in_macro(PARAGRAPH_MACROS, rest),
-        _ => false,
-    }
-}
-
-/// Vim's `inmacro()`: whether `s` starts with one of the two-letter macro
-/// names in `macros`. A space in a name matches a space or the end of the
-/// line.
-fn in_macro(macros: &str, s: &[u8]) -> bool {
-    let s0 = s.first().copied().unwrap_or(0);
-    let s1 = s.get(1).copied().unwrap_or(0);
-    let m = macros.as_bytes();
-    let mut i = 0;
-    while let Some(&m0) = m.get(i) {
-        let m1 = m.get(i + 1).copied().unwrap_or(0);
-        let first = m0 == s0 || (m0 == b' ' && (s0 == 0 || s0 == b' '));
-        let second = m1 == s1 || ((m1 == 0 || m1 == b' ') && (s0 == 0 || s1 == 0 || s1 == b' '));
-        if first && second {
-            return true;
-        }
-        if m1 == 0 {
-            break;
-        }
-        i += 2;
-    }
-    false
 }
 
 fn ends_in_white(line: &str) -> bool {

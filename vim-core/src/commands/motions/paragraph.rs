@@ -1,6 +1,6 @@
 //! Paragraph motions: {, }
 //!
-//! Navigate between paragraphs (blank-line separated blocks).
+//! Navigate between paragraphs (blocks separated by empty lines).
 //!
 //! # Philosophy
 //!
@@ -19,7 +19,7 @@
 //! pay zero cost — no LineIndex is built.
 
 use super::types::{MotionContext, MotionResult};
-use crate::commands::helpers::{is_blank_line_range, line_count};
+use crate::commands::helpers::line_count;
 use crate::commands::line_index::LineIndex;
 use crate::primitives::Offset;
 
@@ -41,16 +41,28 @@ fn get_or_build_index<'a>(
     }
 }
 
-/// Check blankness of a line using pre-computed LineIndex boundaries.
-///
-/// Avoids re-deriving line start/end from a byte offset (which `is_blank_line`
-/// does via `line_start_for_offset`/`line_end_for_offset`). Instead uses the
-/// O(1) `idx.line_start()` and `idx.line_end()` that the caller already has.
+/// The text of line `line`, without its newline. A '\r' stays: a line
+/// that holds only one is not empty, as in a Vim buffer with 'fileformat'
+/// unix.
 #[inline]
-fn is_blank_via_index(text: &str, idx: &LineIndex, line: usize) -> bool {
+fn line_text<'t>(text: &'t str, idx: &LineIndex, line: usize) -> &'t str {
     let start = idx.line_start(line).unwrap_or(0);
     let end = idx.line_end(line, text.len());
-    is_blank_line_range(text, start, end)
+    text.get(start..end).unwrap_or_default()
+}
+
+/// Vim's `startPS(lnum, NUL, FALSE)`: a line `{` and `}` stop at. That is
+/// an empty line, a line starting with a form feed, or an nroff paragraph
+/// or section macro. A line of blanks belongs to the paragraph.
+fn starts_paragraph(text: &str, idx: &LineIndex, line: usize) -> bool {
+    crate::commands::helpers::starts_paragraph_or_section(line_text(text, idx, line))
+}
+
+/// The first and last line of the closed fold that holds `line`.
+fn closed_fold(ctx: &MotionContext<'_>, line: usize) -> Option<(usize, usize)> {
+    let fold = ctx.providers.fold?;
+    let (start, end) = fold.enclosing_fold(crate::primitives::LineNumber::new(line))?;
+    Some((start.get(), end.get()))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,41 +71,45 @@ fn is_blank_via_index(text: &str, idx: &LineIndex, line: usize) -> bool {
 
 /// `{` - Previous paragraph.
 ///
-/// In Vim, `{` moves to the previous blank line before a non-blank paragraph.
-/// Symmetric to `}` but searching backward.
+/// A port of Vim's `findpar()` backward: move up past the empty lines the
+/// cursor is on, then past the paragraph, and stop at the line before it
+/// that starts a paragraph (Vim's `startPS()`), or at line 0.
 ///
-/// When a fold provider is present, closed fold boundaries act as implicit
-/// paragraph breaks. The motion stops at fold boundaries.
+/// A closed fold ends a paragraph, as an empty line does, and `{` stops on
+/// its first line. A closed fold the cursor starts in is passed first, as
+/// `findpar()` does.
 pub fn open_brace(ctx: &MotionContext<'_>) -> MotionResult {
     let mut local_index = None;
     let idx = get_or_build_index(ctx, &mut local_index);
 
     let mut line = idx.line_of(ctx.cursor.get());
-    let mut remaining = ctx.count_usize();
-
-    while remaining > 0 && line > 0 {
-        // Phase 1: Skip past any blank lines going backward
-        while line > 0 && is_blank_via_index(ctx.text, idx, line) {
-            line -= 1;
-        }
-        // Phase 2: Skip past non-blank lines (the paragraph body) going backward
-        while line > 0 && !is_blank_via_index(ctx.text, idx, line) {
-            // Fold-aware: if the previous line is inside a fold, treat the
-            // fold start as a paragraph boundary and stop before it.
-            if let Some(fold) = ctx.providers.fold {
-                if fold.is_folded(crate::primitives::LineNumber::new(line.saturating_sub(1))) {
+    for _ in 0..ctx.count_usize() {
+        let mut did_skip = false;
+        let mut first = true;
+        while line > 0 {
+            if let Some((start, _)) = closed_fold(ctx, line) {
+                if !first && did_skip {
+                    line = start;
+                    break;
+                }
+                if first && !line_text(ctx.text, idx, line).is_empty() {
+                    did_skip = true;
+                }
+                line = start;
+                if line == 0 {
+                    break;
+                }
+            } else {
+                if !line_text(ctx.text, idx, line).is_empty() {
+                    did_skip = true;
+                }
+                if !first && did_skip && starts_paragraph(ctx.text, idx, line) {
                     break;
                 }
             }
             line -= 1;
+            first = false;
         }
-        // Now `line` points to the blank line before the paragraph (or line 0)
-        remaining -= 1;
-    }
-
-    // If we couldn't find enough paragraph boundaries, go to start
-    if remaining > 0 {
-        return MotionResult::Position(Offset::new(0));
     }
 
     MotionResult::Position(Offset::new(idx.line_start(line).unwrap_or(0)))
@@ -101,12 +117,15 @@ pub fn open_brace(ctx: &MotionContext<'_>) -> MotionResult {
 
 /// `}` - Next paragraph.
 ///
-/// In Vim, `}` moves to the next blank line after a non-blank paragraph.
-/// If currently on a blank line, skip past consecutive blanks first,
-/// then find the next blank line after non-blank content.
+/// A port of Vim's `findpar()` forward: move down past the empty lines the
+/// cursor is on, then past the paragraph, and stop at the line after it
+/// that starts a paragraph (Vim's `startPS()`). On the last line the
+/// cursor goes to its last character; an operator then includes that
+/// character, as Vim makes the motion inclusive there.
 ///
-/// When a fold provider is present, closed fold boundaries act as implicit
-/// paragraph breaks. The motion stops at fold boundaries.
+/// A closed fold ends a paragraph, as an empty line does, and `}` stops on
+/// its first line. A closed fold the cursor starts in is passed first, as
+/// `findpar()` does.
 pub fn close_brace(ctx: &MotionContext<'_>) -> MotionResult {
     let total_lines = line_count(ctx.text);
     if total_lines == 0 {
@@ -116,46 +135,44 @@ pub fn close_brace(ctx: &MotionContext<'_>) -> MotionResult {
     let mut local_index = None;
     let idx = get_or_build_index(ctx, &mut local_index);
 
+    let last_line = total_lines - 1;
     let mut line = idx.line_of(ctx.cursor.get());
-    let mut remaining = ctx.count_usize();
-
-    while remaining > 0 && line < total_lines {
-        // Phase 1: Skip past any blank lines at current position
-        while line < total_lines && is_blank_via_index(ctx.text, idx, line) {
-            line += 1;
-        }
-        // Phase 2: Skip past non-blank lines (the paragraph body)
-        while line < total_lines && !is_blank_via_index(ctx.text, idx, line) {
-            // Fold-aware: if the next line is inside a fold, treat the
-            // fold boundary as a paragraph break and stop at this line.
-            if let Some(fold) = ctx.providers.fold {
-                let next = line + 1;
-                if next < total_lines && fold.is_folded(crate::primitives::LineNumber::new(next)) {
-                    line = next;
+    for _ in 0..ctx.count_usize() {
+        let mut did_skip = false;
+        let mut first = true;
+        while line < last_line {
+            if let Some((start, end)) = closed_fold(ctx, line) {
+                if !first && did_skip {
+                    line = start;
+                    break;
+                }
+                if first && !line_text(ctx.text, idx, line).is_empty() {
+                    did_skip = true;
+                }
+                if end >= last_line {
+                    line = last_line;
+                    break;
+                }
+                line = end;
+            } else {
+                if !line_text(ctx.text, idx, line).is_empty() {
+                    did_skip = true;
+                }
+                if !first && did_skip && starts_paragraph(ctx.text, idx, line) {
                     break;
                 }
             }
             line += 1;
+            first = false;
         }
-        // Now `line` points to the first blank line after the paragraph (or EOF)
-        remaining -= 1;
     }
 
-    // Clamp to last valid cursor position.
-    // When text ends with '\n', the last line is empty and its "start"
-    // equals text.len() — a valid cursor position in Neovim's model.
-    if line >= total_lines {
-        let last_valid = if ctx.text.is_empty() {
-            0
-        } else if ctx.text.ends_with('\n') {
-            ctx.text.len()
-        } else {
-            crate::primitives::text_util::prev_char_boundary(ctx.text, ctx.text.len())
-        };
-        MotionResult::Position(Offset::new(last_valid))
-    } else {
-        MotionResult::Position(Offset::new(idx.line_start(line).unwrap_or(0)))
+    // On the last line, go to its last character.
+    if line == last_line && !line_text(ctx.text, idx, line).is_empty() {
+        let last_char = crate::primitives::text_util::prev_char_boundary(ctx.text, ctx.text.len());
+        return MotionResult::Position(Offset::new(last_char));
     }
+    MotionResult::Position(Offset::new(idx.line_start(line).unwrap_or(0)))
 }
 
 #[cfg(test)]
@@ -171,17 +188,15 @@ mod tests {
         MotionContext::new(text, Offset::new(cursor), 1, options)
     }
 
-    /// `}` stops at whitespace-only lines (they ARE paragraph separators,
-    /// matching Neovim's actual behavior).
+    /// `}` does not stop at a line of blanks: Vim's findpar() only stops
+    /// at empty lines (and form feeds and nroff macros).
     #[test]
-    fn close_brace_stops_at_whitespace_only_line() {
-        // "para1\n   \npara2\n" — line 2 has spaces only, which is a boundary
-        let text = "para1\n   \npara2\n";
+    fn close_brace_passes_whitespace_only_line() {
+        let text = "para1\n   \npara2\n\npara3";
         let o = opts();
         let ctx = make_ctx(text, 0, &o);
         let result = close_brace(&ctx);
-        // Should stop at the whitespace-only line (offset 6)
-        assert_eq!(result, MotionResult::Position(Offset::new(6)));
+        assert_eq!(result, MotionResult::Position(Offset::new(16)));
     }
 
     /// `}` stops at truly empty lines.
@@ -195,15 +210,13 @@ mod tests {
         assert_eq!(result, MotionResult::Position(Offset::new(6)));
     }
 
-    /// `{` stops at whitespace-only lines.
+    /// `{` does not stop at a line of blanks either.
     #[test]
-    fn open_brace_stops_at_whitespace_only_line() {
-        // "para1\n   \npara2\n" — cursor at start of "para2" (offset 10)
-        let text = "para1\n   \npara2\n";
+    fn open_brace_passes_whitespace_only_line() {
+        let text = "para0\n\npara1\n   \npara2\n";
         let o = opts();
-        let ctx = make_ctx(text, 10, &o);
+        let ctx = make_ctx(text, 17, &o);
         let result = open_brace(&ctx);
-        // Should stop at the whitespace-only line (offset 6)
         assert_eq!(result, MotionResult::Position(Offset::new(6)));
     }
 
@@ -219,15 +232,52 @@ mod tests {
         assert_eq!(result, MotionResult::Position(Offset::new(6)));
     }
 
-    /// Tabs-only lines ARE paragraph separators (matching Neovim).
+    /// A line that holds only "\r" is not empty, so `{` and `}` go past
+    /// it, as in Vim.
     #[test]
-    fn close_brace_stops_at_tab_only_line() {
-        let text = "para1\n\t\t\npara2\n";
+    fn braces_pass_lines_holding_a_carriage_return() {
         let o = opts();
-        let ctx = make_ctx(text, 0, &o);
-        let result = close_brace(&ctx);
-        // Tabs-only line is a boundary (offset 6)
-        assert_eq!(result, MotionResult::Position(Offset::new(6)));
+        let text = "a\r\n\r\nb\r\nc";
+        assert_eq!(
+            close_brace(&make_ctx(text, 0, &o)),
+            MotionResult::Position(Offset::new(text.len() - 1))
+        );
+        assert_eq!(
+            open_brace(&make_ctx(text, 8, &o)),
+            MotionResult::Position(Offset::new(0))
+        );
+    }
+
+    /// A line starting with a form feed or an nroff macro stops `}`.
+    #[test]
+    fn close_brace_stops_at_form_feed_and_macro_lines() {
+        let o = opts();
+        let text = "para1\n\x0cpage\npara2";
+        assert_eq!(
+            close_brace(&make_ctx(text, 0, &o)),
+            MotionResult::Position(Offset::new(6))
+        );
+        let text = "para1\n.PP\npara2";
+        assert_eq!(
+            close_brace(&make_ctx(text, 0, &o)),
+            MotionResult::Position(Offset::new(6))
+        );
+    }
+
+    /// On a non-empty last line `}` goes to its last character.
+    #[test]
+    fn close_brace_on_last_line_goes_to_last_char() {
+        let o = opts();
+        let text = "aa bb\ncc";
+        assert_eq!(
+            close_brace(&make_ctx(text, 0, &o)),
+            MotionResult::Position(Offset::new(7))
+        );
+        let text = "aa bb\ncc\n";
+        assert_eq!(
+            close_brace(&make_ctx(text, 0, &o)),
+            MotionResult::Position(Offset::new(9))
+        );
     }
 
     // ── Fold-aware paragraph motion tests ────────────────────────────
@@ -255,54 +305,65 @@ mod tests {
             }
         }
 
-        #[test]
-        fn close_brace_stops_at_fold_boundary() {
-            // "aaa\nbbb\nccc\nddd\neee\n"
-            //  L0   L1   L2   L3   L4
-            //  0    4    8    12   16
-            // Lines 2-3 folded. `}` from line 0 should stop at fold boundary.
-            let text = "aaa\nbbb\nccc\nddd\neee\n";
-            let o = opts();
+        fn with_fold(text: &str, cursor: usize, count: u32, o: &VimOptions) -> (usize, usize) {
             let fold = FoldLines2To3;
             let providers = Providers::new().with_fold(&fold);
-            let ctx = MotionContext::new(text, Offset::new(0), 1, &o).with_providers(providers);
-            let result = close_brace(&ctx);
-            // `}` should stop at fold boundary (line 2, which is the first folded line)
-            if let MotionResult::Position(pos) = result {
-                let line = crate::commands::helpers::line_of(text, pos.get());
-                assert!(
-                    line <= 2,
-                    "}} should stop at fold boundary, got line {line} offset {}",
-                    pos.get()
-                );
-            } else {
-                panic!("Expected Position, got {result:?}");
-            }
+            let ctx =
+                MotionContext::new(text, Offset::new(cursor), count, o).with_providers(providers);
+            let pos = |r: MotionResult| match r {
+                MotionResult::Position(p) => p.get(),
+                other => panic!("expected a position, got {other:?}"),
+            };
+            (pos(open_brace(&ctx)), pos(close_brace(&ctx)))
         }
 
+        /// A closed fold ends a paragraph, as an empty line does, and both
+        /// motions stop on its first line. Vim has no such rule; it is
+        /// vim-core's own.
         #[test]
-        fn open_brace_stops_at_fold_boundary() {
-            // "aaa\nbbb\nccc\nddd\neee\n"
-            //  L0   L1   L2   L3   L4
-            //  0    4    8    12   16
-            // Lines 2-3 folded. `{` from line 4 should stop at fold boundary.
+        fn closed_fold_ends_a_paragraph() {
+            // Lines: aaa, bbb, [ccc, ddd folded], eee, and the empty last line.
             let text = "aaa\nbbb\nccc\nddd\neee\n";
             let o = opts();
-            let fold = FoldLines2To3;
-            let providers = Providers::new().with_fold(&fold);
-            let ctx = MotionContext::new(text, Offset::new(16), 1, &o).with_providers(providers);
-            let result = open_brace(&ctx);
-            // `{` backward from L4 should stop when it encounters the fold
-            if let MotionResult::Position(pos) = result {
-                // Should stop at or before the fold
-                assert!(
-                    pos.get() <= 16,
-                    "{{ should stop at fold boundary, got offset {}",
-                    pos.get()
-                );
-            } else {
-                panic!("Expected Position, got {result:?}");
-            }
+            assert_eq!(with_fold(text, 0, 1, &o).1, 8);
+            assert_eq!(with_fold(text, 16, 1, &o).0, 8);
+        }
+
+        /// From inside a closed fold, `{` and `}` first pass the fold, as
+        /// Vim's `findpar()` (textobject.c) does, and the cursor's line
+        /// counts as text: an empty line right after the fold stops them.
+        #[test]
+        fn braces_from_inside_a_closed_fold_pass_it() {
+            // Lines: aaa, bbb, [ccc, ddd folded], "", eee.
+            let text = "aaa\nbbb\nccc\nddd\n\neee";
+            let o = opts();
+            assert_eq!(with_fold(text, 8, 1, &o).1, 16);
+            assert_eq!(with_fold(text, 12, 1, &o).1, 16);
+            // Lines: aaa, "", [bbb, ccc folded], ddd, eee.
+            let text = "aaa\n\nbbb\nccc\nddd\neee";
+            assert_eq!(with_fold(text, 9, 1, &o).0, 4);
+            assert_eq!(with_fold(text, 5, 1, &o).0, 4);
+        }
+
+        /// A count stops at one fold per step: the second `}` or `{` passes
+        /// the fold the first one stopped on.
+        #[test]
+        fn counted_braces_pass_the_fold_they_stopped_on() {
+            let text = "aaa\nbbb\nccc\nddd\neee\n";
+            let o = opts();
+            assert_eq!(with_fold(text, 0, 2, &o).1, 20);
+            assert_eq!(with_fold(text, 20, 2, &o).0, 0);
+        }
+
+        /// Like empty lines, a closed fold that comes before any text is
+        /// passed: `}` from an empty line above a fold goes on to the next
+        /// empty line after the paragraph below it.
+        #[test]
+        fn close_brace_from_an_empty_line_passes_the_fold_below() {
+            // Lines: aaa, "", [ccc, ddd folded], eee, "", fff.
+            let text = "aaa\n\nccc\nddd\neee\n\nfff";
+            let o = opts();
+            assert_eq!(with_fold(text, 4, 1, &o).1, 17);
         }
     }
 }

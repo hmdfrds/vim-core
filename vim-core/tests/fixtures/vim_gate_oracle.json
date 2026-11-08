@@ -4632,6 +4632,43 @@
    }
   },
   {
+   "name": "} in CRLF text goes past a line that holds only a carriage return",
+   "lines": [
+    "a\r",
+    "\r",
+    "b\r",
+    "c"
+   ],
+   "cursor": [
+    0,
+    0
+   ],
+   "keys": "}",
+   "opts": {
+    "tw": 0,
+    "fo": "tcq",
+    "ai": false,
+    "et": false,
+    "ts": 8,
+    "sw": 4
+   },
+   "expected": {
+    "lines": [
+     "a\r",
+     "\r",
+     "b\r",
+     "c"
+    ],
+    "cursor": [
+     3,
+     0
+    ],
+    "mode": "n",
+    "reg": "",
+    "regtype": ""
+   }
+  },
+  {
    "name": "curswant after a dot repeat of o with an autoindent, into Visual",
    "lines": [
     "\t"

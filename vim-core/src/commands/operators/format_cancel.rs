@@ -9,7 +9,7 @@
 //! The sentence and paragraph checks follow Vim 9.1's `findsent()` and
 //! `findpar()` (textobject.c) far enough to tell whether they fail.
 
-use super::format::starts_paragraph_or_section;
+use crate::commands::helpers::starts_paragraph_or_section;
 use crate::grammar::types::Motion;
 
 /// What Vim does with the cursor when a motion fails for an operator.

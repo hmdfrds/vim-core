@@ -499,6 +499,12 @@ neovim_test!(motions, para_backward_at_start, "l1\n\nl2", "{");
 neovim_test!(motions, para_backward_only_blanks, "\n\n\n", cursor(2, 0), "{");
 neovim_test!(motions, para_forward_count_reaches_end, "l1\n\nl2\nl3", "2}");
 neovim_test!(motions, para_backward_count_reaches_start, "l1\n\nl2\nl3", cursor(3, 1), "2{");
+// A line of blanks is part of the paragraph; only an empty line, a form
+// feed or an nroff macro stops { and }.
+neovim_test!(motions, para_forward_past_blank_line, "aa\n  \ndd\n\nee", "}");
+neovim_test!(motions, para_backward_past_blank_line, "aa\n\nbb\n\t\ndd", cursor(4, 0), "{");
+neovim_test!(motions, para_forward_stops_at_form_feed, "aa\n\x0cpage\ndd", "}");
+neovim_test!(motions, para_forward_stops_at_macro, "aa\n.PP\ndd", "}");
 // NEW: sentence edge cases
 neovim_test!(motions, sentence_forward_empty_buffer, "", ")");
 neovim_test!(motions, sentence_forward_single_word, "hello", ")");

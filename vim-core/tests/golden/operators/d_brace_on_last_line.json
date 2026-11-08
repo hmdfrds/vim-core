@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "nvim_version": "0.12.2",
+  "generated_at": "1791163599",
+  "input": {
+    "text": "aa\n\nbb cc",
+    "cursor": [
+      2,
+      1
+    ],
+    "mode": "Normal",
+    "keys": "d}"
+  },
+  "expected": {
+    "text": "aa\n\nb",
+    "cursor_offset": 4,
+    "cursor_line": 2,
+    "cursor_col": 0,
+    "mode": "Normal",
+    "registers": {
+      "\"": {
+        "text": "b cc",
+        "regtype": "v"
+      },
+      "1": {
+        "text": "b cc",
+        "regtype": "v"
+      },
+      "-": {
+        "text": "b cc",
+        "regtype": "v"
+      }
+    },
+    "marks": {
+      ".": 5,
+      "[": 5,
+      "]": 5
+    },
+    "window": {
+      "topline": 1,
+      "botline": 3,
+      "height": 22,
+      "width": 80
+    },
+    "curswant": 0,
+    "changelist": [
+      3,
+      5
+    ],
+    "changelist_idx": 2
+  }
+}
